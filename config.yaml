@@ -1,0 +1,113 @@
+# =====================================================================
+#  A股集合竞价选股 · 全部阈值集中在此文件
+#  改这里就够了，不用动代码。改完 git push 即生效。
+# =====================================================================
+
+runtime:
+  # 竞价三次快照的北京时间（HH:MM:SS）
+  snapshot_t1: "09:19:40"   # 撤单前虚拟撮合价
+  snapshot_t2: "09:23:30"   # 中段
+  snapshot_t3: "09:25:10"   # 最终竞价结果（价格自此固定到 09:30）
+  snapshot_t4: "09:27:20"   # 补采：只为把 T3 漏掉的票补回来，价格不会变
+  hard_deadline: "09:26:30" # 超过此时刻仍未开始 -> 放弃并发告警邮件
+  send_at: "09:28:30"       # 单次发信时刻（含 LLM 分析）
+  timezone: "Asia/Shanghai"
+
+universe:
+  # ---- 盘前候选池构建（08:35 运行）----
+  max_candidates: 1600
+  exclude_st: true
+  exclude_bj: false           # 北交所保留（30cm 已按涨停幅度归一化）
+  min_listed_days: 60         # 次新股
+  min_mktcap_yi: 0            # 不限市值
+  max_mktcap_yi: 0            # 0 = 不限
+  exclude_yesterday_limit_down: true
+  max_3d_gain_pct: 25.0       # 近3日累计涨幅超此值剔除（高位）
+  # 入池条件（满足任一）
+  include_if:
+    yesterday_limit_up: true       # 昨日涨停
+    yesterday_gain_pct_gte: 5.0    # 昨日涨幅 >= 5%
+    amount_ratio_5d_gte: 1.5       # 昨日成交额 / 前5日均额
+    in_hot_board: true             # 属于昨日涨幅前 15 的行业/概念
+
+# ---- 公告黑名单关键词（盘前扫描候选池的隔夜公告）----
+announcement_blacklist:
+  - 减持
+  - 立案
+  - 问询函
+  - 关注函
+  - 业绩预亏
+  - 业绩下修
+  - 商誉减值
+  - 违规担保
+  - 平仓
+  - 解禁
+  - 终止
+  - 退市风险
+
+# =====================================================================
+#  竞价筛选阈值  —— 主要调参区
+# =====================================================================
+screen:
+  # GAP_NORM = 高开幅度 / 当日涨停幅度（主板10% 创业板20% 已自动归一）
+  gap_norm_min: 0.20        # 主板 ≈ +2.0%
+  gap_norm_max: 0.55        # 主板 ≈ +5.5%
+  gap_norm_peak: 0.35       # 打分钟形函数的峰值位置
+
+  # AUC_RATIO = 竞价成交额 / 昨日全天成交额
+  auc_ratio_min: 0.015      # 1.5%   ≈ 传统"量比" 3.6
+  auc_ratio_max: 0.080      # 8.0%   ≈ 传统"量比" 19
+  auc_ratio_score_hi: 0.030 # 打分饱和点 3.0%
+
+  # 绝对流动性下限。取消市值限制后必须加这条：
+  # 一只 5 亿市值的票竞价成交 20 万也能满足 1.5% 的比例条件，
+  # 但那个盘口你根本买不进去，比例指标在小盘票上会失真。
+  min_auc_amount_wan: 300   # 竞价成交额下限（万元）
+
+  # 竞价形态
+  require_positive_slope: false   # T3涨幅 > T1涨幅 才入选（严格模式打开）
+  last_min_dive_max: 2.0          # T2->T3 跳水超过此值(百分点)直接剔除
+  fake_limit_t1_frac: 0.90        # T1 涨幅 >= 涨停幅度*0.90 视为"假涨停"
+  fake_limit_t3_frac: 0.50        # 且 T3 < 涨停幅度*0.50 -> 撤单诱多
+
+  # 位置与形态
+  pos_pct_60d_max_for_lowbase: 0.40   # B组：60日价格分位上限
+  breakout_lookback: 20               # A组：突破前 N 日平台高点
+
+  # 板块共振
+  sector_min_members: 3               # 候选池内同板块入选数
+  concept_prev_limitup_min: 2         # 概念昨日涨停家数
+
+output:
+  merge_groups: true    # 合并 A/B，出一张总榜
+  top_n: 10             # 合并后取前 10
+  top_n_a: 10           # merge_groups=false 时才生效
+  top_n_b: 6
+  min_score: 45         # 低于此分不输出
+  send_when_empty: true # 空榜也发信，明确告知今日无标的
+  attach_csv: true      # 附完整候选池打分明细（含被剔除原因）
+  ths_tiers: [80, 65]   # 同花顺分层板块阈值：>=80 强，>=65 中，其余 观察
+
+scoring:
+  weights:
+    gap: 0.20
+    volume: 0.25
+    trend: 0.20
+    position: 0.15
+    sector: 0.15
+    continuity: 0.05
+  penalties:
+    fake_limit_up: 40
+    last_min_dive: 25
+    high_pos_extreme_volume: 30
+    one_word_limit: 100      # 一字板买不进，直接排除
+    yesterday_broken_board: 15
+    announcement_blacklist: 60
+
+llm:
+  enabled: true
+  model: "claude-opus-5"       # 经 claude-code-action + OAuth 调用
+  timeout_seconds: 150
+  # LLM 只写"入选理由/风险提示"，绝不参与打分与排序
+  # 撞额度/失败时：仍然发信，但在邮件顶部明确声明本次无 LLM 分析
+  on_failure: send_with_notice

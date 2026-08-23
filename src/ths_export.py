@@ -1,0 +1,166 @@
+"""
+同花顺输出。
+
+⚠️ 重要结论（查证后更正上一轮）：
+    同花顺**没有**通达信那种「自定义数据管理器」——不能把外部算好的
+    数值/字符串导入成行情列表里的一列。
+    社区工具链的方向全部是「同花顺 -> 通达信」：把同花顺的表头数据导出，
+    再做成通达信的自定义外部数据。反方向不存在。
+
+同花顺实际支持的两条：
+  1) 自选股板块设置 -> 导入 -> 文件类型选 TXT -> 纯代码列表
+  2) 剪贴板识别：复制一列 6 位代码，同花顺会自动弹出识别框，
+     点「加入自选股/板块股」即可
+
+因此路线 C 在同花顺上降级为：
+  · 用**分层板块**表达排名（强 / 中 / 观察 三个板块）
+  · 理由与风险放在本地 HTML 面板，配一键复制按钮，
+    利用剪贴板识别把任意子集推进同花顺
+
+如果你愿意额外装一个通达信（免费、体积小、可与同花顺共存）当评分看板，
+tdx_export.py 里的完整版随时可用——那边能做到真正的可排序评分列。
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+
+def _tier(score: float, tiers: list[float]) -> str:
+    if score >= tiers[0]:
+        return "强"
+    if score >= tiers[1]:
+        return "中"
+    return "观察"
+
+
+def write_ths_blocks(rows: list[dict], out_dir: Path,
+                     tiers: list[float], date: str) -> list[Path]:
+    """
+    生成同花顺可导入的分层板块 TXT。
+    格式：每行一个 6 位代码，无前缀、无表头。GBK + CRLF。
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    buckets: dict[str, list[str]] = {"强": [], "中": [], "观察": []}
+    for r in rows:
+        buckets[_tier(r["score"], tiers)].append(r["code"])
+
+    paths = []
+    for name, codes in buckets.items():
+        if not codes:
+            continue
+        p = out_dir / f"竞价_{name}.txt"
+        p.write_bytes(("\r\n".join(codes) + "\r\n").encode("gbk"))
+        paths.append(p)
+
+    p = out_dir / "竞价_全部.txt"
+    p.write_bytes(("\r\n".join(r["code"] for r in rows) + "\r\n").encode("gbk"))
+    paths.insert(0, p)
+    return paths
+
+
+# ---------------------------------------------------------------------
+_PANEL = """<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>竞价榜 __DATE__</title><style>
+*{box-sizing:border-box}
+body{font:14px/1.55 -apple-system,'Microsoft YaHei',sans-serif;margin:0;
+     padding:14px;background:#14161a;color:#e6e6e6}
+h1{font-size:15px;margin:0 0 4px}
+.sub{color:#888;font-size:12px;margin-bottom:12px}
+.bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+button{background:#2a2f38;color:#e6e6e6;border:1px solid #3a4149;border-radius:5px;
+       padding:6px 12px;font-size:13px;cursor:pointer}
+button:hover{background:#39404b}
+button.on{background:#c1440e;border-color:#c1440e}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{background:#1e2229;text-align:left;padding:7px 8px;position:sticky;top:0;
+   border-bottom:1px solid #333;white-space:nowrap;font-weight:600}
+td{padding:7px 8px;border-bottom:1px solid #232830;vertical-align:top}
+tr:hover{background:#1b1f26}
+.code{font-family:Consolas,monospace;font-weight:600;color:#7fb3ff;cursor:pointer}
+.up{color:#ff6b6b}.sc{font-weight:700;color:#ffb347}
+.t强{color:#ff6b6b}.t中{color:#ffb347}.t观察{color:#8f9aa8}
+.rn{color:#c9d1d9;font-size:12px}.rz{color:#d0a34a;font-size:12px;margin-top:2px}
+.tip{color:#7d8590;font-size:12px;margin-top:14px;line-height:1.7}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+   background:#c1440e;padding:8px 18px;border-radius:5px;opacity:0;
+   transition:.25s;font-size:13px;pointer-events:none}
+#toast.show{opacity:1}
+</style></head><body>
+<h1>集合竞价榜 · __DATE__</h1>
+<div class="sub">__SUB__</div>
+<div class="bar">
+  <button onclick="cp('all',this)">复制全部代码</button>
+  <button onclick="cp('强',this)">仅「强」</button>
+  <button onclick="cp('中',this)">仅「中」</button>
+</div>
+<table><thead><tr>
+<th>#</th><th>代码</th><th>名称</th><th>层</th><th>竞价价</th><th>高开</th>
+<th>量能</th><th>形态</th><th>板块</th><th>分</th><th>理由 / 风险</th>
+</tr></thead><tbody>__ROWS__</tbody></table>
+<div class="tip">
+点任意代码即复制该代码；上方按钮批量复制。<br>
+复制后切到同花顺，剪贴板识别框会自动弹出 → 点「加入自选股/板块股」。<br>
+或：自选股板块设置 → 导入 → 文件类型选 TXT → 选 out/ 目录下的 竞价_*.txt。
+</div>
+<div id="toast"></div>
+<script>
+const D=__DATA__;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;
+  t.className='show';setTimeout(()=>t.className='',1300);}
+function put(txt,msg){
+  navigator.clipboard.writeText(txt).then(()=>toast(msg))
+  .catch(()=>{const a=document.createElement('textarea');a.value=txt;
+    document.body.appendChild(a);a.select();document.execCommand('copy');
+    a.remove();toast(msg);});
+}
+function cp(k,btn){
+  const s=(k==='all'?D:D.filter(x=>x.tier===k)).map(x=>x.code);
+  if(!s.length){toast('该层为空');return;}
+  put(s.join('\\n'), '已复制 '+s.length+' 个代码');
+  document.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+function one(c){put(c,'已复制 '+c);}
+</script></body></html>"""
+
+
+def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
+                    tiers: list[float], date: str, notice: str = "") -> Path:
+    tr = []
+    data = []
+    for i, r in enumerate(rows, 1):
+        tier = _tier(r["score"], tiers)
+        data.append({"code": r["code"], "tier": tier})
+        t = texts.get(r["code"], {})
+        shape = "抬升" if (r["monotonic"] and r["slope"] > 0) else (
+                "走弱" if r["slope"] < 0 else "震荡")
+        rs = r["risk_tags"]
+        cell = (f'<div class="rn">{t.get("reason","")}</div>'
+                if t.get("reason") else "")
+        rk = t.get("risk") or (" / ".join(rs) if rs else "")
+        if rk:
+            cell += f'<div class="rz">⚠ {rk}</div>'
+        tr.append(
+            f'<tr><td>{i}</td>'
+            f'<td class="code" onclick="one(\'{r["code"]}\')">{r["code"]}</td>'
+            f'<td>{r["name"]}</td><td class="t{tier}">{tier}</td>'
+            f'<td>{r["auc_price"]:.2f}</td>'
+            f'<td class="up">+{r["gap_pct"]:.2f}%</td>'
+            f'<td>{r["auc_ratio"]*100:.2f}%</td>'
+            f'<td>{shape} {r["slope"]:+.1f}</td>'
+            f'<td>{r["sector"]}'
+            + (f'·{r["sector_members"]}' if r["sector_members"] >= 3 else '')
+            + f'</td><td class="sc">{r["score"]:.0f}</td>'
+            f'<td>{cell}</td></tr>'
+        )
+    sub = f'共 {len(rows)} 只 · 采集于 09:25:10'
+    if notice:
+        sub += f' · <span style="color:#d0a34a">{notice}</span>'
+    html = (_PANEL.replace("__DATE__", date).replace("__SUB__", sub)
+            .replace("__ROWS__", "".join(tr))
+            .replace("__DATA__", json.dumps(data, ensure_ascii=False)))
+    p = out_dir / "panel.html"
+    p.write_text(html, encoding="utf-8")
+    return p
