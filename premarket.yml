@@ -1,0 +1,29 @@
+name: 1-盘前候选池 (08:35 BJT)
+
+on:
+  schedule:
+    - cron: "23 0 * * 1-5"   # 08:23 BJT，避开整点
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt
+      - name: 构建候选池
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO:   ${{ secrets.MAIL_TO }}
+        run: python src/premarket.py
+      - uses: actions/upload-artifact@v4
+        with: { name: universe, path: cache/, retention-days: 3 }

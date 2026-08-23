@@ -1,0 +1,25 @@
+name: 0-冒烟测试（首次必跑）
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt
+      - name: 数据源与打分逻辑
+        run: python src/smoke_test.py
+      - name: 邮件通道
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO:   ${{ secrets.MAIL_TO }}
+        run: |
+          python -c "import sys;sys.path.insert(0,'src');from mailer import send_alert;send_alert('冒烟测试通过：Gmail 通道正常，数据源可达。')"

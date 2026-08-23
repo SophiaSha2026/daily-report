@@ -1,0 +1,134 @@
+name: 2-竞价选股 (09:25 BJT)
+
+# GitHub Actions 的 cron 是尽力而为：官方文档承认高负载会延迟，
+# 社区实测整点附近常见 5-30 分钟，极端时被丢弃。
+# 因此提前 38 分钟触发 + 三个错峰入口 + Job 内自旋等待到精确时刻。
+on:
+  schedule:
+    - cron: "47 0 * * 1-5"   # 08:47 BJT
+    - cron: "59 0 * * 1-5"   # 08:59 BJT
+    - cron: "11 1 * * 1-5"   # 09:11 BJT 兜底
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 幂等检查（三个 cron 只跑一次）
+        id: g
+        run: |
+          D=$(TZ=Asia/Shanghai date +%F)
+          echo "date=$D" >> $GITHUB_OUTPUT
+          if [ -f "data/${D:0:7}/auction_${D}.parquet" ]; then
+            echo "skip=true"  >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.g.outputs.skip == 'false'
+        with: { python-version: "3.11", cache: pip }
+
+      - run: pip install -r requirements.txt
+        if: steps.g.outputs.skip == 'false'
+
+      # 阶段1：等待 -> T1/T2/T3/T4 -> 打分 -> 写 brief.json + prompt.md
+      - name: 竞价采集与打分
+        if: steps.g.outputs.skip == 'false'
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO:   ${{ secrets.MAIL_TO }}
+        run: python src/run_auction.py --stage quick
+
+      # 阶段2：Claude 查证题材与风险。失败不阻断，邮件照发并声明。
+      # OAuth token 只对 Claude Code 有效、会被 Messages API 拒绝，
+      # 所以必须走 claude-code-action，不能用 anthropic SDK 直连。
+      - name: Claude 分析 (OAuth)
+        id: llm
+        if: steps.g.outputs.skip == 'false' && env.TOKEN != ''
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt_file: out/prompt.md
+          claude_args: >-
+            --max-turns 12
+            --model claude-opus-5
+            --allowedTools "WebSearch,WebFetch,Read,Write"
+
+      # 备用：没配 OAuth 但配了 API Key 时走这条
+      - name: Claude 分析 (API Key 备用)
+        if: steps.g.outputs.skip == 'false' && env.TOKEN == '' && env.KEY != ''
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          KEY:   ${{ secrets.ANTHROPIC_API_KEY }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: out/prompt.md
+          claude_args: >-
+            --max-turns 12
+            --model claude-opus-5
+            --allowedTools "WebSearch,WebFetch,Read,Write"
+
+      - name: 发信 + 生成同花顺文件
+        if: steps.g.outputs.skip == 'false'
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO:   ${{ secrets.MAIL_TO }}
+          GH_OWNER:  ${{ github.repository_owner }}
+          GH_REPO:   ${{ github.event.repository.name }}
+        run: python src/run_auction.py --stage enrich
+
+      - name: 提交数据（同时充当 60 天 keepalive）
+        if: steps.g.outputs.skip == 'false'
+        run: |
+          git config user.name auction-bot
+          git config user.email bot@users.noreply.github.com
+          git add data/ out/ || true
+          git diff --staged --quiet || git commit -m "data: ${{ steps.g.outputs.date }}"
+          git pull --rebase --autostash || true
+          git push || echo "::warning::push 失败"
+
+      # 面板发布到 GitHub Pages，手机电脑都能直接打开，本地不用装任何东西
+      - name: 准备 Pages
+        if: steps.g.outputs.skip == 'false'
+        run: |
+          mkdir -p _site
+          cp out/panel.html _site/index.html 2>/dev/null || \
+            echo "<h1>今日暂无数据</h1>" > _site/index.html
+          cp out/*.txt _site/ 2>/dev/null || true
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.g.outputs.skip == 'false'
+        with: { path: _site }
+      - uses: actions/deploy-pages@v4
+        if: steps.g.outputs.skip == 'false'
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.g.outputs.skip == 'false'
+        with:
+          name: auction-${{ steps.g.outputs.date }}
+          path: |
+            data/
+            out/
+          retention-days: 30
