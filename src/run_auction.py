@@ -148,6 +148,13 @@ def write_prompt(sel: list[dict], date: str) -> None:
     tpl = (ROOT / "prompts" / "analyst.md").read_text(encoding="utf-8")
     (OUT / "prompt.md").write_text(f"# 日期：{date}\n\n{tpl}", encoding="utf-8")
     (OUT / "commentary.json").write_text("{}", encoding="utf-8")
+    # 日期戳。out/ 每天会被提交进仓库，下一次 checkout 就带着上一交易日的
+    # selected.json。采集环节但凡提前退出（非交易日/超死线/候选池缺失），
+    # enrich 读到的就是旧清单，会把昨天的票当成今天的发出去。
+    # 所以发信前必须比对这个戳。
+    (OUT / "run_meta.json").write_text(
+        json.dumps({"date": date, "n": len(sel)}, ensure_ascii=False),
+        encoding="utf-8")
 
 
 # ---------------------------------------------------------------------
@@ -215,6 +222,17 @@ def stage_enrich(c: dict) -> int:
     f = OUT / "selected.json"
     if not f.exists():
         log.info("无 selected.json（今日未运行或非交易日），跳过")
+        return 0
+
+    # out/ 是提交进仓库的，checkout 下来就带着上一交易日的产物。
+    # 没有今天的日期戳就说明本次采集没跑完，绝不能拿旧清单发信。
+    try:
+        stamp = json.loads((OUT / "run_meta.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        stamp = {}
+    if stamp.get("date") != today:
+        log.warning("out/ 里是 %s 的产物（今天 %s），本次不发信",
+                    stamp.get("date", "未知"), today)
         return 0
     sel = json.loads(f.read_text(encoding="utf-8"))
 

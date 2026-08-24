@@ -29,7 +29,10 @@ concurrency:
 jobs:
   screen:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    # 最早的入口 08:35 触发，一路等到 09:28 发信、再提交和发 Pages，
+    # 单 job 净跑约 55 分钟——今天实测 54m37s，离 55 分钟只剩 23 秒。
+    # 再叠上候选池兜底那 4 分钟必然被杀。放到 75 分钟，等待期不额外计费。
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -142,13 +145,20 @@ jobs:
           git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:main             || echo "::warning::push 失败"
 
       # 面板发布到 GitHub Pages，手机电脑都能直接打开，本地不用装任何东西
+      # 同样要看日期戳：out/ 是提交进仓库的，采集没跑完时里面是上一交易日的
+      # 面板，直接发上 Pages 就成了「昨天的榜挂着今天的链接」。
       - name: 准备 Pages
         if: steps.g.outputs.skip == 'false'
         run: |
           mkdir -p _site
-          cp out/panel.html _site/index.html 2>/dev/null || \
+          D=$(TZ=Asia/Shanghai date +%F)
+          if grep -q "\"date\": \"$D\"" out/run_meta.json 2>/dev/null; then
+            cp out/panel.html _site/index.html
+            cp out/*.txt _site/ 2>/dev/null || true
+          else
+            echo "::warning::out/ 不是今天的产物，Pages 不更新"
             echo "<h1>今日暂无数据</h1>" > _site/index.html
-          cp out/*.txt _site/ 2>/dev/null || true
+          fi
       - uses: actions/upload-pages-artifact@v3
         if: steps.g.outputs.skip == 'false'
         with: { path: _site }
