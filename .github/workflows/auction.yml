@@ -88,6 +88,21 @@ jobs:
           MAIL_TO:   ${{ secrets.MAIL_TO }}
         run: python src/run_auction.py --stage quick
 
+      # 采集环节可能提前退出（法定节假日是工作日但不开市、超死线、候选池缺失）。
+      # 那种情况下 out/ 里是上一交易日的 brief.json，让 Claude 去分析它纯属
+      # 白烧订阅额度——OAuth 走的是用户订阅同一个池子。所以这里设门。
+      - name: 本轮是否真的出了清单
+        id: q
+        if: steps.g.outputs.skip == 'false'
+        run: |
+          D=$(TZ=Asia/Shanghai date +%F)
+          if grep -q "\"date\": \"$D\"" out/run_meta.json 2>/dev/null; then
+            echo "fresh=true"  >> $GITHUB_OUTPUT
+          else
+            echo "fresh=false" >> $GITHUB_OUTPUT
+            echo "::warning::本轮未产出今日清单，跳过 Claude 分析"
+          fi
+
       # 阶段2：Claude 查证题材与风险。失败不阻断，邮件照发并声明。
       # 关键点：
       #  · v1 没有 prompt_file 参数，只有 prompt；model/allowed_tools/max_turns
@@ -97,7 +112,7 @@ jobs:
       #    所以必须走本 action，不能用 anthropic SDK 直连
       - name: Claude 分析
         id: llm
-        if: steps.g.outputs.skip == 'false'
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         continue-on-error: true
         timeout-minutes: 3
         uses: anthropics/claude-code-action@v1
@@ -114,7 +129,7 @@ jobs:
             --json-schema '{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"code":{"type":"string"},"reason":{"type":"string"},"risk":{"type":"string"}},"required":["code","reason","risk"]}}},"required":["items"]}'
 
       - name: 落盘 Claude 输出
-        if: always() && steps.g.outputs.skip == 'false'
+        if: always() && steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         env:
           RAW: ${{ steps.llm.outputs.structured_output }}
         run: python src/collect_llm.py
@@ -142,7 +157,7 @@ jobs:
           # 必须显式带 token：claude-code-action 跑完会把 checkout 写进
           # .git/config 的凭证清掉，之后裸 git push 会报
           # 「Invalid username or token」。2026-08-24 实测踩到。
-          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:main             || echo "::warning::push 失败"
+          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref_name }}             || echo "::warning::push 失败"
 
       # 面板发布到 GitHub Pages，手机电脑都能直接打开，本地不用装任何东西
       # 同样要看日期戳：out/ 是提交进仓库的，采集没跑完时里面是上一交易日的
