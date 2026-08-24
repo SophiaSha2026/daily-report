@@ -15,6 +15,15 @@ permissions:
   pages: write
   id-token: write
 
+# 幂等检查只看 data/auction_<date>.parquet 存不存在，而那个文件要到 09:27
+# 才写出来。三个 cron 分别在 08:47/08:59/09:11 checkout，全都看不到它，
+# 于是三个 job 并行跑完、发出三封一模一样的邮件。
+# 加串行组：后来的排队等前一个跑完，那时 checkout 已经能看到数据文件，
+# 幂等检查生效，整个 job 空跑跳过。
+concurrency:
+  group: auction-daily
+  cancel-in-progress: false
+
 jobs:
   screen:
     runs-on: ubuntu-latest
