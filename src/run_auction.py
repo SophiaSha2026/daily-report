@@ -120,6 +120,9 @@ def build_features(uni: pd.DataFrame, snaps: dict[str, dict[str, Quote]],
     cnt: dict[str, int] = {}
     for f in prelim:
         cnt[f.sector] = cnt.get(f.sector, 0) + 1
+    # 「未分类」不是板块，是板块缓存缺失时的占位。不剔掉的话它会变成一个
+    # 装着几百只票的巨型「板块」，f_sector 给每只都打满分，白送 15 分权重。
+    cnt.pop("未分类", None)
     for f in feats:
         f.sector_members = cnt.get(f.sector, 0)
     log.info("特征 %d 只，初筛通过 %d 只", len(feats), len(prelim))

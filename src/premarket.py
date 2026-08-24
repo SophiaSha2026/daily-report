@@ -151,6 +151,7 @@ def attach_sector(df: pd.DataFrame) -> pd.DataFrame:
         m = pd.read_parquet(p).set_index("code")["sector"].to_dict()
         df["sector"] = df["code"].map(m).fillna("未分类")
     cnt = (df[df["prev_limit_up"]].groupby("sector").size().to_dict())
+    cnt.pop("未分类", None)          # 占位符不参与板块共振，理由见 run_auction
     df["sector_prev_limitups"] = df["sector"].map(cnt).fillna(0).astype(int)
     return df
 

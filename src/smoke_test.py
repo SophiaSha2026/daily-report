@@ -78,10 +78,22 @@ def t_calendar():
 
 
 def t_hist():
+    """
+    日线取数。东财为主，腾讯为辅——只要有一路给出足够长度就算通过，
+    因为盘前 stage2 用的就是这条带降级的链路。
+    两路都单测一遍，把各自可用性打印出来，便于判断要不要调熔断阈值。
+    """
     import datasource as ds
+    detail = []
+    for tag, fn in (("东财", ds.daily_hist_em), ("腾讯", ds.daily_hist_tx)):
+        try:
+            n = len(fn("600000", "20260101", "20260820"))
+            detail.append(f"{tag} {n}根" if n > 50 else f"{tag} 仅{n}根")
+        except Exception as e:  # noqa: BLE001
+            detail.append(f"{tag} 不可用({type(e).__name__})")
     h = ds.daily_hist("600000", "20260101", "20260820")
-    assert h is not None and len(h) > 50, "日线过短"
-    return f"{len(h)} 根K线"
+    assert h is not None and len(h) > 50, f"两路都拿不到日线: {' / '.join(detail)}"
+    return f"{len(h)} 根K线 | {' / '.join(detail)}"
 
 
 def t_scoring():
@@ -101,7 +113,7 @@ if __name__ == "__main__":
     check("批量吞吐(1600只)", t_batch)
     check("全市场快照(腾讯)", t_spot)
     check("交易日历", t_calendar)
-    check("日线历史(东财单只)", t_hist)
+    check("日线历史(东财主/腾讯辅)", t_hist)
     check("打分逻辑自测", t_scoring)
     print("-" * 72)
     print("以下为非关键项，失败不影响运行：")
