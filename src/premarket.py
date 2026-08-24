@@ -199,6 +199,12 @@ def main() -> int:
     out = ROOT / "cache"
     out.mkdir(exist_ok=True)
     df[cols].to_parquet(out / "universe.parquet", index=False)
+    # 给竞价任务判新鲜度用：cron 是尽力而为，盘前那班可能整个被丢掉，
+    # 竞价 job 看到日期对不上就自己现建一份，不至于当天空跑。
+    (out / "universe_meta.json").write_text(
+        __import__("json").dumps({"date": today, "count": int(len(df))},
+                                 ensure_ascii=False),
+        encoding="utf-8")
     log.info("候选池已写入 %d 只", len(df))
     return 0
 

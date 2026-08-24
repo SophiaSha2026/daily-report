@@ -25,4 +25,4 @@ jobs:
           git add cache/
           git diff --staged --quiet || git commit -m "chore: 刷新板块缓存"
           git pull --rebase --autostash || true
-          git push || echo "::warning::push 失败"
+          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:main             || echo "::warning::push 失败"

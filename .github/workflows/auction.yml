@@ -49,6 +49,29 @@ jobs:
       - run: pip install -r requirements.txt
         if: steps.g.outputs.skip == 'false'
 
+      # cron 是尽力而为：08:23 那班盘前有可能整个被丢掉（2026-08-24 当天
+      # 四个 cron 一个都没触发）。候选池日期对不上就在这儿现建一份，
+      # 约 4 分钟，离 09:14 预热还有余量。
+      - name: 候选池新鲜度检查
+        id: uni
+        if: steps.g.outputs.skip == 'false'
+        run: |
+          D=$(TZ=Asia/Shanghai date +%F)
+          if grep -q "\"date\": \"$D\"" cache/universe_meta.json 2>/dev/null; then
+            echo "fresh=true"  >> $GITHUB_OUTPUT
+          else
+            echo "fresh=false" >> $GITHUB_OUTPUT
+          fi
+      - name: 盘前候选池兜底
+        if: steps.g.outputs.skip == 'false' && steps.uni.outputs.fresh == 'false'
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO:   ${{ secrets.MAIL_TO }}
+        run: python src/premarket.py
+
       # 阶段1：等待 -> T1/T2/T3/T4 -> 打分 -> 写 brief.json + prompt.md
       - name: 竞价采集与打分
         if: steps.g.outputs.skip == 'false'
@@ -108,10 +131,13 @@ jobs:
         run: |
           git config user.name auction-bot
           git config user.email bot@users.noreply.github.com
-          git add data/ out/ || true
+          git add data/ out/ cache/ || true
           git diff --staged --quiet || git commit -m "data: ${{ steps.g.outputs.date }}"
           git pull --rebase --autostash || true
-          git push || echo "::warning::push 失败"
+          # 必须显式带 token：claude-code-action 跑完会把 checkout 写进
+          # .git/config 的凭证清掉，之后裸 git push 会报
+          # 「Invalid username or token」。2026-08-24 实测踩到。
+          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:main             || echo "::warning::push 失败"
 
       # 面板发布到 GitHub Pages，手机电脑都能直接打开，本地不用装任何东西
       - name: 准备 Pages

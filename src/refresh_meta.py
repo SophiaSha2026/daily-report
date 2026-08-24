@@ -204,8 +204,20 @@ def main() -> int:
         return 1
 
     out = ROOT / "cache"; out.mkdir(exist_ok=True)
+    dst = out / "sector_map.parquet"
     df = pd.DataFrame(rec).drop_duplicates("code")
-    df.to_parquet(out / "sector_map.parquet", index=False)
+
+    # 仓库里那张表是浏览器里抓的同花顺全量（5400+ 只，候选池覆盖 99%）。
+    # 这里能跑通的源多半是新浪那张过期表（3000 只，688/300/301/920 整段缺），
+    # 拿它盖掉好表是净损失。所以只有新表不比旧表差才允许覆盖。
+    if dst.exists():
+        old_n = len(pd.read_parquet(dst))
+        if len(df) < old_n * 0.9:
+            log.warning("新表 %d 只，明显少于现有的 %d 只，放弃覆盖",
+                        len(df), old_n)
+            return 1
+
+    df.to_parquet(dst, index=False)
     log.info("已写入 %d 只股票的行业归属，%d 个行业", len(df), df.sector.nunique())
     return 0
 
