@@ -25,5 +25,16 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_TO:   ${{ secrets.MAIL_TO }}
         run: python src/premarket.py
+      # 必须 commit：竞价 job 是另一次 checkout，读的是仓库里的
+      # cache/universe.parquet。只上传 artifact 的话竞价那边拿不到，
+      # run_auction.py 会走「候选池缺失」分支直接告警退出。
+      - name: 提交候选池
+        run: |
+          git config user.name auction-bot
+          git config user.email bot@users.noreply.github.com
+          git add cache/
+          git diff --staged --quiet || git commit -m "data: 候选池 $(TZ=Asia/Shanghai date +%F)"
+          git pull --rebase --autostash || true
+          git push || echo "::warning::push 失败"
       - uses: actions/upload-artifact@v4
         with: { name: universe, path: cache/, retention-days: 3 }

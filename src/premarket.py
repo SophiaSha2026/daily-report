@@ -78,51 +78,65 @@ def stage1(spot: pd.DataFrame, c: dict) -> pd.DataFrame:
 
 
 def stage2(df: pd.DataFrame, c: dict) -> pd.DataFrame:
-    """对存活者拉 90 日日线，算位置/形态/连板高度。"""
+    """
+    对存活者拉 90 日日线，算位置/形态/连板高度。
+
+    日线是并发拉的（datasource.daily_hist_many）：1600 只串行要 9 分钟以上，
+    盘前到竞价只有 50 分钟，串行没有余量。源的优先级和熔断在 datasource 里。
+    """
     end = dt.datetime.now(TZ).strftime("%Y%m%d")
     start = (dt.datetime.now(TZ) - dt.timedelta(days=140)).strftime("%Y%m%d")
     look = c["screen"]["breakout_lookback"]
 
-    rec = []
     t0 = time.time()
-    for i, r in enumerate(df.itertuples()):
-        h = ds.daily_hist(r.code, start, end)
+    hists = ds.daily_hist_many([r.code for r in df.itertuples()], start, end)
+    log.info("日线拉取完成 %d 只，耗时 %.0fs，来源 %s",
+             len(hists), time.time() - t0, ds.hist_source_stats())
+
+    rec = []
+    empty = 0
+    for r in df.itertuples():
+        h = hists.get(r.code)
         d = dict(pos_pct_60d=0.5, ma_bull=False, platform_high=1e9,
                  board_height=0, prev_broken_board=False,
                  amount_ratio_5d=1.0)
-        if h is not None and len(h) >= 25:
-            cl = pd.to_numeric(h["收盘"], errors="coerce")
-            hi = pd.to_numeric(h["最高"], errors="coerce")
-            am = pd.to_numeric(h["成交额"], errors="coerce")
-            pc = pd.to_numeric(h["涨跌幅"], errors="coerce")
-            w = cl.tail(60)
-            rng = w.max() - w.min()
-            d["pos_pct_60d"] = float((cl.iloc[-1] - w.min()) / rng) if rng > 0 else 0.5
-            if len(cl) >= 20:
-                m5, m10, m20 = (cl.rolling(k).mean().iloc[-1] for k in (5, 10, 20))
-                d["ma_bull"] = bool(m5 > m10 > m20)
-            d["platform_high"] = float(hi.tail(look).max())
-            if len(am) >= 6:
-                base = float(am.tail(6).iloc[:-1].mean()) or 1.0
-                d["amount_ratio_5d"] = float(am.iloc[-1] / base)
-            lim = r.lim - 0.4
-            n = 0
-            for v in reversed(pc.tolist()):
-                if v >= lim:
-                    n += 1
-                else:
-                    break
-            d["board_height"] = n
-            # 昨日炸板：盘中触及涨停但收盘未封
-            if len(hi) and r.prev_gain < lim:
-                prev_close = float(cl.iloc[-2]) if len(cl) >= 2 else 0
-                if prev_close and float(hi.iloc[-1]) >= prev_close * (1 + r.lim / 100) - 0.01:
-                    d["prev_broken_board"] = True
-        rec.append(d)
-        if i and i % 100 == 0:
-            log.info("  阶段2 %d/%d (%.0fs)", i, len(df), time.time() - t0)
-        time.sleep(0.03)
+        if h is None or len(h) < 25:
+            empty += 1
+            rec.append(d)
+            continue
 
+        cl = pd.to_numeric(h["收盘"], errors="coerce")
+        hi = pd.to_numeric(h["最高"], errors="coerce")
+        am = pd.to_numeric(h["成交额"], errors="coerce")
+        pc = pd.to_numeric(h["涨跌幅"], errors="coerce")
+        w = cl.tail(60)
+        rng = w.max() - w.min()
+        d["pos_pct_60d"] = float((cl.iloc[-1] - w.min()) / rng) if rng > 0 else 0.5
+        if len(cl) >= 20:
+            m5, m10, m20 = (cl.rolling(k).mean().iloc[-1] for k in (5, 10, 20))
+            d["ma_bull"] = bool(m5 > m10 > m20)
+        d["platform_high"] = float(hi.tail(look).max())
+        if len(am) >= 6:
+            base = float(am.tail(6).iloc[:-1].mean()) or 1.0
+            d["amount_ratio_5d"] = float(am.iloc[-1] / base)
+        lim = r.lim - 0.4
+        n = 0
+        for v in reversed(pc.tolist()):
+            if v >= lim:
+                n += 1
+            else:
+                break
+        d["board_height"] = n
+        # 昨日炸板：盘中触及涨停但收盘未封
+        if len(hi) and r.prev_gain < lim:
+            prev_close = float(cl.iloc[-2]) if len(cl) >= 2 else 0
+            if prev_close and float(hi.iloc[-1]) >= prev_close * (1 + r.lim / 100) - 0.01:
+                d["prev_broken_board"] = True
+        rec.append(d)
+
+    if empty:
+        log.warning("阶段2: %d/%d 只没拿到日线，形态字段用默认值",
+                    empty, len(df))
     log.info("阶段2 完成 %d 只，耗时 %.0fs", len(df), time.time() - t0)
     return pd.concat([df.reset_index(drop=True), pd.DataFrame(rec)], axis=1)
 

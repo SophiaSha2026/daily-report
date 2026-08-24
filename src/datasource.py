@@ -175,6 +175,45 @@ def fetch_quotes(
 # ---------------------------------------------------------------------
 
 _ROOT = __import__("pathlib").Path(__file__).resolve().parent.parent
+def _sina_code_list(timeout: float = 8.0) -> list[str]:
+    """
+    新浪分页行情列表（node=hs_a，含北交所）。每页 100 只，约 56 页。
+
+    加这一路的原因：东财的两个代码表接口在 GitHub runner 上是「时好时坏」，
+    2026-08-24 那轮冒烟测试里两个都被 ConnectionReset 掐断（同一次运行里
+    第二次调用又成功了）。新浪这条通道和交易日历同源，实测稳定。
+    """
+    url = ("https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/"
+           "Market_Center.getHQNodeData?page={p}&num=100&sort=symbol&asc=1&node=hs_a")
+    hdr = {**UA, "Referer": "https://finance.sina.com.cn"}
+
+    def one(p: int) -> list[str]:
+        r = _SESSION.get(url.format(p=p), headers=hdr, timeout=timeout)
+        r.encoding = "gbk"
+        txt = r.text.strip()
+        if not txt or txt in ("null", "[]"):
+            return []
+        import json as _json
+        return [str(d["code"]).zfill(6) for d in _json.loads(txt)]
+
+    codes: list[str] = []
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        page = 1
+        while page <= 120:               # 安全阀，正常 56 页就到底
+            futs = {ex.submit(one, p): p for p in range(page, page + 8)}
+            got = 0
+            for f in as_completed(futs):
+                try:
+                    part = f.result()
+                except Exception as e:  # noqa: BLE001
+                    log.warning("新浪列表第 %d 页失败: %s", futs[f], e)
+                    continue
+                codes += part
+                got += len(part)
+            if got == 0:
+                break
+            page += 8
+    return sorted(set(codes))
 
 
 def load_code_list() -> list[str]:
@@ -193,26 +232,41 @@ def load_code_list() -> list[str]:
 
 
 def refresh_code_list() -> list[str]:
-    """多源兜底拉取代码表，成功即写入缓存。"""
-    import akshare as ak
+    """
+    多源兜底拉取代码表，成功即写入缓存。
+
+    每个源重试 2 次：东财那两个接口在 runner 上是间歇性拒绝，
+    一次失败不代表不可用（实测同一次运行里第二次调用就成功了）。
+    """
     import pandas as pd
-    for name, fn in (
-        ("stock_info_a_code_name", lambda: ak.stock_info_a_code_name()),
-        ("stock_zh_a_spot_em", lambda: ak.stock_zh_a_spot_em()),
-    ):
-        try:
-            df = fn()
-            col = next(c for c in df.columns if c in ("code", "代码"))
-            codes = sorted({str(x).zfill(6) for x in df[col]})
-            if len(codes) > 3000:
-                out = _ROOT / "cache"
-                out.mkdir(exist_ok=True)
-                pd.DataFrame({"code": codes}).to_csv(out / "codes.csv", index=False)
-                log.info("代码表已刷新 (%s): %d 只", name, len(codes))
-                return codes
-            log.warning("%s 仅返回 %d 只", name, len(codes))
-        except Exception as e:  # noqa: BLE001
-            log.warning("%s 失败: %s", name, e)
+
+    def _ak_codes(fn_name: str) -> list[str]:
+        import akshare as ak
+        df = getattr(ak, fn_name)()
+        col = next(c for c in df.columns if c in ("code", "代码"))
+        return sorted({str(x).zfill(6) for x in df[col]})
+
+    sources = (
+        ("sina_hs_a", _sina_code_list),
+        ("stock_info_a_code_name", lambda: _ak_codes("stock_info_a_code_name")),
+        ("stock_zh_a_spot_em", lambda: _ak_codes("stock_zh_a_spot_em")),
+    )
+    for name, fn in sources:
+        for attempt in range(2):
+            try:
+                codes = fn()
+                if len(codes) > 3000:
+                    out = _ROOT / "cache"
+                    out.mkdir(exist_ok=True)
+                    pd.DataFrame({"code": codes}).to_csv(
+                        out / "codes.csv", index=False)
+                    log.info("代码表已刷新 (%s): %d 只", name, len(codes))
+                    return codes
+                log.warning("%s 仅返回 %d 只", name, len(codes))
+                break
+            except Exception as e:  # noqa: BLE001
+                log.warning("%s 第%d次失败: %s", name, attempt + 1, e)
+                time.sleep(0.8)
     raise RuntimeError("代码表获取失败：所有数据源均不可用")
 
 
@@ -254,19 +308,168 @@ def _turnover(q: Quote) -> float:
         return 0.0
 
 
-def daily_hist(code: str, start: str, end: str) -> "pd.DataFrame":  # noqa: F821
-    """个股不复权日线。用于算 5 日均量、60 日分位、平台高点。"""
+# ---------------------------------------------------------------------
+#  日线历史：东财为主，腾讯为辅，中间加熔断
+# ---------------------------------------------------------------------
+#  东财 stock_zh_a_hist（push2his）给的是真实成交额和官方复权口径，优先用。
+#  它在 runner 上是间歇性拒绝，不是永久失效——2026-08-23 那轮通过（153 根 K 线），
+#  2026-08-24 那轮失败。所以单只失败要重试，不要一次就判死。
+#
+#  但盘前 stage2 要对 1600 只逐个拉。如果东财整段时间不通，每只都耗满重试
+#  再降级，1600 只跑不完 40 分钟的 job 超时。所以加熔断：
+#      连续 _EM_TRIP 只都失败 -> 本次进程内暂时跳过东财，直接走腾讯
+#      每隔 _EM_RETRY_AFTER 只回探一次，东财恢复就切回去
+#
+#  腾讯 K 线返回 [日期, 开盘, 收盘, 最高, 最低, 成交量(手)]，**没有成交额**。
+#  成交额按 收盘×成交量×100 估算——它只喂给 amount_ratio_5d 这个展示字段，
+#  不进打分。竞价用的真实成交额来自腾讯实时快照，不是这里。
+# ---------------------------------------------------------------------
+
+TX_KLINE = ("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
+            "?param={sym},day,{start},{end},{cnt},")
+
+_HIST_COLS = ["日期", "开盘", "收盘", "最高", "最低", "成交量", "成交额", "涨跌幅"]
+
+_EM_RETRIES = 3          # 单只东财重试次数
+_EM_TRIP = 12            # 连续失败多少只后熔断
+_EM_RETRY_AFTER = 150    # 熔断后每隔多少只回探一次
+_em_state = {"fail_streak": 0, "tripped": False, "since_probe": 0, "em": 0, "tx": 0}
+_em_lock = __import__("threading").Lock()
+
+
+def _dash(d: str) -> str:
+    d = str(d).replace("-", "")
+    return f"{d[:4]}-{d[4:6]}-{d[6:8]}" if len(d) == 8 else str(d)
+
+
+def daily_hist_tx(code: str, start: str, end: str,
+                  timeout: float = 8.0) -> "pd.DataFrame":  # noqa: F821
+    """腾讯不复权日线。字段名与东财 stock_zh_a_hist 对齐，便于互换。"""
+    import pandas as pd
+    sym = to_symbol(code)
+    url = TX_KLINE.format(sym=sym, start=_dash(start), end=_dash(end), cnt=640)
+    r = _SESSION.get(url, headers=UA, timeout=timeout)
+    js = r.json()
+    node = (js.get("data") or {}).get(sym) or {}
+    rows = node.get("day") or node.get("qfqday") or []
+    if not rows:
+        return pd.DataFrame(columns=_HIST_COLS)
+
+    rec = []
+    prev = None
+    for it in rows:
+        try:
+            d, o, cl, hi, lo, vol = (it[0], float(it[1]), float(it[2]),
+                                     float(it[3]), float(it[4]), float(it[5]))
+        except (ValueError, IndexError):
+            continue
+        rec.append({
+            "日期": d, "开盘": o, "收盘": cl, "最高": hi, "最低": lo,
+            "成交量": vol, "成交额": cl * vol * 100.0,
+            "涨跌幅": round((cl - prev) / prev * 100.0, 2) if prev else 0.0,
+        })
+        prev = cl
+    return pd.DataFrame(rec, columns=_HIST_COLS)
+
+
+def daily_hist_em(code: str, start: str, end: str,
+                  retries: int = _EM_RETRIES) -> "pd.DataFrame":  # noqa: F821
+    """东财不复权日线（akshare 封装）。成交额是真实值，腾讯那路是估算。"""
     import akshare as ak
-    for attempt in range(2):
+    last = None
+    for attempt in range(retries):
         try:
             return ak.stock_zh_a_hist(
                 symbol=str(code).zfill(6), period="daily",
-                start_date=start, end_date=end, adjust="",
+                start_date=str(start).replace("-", ""),
+                end_date=str(end).replace("-", ""), adjust="",
             )
-        except Exception:  # noqa: BLE001
-            time.sleep(0.4)
+        except Exception as e:  # noqa: BLE001
+            last = e
+            time.sleep(0.3 * (attempt + 1))
+    raise last if last else RuntimeError("东财日线失败")
+
+
+def _em_allowed() -> bool:
+    """熔断开关。熔断后每 _EM_RETRY_AFTER 只放一只过去回探。"""
+    with _em_lock:
+        if not _em_state["tripped"]:
+            return True
+        _em_state["since_probe"] += 1
+        if _em_state["since_probe"] >= _EM_RETRY_AFTER:
+            _em_state["since_probe"] = 0
+            return True
+        return False
+
+
+def _em_result(ok: bool) -> None:
+    with _em_lock:
+        if ok:
+            _em_state["fail_streak"] = 0
+            _em_state["em"] += 1
+            if _em_state["tripped"]:
+                _em_state["tripped"] = False
+                log.info("东财日线已恢复，切回主源")
+        else:
+            _em_state["fail_streak"] += 1
+            if not _em_state["tripped"] and _em_state["fail_streak"] >= _EM_TRIP:
+                _em_state["tripped"] = True
+                log.warning("东财日线连续 %d 只失败，本次熔断，改走腾讯"
+                            "（每 %d 只回探一次）", _EM_TRIP, _EM_RETRY_AFTER)
+
+
+def hist_source_stats() -> dict:
+    """本次进程内各源命中数，跑完打日志用。"""
+    with _em_lock:
+        return {"东财": _em_state["em"], "腾讯": _em_state["tx"],
+                "熔断中": _em_state["tripped"]}
+
+
+def daily_hist(code: str, start: str, end: str) -> "pd.DataFrame":  # noqa: F821
+    """
+    个股不复权日线。用于算 5 日均量、60 日分位、平台高点。
+
+    东财优先（真实成交额），失败重试 3 次；整体不通时熔断走腾讯。
+    """
     import pandas as pd
-    return pd.DataFrame()
+    if _em_allowed():
+        try:
+            h = daily_hist_em(code, start, end)
+            if h is not None and len(h) >= 25:
+                _em_result(True)
+                return h
+            _em_result(False)
+        except Exception as e:  # noqa: BLE001
+            _em_result(False)
+            log.debug("东财日线(%s) 失败: %s", code, e)
+    try:
+        h = daily_hist_tx(code, start, end)
+        if h is not None and len(h) >= 25:
+            with _em_lock:
+                _em_state["tx"] += 1
+            return h
+    except Exception as e:  # noqa: BLE001
+        log.debug("腾讯日线(%s) 失败: %s", code, e)
+    return pd.DataFrame(columns=_HIST_COLS)
+
+
+def daily_hist_many(codes: Sequence[str], start: str, end: str,
+                    workers: int = 4) -> dict[str, "pd.DataFrame"]:  # noqa: F821
+    """
+    批量拉日线。盘前 stage2 用，1600 只串行要 9 分钟以上，4 路并发压到 2-3 分钟。
+
+    并发数和 fetch_quotes 一样保守：免费接口并发一高就限流，别往上调。
+    """
+    out: dict[str, "pd.DataFrame"] = {}  # noqa: F821
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(daily_hist, c, start, end): c for c in codes}
+        for f in as_completed(futs):
+            code = futs[f]
+            try:
+                out[code] = f.result()
+            except Exception as e:  # noqa: BLE001
+                log.warning("日线 %s 失败: %s", code, e)
+    return out
 
 
 def trade_dates() -> set[str]:
