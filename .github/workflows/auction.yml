@@ -157,7 +157,17 @@ jobs:
           # 必须显式带 token：claude-code-action 跑完会把 checkout 写进
           # .git/config 的凭证清掉，之后裸 git push 会报
           # 「Invalid username or token」。2026-08-24 实测踩到。
-          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref_name }}             || echo "::warning::push 失败"
+          # 重试三次：盘前和竞价可能同时往 cache/ 推，撞上就 rebase 再来。
+          # push 失败的代价不只是丢数据——幂等检查靠的就是那个数据文件，
+          # 推不上去，后面排队的入口会以为今天还没跑过。
+          URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          ok=""
+          for i in 1 2 3; do
+            if git push "$URL" HEAD:${{ github.ref_name }}; then ok=1; break; fi
+            sleep 5
+            git pull --rebase --autostash || true
+          done
+          [ -n "$ok" ] || echo "::warning::push 失败"
 
       # 面板发布到 GitHub Pages，手机电脑都能直接打开，本地不用装任何东西
       # 同样要看日期戳：out/ 是提交进仓库的，采集没跑完时里面是上一交易日的

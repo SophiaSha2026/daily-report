@@ -35,6 +35,16 @@ jobs:
           git add cache/
           git diff --staged --quiet || git commit -m "data: 候选池 $(TZ=Asia/Shanghai date +%F)"
           git pull --rebase --autostash || true
-          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref_name }}             || echo "::warning::push 失败"
+          # 重试三次：盘前和竞价可能同时往 cache/ 推，撞上就 rebase 再来。
+          # push 失败的代价不只是丢数据——幂等检查靠的就是那个数据文件，
+          # 推不上去，后面排队的入口会以为今天还没跑过。
+          URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          ok=""
+          for i in 1 2 3; do
+            if git push "$URL" HEAD:${{ github.ref_name }}; then ok=1; break; fi
+            sleep 5
+            git pull --rebase --autostash || true
+          done
+          [ -n "$ok" ] || echo "::warning::push 失败"
       - uses: actions/upload-artifact@v4
         with: { name: universe, path: cache/, retention-days: 3 }
