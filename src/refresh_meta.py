@@ -1,14 +1,18 @@
 """
 每周刷新行业成分缓存 + 代码表。
 
-源的优先级：东财 -> 新浪。
+源的优先级：东财 -> 同花顺 -> 新浪。
 东财分类更细（~90 个行业），是首选；但它在 GitHub runner 上会整段时间
 RemoteDisconnected（2026-08-24 实测：板块列表第一个请求就被掐断）。
 上一版没有兜底、也没有 try，直接抛异常退出，连旧缓存都保不住。
 
-新浪行业（newSinaHy.php + Market_Center 分页）粒度粗一些（49 个行业），
-但和交易日历、代码表同一台主机，实测在美国节点稳定。板块共振这个维度
-只占 15% 权重，用粗分类也比整个维度失效强。
+同花顺（10jqka）分类细且覆盖全，带反爬 cookie，走 akshare 的封装。
+新浪那张 newSinaHy 表已经过期：只认 3000 只，688/300/301/920 整段缺，
+所以排在最后，只当最后一道兜底。
+
+⚠️ 三个源在 GitHub runner 上都可能不通（2026-08-24 实测东财全站 5xx/断连、
+新浪 vip 主机返回空体）。本脚本失败时保留仓库里已提交的 sector_map.parquet，
+所以那张表是本地生成后提交进去的——不要以为它是 CI 产物。
 """
 from __future__ import annotations
 import sys, time, json, logging
@@ -67,6 +71,49 @@ def sectors_em() -> list[dict]:
         if i % 20 == 0:
             log.info("  东财 %d/%d，已收 %d 条", i, len(names), len(rec))
         time.sleep(0.25)
+    return rec
+
+
+# ---------------------------------------------------------------------
+def sectors_ths() -> list[dict]:
+    """
+    同花顺行业成分。分类细、覆盖全（含科创板/北交所/次新），是东财之外
+    唯一粒度够用的全覆盖源。
+
+    10jqka 的成分接口带反爬：直接请求返回 401，要带一个由页面 JS 算出来的
+    v 值 Cookie。akshare 内置了那段 ths.js 并用 py_mini_racer 执行，
+    所以这里直接用 akshare 的封装，不自己复刻算法。
+    py_mini_racer 已写进 requirements.txt，缺它 akshare 会在导入时报错。
+    """
+    import akshare as ak
+    names = None
+    for attempt in range(3):
+        try:
+            names = ak.stock_board_industry_name_ths()
+            break
+        except Exception as e:  # noqa: BLE001
+            log.warning("同花顺行业列表第%d次失败: %s", attempt + 1, e)
+            time.sleep(1.0 * (attempt + 1))
+    if names is None or not len(names):
+        return []
+
+    col = "name" if "name" in names.columns else names.columns[0]
+    rec = []
+    for i, nm in enumerate(names[col].tolist()):
+        for attempt in range(3):
+            try:
+                cons = ak.stock_board_industry_cons_ths(symbol=str(nm))
+                ccol = next(c for c in cons.columns if "代码" in str(c))
+                rec += [{"code": str(c).zfill(6), "sector": str(nm)}
+                        for c in cons[ccol].astype(str)]
+                break
+            except Exception as e:  # noqa: BLE001
+                if attempt == 2:
+                    log.warning("行业 %s 失败: %s", nm, e)
+                time.sleep(0.6 * (attempt + 1))
+        if i % 20 == 0:
+            log.info("  同花顺 %d/%d，已收 %d 条", i, len(names), len(rec))
+        time.sleep(0.2)
     return rec
 
 
@@ -140,7 +187,8 @@ def main() -> int:
         log.warning("代码表刷新失败，沿用旧缓存: %s", e)
 
     rec: list[dict] = []
-    for tag, fn in (("东财", sectors_em), ("新浪", sectors_sina)):
+    for tag, fn in (("东财", sectors_em), ("同花顺", sectors_ths),
+                    ("新浪", sectors_sina)):
         try:
             rec = fn()
         except Exception as e:  # noqa: BLE001
