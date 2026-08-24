@@ -115,7 +115,7 @@ jobs:
         id: llm
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         continue-on-error: true
-        timeout-minutes: 3
+        timeout-minutes: 2
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -125,7 +125,7 @@ jobs:
             严格按 analyst.md 的检索策略和写作要求执行，按 json-schema 返回结果。
           claude_args: |
             --model claude-opus-5
-            --max-turns 25
+            --max-turns 14
             --allowedTools "WebSearch,WebFetch,Read"
             --json-schema '{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"code":{"type":"string"},"reason":{"type":"string"},"risk":{"type":"string"}},"required":["code","reason","risk"]}}},"required":["items"]}'
 

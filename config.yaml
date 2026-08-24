@@ -8,9 +8,9 @@ runtime:
   snapshot_t1: "09:19:40"   # 撤单前虚拟撮合价
   snapshot_t2: "09:23:30"   # 中段
   snapshot_t3: "09:25:10"   # 最终竞价结果（价格自此固定到 09:30）
-  snapshot_t4: "09:27:20"   # 补采：只为把 T3 漏掉的票补回来，价格不会变
+  snapshot_t4: "09:25:40"   # 补采：只为把 T3 漏掉的票补回来，价格 9:25-9:30 固定
   hard_deadline: "09:26:30" # 超过此时刻仍未开始 -> 放弃并发告警邮件
-  send_at: "09:28:00"       # 单次发信时刻（含 LLM 分析）
+  send_at: "09:27:30"       # 单次发信时刻（含 LLM 分析）
   timezone: "Asia/Shanghai"
 
 universe:
@@ -107,7 +107,10 @@ scoring:
 llm:
   enabled: true
   model: "claude-opus-5"       # 经 claude-code-action + OAuth 调用
-  timeout_seconds: 150
+  # 时间预算：T4 在 09:25:40，打分约 2 秒，发信卡在 09:27:30，
+  # 留给 Claude 的净窗口约 105 秒。workflow 里的硬超时设 2 分钟兜底，
+  # 超了就按「本次无 LLM 分析」发，不会卡住邮件。
+  timeout_seconds: 100
   # LLM 只写"入选理由/风险提示"，绝不参与打分与排序
   # 撞额度/失败时：仍然发信，但在邮件顶部明确声明本次无 LLM 分析
   on_failure: send_with_notice
