@@ -72,9 +72,24 @@ def sectors_em() -> list[dict]:
 
 # ---------------------------------------------------------------------
 def _sina_industries() -> list[tuple[str, str]]:
-    """[(node, 行业名)]。newSinaHy.php 返回 GBK 的一段 JS 赋值。"""
+    """
+    [(node, 行业名)]。行业清单变动极慢，优先读仓库里的静态表。
+
+    newSinaHy.php 在 GitHub runner 上返回的不是那段 JS 赋值（2026-08-24 实测
+    解析直接 substring not found），但成分股接口 Market_Center 是好的。
+    所以清单走静态文件，只有本地手动刷新时才去请求它。
+    """
+    p = ROOT / "cache" / "sina_industries.json"
+    if p.exists():
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return [(d["node"], d["name"]) for d in data]
+
     r = requests.get(SINA_HY, headers=UA, timeout=15)
     r.encoding = "gbk"
+    if "{" not in r.text:
+        raise RuntimeError(
+            f"newSinaHy 返回异常 status={r.status_code} len={len(r.text)} "
+            f"前120字={r.text[:120]!r}")
     body = r.text[r.text.index("{"): r.text.rindex("}") + 1]
     out = []
     for node, val in json.loads(body).items():

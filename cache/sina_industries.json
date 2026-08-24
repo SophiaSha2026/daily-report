@@ -1,0 +1,247 @@
+[
+{
+"node": "new_dzxx",
+"name": "电子信息",
+"n": 247
+},
+{
+"node": "new_jxhy",
+"name": "机械行业",
+"n": 211
+},
+{
+"node": "new_qtxy",
+"name": "其它行业",
+"n": 202
+},
+{
+"node": "new_swzz",
+"name": "生物制药",
+"n": 155
+},
+{
+"node": "new_dzqj",
+"name": "电子器件",
+"n": 152
+},
+{
+"node": "new_hghy",
+"name": "化工行业",
+"n": 150
+},
+{
+"node": "new_stock",
+"name": "次新股",
+"n": 150
+},
+{
+"node": "new_fdc",
+"name": "房地产",
+"n": 123
+},
+{
+"node": "new_qczz",
+"name": "汽车制造",
+"n": 103
+},
+{
+"node": "new_sybh",
+"name": "商业百货",
+"n": 93
+},
+{
+"node": "new_jzjc",
+"name": "建筑建材",
+"n": 91
+},
+{
+"node": "new_jtys",
+"name": "交通运输",
+"n": 87
+},
+{
+"node": "new_ysjs",
+"name": "有色金属",
+"n": 72
+},
+{
+"node": "new_fdsb",
+"name": "发电设备",
+"n": 65
+},
+{
+"node": "new_nlmy",
+"name": "农林牧渔",
+"n": 64
+},
+{
+"node": "new_dlhy",
+"name": "电力行业",
+"n": 62
+},
+{
+"node": "new_gthy",
+"name": "钢铁行业",
+"n": 60
+},
+{
+"node": "new_dqhy",
+"name": "电器行业",
+"n": 58
+},
+{
+"node": "new_sphy",
+"name": "食品行业",
+"n": 58
+},
+{
+"node": "new_jrhy",
+"name": "金融行业",
+"n": 51
+},
+{
+"node": "new_fzxl",
+"name": "服装鞋类",
+"n": 49
+},
+{
+"node": "new_yqyb",
+"name": "仪器仪表",
+"n": 48
+},
+{
+"node": "new_nyhf",
+"name": "农药化肥",
+"n": 46
+},
+{
+"node": "new_fzhy",
+"name": "纺织行业",
+"n": 42
+},
+{
+"node": "new_mthy",
+"name": "煤炭行业",
+"n": 41
+},
+{
+"node": "new_cmyl",
+"name": "传媒娱乐",
+"n": 40
+},
+{
+"node": "new_jdhy",
+"name": "家电行业",
+"n": 37
+},
+{
+"node": "new_jdly",
+"name": "酒店旅游",
+"n": 35
+},
+{
+"node": "new_ljhy",
+"name": "酿酒行业",
+"n": 33
+},
+{
+"node": "new_slzp",
+"name": "塑料制品",
+"n": 33
+},
+{
+"node": "new_zhhy",
+"name": "综合行业",
+"n": 33
+},
+{
+"node": "new_ylqx",
+"name": "医疗器械",
+"n": 31
+},
+{
+"node": "new_hbhy",
+"name": "环保行业",
+"n": 27
+},
+{
+"node": "new_hqhy",
+"name": "化纤行业",
+"n": 26
+},
+{
+"node": "new_snhy",
+"name": "水泥行业",
+"n": 26
+},
+{
+"node": "new_gsgq",
+"name": "供水供气",
+"n": 25
+},
+{
+"node": "new_syhy",
+"name": "石油行业",
+"n": 24
+},
+{
+"node": "new_zzhy",
+"name": "造纸行业",
+"n": 24
+},
+{
+"node": "new_wzwm",
+"name": "物资外贸",
+"n": 21
+},
+{
+"node": "new_glql",
+"name": "公路桥梁",
+"n": 20
+},
+{
+"node": "new_ysbz",
+"name": "印刷包装",
+"n": 20
+},
+{
+"node": "new_blhy",
+"name": "玻璃行业",
+"n": 19
+},
+{
+"node": "new_jjhy",
+"name": "家具行业",
+"n": 16
+},
+{
+"node": "new_fjzz",
+"name": "飞机制造",
+"n": 14
+},
+{
+"node": "new_kfq",
+"name": "开发区",
+"n": 10
+},
+{
+"node": "new_cbzz",
+"name": "船舶制造",
+"n": 8
+},
+{
+"node": "new_fzjx",
+"name": "纺织机械",
+"n": 8
+},
+{
+"node": "new_tchy",
+"name": "陶瓷行业",
+"n": 8
+},
+{
+"node": "new_mtc",
+"name": "摩托车",
+"n": 6
+}
+]
