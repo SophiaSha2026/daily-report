@@ -11,8 +11,9 @@ RemoteDisconnected（2026-08-24 实测：板块列表第一个请求就被掐断
 所以排在最后，只当最后一道兜底。
 
 ⚠️ 三个源在 GitHub runner 上都可能不通（2026-08-24 实测东财全站 5xx/断连、
-新浪 vip 主机返回空体）。本脚本失败时保留仓库里已提交的 sector_map.parquet，
-所以那张表是本地生成后提交进去的——不要以为它是 CI 产物。
+新浪 vip 主机返回空体）。板块表实际是由 `4-刷新板块成分表` 这个 workflow
+用 Playwright 真浏览器抓的（见 `src/refresh_sector.py`），本脚本只负责代码表，
+板块那部分是历史遗留的兜底，失败时保留已提交的表。
 """
 from __future__ import annotations
 import sys, time, json, logging

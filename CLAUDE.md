@@ -103,11 +103,17 @@ commentary 就在邮件顶部声明「本次无 LLM 分析」照发。已测三�
 | `finance.sina.com.cn` | 交易日历 txt | ✓ | ✓ |
 | `vip.stock.finance.sina.com.cn` | 新浪分页行情/行业 | ✗ 返回空体 | ✓ |
 | `push2*.eastmoney.com` | 东财全部接口 | ✗ | ✗ |
-| `q.10jqka.com.cn` | 同花顺行业 | 待测 | ✓（要 v cookie） |
+| `q.10jqka.com.cn` | 同花顺行业 | ✓ 但**只认真浏览器** | ✓ 同左 |
+
+同花顺那条要单独说：它挡的是**客户端指纹**，不是 IP。用 requests 带上
+akshare 自带 ths.js 算出的 v cookie，照样 403 Nginx forbidden；同一台机器、
+同一个出口 IP，在真实浏览器会话里 fetch 同一个 URL 直接 200。
+GitHub runner 上用 Playwright 起 chromium 也一样能过，见 `src/refresh_sector.py`。
 
 推论：**`cache/` 里的东西可以在本地生成后提交进仓库**，不必要求 runner
-自己能拉到。`codes.csv`、`sina_industries.json`、`sector_map.parquet`
-都是这么来的，refresh_meta 拉不到时会保留它们。
+自己能拉到。`codes.csv`、`sina_industries.json` 就是这么来的。
+（`sector_map.parquet` 一开始也是本地抓的，后来发现 runner 用 Playwright
+能自己抓，已改为 workflow 每周自动刷新。）
 
 ### 5c. 新浪的 `newSinaHy` 行业表是过期的
 
