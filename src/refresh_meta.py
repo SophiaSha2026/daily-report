@@ -12,6 +12,13 @@ log = logging.getLogger("meta")
 
 def main() -> int:
     import akshare as ak
+    sys.path.insert(0, str(Path(__file__).parent))
+    import datasource as ds
+    try:
+        ds.refresh_code_list()
+    except Exception as e:  # noqa: BLE001
+        log.warning("代码表刷新失败，沿用旧缓存: %s", e)
+
     names = ak.stock_board_industry_name_em()
     col = "板块名称" if "板块名称" in names.columns else names.columns[1]
     rec = []

@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Sequence
 
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +36,10 @@ UA = {
 }
 
 _LINE = re.compile(r'v_(?P<sym>[a-z]{2}\d{6})="(?P<body>[^"]*)"')
+
+_SESSION = requests.Session()
+_SESSION.mount("https://", requests.adapters.HTTPAdapter(
+    pool_connections=16, pool_maxsize=16, max_retries=0))
 
 
 @dataclass
@@ -116,37 +121,50 @@ def _parse_tx_body(sym: str, body: str) -> Quote | None:
         return None
 
 
+def _one_batch(batch: list[str], timeout: float, retries: int) -> dict[str, Quote]:
+    url = TX_URL.format(codes=",".join(batch))
+    for attempt in range(retries + 1):
+        try:
+            r = _SESSION.get(url, headers=UA, timeout=timeout)
+            r.encoding = "gbk"
+            got = {}
+            for m in _LINE.finditer(r.text):
+                q = _parse_tx_body(m.group("sym"), m.group("body"))
+                if q and q.prev_close > 0:
+                    got[q.symbol] = q
+            return got
+        except Exception as e:  # noqa: BLE001
+            if attempt == retries:
+                log.warning("腾讯批量失败 batch=%s err=%s", batch[:1], e)
+                return {}
+            time.sleep(0.15 * (attempt + 1))
+    return {}
+
+
 def fetch_quotes(
     symbols: Sequence[str],
     *,
-    timeout: float = 4.0,
+    timeout: float = 6.0,
     retries: int = 2,
-    sleep_between: float = 0.05,
+    workers: int = 5,
 ) -> dict[str, Quote]:
     """
     批量拉取实时/竞价快照。返回 {symbol: Quote}。
-    单批失败只丢该批，不影响其余，保证竞价窗口内尽可能拿到多数数据。
-    """
-    out: dict[str, Quote] = {}
-    batches = [symbols[i:i + TX_BATCH] for i in range(0, len(symbols), TX_BATCH)]
 
-    for batch in batches:
-        url = TX_URL.format(codes=",".join(batch))
-        for attempt in range(retries + 1):
-            try:
-                r = requests.get(url, headers=UA, timeout=timeout)
-                r.encoding = "gbk"
-                for m in _LINE.finditer(r.text):
-                    q = _parse_tx_body(m.group("sym"), m.group("body"))
-                    if q and q.prev_close > 0:
-                        out[q.symbol] = q
-                break
-            except Exception as e:  # noqa: BLE001
-                if attempt == retries:
-                    log.warning("腾讯批量行情失败 batch=%s err=%s", batch[:2], e)
-                else:
-                    time.sleep(0.15)
-        time.sleep(sleep_between)
+    并发说明：GitHub runner 在美国，到腾讯单次往返约 0.6s，1600 只串行要 17s。
+    5 路并发压到 4s 左右，为竞价窗口留足余量。并发再高会触发限流，别调。
+    单批失败只丢该批，不影响其余。
+    """
+    batches = [list(symbols[i:i + TX_BATCH])
+               for i in range(0, len(symbols), TX_BATCH)]
+    out: dict[str, Quote] = {}
+    if not batches:
+        return out
+
+    with ThreadPoolExecutor(max_workers=min(workers, len(batches))) as ex:
+        futs = [ex.submit(_one_batch, b, timeout, retries) for b in batches]
+        for f in as_completed(futs):
+            out.update(f.result())
 
     log.info("fetch_quotes: 请求 %d 只，返回 %d 只", len(symbols), len(out))
     return out
@@ -156,20 +174,84 @@ def fetch_quotes(
 #  盘前用（时间宽裕，走 akshare / 东财）
 # ---------------------------------------------------------------------
 
-def spot_all() -> "pd.DataFrame":  # noqa: F821
-    """全市场快照。盘前用于构建候选池。"""
+_ROOT = __import__("pathlib").Path(__file__).resolve().parent.parent
+
+
+def load_code_list() -> list[str]:
+    """
+    全市场 6 位代码表。优先读仓库里的缓存（每周刷新一次），
+    缓存缺失时才现场拉取。代码表变动极慢，缓存完全够用。
+    """
+    import pandas as pd
+    p = _ROOT / "cache" / "codes.csv"
+    if p.exists():
+        codes = pd.read_csv(p, dtype=str)["code"].tolist()
+        if len(codes) > 3000:
+            return codes
+        log.warning("代码表缓存过短(%d)，重新拉取", len(codes))
+    return refresh_code_list()
+
+
+def refresh_code_list() -> list[str]:
+    """多源兜底拉取代码表，成功即写入缓存。"""
     import akshare as ak
-    last_err = None
-    for attempt in range(3):
+    import pandas as pd
+    for name, fn in (
+        ("stock_info_a_code_name", lambda: ak.stock_info_a_code_name()),
+        ("stock_zh_a_spot_em", lambda: ak.stock_zh_a_spot_em()),
+    ):
         try:
-            df = ak.stock_zh_a_spot_em()
-            if df is not None and len(df) > 3000:
-                return df
-            last_err = RuntimeError(f"返回行数异常: {0 if df is None else len(df)}")
+            df = fn()
+            col = next(c for c in df.columns if c in ("code", "代码"))
+            codes = sorted({str(x).zfill(6) for x in df[col]})
+            if len(codes) > 3000:
+                out = _ROOT / "cache"
+                out.mkdir(exist_ok=True)
+                pd.DataFrame({"code": codes}).to_csv(out / "codes.csv", index=False)
+                log.info("代码表已刷新 (%s): %d 只", name, len(codes))
+                return codes
+            log.warning("%s 仅返回 %d 只", name, len(codes))
         except Exception as e:  # noqa: BLE001
-            last_err = e
-        time.sleep(3 * (attempt + 1))
-    raise RuntimeError(f"全市场快照获取失败: {last_err}")
+            log.warning("%s 失败: %s", name, e)
+    raise RuntimeError("代码表获取失败：所有数据源均不可用")
+
+
+def spot_all() -> "pd.DataFrame":  # noqa: F821
+    """
+    全市场快照，盘前用于构建候选池。
+
+    ⚠️ 实测：GitHub runner 访问东财 push2 的 clist/get 批量接口会被
+    RemoteDisconnected 掐断（但东财的**单只**日线接口 push2his 正常）。
+    所以这里改用腾讯批量接口 + 本地代码表，走的是已验证可用的通道。
+
+    盘前 08:23 调用时腾讯返回的是上一交易日收盘状态：
+        当前价 = T-1 收盘价      成交额 = T-1 全天成交额
+        涨跌%  = T-1 涨跌幅      昨收   = T-2 收盘价
+    正好是候选池需要的字段。
+    """
+    import pandas as pd
+    codes = load_code_list()
+    syms = [to_symbol(c) for c in codes]
+    q = fetch_quotes(syms)
+    if len(q) < len(syms) * 0.6:
+        raise RuntimeError(f"全市场快照过少: {len(q)}/{len(syms)}")
+
+    rows = [{
+        "代码": v.code, "名称": v.name, "最新价": v.price,
+        "涨跌幅": v.chg_pct, "成交额": v.amount_yuan,
+        "换手率": _turnover(v), "总市值": float("nan"),
+    } for v in q.values()]
+    df = pd.DataFrame(rows)
+    log.info("全市场快照(腾讯): %d 只", len(df))
+    return df
+
+
+def _turnover(q: Quote) -> float:
+    """换手率，腾讯字段 38。取不到返回 0，不影响主流程。"""
+    try:
+        return float(q.raw[38])
+    except Exception:  # noqa: BLE001
+        return 0.0
 
 
 def daily_hist(code: str, start: str, end: str) -> "pd.DataFrame":  # noqa: F821
