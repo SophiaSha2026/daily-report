@@ -2,7 +2,8 @@ name: 2-竞价选股 (09:25 BJT)
 
 # GitHub Actions 的 cron 是尽力而为：官方文档承认高负载会延迟，
 # 社区实测整点附近常见 5-30 分钟，极端时被丢弃。
-# 因此提前 38 分钟触发 + 三个错峰入口 + Job 内自旋等待到精确时刻。
+# 因此提前触发 + 五个错峰入口 + Job 内自旋等待到精确时刻。
+# 2026-08-24 实测：盘前那班 cron 延迟了 97 分钟才跑。
 on:
   schedule:
     - cron: "35 0 * * 1-5"   # 08:35 BJT
@@ -18,8 +19,8 @@ permissions:
   id-token: write
 
 # 幂等检查只看 data/auction_<date>.parquet 存不存在，而那个文件要到 09:27
-# 才写出来。三个 cron 分别在 08:47/08:59/09:11 checkout，全都看不到它，
-# 于是三个 job 并行跑完、发出三封一模一样的邮件。
+# 才写出来。五个 cron 入口 checkout 时全都看不到它，
+# 于是五个 job 并行跑完、发出五封一模一样的邮件。
 # 加串行组：后来的排队等前一个跑完，那时 checkout 已经能看到数据文件，
 # 幂等检查生效，整个 job 空跑跳过。
 concurrency:
@@ -36,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 幂等检查（三个 cron 只跑一次）
+      - name: 幂等检查（五个 cron 只跑一次）
         id: g
         run: |
           D=$(TZ=Asia/Shanghai date +%F)
@@ -54,9 +55,9 @@ jobs:
       - run: pip install -r requirements.txt
         if: steps.g.outputs.skip == 'false'
 
-      # cron 是尽力而为：08:23 那班盘前有可能整个被丢掉（2026-08-24 当天
-      # 四个 cron 一个都没触发）。候选池日期对不上就在这儿现建一份，
-      # 约 4 分钟，离 09:14 预热还有余量。
+      # cron 是尽力而为：08:23 那班盘前可能延迟到竞价之后，甚至被丢掉
+      # （2026-08-24 实测延迟 97 分钟）。候选池日期对不上就在这儿现建一份，
+      # 实测 2 分 15 秒，离 09:14 预热有余量。
       - name: 候选池新鲜度检查
         id: uni
         if: steps.g.outputs.skip == 'false'
@@ -169,26 +170,23 @@ jobs:
           done
           [ -n "$ok" ] || echo "::warning::push 失败"
 
-      # 面板发布到 GitHub Pages，手机电脑都能直接打开，本地不用装任何东西
-      # 同样要看日期戳：out/ 是提交进仓库的，采集没跑完时里面是上一交易日的
-      # 面板，直接发上 Pages 就成了「昨天的榜挂着今天的链接」。
+      # 面板发布到 GitHub Pages，手机电脑都能直接打开，本地不用装任何东西。
+      # 没有今日产物就整段跳过，而不是发一个「今日暂无数据」上去——那样会把
+      # 上一个交易日的好面板冲掉，用户点开只剩一句空话。面板抬头自带日期，
+      # 留着旧的不会误导。
+      # 注意：空榜（当天确实没票通过筛选）走的是**有产物**这条路，enrich 会
+      # 重新生成带「今日无标的通过筛选」的面板，不受这里影响。
       - name: 准备 Pages
-        if: steps.g.outputs.skip == 'false'
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         run: |
           mkdir -p _site
-          D=$(TZ=Asia/Shanghai date +%F)
-          if grep -q "\"date\": \"$D\"" out/run_meta.json 2>/dev/null; then
-            cp out/panel.html _site/index.html
-            cp out/*.txt _site/ 2>/dev/null || true
-          else
-            echo "::warning::out/ 不是今天的产物，Pages 不更新"
-            echo "<h1>今日暂无数据</h1>" > _site/index.html
-          fi
+          cp out/panel.html _site/index.html
+          cp out/*.txt _site/ 2>/dev/null || true
       - uses: actions/upload-pages-artifact@v3
-        if: steps.g.outputs.skip == 'false'
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         with: { path: _site }
       - uses: actions/deploy-pages@v4
-        if: steps.g.outputs.skip == 'false'
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         continue-on-error: true
 
       - uses: actions/upload-artifact@v4
