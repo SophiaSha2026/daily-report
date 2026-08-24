@@ -10,7 +10,7 @@ runtime:
   snapshot_t3: "09:25:10"   # 最终竞价结果（价格自此固定到 09:30）
   snapshot_t4: "09:27:20"   # 补采：只为把 T3 漏掉的票补回来，价格不会变
   hard_deadline: "09:26:30" # 超过此时刻仍未开始 -> 放弃并发告警邮件
-  send_at: "09:28:30"       # 单次发信时刻（含 LLM 分析）
+  send_at: "09:28:00"       # 单次发信时刻（含 LLM 分析）
   timezone: "Asia/Shanghai"
 
 universe:

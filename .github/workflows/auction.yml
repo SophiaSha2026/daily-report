@@ -5,9 +5,11 @@ name: 2-竞价选股 (09:25 BJT)
 # 因此提前 38 分钟触发 + 三个错峰入口 + Job 内自旋等待到精确时刻。
 on:
   schedule:
+    - cron: "35 0 * * 1-5"   # 08:35 BJT
     - cron: "47 0 * * 1-5"   # 08:47 BJT
     - cron: "59 0 * * 1-5"   # 08:59 BJT
-    - cron: "11 1 * * 1-5"   # 09:11 BJT 兜底
+    - cron: "05 1 * * 1-5"   # 09:05 BJT
+    - cron: "11 1 * * 1-5"   # 09:11 BJT 最后一班
   workflow_dispatch:
 
 permissions:
