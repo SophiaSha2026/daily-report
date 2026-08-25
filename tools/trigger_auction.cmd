@@ -23,12 +23,18 @@ REM
 REM  Uses the workflow FILE NAME (auction.yml), not its display name, because
 REM  the display name is Chinese and .cmd files are read in the OEM codepage.
 REM
+REM  Log:    tools/trigger.log (gitignored)
+REM
 REM  Usage:  trigger_auction.cmd          fire the workflow
 REM          trigger_auction.cmd check    verify gh auth and connectivity only
 REM ===========================================================================
 setlocal
 set "REPO=SophiaSha2026/daily-report"
-set "LOG=%LOCALAPPDATA%\daily-report-trigger.log"
+REM Log next to the script via %~dp0. Do NOT use %LOCALAPPDATA% here:
+REM under Task Scheduler the write silently did not happen (gh itself ran
+REM fine and the workflow was dispatched, but no log line appeared).
+REM %~dp0 is expanded by cmd itself and never depends on the environment.
+set "LOG=%~dp0trigger.log"
 for /f "delims=" %%i in ('powershell -NoProfile -Command "Get-Date -Format s"') do set "NOW=%%i"
 
 if /i "%~1"=="check" (
