@@ -102,11 +102,15 @@ output:
   top_n: 10              # 每天发几只
   min_score: 45          # 低于这个分不上榜
 screen:
-  gap_norm_min: 0.20     # 高开下限，0.20 = 主板 +2.0%
-  gap_norm_max: 0.55     # 高开上限，0.55 = 主板 +5.5%
-  auc_ratio_min: 0.015   # 竞价量能下限（占昨日全天成交额）
+  gap_pct_min: 0.0       # 竞价涨幅下限，0 = 只要不低开就行
+  gap_pct_max: 5.0       # 竞价涨幅上限，绝对 5%，20cm 的票也一样
+  auc_ratio_min: 0.0104  # 量能下限，占昨日全天成交额，≈ 量比 2.5
+  auc_ratio_max: 0.2080  # 量能上限，≈ 量比 50
   min_auc_amount_wan: 300  # 竞价成交额绝对下限，防小盘票比例失真
 ```
+
+量比和 `auc_ratio` 的换算是 **量比 ≈ auc_ratio × 240**。想把量比下限改成 3 倍，
+就写 `3 / 240 = 0.0125`。邮件和面板的「量能(量比)」列两个数都会显示。
 
 改文案去 `prompts/analyst.md`，不要动 workflow 里的 YAML。
 

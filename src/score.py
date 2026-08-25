@@ -50,12 +50,12 @@ class AuctionFeature:
 # ---------------------------------------------------------------------
 #  分项打分：全部映射到 [0, 1]
 # ---------------------------------------------------------------------
-def f_gap(gn: float, lo: float, hi: float, peak: float) -> float:
-    """钟形：peak 处得 1，边界处得 0，区间外为 0。"""
-    if gn <= lo or gn >= hi:
+def f_gap(gap: float, lo: float, hi: float, peak: float) -> float:
+    """钟形：peak 处得 1，边界处得 0，区间外为 0。入参是竞价涨幅百分点。"""
+    if gap <= lo or gap >= hi:
         return 0.0
     half = max(peak - lo, hi - peak)
-    return max(0.0, 1.0 - abs(gn - peak) / half)
+    return max(0.0, 1.0 - abs(gap - peak) / half)
 
 
 def f_volume(ratio: float, lo: float, hi: float, sat: float) -> float:
@@ -110,6 +110,15 @@ def f_continuity(feat: AuctionFeature) -> float:
 # ---------------------------------------------------------------------
 #  硬性排除
 # ---------------------------------------------------------------------
+def _liangbi(auc_ratio: float, sc: dict[str, Any]) -> float:
+    """把自定义的 AUC_RATIO 换算成用户熟悉的「量比」口径，只用于显示。
+
+    换算系数在 config 里（默认 240，即设昨日量 ≈ 5 日均量）。筛选和打分
+    一律用 AUC_RATIO 本身，不用这个值——量比各家口径不一致、不可复现。
+    """
+    return auc_ratio * sc.get("liangbi_per_auc_ratio", 240)
+
+
 def hard_reject(feat: AuctionFeature, sc: dict[str, Any]) -> str | None:
     if feat.blacklisted:
         return "隔夜公告黑名单"
@@ -117,10 +126,11 @@ def hard_reject(feat: AuctionFeature, sc: dict[str, Any]) -> str | None:
         return "一字板（买不进）"
     if feat.prev_close <= 0 or feat.auc_price <= 0:
         return "停牌或数据缺失"
-    if not (sc["gap_norm_min"] <= feat.gap_norm <= sc["gap_norm_max"]):
-        return f"高开归一 {feat.gap_norm:.2f} 超出区间"
+    if not (sc["gap_pct_min"] <= feat.gap_pct <= sc["gap_pct_max"]):
+        return f"竞价涨幅 {feat.gap_pct:.2f}% 超出区间"
     if not (sc["auc_ratio_min"] <= feat.auc_ratio <= sc["auc_ratio_max"]):
-        return f"竞价量能 {feat.auc_ratio*100:.2f}% 超出区间"
+        return (f"竞价量能 {feat.auc_ratio*100:.2f}%"
+                f"(量比≈{_liangbi(feat.auc_ratio, sc):.1f}) 超出区间")
     # 先判假涨停：它同时也会触发跳水条件，先判才能给出准确的拒绝原因
     if (feat.t1_chg >= feat.limit_pct * sc["fake_limit_t1_frac"]
             and feat.t3_chg < feat.limit_pct * sc["fake_limit_t3_frac"]):
@@ -148,8 +158,8 @@ def score_one(feat: AuctionFeature, cfg: dict[str, Any]) -> dict[str, Any]:
     group = assign_group(feat, sc)
 
     parts = {
-        "gap":        f_gap(feat.gap_norm, sc["gap_norm_min"], sc["gap_norm_max"],
-                            sc["gap_norm_peak"]),
+        "gap":        f_gap(feat.gap_pct, sc["gap_pct_min"], sc["gap_pct_max"],
+                            sc["gap_pct_peak"]),
         "volume":     f_volume(feat.auc_ratio, sc["auc_ratio_min"],
                                sc["auc_ratio_max"], sc["auc_ratio_score_hi"]),
         "trend":      f_trend(feat.slope, feat.monotonic, feat.limit_pct),
@@ -177,6 +187,7 @@ def score_one(feat: AuctionFeature, cfg: dict[str, Any]) -> dict[str, Any]:
     return {
         **asdict(feat),
         "group": group,
+        "liangbi": round(_liangbi(feat.auc_ratio, sc), 1),
         "score": round(max(0.0, raw - penalty), 1),
         "parts": {k: round(v, 3) for k, v in parts.items()},
         "penalty": round(penalty, 1),

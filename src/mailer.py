@@ -62,7 +62,7 @@ td{padding:7px 8px;border-bottom:1px solid #eee;vertical-align:top}
       font-size:12px;margin:14px 0}
 """
 
-_HDR = ["代码", "名称", "竞价价", "高开", "量能", "形态", "板块", "分",
+_HDR = ["代码", "名称", "竞价价", "高开", "量能(量比)", "形态", "板块", "分",
         "理由 / 风险"]
 
 
@@ -82,7 +82,7 @@ def _rows_html(rows: list[dict], texts: dict) -> str:
             f'<tr><td class="c">{r["code"]}</td><td>{r["name"]}</td>'
             f'<td>{r["auc_price"]:.2f}</td>'
             f'<td class="up">+{r["gap_pct"]:.2f}%</td>'
-            f'<td>{r["auc_ratio"]*100:.2f}%</td>'
+            f'<td>{r["auc_ratio"]*100:.2f}% ({r.get("liangbi", 0):.1f})</td>'
             f'<td>{shape} {r["slope"]:+.1f}</td>'
             f'<td>{r["sector"]}'
             + (f'·{r["sector_members"]}' if r["sector_members"] >= 3 else "")

@@ -114,7 +114,7 @@ def build_features(uni: pd.DataFrame, snaps: dict[str, dict[str, Quote]],
     sc = c["screen"]
     floor = sc["min_auc_amount_wan"] * 1e4
     prelim = [f for f in feats
-              if sc["gap_norm_min"] <= f.gap_norm <= sc["gap_norm_max"]
+              if sc["gap_pct_min"] <= f.gap_pct <= sc["gap_pct_max"]
               and sc["auc_ratio_min"] <= f.auc_ratio <= sc["auc_ratio_max"]
               and f.auc_amount >= floor]
     cnt: dict[str, int] = {}

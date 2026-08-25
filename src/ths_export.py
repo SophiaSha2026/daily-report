@@ -97,7 +97,7 @@ tr:hover{background:#1b1f26}
 </div>
 <table><thead><tr>
 <th>#</th><th>代码</th><th>名称</th><th>层</th><th>竞价价</th><th>高开</th>
-<th>量能</th><th>形态</th><th>板块</th><th>分</th><th>理由 / 风险</th>
+<th>量能(量比)</th><th>形态</th><th>板块</th><th>分</th><th>理由 / 风险</th>
 </tr></thead><tbody>__ROWS__</tbody></table>
 <div class="tip">
 点任意代码即复制该代码；上方按钮批量复制。<br>
@@ -148,7 +148,7 @@ def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
             f'<td>{r["name"]}</td><td class="t{tier}">{tier}</td>'
             f'<td>{r["auc_price"]:.2f}</td>'
             f'<td class="up">+{r["gap_pct"]:.2f}%</td>'
-            f'<td>{r["auc_ratio"]*100:.2f}%</td>'
+            f'<td>{r["auc_ratio"]*100:.2f}% ({r.get("liangbi", 0):.1f})</td>'
             f'<td>{shape} {r["slope"]:+.1f}</td>'
             f'<td>{r["sector"]}'
             + (f'·{r["sector_members"]}' if r["sector_members"] >= 3 else '')
