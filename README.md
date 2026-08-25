@@ -209,6 +209,7 @@ AUC_RATIO = 竞价成交额 / 昨日全天成交额    # 竞价量能
 | 想要 | 改哪里 |
 |---|---|
 | 涨幅区间改成 3%-5% | `gap_pct_min: 3.0` / `gap_pct_max: 5.0` |
+| 换个最理想涨幅 | `gap_pct_peak: 3.5`（必须落在上下限之间） |
 | 不接受低开以外还要有动能 | `gap_pct_min: 2.0` |
 | 出 15 只 | `output.top_n: 15` |
 | 更严 | `min_score: 60`、`require_positive_slope: true` |

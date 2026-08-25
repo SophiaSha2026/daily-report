@@ -104,6 +104,7 @@ output:
 screen:
   gap_pct_min: 0.0       # 竞价涨幅下限，0 = 只要不低开就行
   gap_pct_max: 5.0       # 竞价涨幅上限，绝对 5%，20cm 的票也一样
+  gap_pct_peak: 3.5      # 最理想的涨幅，打分在这里满分，往两边递减
   auc_ratio_min: 0.0104  # 量能下限，占昨日全天成交额，≈ 量比 2.5
   auc_ratio_max: 0.2080  # 量能上限，≈ 量比 50
   min_auc_amount_wan: 300  # 竞价成交额绝对下限，防小盘票比例失真

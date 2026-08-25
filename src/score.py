@@ -51,20 +51,37 @@ class AuctionFeature:
 #  分项打分：全部映射到 [0, 1]
 # ---------------------------------------------------------------------
 def f_gap(gap: float, lo: float, hi: float, peak: float) -> float:
-    """钟形：peak 处得 1，边界处得 0，区间外为 0。入参是竞价涨幅百分点。"""
+    """钟形：peak 处得 1，两个边界处都归零。入参是竞价涨幅百分点。
+
+    左右两臂各自按自己的跨度归一。上一版写的是
+    `half = max(peak - lo, hi - peak)`，只有长的那一臂能在边界上归零，
+    短的那一臂到边界还剩一截，被区间外的 return 0 硬切掉。
+    旧参数(0.20/0.35/0.55)恰好是上臂更长，没暴露；下限降到 0 之后上臂只剩
+    1.5，于是 +4.99% 得 0.57、+5.00%（仍在允许范围内）却得 0。
+    分臂归一同时也让「越接近 5% 的剔除线，扣分越快」成立，这正是用户设这条
+    上限的理由（高开过多容易高开低走）。
+    """
     if gap <= lo or gap >= hi:
         return 0.0
-    half = max(peak - lo, hi - peak)
+    half = (peak - lo) if gap < peak else (hi - peak)
     return max(0.0, 1.0 - abs(gap - peak) / half)
 
 
-def f_volume(ratio: float, lo: float, hi: float, sat: float) -> float:
-    """对数刻度：lo -> 0，sat -> 1，sat~hi 缓慢衰减到 0.6，超 hi 为 0。"""
+def f_volume(ratio: float, lo: float, hi: float, sat: float,
+             decay: float = 0.40) -> float:
+    """对数刻度：lo -> 0，sat -> 1，超过 sat 后继续按 log 衰减，超 hi 为 0。
+
+    衰减速率由 decay 单独给，**不能**由 hi 推导。上一版写成
+    `1 - 0.4*(ratio-sat)/(hi-sat)`，把 auc_ratio_max 从 8% 放宽到 20.8% 时
+    衰减被摊到 2.8 倍宽的区间上：量比 19 的得分从 0.61 变成 0.89，量比 25/35
+    从「直接出局」变成 0.83/0.74，「越极端越警惕」这层意思被悄悄抹掉了。
+    上限只说明「还能接受」，不说明「一样好」，两者必须解耦。
+    """
     if ratio < lo or ratio > hi:
         return 0.0
     if ratio <= sat:
         return math.log(ratio / lo) / math.log(sat / lo)
-    return max(0.6, 1.0 - 0.4 * (ratio - sat) / (hi - sat))
+    return max(0.0, 1.0 - decay * math.log(ratio / sat))
 
 
 def f_trend(slope: float, monotonic: bool, limit: float) -> float:
@@ -161,7 +178,8 @@ def score_one(feat: AuctionFeature, cfg: dict[str, Any]) -> dict[str, Any]:
         "gap":        f_gap(feat.gap_pct, sc["gap_pct_min"], sc["gap_pct_max"],
                             sc["gap_pct_peak"]),
         "volume":     f_volume(feat.auc_ratio, sc["auc_ratio_min"],
-                               sc["auc_ratio_max"], sc["auc_ratio_score_hi"]),
+                               sc["auc_ratio_max"], sc["auc_ratio_score_hi"],
+                               sc.get("auc_ratio_decay", 0.40)),
         "trend":      f_trend(feat.slope, feat.monotonic, feat.limit_pct),
         "position":   f_position(feat, group),
         "sector":     f_sector(feat, sc["sector_min_members"],
