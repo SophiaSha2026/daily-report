@@ -267,7 +267,19 @@ def stage_enrich(c: dict) -> int:
     if o.get("attach_csv") and (OUT / "detail.csv").exists():
         att.append(OUT / "detail.csv")
 
-    sleep_until(c["runtime"]["send_at"], "发信")
+    # 双阈值：软时点到了就发；Claude 拖过软时点也照发，但越过硬上限要留痕。
+    rt = c["runtime"]
+    soft = rt["send_at"]
+    hard = rt.get("send_deadline", soft)
+    if not sleep_until(soft, "发信"):
+        late = (now_bj() - target(soft)).total_seconds()
+        if now_bj() > target(hard):
+            msg = f"本次发信晚于硬上限 {hard}（迟 {late:.0f} 秒）"
+            log.error(msg)
+            notice = f"{notice} · {msg}" if notice else msg
+        else:
+            log.warning("晚于软时点 %s %.0f 秒，仍在硬上限 %s 之内",
+                        soft, late, hard)
     send_report(today, {"A": sel, "B": []}, texts, c,
                 attachments=att, stage="清单", notice=notice, page_url=page)
     return 0

@@ -123,6 +123,26 @@ jobs:
       #  · 用 --json-schema 拿结构化输出，比让模型自己写文件可靠
       #  · OAuth token 只对 Claude Code 有效、会被 Messages API 拒绝，
       #    所以必须走本 action，不能用 anthropic SDK 直连
+      # 闸门：把 Claude 的起跑时刻钉死在 09:25:50。
+      # 不加这一步的话起跑时刻取决于上一步跑多久，硬超时 2 分钟的**结束**时刻
+      # 就不确定，发信硬上限也就无从保证。quick 阶段 T4 在 09:25:40，
+      # 采样加打分约 5 秒，09:25:50 一定已经就绪。
+      - name: 闸门（钉死 Claude 起跑时刻）
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        run: |
+          python - <<'PY'
+          import datetime as dt, time, zoneinfo
+          bj = zoneinfo.ZoneInfo("Asia/Shanghai")
+          now = dt.datetime.now(bj)
+          tgt = now.replace(hour=9, minute=25, second=50, microsecond=0)
+          d = (tgt - now).total_seconds()
+          if d <= 0:
+              print(f"::warning::闸门时点已过 {-d:.0f}s，Claude 直接起跑")
+          else:
+              print(f"等待到 09:25:50，还有 {d:.0f}s")
+              time.sleep(d)
+          PY
+
       - name: Claude 分析
         id: llm
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
