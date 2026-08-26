@@ -16,36 +16,58 @@ A股集合竞价选股流水线。跑在 GitHub Actions，每交易日 09:27:30�
 
 ## 文件地图
 
+仓库里跑着**两条互不相干的流水线**，共用数据源、邮件底层和 Pages 站点：
+
+- **竞价线**（早上）：09:25 集合竞价强弱榜，09:27:30 发信
+- **形态线**（收盘后）：启动-缩量回调-再启动，17:00 扫描发信
+
+改其中一条不要顺手动另一条。
+
 ```
-config.yaml              所有阈值。改参数只动这里，不要把常量写进代码
-prompts/analyst.md       LLM 的分析指令。改文案只动这里，不要动 workflow YAML
+config.yaml              所有阈值。竞价看 screen/scoring，形态看 pullback
+prompts/analyst.md       竞价的 LLM 指令
+prompts/pullback_analyst.md  形态的 LLM 指令
 src/
   datasource.py          数据源层。腾讯批量行情为主，东财单只日线为辅
+  ── 竞价线 ──
   premarket.py           08:23 构建候选池（两阶段收缩）
   run_auction.py         竞价主流程，--stage quick / enrich
-  score.py               特征定义 + 打分排序（纯确定性）
-  collect_llm.py         把 action 的 structured_output 转成 commentary.json
-  ths_export.py          同花顺分层板块 + HTML 面板
-  tdx_export.py          通达信自定义数据（可选，用户目前不用）
+  score.py               竞价特征 + 打分排序（纯确定性）
+  ths_export.py          同花顺分层板块 + 竞价面板（PANEL_CSS/REFRESH_JS 共用）
+  selftest.py            竞价离线自测
+  ── 形态线 ──
+  pullback.py            形态主流程，--stage scan / send
+  pullback_export.py     形态面板 + 邮件
+  selftest_pullback.py   形态离线自测
+  ── 共用 ──
+  collect_llm.py         structured_output -> commentary.json（LLM_OUT_DIR 选目录）
+  build_site.py          把两个面板打包成 _site，两条线都调它
   mailer.py              SMTP 发信
+  tdx_export.py          通达信自定义数据（可选，用户目前不用）
   refresh_meta.py        每周刷新行业成分 + 代码表
+  refresh_sector.py      Playwright 抓同花顺板块成分
   smoke_test.py          联网冒烟测试
-  selftest.py            离线自测，不联网
 .github/workflows/
   smoke_test.yml         0-冒烟测试（手动）
   premarket.yml          1-盘前候选池 08:23 BJT
-  auction.yml            2-竞价选股 08:47/08:59/09:11 BJT 三入口
+  auction.yml            2-竞价选股 07:40 起八个入口
   refresh_meta.yml       3-刷新缓存 周日 20:17 BJT
+  refresh_sector.yml     4-刷新板块成分表 周日 20:40 BJT
+  pullback.yml           5-形态扫描 17:00 BJT
 cache/                   codes.csv, sector_map.parquet, universe.parquet
-data/YYYY-MM/            每日全候选池竞价快照（自建历史库）
-out/                     当日产物：panel.html, 竞价_*.txt, detail.csv 等
+data/YYYY-MM/            auction_*.parquet 竞价快照 / pullback_*.parquet 形态结果
+out/                     竞价当日产物：panel.html, stamp.txt, 竞价_*.txt, detail.csv
+out_pullback/            形态当日产物：同上结构
 ```
 
 ## 改动前必须跑
 
 ```bash
-python src/selftest.py       # 离线，0.1s，12 边界用例 + 1000 压力样本
+python src/selftest.py            # 竞价：13 用例 + 8 条曲线不变量 + 1000 压力样本
+python src/selftest_pullback.py   # 形态：13 条形态判定 + 打分单调性 + 工具函数
 ```
+
+两个都是离线的，加起来不到 0.5 秒。**改哪条线就跑哪个，改共用代码两个都跑。**
 
 联网测试只在 GitHub Actions 上跑（`0-冒烟测试`），本地和沙箱都访问不了国内行情源。
 
@@ -270,6 +292,68 @@ GitHub cron 实测连续两天严重延迟或整段丢失（08-24 延迟 97 分�
 - **本机计划任务做备份触发**（`tools/trigger_auction.cmd`），
   跨时区排期两个坑：夏令时会让固定本地时刻漂 1 小时；
   美东的星期几和北京的星期几差一天，按美东周一到周五排会漏掉北京周一
+
+## 形态线的领域知识
+
+### 三段条件是硬门槛，打分只排序
+
+用户 2026-08-26 给的规则：
+
+| 段 | 条件 |
+|---|---|
+| 启动日 S | 涨停或涨幅 ≥5%；成交量 ≥ 前一日 1.5 倍；换手 5%~10% |
+| 调整期 | S+1 到 T-1，1~6 个交易日；缩量；期间最低价 ≥ S 日最低价 |
+| 执行日 T | 涨幅 ≥5%；成交量 ≥ 前一日 1.5 倍；换手 5%~10% |
+
+三段全是准入条件，`pullback.weights` 只决定榜内顺序，不决定谁上榜。
+
+### 「涨停或涨幅≥5%」只判后者
+
+非 ST 票的涨停幅度是 10/20/30%，全都 ≥5%，涨停是「涨幅 ≥5%」的真子集。
+ST 本来就排除。写成两个条件是冗余，不是遗漏。
+
+### 「量能」指成交量，不是成交额
+
+成交额受价格影响：同样的换手，在涨停日的成交额天然更大，拿它判「放大
+1.5 倍」会系统性偏松。`vol_ratio` 一律用成交量（手）。
+
+### 历史换手率是反推的
+
+腾讯批量行情 index 38 是换手率，今天的能直接读；历史日线两条路里只有东财
+带换手率，腾讯 K 线不带。所以统一按
+
+```
+历史换手率 = 今日换手率 × (历史成交量 / 今日成交量)
+```
+
+反推。流通股本在 7 个交易日内基本不变，恒等式成立。**期间有增发或大额解禁
+的票会失真**，是已知误差，不为它单独去拉股本表。东财那路带真值时优先用真值。
+
+### 多个候选启动日取最近的那个
+
+不是取最强的。形态讲的是「上一次启动之后的这一段回调」，取更早的启动日会让
+调整期跨过一次新的放量，那就不是同一段结构了。
+
+### 收盘后跑，早触发要防
+
+数据窗口和竞价相反：收盘后数据就定死了，17:00 跑和 19:00 跑结果一样，
+所以 `hard_deadline` 给到 22:00，cron 迟一两小时无所谓。
+真正要防的是**早**：手动 dispatch 到盘中会扫到实时数据，涨幅和量都没定型。
+`stage_scan` 会自旋等到 `run_at`。
+
+### 一个仓库只有一份 Pages 部署
+
+两条线都调 `build_site.py`，它从 `out/` 和 `out_pullback/` 各取一份凑齐再发布。
+**不要退回成各自 `mkdir _site && cp`**，那样谁后跑谁把对方的页面冲掉。
+两个面板的 stamp 文件在站点根目录会撞名，所以形态那份发布成
+`stamp-pullback.txt`，面板里的 `__STAMPFILE__` 占位符就是干这个的。
+
+### GitHub Pages 的 CDN 缓存
+
+`index.html` 的响应头是 `Cache-Control: max-age=600`。邮件到了点进去经常还是
+上一个交易日的面板。页面改不了响应头，所以让它自己发现过期：轮询
+`stamp.txt?cb=<随机>`，不一致就跳到 `?v=<新stamp>`（不同缓存键必然回源）。
+`ths_export.REFRESH_JS` 是这段脚本，两个面板共用。
 
 ## 用户偏好
 

@@ -62,9 +62,7 @@ def write_ths_blocks(rows: list[dict], out_dir: Path,
 
 
 # ---------------------------------------------------------------------
-_PANEL = """<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
-<title>竞价榜 __DATE__</title><style>
-*{box-sizing:border-box}
+PANEL_CSS = """*{box-sizing:border-box}
 body{font:14px/1.55 -apple-system,'Microsoft YaHei',sans-serif;margin:0;
      padding:14px;background:#14161a;color:#e6e6e6}
 h1{font-size:15px;margin:0 0 4px}
@@ -90,7 +88,57 @@ tr:hover{background:#1b1f26}
 #toast.show{opacity:1}
 #stale{display:none;background:#3a2d16;border:1px solid #6b5320;color:#e8c877;
    padding:8px 12px;border-radius:5px;font-size:12px;margin-bottom:12px}
-</style></head><body>
+"""
+
+# 自动刷新脚本，竞价面板和形态面板共用。__STAMP__ / __DATE__ 由调用方替换。
+REFRESH_JS = """/* ---------------------------------------------------------------------
+   自动刷新。为什么需要：
+   GitHub Pages 给 index.html 挂的是 Cache-Control: max-age=600，
+   邮件 09:27:31 到、Pages 09:27:42 才部署完，中间还隔着 CDN 那 10 分钟。
+   用户点邮件里的链接进来，拿到的常常是上一个交易日的面板。
+   页面本身没法改响应头，但可以自己发现「我过期了」然后跳到一个新 URL：
+   带上 ?v=<新stamp> 就是不同的缓存键，必然回源。
+   stamp.txt 的请求也带 cb=<随机> 绕开缓存，否则查的还是旧的。
+   --------------------------------------------------------------------- */
+const STAMP='__STAMP__', PDATE='__DATE__';
+function bjToday(){
+  const d=new Date(Date.now()+(new Date().getTimezoneOffset()*6e4)+8*36e5);
+  return d.toISOString().slice(0,10);
+}
+function banner(msg){
+  const e=document.getElementById('stale');
+  e.textContent=msg; e.style.display=msg?'block':'none';
+}
+let tries=0;
+function poll(){
+  fetch('__STAMPFILE__?cb='+Date.now()+Math.random(),{cache:'no-store'})
+    .then(r=>r.ok?r.text():null)
+    .then(s=>{
+      if(!s) return;
+      s=s.trim();
+      if(s && s!==STAMP){
+        /* 防死循环：同一个 stamp 只跳一次 */
+        if(sessionStorage.getItem('jumped')===s) return;
+        sessionStorage.setItem('jumped',s);
+        location.replace(location.pathname+'?v='+encodeURIComponent(s));
+      }
+    }).catch(()=>{});
+}
+(function(){
+  const t=bjToday();
+  if(PDATE!==t){
+    banner('面板数据日期 '+PDATE+'，当前北京 '+t+
+           '。若今日榜单已发布，本页会自动刷新（每 15 秒检查一次）。');
+  }
+  poll();
+  /* 前 20 分钟每 15 秒查一次，够覆盖发信到 Pages 部署完成的窗口 */
+  const id=setInterval(()=>{ if(++tries>80){clearInterval(id);return;} poll(); },15000);
+})();
+"""
+
+_PANEL = """<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>竞价榜 __DATE__</title><style>
+""" + PANEL_CSS + """</style></head><body>
 <div id="stale"></div>
 <h1>集合竞价榜 · __DATE__</h1>
 <div class="sub">__SUB__</div>
@@ -128,50 +176,7 @@ function cp(k,btn){
 }
 function one(c){put(c,'已复制 '+c);}
 
-/* ---------------------------------------------------------------------
-   自动刷新。为什么需要：
-   GitHub Pages 给 index.html 挂的是 Cache-Control: max-age=600，
-   邮件 09:27:31 到、Pages 09:27:42 才部署完，中间还隔着 CDN 那 10 分钟。
-   用户点邮件里的链接进来，拿到的常常是上一个交易日的面板。
-   页面本身没法改响应头，但可以自己发现「我过期了」然后跳到一个新 URL：
-   带上 ?v=<新stamp> 就是不同的缓存键，必然回源。
-   stamp.txt 的请求也带 cb=<随机> 绕开缓存，否则查的还是旧的。
-   --------------------------------------------------------------------- */
-const STAMP='__STAMP__', PDATE='__DATE__';
-function bjToday(){
-  const d=new Date(Date.now()+(new Date().getTimezoneOffset()*6e4)+8*36e5);
-  return d.toISOString().slice(0,10);
-}
-function banner(msg){
-  const e=document.getElementById('stale');
-  e.textContent=msg; e.style.display=msg?'block':'none';
-}
-let tries=0;
-function poll(){
-  fetch('stamp.txt?cb='+Date.now()+Math.random(),{cache:'no-store'})
-    .then(r=>r.ok?r.text():null)
-    .then(s=>{
-      if(!s) return;
-      s=s.trim();
-      if(s && s!==STAMP){
-        /* 防死循环：同一个 stamp 只跳一次 */
-        if(sessionStorage.getItem('jumped')===s) return;
-        sessionStorage.setItem('jumped',s);
-        location.replace(location.pathname+'?v='+encodeURIComponent(s));
-      }
-    }).catch(()=>{});
-}
-(function(){
-  const t=bjToday();
-  if(PDATE!==t){
-    banner('面板数据日期 '+PDATE+'，当前北京 '+t+
-           '。若今日榜单已发布，本页会自动刷新（每 15 秒检查一次）。');
-  }
-  poll();
-  /* 前 20 分钟每 15 秒查一次，够覆盖发信到 Pages 部署完成的窗口 */
-  const id=setInterval(()=>{ if(++tries>80){clearInterval(id);return;} poll(); },15000);
-})();
-</script></body></html>"""
+""" + REFRESH_JS + """</script></body></html>"""
 
 
 def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
@@ -214,6 +219,7 @@ def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
 
     html = (_PANEL.replace("__DATE__", date).replace("__SUB__", sub)
             .replace("__STAMP__", stamp)
+            .replace("__STAMPFILE__", "stamp.txt")
             .replace("__ROWS__", "".join(tr))
             .replace("__DATA__", json.dumps(data, ensure_ascii=False)))
     p = out_dir / "panel.html"

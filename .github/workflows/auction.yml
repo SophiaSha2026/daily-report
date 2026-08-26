@@ -222,12 +222,10 @@ jobs:
       # 重新生成带「今日无标的通过筛选」的面板，不受这里影响。
       - name: 准备 Pages
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
-        run: |
-          mkdir -p _site
-          cp out/panel.html _site/index.html
-          cp out/*.txt _site/ 2>/dev/null || true
-          # stamp.txt 必须发布：页面靠轮询它发现自己被 CDN 缓存住了。
-          test -f out/stamp.txt || { echo "::error::缺 stamp.txt"; exit 1; }
+        # 一个仓库只有一份 Pages 部署。以前这里是 mkdir _site && cp out/*，
+        # 加了形态扫描那条线之后，谁后跑谁就把对方的页面整个冲掉。
+        # build_site.py 从 out/ 和 out_pullback/ 各取一份凑齐再发布。
+        run: python src/build_site.py
       - uses: actions/upload-pages-artifact@v3
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         with: { path: _site }

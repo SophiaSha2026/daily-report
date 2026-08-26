@@ -1,0 +1,157 @@
+name: 5-形态扫描 (17:00 BJT)
+
+# 启动 -> 缩量回调 -> 再启动。收盘后跑，和竞价那条线完全独立。
+#
+# 时点压力比竞价小得多：竞价的数据窗口只有 09:25:00-09:29:59，晚一分钟就废；
+# 这边收盘后数据就定死了，17:00 跑和 19:00 跑结果一样。所以 hard_deadline
+# 给到 22:00，cron 迟一两个小时都无所谓，不需要竞价那种八个错峰入口。
+#
+# 早触发反而要防：手动 dispatch 到盘中会扫到实时数据，涨幅和量都没定型，
+# 出来的榜是假的。所以 job 内会自旋等到 config 里的 run_at。
+on:
+  schedule:
+    - cron: "00 9 * * 1-5"   # 17:00 BJT
+    - cron: "30 9 * * 1-5"   # 17:30 BJT 备用
+    - cron: "20 10 * * 1-5"  # 18:20 BJT 最后一班
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# 和竞价共用 Pages 部署，但扫描本身互不干扰，所以是独立的串行组。
+concurrency:
+  group: pullback-daily
+  cancel-in-progress: false
+
+jobs:
+  pullback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      # ref 必须显式给。workflow_dispatch 的 github.sha 钉死在派发那一刻，
+      # 排队久了 checkout 到的是旧 tip，看不到别的入口刚提交的当日数据，
+      # 幂等检查就会失效。竞价那条线 2026-08-26 因此发过一封多余的告警邮件。
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: 幂等检查（三个入口只跑一次）
+        id: g
+        run: |
+          D=$(TZ=Asia/Shanghai date +%F)
+          F="data/${D:0:7}/pullback_${D}.parquet"
+          echo "date=$D" >> $GITHUB_OUTPUT
+          git fetch -q origin "${{ github.ref_name }}" 2>/dev/null || true
+          if [ -f "$F" ] || \
+             git cat-file -e "origin/${{ github.ref_name }}:$F" 2>/dev/null; then
+            echo "skip=true"  >> $GITHUB_OUTPUT
+            echo "今天已经扫过（$F 已存在），整个 job 跳过"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.g.outputs.skip == 'false'
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt
+        if: steps.g.outputs.skip == 'false'
+
+      # 扫描。空榜也会落一个空 parquet，否则幂等检查以为今天没跑过。
+      - name: 收盘后形态扫描
+        if: steps.g.outputs.skip == 'false'
+        run: python src/pullback.py --stage scan
+
+      - name: 本轮是否真的出了产物
+        id: q
+        if: steps.g.outputs.skip == 'false'
+        run: |
+          D=$(TZ=Asia/Shanghai date +%F)
+          if grep -q "\"date\": \"$D\"" out_pullback/run_meta.json 2>/dev/null; then
+            echo "fresh=true"  >> $GITHUB_OUTPUT
+          else
+            echo "fresh=false" >> $GITHUB_OUTPUT
+            echo "::warning::本轮未产出今日结果（非交易日或超死线），跳过后续"
+          fi
+
+      # LLM 只写 reason / risk 两句文案，绝不参与排序。失败不阻断发信。
+      # 收盘后没有秒级压力，给 3 分钟。
+      - name: Claude 分析
+        id: llm
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            先读 prompts/pullback_analyst.md 获取完整指令，
+            再读 out_pullback/brief.json 获取今日数据。
+            严格按 pullback_analyst.md 的检索策略和写作要求执行，
+            按 json-schema 返回结果。
+          claude_args: |
+            --model claude-opus-5
+            --max-turns 20
+            --allowedTools "WebSearch,WebFetch,Read"
+            --json-schema '{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"code":{"type":"string"},"reason":{"type":"string"},"risk":{"type":"string"}},"required":["code","reason","risk"]}}},"required":["items"]}'
+
+      - name: 落盘 Claude 输出
+        if: always() && steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        env:
+          RAW: ${{ steps.llm.outputs.structured_output }}
+          LLM_OUT_DIR: out_pullback
+        run: python src/collect_llm.py
+
+      - name: 发信 + 生成同花顺文件
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO:   ${{ secrets.MAIL_TO }}
+          GH_OWNER:  ${{ github.repository_owner }}
+          GH_REPO:   ${{ github.event.repository.name }}
+        run: python src/pullback.py --stage send
+
+      - name: 提交数据
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        run: |
+          git config user.name auction-bot
+          git config user.email bot@users.noreply.github.com
+          git add data/ out_pullback/ || true
+          git diff --staged --quiet || \
+            git commit -m "data: 形态 ${{ steps.g.outputs.date }}"
+          # 显式带 token：claude-code-action 跑完会把 checkout 写进去的凭证清掉，
+          # 裸 push 必然 Invalid username or token。竞价那条线踩过。
+          URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          ok=""
+          for i in 1 2 3; do
+            if git push "$URL" HEAD:${{ github.ref_name }}; then ok=1; break; fi
+            sleep 5
+            git pull --rebase --autostash || true
+          done
+          [ -n "$ok" ] || echo "::warning::push 失败"
+
+      # 一个仓库只有一份 Pages 部署，build_site.py 会把竞价面板和形态面板
+      # 一起打包，谁后跑发布的都是完整站点，不会互相冲掉。
+      - name: 准备 Pages
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        run: python src/build_site.py
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        with: { path: _site }
+      - uses: actions/deploy-pages@v4
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.g.outputs.skip == 'false'
+        with:
+          name: pullback-${{ steps.g.outputs.date }}
+          path: |
+            data/
+            out_pullback/
+          retention-days: 30
