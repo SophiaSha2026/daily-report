@@ -23,6 +23,10 @@ on:
         description: "历史频率验证：抽样估计这个形态平均每天出几只，不发信"
         type: boolean
         default: false
+      asof:
+        description: "补跑指定交易日 YYYY-MM-DD（留空=跑今天）。只能在该日收盘后、下一交易日开盘前跑"
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -49,7 +53,8 @@ jobs:
       - name: 幂等检查（三个入口只跑一次）
         id: g
         run: |
-          D=$(TZ=Asia/Shanghai date +%F)
+          D="${{ inputs.asof }}"
+          [ -n "$D" ] || D=$(TZ=Asia/Shanghai date +%F)
           F="data/${D:0:7}/pullback_${D}.parquet"
           echo "date=$D" >> $GITHUB_OUTPUT
           git fetch -q origin "${{ github.ref_name }}" 2>/dev/null || true
@@ -83,7 +88,7 @@ jobs:
 
       - name: 收盘后形态扫描
         if: steps.g.outputs.skip == 'false' && !inputs.dry && !inputs.backtest
-        run: python src/pullback.py --stage scan
+        run: python src/pullback.py --stage scan --asof "${{ inputs.asof }}"
 
       # dry 模式不写 run_meta.json，所以 fresh 天然是 false，
       # 后面发信/提交/部署全部跳过，不用在每一步再写一遍 !inputs.dry
@@ -91,7 +96,8 @@ jobs:
         id: q
         if: steps.g.outputs.skip == 'false'
         run: |
-          D=$(TZ=Asia/Shanghai date +%F)
+          D="${{ inputs.asof }}"
+          [ -n "$D" ] || D=$(TZ=Asia/Shanghai date +%F)
           if grep -q "\"date\": \"$D\"" out_pullback/run_meta.json 2>/dev/null; then
             echo "fresh=true"  >> $GITHUB_OUTPUT
           else
@@ -138,7 +144,7 @@ jobs:
           MAIL_TO:   ${{ secrets.MAIL_TO }}
           GH_OWNER:  ${{ github.repository_owner }}
           GH_REPO:   ${{ github.event.repository.name }}
-        run: python src/pullback.py --stage send
+        run: python src/pullback.py --stage send --asof "${{ inputs.asof }}"
 
       - name: 提交数据
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'

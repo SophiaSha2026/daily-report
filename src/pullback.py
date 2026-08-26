@@ -254,7 +254,16 @@ def score_one(r: dict, pb: dict) -> dict:
 
 
 # ---------------------------------------------------------------------
-def scan(c: dict) -> tuple[list[dict], dict]:
+def scan(c: dict, asof: str | None = None) -> tuple[list[dict], dict]:
+    """
+    asof=None 走正常路径：批量行情就是「今天」的收盘状态。
+
+    asof='YYYY-MM-DD' 是补跑。腾讯批量行情在**收盘后到次日开盘前**这段时间
+    返回的一直是最近一个交易日的收盘状态，所以凌晨补跑昨天是可行的——
+    但必须验证，不能假设：拿候选票的行情成交量和它 asof 那根日线的成交量
+    对一下，对不上就说明行情已经翻篇（或者还没收盘），直接中止，
+    宁可不出榜也不出一份日期错位的榜。
+    """
     pb = c["pullback"]
     tg = pb["trigger"]
     stat = {}
@@ -287,13 +296,34 @@ def scan(c: dict) -> tuple[list[dict], dict]:
     if not cand:
         return [], stat
 
-    today = now_bj().strftime("%Y-%m-%d")
+    today = asof or now_bj().strftime("%Y-%m-%d")
     # daily_hist 内部要求至少 25 根 K 线，窗口给足 90 个自然日
     start = (now_bj() - dt.timedelta(days=pb["lookback_days"])).strftime("%Y-%m-%d")
-    hs = ds.daily_hist_many(list(cand), start, today, workers=4)
+    hs = ds.daily_hist_many(list(cand), start, now_bj().strftime("%Y-%m-%d"),
+                            workers=4)
     stat["hist_ok"] = sum(1 for v in hs.values() if v is not None and len(v))
     log.info("日线拉取 %d/%d 成功，来源 %s", stat["hist_ok"], len(cand),
              ds.hist_source_stats())
+
+    # 行情快照到底是不是 asof 那天的？拿日线对一下成交量。
+    if asof:
+        hit = miss = 0
+        for code, r in cand.items():
+            h0 = norm_hist(hs.get(code))
+            row = h0[h0["日期"] == asof]
+            if not len(row):
+                continue
+            v = float(row.iloc[0]["成交量"])
+            if v > 0 and 0.9 <= r["vol_hand"] / v <= 1.1:
+                hit += 1
+            else:
+                miss += 1
+        log.info("asof 校验：行情与 %s 日线对得上 %d 只，对不上 %d 只",
+                 asof, hit, miss)
+        if hit + miss >= 5 and hit < (hit + miss) * 0.8:
+            raise RuntimeError(
+                f"批量行情不是 {asof} 的收盘状态（对上 {hit}/{hit + miss}）。"
+                f"补跑只能在该交易日收盘后、下一个交易日开盘前进行。")
 
     rows: list[dict] = []
     diag: dict[str, int] = {}
@@ -346,14 +376,14 @@ def write_prompt(sel: list[dict], date: str) -> None:
     (OUT / "commentary.json").write_text("{}", encoding="utf-8")
 
 
-def stage_scan(c: dict, dry: bool = False) -> int:
+def stage_scan(c: dict, dry: bool = False, asof: str | None = None) -> int:
     """dry=True：只扫描并打印统计，不落盘、不发信、不提交。
 
     用来在收盘前拿真实行情验证数据通路（腾讯批量 + 日线 + 形态判定）
     是否走得通，同时不产生任何副作用——特别是不能落下当日 parquet，
     否则 17:00 那班的幂等检查会以为今天已经跑过。
     """
-    today = now_bj().strftime("%Y-%m-%d")
+    today = asof or now_bj().strftime("%Y-%m-%d")
     try:
         if today not in ds.trade_dates():
             log.info("%s 非交易日", today)
@@ -364,15 +394,17 @@ def stage_scan(c: dict, dry: bool = False) -> int:
             return 0
 
     pb = c["pullback"]
-    if not dry and not sleep_until(pb["run_at"], "收盘后扫描"):
+    # 补跑是明确指定日期的人工动作，不受 run_at / 死线约束
+    if not dry and not asof and not sleep_until(pb["run_at"], "收盘后扫描"):
         return 0
-    if not dry and now_bj() > now_bj().replace(
+    if not dry and not asof and now_bj() > now_bj().replace(
             hour=int(pb["hard_deadline"][:2]), minute=int(pb["hard_deadline"][3:5]),
             second=0, microsecond=0):
         send_alert(f"{today} 形态扫描启动过晚（超过 {pb['hard_deadline']}），本次放弃。")
         return 0
 
-    rows, stat = scan(c)
+    rows, stat = scan(c, asof=asof)
+    stat["asof"] = today
     if dry:
         log.info("dry run：不落盘、不发信。统计 %s", stat)
         for r in rows[:15]:
@@ -408,8 +440,8 @@ def stage_scan(c: dict, dry: bool = False) -> int:
     return 0
 
 
-def stage_send(c: dict) -> int:
-    today = now_bj().strftime("%Y-%m-%d")
+def stage_send(c: dict, asof: str | None = None) -> int:
+    today = asof or now_bj().strftime("%Y-%m-%d")
     f = OUT / "selected.json"
     if not f.exists():
         log.info("无 selected.json（今日未运行或非交易日），跳过")
@@ -458,9 +490,14 @@ def main() -> int:
     ap.add_argument("--stage", choices=["scan", "send"], required=True)
     ap.add_argument("--dry", action="store_true",
                     help="只扫描并打印，不落盘、不发信、不提交")
+    ap.add_argument("--asof", default="",
+                    help="补跑指定交易日（YYYY-MM-DD）。只能在该日收盘后、"
+                         "下一个交易日开盘前跑，脚本会自行校验")
     a = ap.parse_args()
     c = cfg()
-    return stage_scan(c, dry=a.dry) if a.stage == "scan" else stage_send(c)
+    asof = a.asof or None
+    return (stage_scan(c, dry=a.dry, asof=asof) if a.stage == "scan"
+            else stage_send(c, asof=asof))
 
 
 if __name__ == "__main__":
