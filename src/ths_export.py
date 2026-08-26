@@ -23,6 +23,7 @@ tdx_export.py 里的完整版随时可用——那边能做到真正的可排序
 from __future__ import annotations
 
 import json
+import datetime as _dt
 from pathlib import Path
 from typing import Any
 
@@ -87,7 +88,10 @@ tr:hover{background:#1b1f26}
    background:#c1440e;padding:8px 18px;border-radius:5px;opacity:0;
    transition:.25s;font-size:13px;pointer-events:none}
 #toast.show{opacity:1}
+#stale{display:none;background:#3a2d16;border:1px solid #6b5320;color:#e8c877;
+   padding:8px 12px;border-radius:5px;font-size:12px;margin-bottom:12px}
 </style></head><body>
+<div id="stale"></div>
 <h1>集合竞价榜 · __DATE__</h1>
 <div class="sub">__SUB__</div>
 <div class="bar">
@@ -123,6 +127,50 @@ function cp(k,btn){
   btn.classList.add('on');
 }
 function one(c){put(c,'已复制 '+c);}
+
+/* ---------------------------------------------------------------------
+   自动刷新。为什么需要：
+   GitHub Pages 给 index.html 挂的是 Cache-Control: max-age=600，
+   邮件 09:27:31 到、Pages 09:27:42 才部署完，中间还隔着 CDN 那 10 分钟。
+   用户点邮件里的链接进来，拿到的常常是上一个交易日的面板。
+   页面本身没法改响应头，但可以自己发现「我过期了」然后跳到一个新 URL：
+   带上 ?v=<新stamp> 就是不同的缓存键，必然回源。
+   stamp.txt 的请求也带 cb=<随机> 绕开缓存，否则查的还是旧的。
+   --------------------------------------------------------------------- */
+const STAMP='__STAMP__', PDATE='__DATE__';
+function bjToday(){
+  const d=new Date(Date.now()+(new Date().getTimezoneOffset()*6e4)+8*36e5);
+  return d.toISOString().slice(0,10);
+}
+function banner(msg){
+  const e=document.getElementById('stale');
+  e.textContent=msg; e.style.display=msg?'block':'none';
+}
+let tries=0;
+function poll(){
+  fetch('stamp.txt?cb='+Date.now()+Math.random(),{cache:'no-store'})
+    .then(r=>r.ok?r.text():null)
+    .then(s=>{
+      if(!s) return;
+      s=s.trim();
+      if(s && s!==STAMP){
+        /* 防死循环：同一个 stamp 只跳一次 */
+        if(sessionStorage.getItem('jumped')===s) return;
+        sessionStorage.setItem('jumped',s);
+        location.replace(location.pathname+'?v='+encodeURIComponent(s));
+      }
+    }).catch(()=>{});
+}
+(function(){
+  const t=bjToday();
+  if(PDATE!==t){
+    banner('面板数据日期 '+PDATE+'，当前北京 '+t+
+           '。若今日榜单已发布，本页会自动刷新（每 15 秒检查一次）。');
+  }
+  poll();
+  /* 前 20 分钟每 15 秒查一次，够覆盖发信到 Pages 部署完成的窗口 */
+  const id=setInterval(()=>{ if(++tries>80){clearInterval(id);return;} poll(); },15000);
+})();
 </script></body></html>"""
 
 
@@ -158,7 +206,14 @@ def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
     sub = f'共 {len(rows)} 只 · 采集于 09:25:10'
     if notice:
         sub += f' · <span style="color:#d0a34a">{notice}</span>'
+    # 每次生成都换一个 stamp。页面拿它跟 stamp.txt 比对，不一致就跳新 URL，
+    # 借此绕开 GitHub Pages 那 600 秒的 CDN 缓存（详见 _PANEL 里的注释）。
+    stamp = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=8))).strftime(
+        "%Y%m%d-%H%M%S")
+    (out_dir / "stamp.txt").write_text(stamp, encoding="utf-8")
+
     html = (_PANEL.replace("__DATE__", date).replace("__SUB__", sub)
+            .replace("__STAMP__", stamp)
             .replace("__ROWS__", "".join(tr))
             .replace("__DATA__", json.dumps(data, ensure_ascii=False)))
     p = out_dir / "panel.html"

@@ -44,18 +44,30 @@ jobs:
     # 最早的入口 07:40 触发，一路自旋等到 09:27:30 发信、再提交和发 Pages。
     # 07:40 起算约 115 分钟，加上建候选池和 Pages 部署留足余量。
     # 08-24 实测从 08:35 起算是 54m37s。
-    # 再叠上候选池兜底那 4 分钟必然被杀。放到 75 分钟，等待期不额外计费。
     timeout-minutes: 150
     steps:
+      # 必须显式给 ref。默认 checkout 的是 github.sha，而 workflow_dispatch
+      # 的 github.sha **钉死在派发那一刻**。本机计划任务 09:05 派发、排队到
+      # 09:27:49 才启动，checkout 拿到的还是 09:05 的旧 tip，看不到 09:27:32
+      # 刚提交的当日数据，于是幂等检查失效、整条流水线重跑一遍、撞上死线，
+      # 发出一封多余的「告警」邮件。2026-08-26 实际发生过。
+      # 给了 ref 就变成 checkout 时刻的分支 tip，顺带也保证跑的是最新代码。
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
 
-      - name: 幂等检查（五个 cron 只跑一次）
+      - name: 幂等检查（八个入口只跑一次）
         id: g
         run: |
           D=$(TZ=Asia/Shanghai date +%F)
+          F="data/${D:0:7}/auction_${D}.parquet"
           echo "date=$D" >> $GITHUB_OUTPUT
-          if [ -f "data/${D:0:7}/auction_${D}.parquet" ]; then
+          # 工作树 + 远端都查一遍。上面的 ref 已经解决了主要问题，
+          # 这里再兜一层：前一个入口的提交可能正好落在我们 checkout 之后。
+          git fetch -q origin "${{ github.ref_name }}" 2>/dev/null || true
+          if [ -f "$F" ] ||              git cat-file -e "origin/${{ github.ref_name }}:$F" 2>/dev/null; then
             echo "skip=true"  >> $GITHUB_OUTPUT
+            echo "今天已经跑过（$F 已存在），整个 job 跳过"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
@@ -214,6 +226,8 @@ jobs:
           mkdir -p _site
           cp out/panel.html _site/index.html
           cp out/*.txt _site/ 2>/dev/null || true
+          # stamp.txt 必须发布：页面靠轮询它发现自己被 CDN 缓存住了。
+          test -f out/stamp.txt || { echo "::error::缺 stamp.txt"; exit 1; }
       - uses: actions/upload-pages-artifact@v3
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         with: { path: _site }
