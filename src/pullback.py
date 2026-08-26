@@ -78,16 +78,35 @@ def target(hms: str) -> dt.datetime:
     return now_bj().replace(hour=h, minute=m, second=s, microsecond=0)
 
 
-def sleep_until(hms: str, label: str) -> None:
-    """早到就等。cron 不会提前触发，但手动 dispatch 会——盘中跑一遍扫到的是
-    实时数据，涨幅和量都还没定型，出来的榜是假的。宁可空转等到收盘。"""
+MAX_WAIT = 45 * 60          # 最多空转等 45 分钟
+
+
+def sleep_until(hms: str, label: str) -> bool:
+    """
+    早到就等，等太久就直接不跑。
+
+    为什么要等：手动 dispatch 到盘中会扫到实时数据，涨幅和量都还没定型，
+    出来的榜是假的。cron 本身不会提前触发，这条只防人工误操作。
+
+    为什么要有上限：早上派发一次就要空转到 17:00，四个多小时，
+    必然撞上 job 的 timeout 被杀掉，留一个红叉还什么都没干。
+    早太多就明确拒绝，让人看清楚是「太早了」而不是「挂了」。
+
+    返回 False 表示太早、本次不该继续。
+    """
     import time
     d = (target(hms) - now_bj()).total_seconds()
     if d <= 0:
-        return
+        return True
+    if d > MAX_WAIT:
+        log.warning("距 %s (%s) 还有 %.0f 分钟，超过 %d 分钟上限，本次不扫描。"
+                    "收盘后再跑。", label, hms, d / 60, MAX_WAIT // 60)
+        print(f"::warning::距 {hms} 还有 {d/60:.0f} 分钟，太早，本次不扫描")
+        return False
     log.info("等待 %s (%s)，%.0fs", label, hms, d)
     while (rem := (target(hms) - now_bj()).total_seconds()) > 0:
         time.sleep(min(rem, 20))
+    return True
 
 
 # ---------------------------------------------------------------------
@@ -310,7 +329,13 @@ def write_prompt(sel: list[dict], date: str) -> None:
     (OUT / "commentary.json").write_text("{}", encoding="utf-8")
 
 
-def stage_scan(c: dict) -> int:
+def stage_scan(c: dict, dry: bool = False) -> int:
+    """dry=True：只扫描并打印统计，不落盘、不发信、不提交。
+
+    用来在收盘前拿真实行情验证数据通路（腾讯批量 + 日线 + 形态判定）
+    是否走得通，同时不产生任何副作用——特别是不能落下当日 parquet，
+    否则 17:00 那班的幂等检查会以为今天已经跑过。
+    """
     today = now_bj().strftime("%Y-%m-%d")
     try:
         if today not in ds.trade_dates():
@@ -322,14 +347,25 @@ def stage_scan(c: dict) -> int:
             return 0
 
     pb = c["pullback"]
-    sleep_until(pb["run_at"], "收盘后扫描")
-    if now_bj() > now_bj().replace(
+    if not dry and not sleep_until(pb["run_at"], "收盘后扫描"):
+        return 0
+    if not dry and now_bj() > now_bj().replace(
             hour=int(pb["hard_deadline"][:2]), minute=int(pb["hard_deadline"][3:5]),
             second=0, microsecond=0):
         send_alert(f"{today} 形态扫描启动过晚（超过 {pb['hard_deadline']}），本次放弃。")
         return 0
 
     rows, stat = scan(c)
+    if dry:
+        log.info("dry run：不落盘、不发信。统计 %s", stat)
+        for r in rows[:15]:
+            log.info("  %s %s 涨%.2f%% 量比%.2fx 换手%.2f%% | 启动 %s 涨%.2f%% "
+                     "调整%d日 缩至%.0f%% 回撤%.2f%% | 分 %.1f",
+                     r["code"], r["name"], r["gain_pct"], r["vol_ratio"],
+                     r["turnover"], r["launch_date"], r["launch_gain"],
+                     r["adjust_days"], r["adjust_vol_mean_ratio"] * 100,
+                     r["adjust_drawdown_pct"], r["score"])
+        return 0
     OUT.mkdir(exist_ok=True)
     if rows:
         d = ROOT / "data" / today[:7]
@@ -403,9 +439,11 @@ def stage_send(c: dict) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage", choices=["scan", "send"], required=True)
+    ap.add_argument("--dry", action="store_true",
+                    help="只扫描并打印，不落盘、不发信、不提交")
     a = ap.parse_args()
     c = cfg()
-    return stage_scan(c) if a.stage == "scan" else stage_send(c)
+    return stage_scan(c, dry=a.dry) if a.stage == "scan" else stage_send(c)
 
 
 if __name__ == "__main__":
