@@ -144,7 +144,7 @@ def hist_turnover(row: pd.Series, today_to: float, today_vol: float) -> float:
 #  形态判定
 # ---------------------------------------------------------------------
 def find_pattern(h: pd.DataFrame, today_to: float, today_vol: float,
-                 pb: dict) -> dict | None:
+                 pb: dict, diag: dict | None = None) -> dict | None:
     """
     在 h（不含今日，升序）里找启动日 + 校验调整期。
 
@@ -153,6 +153,12 @@ def find_pattern(h: pd.DataFrame, today_to: float, today_vol: float,
     会让「调整期」跨过一次新的放量，那就不是同一段结构了。
     """
     lc, ac = pb["launch"], pb["adjust"]
+    # diag 只做归因统计。长期扫出 0 只时，得能一眼看出是「没有启动日」
+    # 还是「有启动日但调整段不合格」，否则只能靠猜。
+    d = diag if diag is not None else {}
+    def bump(k: str) -> None:
+        d[k] = d.get(k, 0) + 1
+    seen_launch = False
     n = len(h)
     lo_i = max(1, n - ac["max_days"] - 1)          # 调整最多 max_days 天
     hi_i = n - ac["min_days"] - 1                  # 调整至少 min_days 天
@@ -164,23 +170,29 @@ def find_pattern(h: pd.DataFrame, today_to: float, today_vol: float,
             continue
         s_vr = float(s["成交量"]) / float(prev["成交量"])
         if s_vr < lc["vol_ratio_min"]:
+            bump("启动日量比不足")
             continue
         s_to = hist_turnover(s, today_to, today_vol)
         if not (lc["turnover_min"] <= s_to <= lc["turnover_max"]):
+            bump("启动日换手出界")
             continue
+        seen_launch = True
 
         adj = h.iloc[i + 1:]                        # 调整期 S+1 .. T-1
         if not len(adj):
             continue
         s_vol = float(s["成交量"])
         if float(adj["成交量"].max()) >= s_vol * ac["vol_day_max_ratio"]:
-            continue                                # 期间有一天没缩量
+            bump("调整期有一天没缩量")
+            continue
         vm = float(adj["成交量"].mean()) / s_vol
         if vm > ac["vol_mean_max_ratio"]:
+            bump("调整期均量比超上限")
             continue
         a_low = float(adj["最低"].min())
         if a_low < float(s["最低"]) * ac["low_floor_ratio"]:
-            continue                                # 跌破启动日最低价
+            bump("跌破启动日最低价")
+            continue
 
         return {
             "launch_date": str(s["日期"]),
@@ -196,6 +208,7 @@ def find_pattern(h: pd.DataFrame, today_to: float, today_vol: float,
             "adjust_drawdown_pct": round(
                 (a_low / float(s["收盘"]) - 1) * 100, 2),
         }
+    bump("窗口内无合格启动日" if not seen_launch else "有启动日但调整段不合格")
     return None
 
 
@@ -283,9 +296,11 @@ def scan(c: dict) -> tuple[list[dict], dict]:
              ds.hist_source_stats())
 
     rows: list[dict] = []
+    diag: dict[str, int] = {}
     for code, r in cand.items():
         h = norm_hist(hs.get(code))
         if len(h) < 8:
+            diag["日线太短"] = diag.get("日线太短", 0) + 1
             continue
         # 今日那根一律以行情快照为准，日线里若已有今日先剔掉，避免两个源混用
         h = h[h["日期"] < today].reset_index(drop=True)
@@ -297,9 +312,10 @@ def scan(c: dict) -> tuple[list[dict], dict]:
             continue
         vr = r["vol_hand"] / y_vol
         if vr < tg["vol_ratio_min"]:
+            diag["今日量比不足"] = diag.get("今日量比不足", 0) + 1
             continue
 
-        pat = find_pattern(h, r["turnover"], r["vol_hand"], pb)
+        pat = find_pattern(h, r["turnover"], r["vol_hand"], pb, diag)
         if not pat:
             continue
 
@@ -309,8 +325,9 @@ def scan(c: dict) -> tuple[list[dict], dict]:
         rows.append(score_one(row, pb))
 
     stat["matched"] = len(rows)
+    stat["diag"] = dict(sorted(diag.items(), key=lambda kv: -kv[1]))
     rows.sort(key=lambda x: -x["score"])
-    log.info("形态匹配 %d 只", len(rows))
+    log.info("形态匹配 %d 只 | 落选归因 %s", len(rows), stat["diag"])
     return rows, stat
 
 
