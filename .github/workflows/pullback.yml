@@ -14,6 +14,11 @@ on:
     - cron: "30 9 * * 1-5"   # 17:30 BJT 备用
     - cron: "20 10 * * 1-5"  # 18:20 BJT 最后一班
   workflow_dispatch:
+    inputs:
+      dry:
+        description: "试跑：只扫描并打印统计，不落盘、不发信、不部署"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -59,10 +64,18 @@ jobs:
         if: steps.g.outputs.skip == 'false'
 
       # 扫描。空榜也会落一个空 parquet，否则幂等检查以为今天没跑过。
+      # dry 模式专用：收盘前拿真实行情验证数据通路，不产生任何副作用。
+      # 特别是不能落下当日 parquet，否则 17:00 那班的幂等检查会以为跑过了。
+      - name: 试跑（不落盘不发信）
+        if: steps.g.outputs.skip == 'false' && inputs.dry
+        run: python src/pullback.py --stage scan --dry
+
       - name: 收盘后形态扫描
-        if: steps.g.outputs.skip == 'false'
+        if: steps.g.outputs.skip == 'false' && !inputs.dry
         run: python src/pullback.py --stage scan
 
+      # dry 模式不写 run_meta.json，所以 fresh 天然是 false，
+      # 后面发信/提交/部署全部跳过，不用在每一步再写一遍 !inputs.dry
       - name: 本轮是否真的出了产物
         id: q
         if: steps.g.outputs.skip == 'false'
