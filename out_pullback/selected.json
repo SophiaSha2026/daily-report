@@ -1,0 +1,33 @@
+[
+ {
+  "code": "002427",
+  "name": "尤夫股份",
+  "close": 4.81,
+  "gain_pct": 5.95,
+  "turnover": 7.0,
+  "vol_hand": 689370.0,
+  "amount_wan": 33555.0,
+  "launch_date": "2026-08-20",
+  "launch_gain": 5.73,
+  "launch_vol_ratio": 1.66,
+  "launch_turnover": 5.23,
+  "launch_low": 4.32,
+  "launch_high": 4.8,
+  "launch_close": 4.61,
+  "adjust_days": 3,
+  "adjust_vol_mean_ratio": 0.72,
+  "adjust_low": 4.35,
+  "adjust_drawdown_pct": -5.64,
+  "vol_ratio": 2.1,
+  "prev_vol_hand": 328046.0,
+  "break_launch_high": true,
+  "score": 20.7,
+  "parts": {
+   "trigger": 0.267,
+   "launch": 0.125,
+   "shrink": 0.1,
+   "hold": 0.062,
+   "speed": 0.667
+  }
+ }
+]

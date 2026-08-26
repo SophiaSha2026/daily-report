@@ -1,0 +1,112 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>形态榜 2026-08-26</title><style>
+*{box-sizing:border-box}
+body{font:14px/1.55 -apple-system,'Microsoft YaHei',sans-serif;margin:0;
+     padding:14px;background:#14161a;color:#e6e6e6}
+h1{font-size:15px;margin:0 0 4px}
+.sub{color:#888;font-size:12px;margin-bottom:12px}
+.bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+button{background:#2a2f38;color:#e6e6e6;border:1px solid #3a4149;border-radius:5px;
+       padding:6px 12px;font-size:13px;cursor:pointer}
+button:hover{background:#39404b}
+button.on{background:#c1440e;border-color:#c1440e}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{background:#1e2229;text-align:left;padding:7px 8px;position:sticky;top:0;
+   border-bottom:1px solid #333;white-space:nowrap;font-weight:600}
+td{padding:7px 8px;border-bottom:1px solid #232830;vertical-align:top}
+tr:hover{background:#1b1f26}
+.code{font-family:Consolas,monospace;font-weight:600;color:#7fb3ff;cursor:pointer}
+.up{color:#ff6b6b}.sc{font-weight:700;color:#ffb347}
+.t强{color:#ff6b6b}.t中{color:#ffb347}.t观察{color:#8f9aa8}
+.rn{color:#c9d1d9;font-size:12px}.rz{color:#d0a34a;font-size:12px;margin-top:2px}
+.tip{color:#7d8590;font-size:12px;margin-top:14px;line-height:1.7}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+   background:#c1440e;padding:8px 18px;border-radius:5px;opacity:0;
+   transition:.25s;font-size:13px;pointer-events:none}
+#toast.show{opacity:1}
+#stale{display:none;background:#3a2d16;border:1px solid #6b5320;color:#e8c877;
+   padding:8px 12px;border-radius:5px;font-size:12px;margin-bottom:12px}
+
+.dim{color:#8f9aa8}.ok{color:#5fd18c}
+</style></head><body>
+<div id="stale"></div>
+<h1>启动-缩量回调-再启动 · 2026-08-26</h1>
+<div class="sub">共 1 只 · 收盘后扫描 · 全市场 5548 → 今日条件 48 → 形态匹配 1</div>
+<div class="bar">
+  <button onclick="cp('all',this)">复制全部代码</button>
+</div>
+<table><thead><tr>
+<th>#</th><th>代码</th><th>名称</th><th>收盘</th><th>今日涨幅</th><th>今日量比</th>
+<th>今日换手</th><th>启动日</th><th>启动涨幅</th><th>调整</th><th>回撤</th>
+<th>分</th><th>理由 / 风险</th>
+</tr></thead><tbody><tr><td>1</td><td class="code" onclick="one('002427')">002427</td><td>尤夫股份 <span class="ok">破启动高</span></td><td>4.81</td><td class="up">+5.95%</td><td>2.10x</td><td>7.00%</td><td class="dim">08-20</td><td class="up">+5.73%</td><td>3日 · 缩至72%</td><td>-5.64%</td><td class="sc">21</td><td><div class="rn">未查到催化：8/20与今日均无公告，主业涤纶工业丝，2026Q1净利-2005万，技术性再启动</div><div class="rz">⚠ 重整管理人账户5449万股待分配占5.53%，股东股权7/24被冻结</div></td></tr></tbody></table>
+<div class="tip">
+「今日量比」「启动量比」都是<b>成交量</b>相对前一交易日的倍数，不是成交额，
+也不是各家软件那个口径不一的量比。<br>
+「调整」是启动日次日起到今天前一日的交易日数；「回撤」是调整期最低价相对
+启动日收盘价的幅度。<br>
+点任意代码即复制；复制后切到同花顺，剪贴板识别框会自动弹出。
+</div>
+<div id="toast"></div>
+<script>
+const D=[{"code": "002427"}];
+function toast(m){const t=document.getElementById('toast');t.textContent=m;
+  t.className='show';setTimeout(()=>t.className='',1300);}
+function put(txt,msg){
+  navigator.clipboard.writeText(txt).then(()=>toast(msg))
+  .catch(()=>{const a=document.createElement('textarea');a.value=txt;
+    document.body.appendChild(a);a.select();document.execCommand('copy');
+    a.remove();toast(msg);});
+}
+function cp(k,btn){
+  const s=D.map(x=>x.code);
+  if(!s.length){toast('今日无标的');return;}
+  put(s.join('\n'), '已复制 '+s.length+' 个代码');
+  btn.classList.add('on');
+}
+function one(c){put(c,'已复制 '+c);}
+/* ---------------------------------------------------------------------
+   自动刷新。为什么需要：
+   GitHub Pages 给 index.html 挂的是 Cache-Control: max-age=600，
+   邮件 09:27:31 到、Pages 09:27:42 才部署完，中间还隔着 CDN 那 10 分钟。
+   用户点邮件里的链接进来，拿到的常常是上一个交易日的面板。
+   页面本身没法改响应头，但可以自己发现「我过期了」然后跳到一个新 URL：
+   带上 ?v=<新stamp> 就是不同的缓存键，必然回源。
+   stamp.txt 的请求也带 cb=<随机> 绕开缓存，否则查的还是旧的。
+   --------------------------------------------------------------------- */
+const STAMP='20260827-021745', PDATE='2026-08-26';
+function bjToday(){
+  const d=new Date(Date.now()+(new Date().getTimezoneOffset()*6e4)+8*36e5);
+  return d.toISOString().slice(0,10);
+}
+function banner(msg){
+  const e=document.getElementById('stale');
+  e.textContent=msg; e.style.display=msg?'block':'none';
+}
+let tries=0;
+function poll(){
+  fetch('stamp-pullback.txt?cb='+Date.now()+Math.random(),{cache:'no-store'})
+    .then(r=>r.ok?r.text():null)
+    .then(s=>{
+      if(!s) return;
+      s=s.trim();
+      if(s && s!==STAMP){
+        /* 防死循环：同一个 stamp 只跳一次 */
+        if(sessionStorage.getItem('jumped')===s) return;
+        sessionStorage.setItem('jumped',s);
+        location.replace(location.pathname+'?v='+encodeURIComponent(s));
+      }
+    }).catch(()=>{});
+}
+(function(){
+  const t=bjToday();
+  if(PDATE!==t){
+    banner('面板数据日期 '+PDATE+'，当前北京 '+t+
+           '。若今日榜单已发布，本页会自动刷新（每 15 秒检查一次）。');
+  }
+  poll();
+  /* 前 20 分钟每 15 秒查一次，够覆盖发信到 Pages 部署完成的窗口 */
+  const id=setInterval(()=>{ if(++tries>80){clearInterval(id);return;} poll(); },15000);
+})();
+
+</script></body></html>

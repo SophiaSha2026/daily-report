@@ -1,0 +1,2 @@
+﻿code,name,close,gain_pct,turnover,vol_hand,amount_wan,launch_date,launch_gain,launch_vol_ratio,launch_turnover,launch_low,launch_high,launch_close,adjust_days,adjust_vol_mean_ratio,adjust_low,adjust_drawdown_pct,vol_ratio,prev_vol_hand,break_launch_high,score,parts
+002427,尤夫股份,4.81,5.95,7.0,689370.0,33555.0,2026-08-20,5.73,1.66,5.23,4.32,4.8,4.61,3,0.72,4.35,-5.64,2.1,328046.0,True,20.7,"{'trigger': 0.267, 'launch': 0.125, 'shrink': 0.1, 'hold': 0.062, 'speed': 0.667}"
