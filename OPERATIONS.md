@@ -143,8 +143,33 @@ GitHub 的 cron 是尽力而为，不是定时器。连续两天实测都很糟�
 
 ### 保险二：你本机的计划任务（不依赖 GitHub）
 
-任务名 `DailyReport-TriggerAuction`，**美东周日到周四 19:30** 触发，
-调用 `tools\trigger_auction.cmd`，里面就一句 `gh workflow run auction.yml`。
+两个任务：
+
+| 任务名 | 美东触发 | 对应北京 | 触发哪条线 |
+|---|---|---|---|
+| `DailyReport-TriggerAuction` | 周日到周四 19:30 | **次日** 07:30(夏)/08:30(冬) | 竞价 |
+| `DailyReport-TriggerPullback` | 周一到周五 07:00 | **当日** 19:00(夏)/20:00(冬) | 形态 |
+
+竞价那个是傍晚触发、跨了北京的午夜，所以是周日到周四；形态那个是早上触发，
+不跨天，所以是周一到周五。**两个不一样是刻意的，不是笔误。**
+
+#### 踩过的坑：笔记本用电池时任务永远不跑
+
+PowerShell 的 `New-ScheduledTaskSettingsSet` 默认
+`DisallowStartIfOnBatteries = True`。拔了电源，任务就一直卡在 `Queued`
+从不启动，而且 `LastTaskResult` 依然报 **0**,从任务计划界面上完全看不出
+出了问题。2026-08-26 实测：一个只写文件的最简任务同样报 0、同样什么都没干。
+
+两个任务现在都带 `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`，
+已在电池供电（54%，未插电）状态下实测触发成功。
+
+**以后重建任务别用默认设置。** 自查方法：
+
+```bash
+schtasks /Query /TN DailyReport-TriggerPullback /V /FO LIST
+```
+
+看 `Status` 那行。`Ready` 正常，`Queued` 就是被条件挡住了。
 
 为什么是这个时间和星期，两个坑都踩过：
 
