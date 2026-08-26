@@ -19,6 +19,10 @@ on:
         description: "试跑：只扫描并打印统计，不落盘、不发信、不部署"
         type: boolean
         default: false
+      backtest:
+        description: "历史频率验证：抽样估计这个形态平均每天出几只，不发信"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -70,8 +74,15 @@ jobs:
         if: steps.g.outputs.skip == 'false' && inputs.dry
         run: python src/pullback.py --stage scan --dry
 
+      # 回答「这个形态到底多久出一次票」。三段条件叠起来很紧，如果实际上
+      # 每天都是 0 只，流水线看着一切正常其实毫无用处，而这种失败和
+      # 「今天恰好没有」长得一模一样，只能靠抽样估计区分。
+      - name: 历史频率验证
+        if: steps.g.outputs.skip == 'false' && inputs.backtest
+        run: python src/pullback_backtest.py --sample 800 --days 20
+
       - name: 收盘后形态扫描
-        if: steps.g.outputs.skip == 'false' && !inputs.dry
+        if: steps.g.outputs.skip == 'false' && !inputs.dry && !inputs.backtest
         run: python src/pullback.py --stage scan
 
       # dry 模式不写 run_meta.json，所以 fresh 天然是 false，
