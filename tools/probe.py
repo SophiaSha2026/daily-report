@@ -10,6 +10,7 @@
 panel.ps1 靠开头那个词决定显示成绿色还是红色。
 """
 import importlib
+import pathlib
 import socket
 import sys
 import time
@@ -31,6 +32,51 @@ SOURCES = [
 ]
 
 DEPS = ("pandas", "pyarrow", "yaml", "requests", "akshare")
+
+ENV = pathlib.Path(__file__).resolve().parent / "local.env"
+
+
+def check_smtp() -> None:
+    """真连一次 SMTP 并登录，不发信。
+
+    只检查「几个键存不存在」是不够的：密码填错、应用专用密码被吊销、
+    Gmail 改了策略，这些都要等到真跑一次才暴露，而那时候已经错过时点了。
+    这里连上去 login 一下就断，代价几百毫秒。
+
+    密码永远不打印，失败也只报异常类型和 SMTP 的返回码。
+    """
+    if not ENV.exists():
+        print("      MISS local.env not configured (local run will not mail)")
+        return
+    cfg = {}
+    for line in ENV.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        cfg[k.strip()] = v.strip()
+    need = ("SMTP_HOST", "SMTP_USER", "SMTP_PASS", "MAIL_TO")
+    miss = [k for k in need if not cfg.get(k)]
+    if miss:
+        print("      MISS local.env missing: " + " ".join(miss))
+        return
+    if "FILLME" in cfg["SMTP_PASS"]:
+        print("      MISS local.env SMTP_PASS still a placeholder")
+        return
+    import smtplib
+    import ssl
+    t0 = time.time()
+    try:
+        s = smtplib.SMTP(cfg["SMTP_HOST"], int(cfg.get("SMTP_PORT", "587")), timeout=15)
+        s.starttls(context=ssl.create_default_context())
+        s.login(cfg["SMTP_USER"], cfg["SMTP_PASS"].replace(" ", ""))
+        s.quit()
+        print("      OK   SMTP login    %.2fs  -> %s" % (time.time() - t0, cfg["MAIL_TO"]))
+    except smtplib.SMTPAuthenticationError as e:
+        print("      FAIL SMTP auth rejected (code %s) - app password wrong or revoked"
+              % getattr(e, "smtp_code", "?"))
+    except Exception as e:  # noqa: BLE001
+        print("      FAIL SMTP %s" % type(e).__name__)
 
 
 def main() -> int:
@@ -54,6 +100,8 @@ def main() -> int:
         print("      MISS fix: pip install " + " ".join(miss))
     else:
         print("      OK   Python deps complete")
+
+    check_smtp()
     return 0
 
 
