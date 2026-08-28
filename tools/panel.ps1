@@ -18,9 +18,9 @@ $PY   = "python"
 
 # 两条线的定义。加新线只要往这里加一项。
 $LINES = @(
-  @{ key="auction";  name="竞价选股"; wf="auction.yml";  prefix="auction";
+  @{ key="auction";  name="竞价选股 [早]"; wf="auction.yml";  prefix="auction";
      task="DailyReport-TriggerAuction";  due="09:27:30"; earliest="09:15"; out="out"; page=$PAGE },
-  @{ key="pullback"; name="形态扫描"; wf="pullback.yml"; prefix="pullback";
+  @{ key="pullback"; name="形态扫描 [晚]"; wf="pullback.yml"; prefix="pullback";
      task="DailyReport-TriggerPullback"; due="17:00 后"; earliest="17:00"; out="out_pullback"; page=($PAGE + "pullback.html") }
 )
 
@@ -210,7 +210,7 @@ function Show-Panel {
 
   Say ""
   Line "-"
-  Say "  [1] 触发竞价      [2] 触发形态      每项可选 云端 / 本地完整跑" White
+  Say "  [1] 触发竞价[早]  [2] 触发形态[晚]  每项可选 云端 / 本地完整跑" White
   Say "  [3] 刷新          [4] 看日志        [5] 打开面板（在线/本地）" White
   Say "  [6] 体检（电源·任务·行情源·依赖·发信配置）        [0] 退出" White
   Line "-"
@@ -267,14 +267,15 @@ function Load-Env {
   return $map
 }
 
-function Run-Py($argList, $envmap) {
+function Run-Py($argList, $envmap, $tag) {
   $old = @{}
   foreach ($k in $envmap.Keys) {
     $old[$k] = [Environment]::GetEnvironmentVariable($k)
     [Environment]::SetEnvironmentVariable($k, $envmap[$k])
   }
   $env:PYTHONIOENCODING = "utf-8"
-  $logf = Join-Path $ROOT "tools\local_run.log"
+  # 早晚两条线各写各的日志，混在一起排查时分不清谁是谁
+  $logf = Join-Path (Join-Path $ROOT "tools") ("local_run_" + $tag + ".log")
   Push-Location $ROOT
   & $PY @argList 2>&1 | ForEach-Object {
     $s = "$_"
@@ -315,7 +316,7 @@ function Trigger-Local($line) {
     }
     if ($need) {
       Say "  [1/3] 候选池不是今天的，先建（3-5 分钟）..." Cyan
-      Run-Py @("src\premarket.py") $envmap | Out-Null
+      Run-Py @("src\premarket.py") $envmap $line.key | Out-Null
     } else { Say "  [1/3] 候选池已是今天的，跳过" Gray }
     $bj = BJNow
     $lateArg = @()
@@ -324,16 +325,16 @@ function Trigger-Local($line) {
       $lateArg = @("--late")
     }
     Say "  [2/3] 采集 + 打分..." Cyan
-    $c = Run-Py (@("src\run_auction.py","--stage","quick") + $lateArg) $envmap
+    $c = Run-Py (@("src\run_auction.py","--stage","quick") + $lateArg) $envmap $line.key
     if ($c -ne 0) { Say "  采集失败，退出码 $c" Red; Pause; return }
     Say "  [3/3] 生成面板与附件..." Cyan
-    Run-Py @("src\run_auction.py","--stage","enrich") $envmap | Out-Null
+    Run-Py @("src\run_auction.py","--stage","enrich") $envmap $line.key | Out-Null
   } else {
     Say "  [1/2] 收盘后扫描..." Cyan
-    $c = Run-Py @("src\pullback.py","--stage","scan") $envmap
+    $c = Run-Py @("src\pullback.py","--stage","scan") $envmap $line.key
     if ($c -ne 0) { Say "  扫描失败，退出码 $c" Red; Pause; return }
     Say "  [2/2] 生成面板与附件..." Cyan
-    Run-Py @("src\pullback.py","--stage","send") $envmap | Out-Null
+    Run-Py @("src\pullback.py","--stage","send") $envmap $line.key | Out-Null
   }
 
   $sec = [int]((Get-Date) - $t0).TotalSeconds
@@ -354,9 +355,12 @@ function Show-Log {
   Say "  [1] 竞价云端日志   [2] 形态云端日志   [3] 本地最近一次运行输出" White
   $k = Read-Host "  选择"
   if ($k -eq "3") {
-    $f = Join-Path $ROOT "tools\local_run.log"
+    Say "    [a] 竞价[早]   [b] 形态[晚]" White
+    $w = Read-Host "  选择"
+    $tag = "auction"; if ($w -eq "b") { $tag = "pullback" }
+    $f = Join-Path (Join-Path $ROOT "tools") ("local_run_" + $tag + ".log")
     if (Test-Path $f) { Get-Content $f -Tail 40 -Encoding UTF8 | ForEach-Object { Say ("    " + $_) Gray } }
-    else { Say "  还没有本地运行记录" Yellow }
+    else { Say "  这条线还没有本地运行记录" Yellow }
     Pause; return
   }
   $l = $LINES[0]; if ($k -eq "2") { $l = $LINES[1] }
@@ -425,15 +429,15 @@ function Health {
   }
 
   Say ""
-  Say "  [行情源可达性]  本地完整跑的前提" White
+  Say "  [行情源可达性]  本地完整跑的前提。东财是可选源，FAIL 不影响出榜" White
   $probe = @'
 import urllib.request, socket, time
 socket.setdefaulttimeout(10)
 for name, url in [
-  ("腾讯批量行情","https://qt.gtimg.cn/q=sh600000"),
-  ("腾讯日K","https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh600000,day,,,10,"),
-  ("新浪交易日历","https://finance.sina.com.cn/realstock/company/sh000001/hisdata/klc_kl.js"),
-  ("东财日线","https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600000&fields1=f1&fields2=f51&klt=101&fqt=0&end=20500101&lmt=5")]:
+  ("Tencent quote ","https://qt.gtimg.cn/q=sh600000"),
+  ("Tencent kline ","https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh600000,day,,,10,"),
+  ("Sina calendar ","https://finance.sina.com.cn/realstock/company/sh000001/hisdata/klc_kl.js"),
+  ("EastMoney(opt)","https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600000&fields1=f1&fields2=f51&klt=101&fqt=0&end=20500101&lmt=5")]:
     t0 = time.time()
     try:
         r = urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent":"Mozilla/5.0"}))

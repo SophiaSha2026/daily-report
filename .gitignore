@@ -7,3 +7,4 @@ tools/trigger.log*
 **/.wrangler/
 node_modules/
 tools/local.env
+tools/local_run_*.log
