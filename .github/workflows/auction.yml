@@ -24,6 +24,10 @@ on:
     - cron: "11 1 * * 1-5"   # 09:11 BJT 最后一班
   workflow_dispatch:
     inputs:
+      force:
+        description: "强制重跑：忽略幂等检查（当天已出过数据时也照跑）"
+        type: boolean
+        default: false
       late:
         description: "抢救模式：窗口已过，用今开当竞价价补一份清单（量能偏大，形态维度失效）"
         type: boolean
@@ -70,7 +74,10 @@ jobs:
           # 工作树 + 远端都查一遍。上面的 ref 已经解决了主要问题，
           # 这里再兜一层：前一个入口的提交可能正好落在我们 checkout 之后。
           git fetch -q origin "${{ github.ref_name }}" 2>/dev/null || true
-          if [ -f "$F" ] ||              git cat-file -e "origin/${{ github.ref_name }}:$F" 2>/dev/null; then
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "force=true，忽略幂等检查"
+          elif [ -f "$F" ] ||              git cat-file -e "origin/${{ github.ref_name }}:$F" 2>/dev/null; then
             echo "skip=true"  >> $GITHUB_OUTPUT
             echo "今天已经跑过（$F 已存在），整个 job 跳过"
           else
