@@ -196,6 +196,25 @@ def stage_quick(c: dict, late: bool = False) -> int:
     syms = [ds.to_symbol(x) for x in uni["code"]]
     log.info("候选池 %d 只", len(syms))
 
+    if late:
+        # 量能维度在抢救模式下是**不可用**的，不是「偏大一点」而已：
+        # 当前累计成交额里混着开盘后的连续竞价，跑得越晚混得越多。
+        # 2026-08-28 首次实测，09:51 跑的那次 auc_ratio 全线超出 20.8% 上限，
+        # 635 只被量能条件一刀切光，发出去一封空邮件。
+        # 所以这里直接把量能的准入区间放开、权重清零并按比例分给其余维度，
+        # 而不是拿一个已知污染的数去做筛选和打分。
+        sc = c["screen"]
+        sc["auc_ratio_min"], sc["auc_ratio_max"] = 0.0, 1e9
+        w = c["scoring"]["weights"]
+        vw = w.pop("volume", 0.0)
+        rest = sum(w.values())
+        if rest > 0:
+            for k in w:
+                w[k] = w[k] / rest * (rest + vw)
+        w["volume"] = 0.0
+        log.warning("抢救模式：量能维度不可用（累计额已混入连续竞价），"
+                    "准入区间放开、权重 %.2f 已分摊给其余维度", vw)
+
     snaps = {}
     if late:
         # 只取一次快照，四个 T 全指向它。price 换成 open_（=竞价撮合价），
@@ -267,8 +286,9 @@ def stage_enrich(c: dict) -> int:
     if stamp.get("late"):
         notice = ("⚠ 抢救结果，非正常竞价扫描：cron 与本机触发器均未按时启动，"
                   "09:25-09:30 数据窗口已过。竞价价取今开（精确值），"
-                  "量能取开盘后累计成交额（**偏大**），"
-                  "斜率/稳步抬升/假涨停/尾盘跳水四个维度失效。")
+                  "量能维度**已停用**（累计额混入连续竞价，无法还原竞价量），"
+                  "斜率/稳步抬升/假涨停/尾盘跳水四个维度同样失效。"
+                  "本榜实质是按高开幅度+位置+板块共振排序。")
     try:
         texts = json.loads((OUT / "commentary.json").read_text(encoding="utf-8"))
         if not isinstance(texts, dict):
