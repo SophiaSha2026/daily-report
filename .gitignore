@@ -3,3 +3,7 @@ __pycache__/
 tools/trigger.log
 _site/
 tools/trigger.log*
+.wrangler/
+**/.wrangler/
+node_modules/
+tools/local.env
