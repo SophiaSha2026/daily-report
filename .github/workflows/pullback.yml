@@ -15,6 +15,10 @@ on:
     - cron: "20 10 * * 1-5"  # 18:20 BJT 最后一班
   workflow_dispatch:
     inputs:
+      force:
+        description: "强制重跑：忽略幂等检查（当天已出过数据时也照跑）"
+        type: boolean
+        default: false
       dry:
         description: "试跑：只扫描并打印统计，不落盘、不发信、不部署"
         type: boolean
@@ -58,7 +62,10 @@ jobs:
           F="data/${D:0:7}/pullback_${D}.parquet"
           echo "date=$D" >> $GITHUB_OUTPUT
           git fetch -q origin "${{ github.ref_name }}" 2>/dev/null || true
-          if [ -f "$F" ] || \
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "force=true，忽略幂等检查"
+          elif [ -f "$F" ] || \
              git cat-file -e "origin/${{ github.ref_name }}:$F" 2>/dev/null; then
             echo "skip=true"  >> $GITHUB_OUTPUT
             echo "今天已经扫过（$F 已存在），整个 job 跳过"
