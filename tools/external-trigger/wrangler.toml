@@ -1,0 +1,9 @@
+name = "daily-report-trigger"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+# UTC 表达式。ROUTES 里的键必须和这里逐字一致，否则 Worker 认不出来。
+#   "30 23 * * 0-4" = 北京次日 07:30 周一到周五（跨 UTC 午夜，故写 0-4）
+#   "5 9 * * 1-5"   = 北京当日 17:05 周一到周五
+[triggers]
+crons = ["30 23 * * 0-4", "5 9 * * 1-5"]
