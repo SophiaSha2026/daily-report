@@ -1,16 +1,44 @@
 [
  {
-  "code": "002427",
-  "name": "尤夫股份",
-  "close": 4.81,
-  "gain_pct": 5.95,
-  "turnover": 7.0,
-  "vol_ratio": 2.1,
-  "launch_date": "2026-08-20",
-  "launch_gain": 5.73,
+  "code": "301216",
+  "name": "万凯新材",
+  "close": 19.01,
+  "gain_pct": 6.8,
+  "turnover": 9.16,
+  "vol_ratio": 1.68,
+  "launch_date": "2026-08-24",
+  "launch_gain": 15.87,
   "adjust_days": 3,
-  "adjust_drawdown_pct": -5.64,
+  "adjust_drawdown_pct": -8.89,
+  "break_launch_high": false,
+  "score": 36.2
+ },
+ {
+  "code": "000626",
+  "name": "远大控股",
+  "close": 9.41,
+  "gain_pct": 10.06,
+  "turnover": 5.87,
+  "vol_ratio": 1.88,
+  "launch_date": "2026-08-20",
+  "launch_gain": 6.65,
+  "adjust_days": 5,
+  "adjust_drawdown_pct": -4.92,
   "break_launch_high": true,
-  "score": 20.7
+  "score": 34.3
+ },
+ {
+  "code": "300989",
+  "name": "蕾奥规划",
+  "close": 15.08,
+  "gain_pct": 5.9,
+  "turnover": 5.6,
+  "vol_ratio": 1.95,
+  "launch_date": "2026-08-21",
+  "launch_gain": 7.22,
+  "adjust_days": 4,
+  "adjust_drawdown_pct": -4.86,
+  "break_launch_high": true,
+  "score": 31.8
  }
 ]
