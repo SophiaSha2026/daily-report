@@ -20,11 +20,17 @@
 const REPO = "SophiaSha2026/daily-report";
 
 // UTC cron -> 要派发的 workflow。和 wrangler.toml 里的 crons 一一对应。
-//   "30 23 * * 0-4" = 北京次日 07:30 周一到周五（跨 UTC 午夜，所以是 0-4）
-//   "5 9 * * 1-5"   = 北京当日 17:05 周一到周五
+//   "30 23 * * *" = 北京次日 07:30
+//   "5 9 * * *"   = 北京当日 17:05
+//
+// 为什么不限定星期：Cloudflare 的 cron 解析器拒绝 "0-4" 这种星期范围
+// （invalid cron string, code 10100），而且「UTC 星期几」和「北京星期几」
+// 跨午夜时还会差一天，最容易写错。干脆每天都触发，让流水线自己判交易日
+// —— 两条线都查新浪交易日历，非交易日直接退出，不发邮件、不留数据。
+// 代价是周末两次空跑，每次不到一分钟。
 const ROUTES = {
-  "30 23 * * 0-4": "auction.yml",
-  "5 9 * * 1-5": "pullback.yml",
+  "30 23 * * *": "auction.yml",
+  "5 9 * * *": "pullback.yml",
 };
 
 async function dispatch(workflow, token) {
