@@ -137,7 +137,7 @@ def select(rows: list[dict], c: dict) -> list[dict]:
     return res["A"] + res["B"]
 
 
-def write_prompt(sel: list[dict], date: str) -> None:
+def write_prompt(sel: list[dict], date: str, late: bool = False) -> None:
     brief = [{k: r[k] for k in
               ("code", "name", "gap_pct", "auc_ratio", "slope", "monotonic",
                "sector", "sector_members", "board_height", "prev_limit_up",
@@ -153,12 +153,26 @@ def write_prompt(sel: list[dict], date: str) -> None:
     # enrich 读到的就是旧清单，会把昨天的票当成今天的发出去。
     # 所以发信前必须比对这个戳。
     (OUT / "run_meta.json").write_text(
-        json.dumps({"date": date, "n": len(sel)}, ensure_ascii=False),
+        json.dumps({"date": date, "n": len(sel), "late": bool(late)},
+                   ensure_ascii=False),
         encoding="utf-8")
 
 
 # ---------------------------------------------------------------------
-def stage_quick(c: dict) -> int:
+def stage_quick(c: dict, late: bool = False) -> int:
+    """
+    late=True 是**抢救模式**：cron 和本机触发器都没在点上跑，等发现时
+    09:25-09:30 那个数据窗口已经过了。
+
+    还能救回来的：竞价成交价 = 今开（Quote.open_）。这个值**精确**——
+    开盘价按定义就是集合竞价的撮合价，盘中不会再变，所以 gap_pct 是真值。
+    救不干净的：竞价成交额只能用当前累计额，混进了开盘后连续竞价的量，
+    **偏大**；跑得越晚污染越重。
+    救不回来的：T1/T2/T3 三次快照没采到，斜率、稳步抬升、假涨停撤单、
+    尾盘跳水四个维度全部失效，这里置成中性值。
+
+    邮件顶部会写明这是抢救结果，不会假装成一次正常的竞价扫描。
+    """
     rt = c["runtime"]
     today = now_bj().strftime("%Y-%m-%d")
     try:
@@ -169,7 +183,7 @@ def stage_quick(c: dict) -> int:
         if now_bj().weekday() >= 5:
             return 0
 
-    if now_bj() > target(rt["hard_deadline"]):
+    if not late and now_bj() > target(rt["hard_deadline"]):
         send_alert(f"{today} 竞价任务启动过晚（{now_bj():%H:%M:%S}），已跳过。\n"
                    f"原因通常是 GitHub Actions 排队延迟，非代码故障。")
         return 0
@@ -182,17 +196,30 @@ def stage_quick(c: dict) -> int:
     syms = [ds.to_symbol(x) for x in uni["code"]]
     log.info("候选池 %d 只", len(syms))
 
-    sleep_until("09:14:00", "预热")
-    ds.fetch_quotes(syms[:60])
-
     snaps = {}
-    for tag, key in (("T1", "snapshot_t1"), ("T2", "snapshot_t2"),
-                     ("T3", "snapshot_t3"), ("T4", "snapshot_t4")):
-        sleep_until(rt[key], tag)
+    if late:
+        # 只取一次快照，四个 T 全指向它。price 换成 open_（=竞价撮合价），
+        # gap_pct 因此是真值。T1=T2=T3 意味着斜率 0、单调成立、跳水 0，
+        # 这些维度事实上已失效，置中性比编造一个数诚实。
         t0 = time.time()
-        snaps[tag] = ds.fetch_quotes(syms)
-        log.info("%s: %d/%d 只, %.1fs", tag, len(snaps[tag]), len(syms),
-                 time.time() - t0)
+        q = ds.fetch_quotes(syms)
+        for v in q.values():
+            if v.open_ and v.open_ > 0:
+                v.price = v.open_
+        log.warning("抢救模式：单次快照 %d/%d 只, %.1fs。竞价价用今开（精确），"
+                    "量能用当前累计额（偏大），斜率/形态维度失效",
+                    len(q), len(syms), time.time() - t0)
+        snaps = {k: q for k in ("T1", "T2", "T3", "T4")}
+    else:
+        sleep_until("09:14:00", "预热")
+        ds.fetch_quotes(syms[:60])
+        for tag, key in (("T1", "snapshot_t1"), ("T2", "snapshot_t2"),
+                         ("T3", "snapshot_t3"), ("T4", "snapshot_t4")):
+            sleep_until(rt[key], tag)
+            t0 = time.time()
+            snaps[tag] = ds.fetch_quotes(syms)
+            log.info("%s: %d/%d 只, %.1fs", tag, len(snaps[tag]), len(syms),
+                     time.time() - t0)
 
     got = len(snaps["T3"] | snaps["T4"])
     if got < len(syms) * 0.5:
@@ -212,7 +239,7 @@ def stage_quick(c: dict) -> int:
         json.dumps(sel, ensure_ascii=False, default=str), encoding="utf-8")
     pd.DataFrame(rows).to_csv(OUT / "detail.csv", index=False,
                               encoding="utf-8-sig")
-    write_prompt(sel, today)
+    write_prompt(sel, today, late=late)
     log.info("入选 %d 只，等待 Claude 分析", len(sel))
     return 0
 
@@ -237,6 +264,11 @@ def stage_enrich(c: dict) -> int:
     sel = json.loads(f.read_text(encoding="utf-8"))
 
     texts, notice = {}, ""
+    if stamp.get("late"):
+        notice = ("⚠ 抢救结果，非正常竞价扫描：cron 与本机触发器均未按时启动，"
+                  "09:25-09:30 数据窗口已过。竞价价取今开（精确值），"
+                  "量能取开盘后累计成交额（**偏大**），"
+                  "斜率/稳步抬升/假涨停/尾盘跳水四个维度失效。")
     try:
         texts = json.loads((OUT / "commentary.json").read_text(encoding="utf-8"))
         if not isinstance(texts, dict):
@@ -288,9 +320,11 @@ def stage_enrich(c: dict) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage", choices=["quick", "enrich"], required=True)
+    ap.add_argument("--late", action="store_true",
+                    help="抢救模式：窗口已过，用今开当竞价价补出一份清单")
     a = ap.parse_args()
     c = cfg()
-    return stage_quick(c) if a.stage == "quick" else stage_enrich(c)
+    return stage_quick(c, late=a.late) if a.stage == "quick" else stage_enrich(c)
 
 
 if __name__ == "__main__":

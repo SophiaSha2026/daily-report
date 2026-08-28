@@ -23,6 +23,11 @@ on:
     - cron: "05 1 * * 1-5"   # 09:05 BJT
     - cron: "11 1 * * 1-5"   # 09:11 BJT 最后一班
   workflow_dispatch:
+    inputs:
+      late:
+        description: "抢救模式：窗口已过，用今开当竞价价补一份清单（量能偏大，形态维度失效）"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -111,7 +116,7 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_TO:   ${{ secrets.MAIL_TO }}
-        run: python src/run_auction.py --stage quick
+        run: python src/run_auction.py --stage quick ${{ inputs.late && '--late' || '' }}
 
       # 采集环节可能提前退出（法定节假日是工作日但不开市、超死线、候选池缺失）。
       # 那种情况下 out/ 里是上一交易日的 brief.json，让 Claude 去分析它纯属
