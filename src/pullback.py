@@ -394,6 +394,26 @@ def stage_scan(c: dict, dry: bool = False, asof: str | None = None) -> int:
             return 0
 
     pb = c["pullback"]
+
+    # 迟到自救。2026-08-27 实测：cron 迟了 10 小时 25 分，排定北京 17:00 的
+    # 那三班到 08-28 凌晨 03:25 才跑。跨过午夜后「今天」变成了新的一天，
+    # 距新一天的 17:00 还有 14 小时，MAX_WAIT 只能拒绝，当天就没有邮件。
+    #
+    # 但那个时段其实什么都不缺：开盘前腾讯批量行情返回的仍是上一交易日的
+    # 收盘状态，日线也早就出来了。所以半夜跑就按上一交易日补扫，
+    # 而不是干等下一个 17:00。asof 那套成交量校验会确认行情确实对得上，
+    # 对不上就中止，不会出一份日期错位的榜。
+    if not dry and not asof and now_bj().hour < 9:
+        try:
+            cal = sorted(d for d in ds.trade_dates() if d < today)
+            if cal:
+                asof = cal[-1]
+                today = asof
+                log.warning("现在是 %s 凌晨，cron 迟到跨天了。改为补扫上一交易日 %s",
+                            now_bj().strftime("%m-%d %H:%M"), asof)
+        except Exception as e:  # noqa: BLE001
+            log.warning("取交易日历失败，无法自救: %s", e)
+
     # 补跑是明确指定日期的人工动作，不受 run_at / 死线约束
     if not dry and not asof and not sleep_until(pb["run_at"], "收盘后扫描"):
         return 0

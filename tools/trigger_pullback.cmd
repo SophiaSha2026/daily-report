@@ -1,50 +1,38 @@
 @echo off
 REM ===========================================================================
-REM  Backup trigger for the pattern-scan workflow (pullback.yml).
-REM  Same idea as trigger_auction.cmd, different schedule. Kept as a separate
-REM  file on purpose: the auction trigger is verified working and runs against
-REM  a hard 40-minute window, so it is not worth refactoring to share code.
+REM  Backup trigger for the pattern-scan workflow. Retries across the window.
 REM
-REM  SCHEDULE: US/Eastern Mon-Fri 07:00.
-REM    07:00 EDT (summer) = 19:00 Beijing SAME day
-REM    07:00 EST (winter) = 20:00 Beijing SAME day
-REM  Both sit inside the scan window (run_at 17:00, hard deadline 22:00 BJT),
-REM  so the local wall-clock time never needs adjusting for daylight saving.
+REM  WHY REPEATED RETRIES INSTEAD OF ONE SHOT:
+REM  A single daily trigger only fires if the laptop happens to be awake at
+REM  that exact instant. It was not, on 2026-08-27, and both the auction and
+REM  the pattern email were missed. WakeToRun could not help either: this
+REM  machine had wake timers disabled on battery and set to "important only"
+REM  on AC, and a plain scheduled task never counts as important.
+REM  Wake timers are now enabled, but a powered-off machine still cannot be
+REM  woken. So the task now retries across the whole usable window and also
+REM  fires on logon. The machine only has to be awake at SOME point.
 REM
-REM  Mon-Fri here, NOT Sun-Thu. Beijing is 12-13 hours ahead, and 07:00 local
-REM  plus 12-13 hours stays inside the same calendar day, so US weekdays map
-REM  one-to-one onto Beijing weekdays. The auction trigger fires in the evening
-REM  and therefore DOES cross midnight, which is why that one is Sun-Thu.
+REM  Re-triggering is free: this script asks GitHub whether today's data file
+REM  already exists and exits without dispatching if it does. Even if it did
+REM  dispatch, the workflow has a serial concurrency group and its own
+REM  idempotency check.
 REM
-REM  Re-triggering is harmless: serial concurrency group plus an idempotency
-REM  check. If today's scan is already committed the whole job is skipped.
-REM  Triggering too early is also harmless: the job refuses to spin-wait more
-REM  than 45 minutes and exits clean with a warning.
-REM
-REM  Log:    tools/trigger.log (gitignored, shared with the auction trigger)
-REM
-REM  Usage:  trigger_pullback.cmd          fire the workflow
-REM          trigger_pullback.cmd check    verify gh auth and connectivity only
+REM  Log: tools/trigger.log (gitignored)
 REM ===========================================================================
 setlocal
 set "REPO=SophiaSha2026/daily-report"
-REM %~dp0 is expanded by cmd itself and never depends on the environment.
-REM %LOCALAPPDATA% silently failed to write under Task Scheduler. See
-REM trigger_auction.cmd for the full note.
 set "LOG=%~dp0trigger.log"
+for /f "delims=" %%i in ('powershell -NoProfile -Command "(Get-Date).ToUniversalTime().AddHours(8).ToString('yyyy-MM-dd')"') do set "BJDATE=%%i"
 for /f "delims=" %%i in ('powershell -NoProfile -Command "Get-Date -Format s"') do set "NOW=%%i"
+set "BJMONTH=%BJDATE:~0,7%"
 
-if /i "%~1"=="check" (
-  echo [%NOW%] pullback check >> "%LOG%"
-  gh workflow list -R %REPO% >> "%LOG%" 2>&1
-  echo [%NOW%] pullback check exit=%ERRORLEVEL% >> "%LOG%"
+REM Already produced today? Then there is nothing to trigger.
+gh api "repos/%REPO%/contents/data/%BJMONTH%/pullback_%BJDATE%.parquet" --silent >nul 2>&1
+if "%ERRORLEVEL%"=="0" (
+  echo [%NOW%] pullback: %BJDATE% already done, skip >> "%LOG%"
   goto :eof
 )
 
-echo [%NOW%] pullback trigger >> "%LOG%"
+echo [%NOW%] pullback trigger for %BJDATE% >> "%LOG%"
 gh workflow run pullback.yml --ref main -R %REPO% >> "%LOG%" 2>&1
-set "RC=%ERRORLEVEL%"
-echo [%NOW%] pullback trigger exit=%RC% >> "%LOG%"
-if not "%RC%"=="0" (
-  echo [%NOW%] FAILED - GitHub cron 17:00/17:30/18:20 BJT is the fallback >> "%LOG%"
-)
+echo [%NOW%] pullback exit=%ERRORLEVEL% >> "%LOG%"

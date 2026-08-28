@@ -1,54 +1,38 @@
 @echo off
 REM ===========================================================================
-REM  Backup trigger for the auction workflow. Does NOT rely on GitHub cron.
+REM  Backup trigger for the call-auction workflow. Retries across the window.
 REM
-REM  WHY: GitHub Actions schedule is best-effort. Observed 2026-08-24: the
-REM  premarket cron fired 97 minutes late. Observed 2026-08-25: premarket plus
-REM  the first three auction entries never fired at all before 08:46 BJT.
+REM  WHY REPEATED RETRIES INSTEAD OF ONE SHOT:
+REM  A single daily trigger only fires if the laptop happens to be awake at
+REM  that exact instant. It was not, on 2026-08-27, and both the auction and
+REM  the pattern email were missed. WakeToRun could not help either: this
+REM  machine had wake timers disabled on battery and set to "important only"
+REM  on AC, and a plain scheduled task never counts as important.
+REM  Wake timers are now enabled, but a powered-off machine still cannot be
+REM  woken. So the task now retries across the whole usable window and also
+REM  fires on logon. The machine only has to be awake at SOME point.
 REM
-REM  SCHEDULE: US/Eastern Sun-Thu 19:30.
-REM    19:30 EDT (summer) = 07:30 Beijing next day
-REM    19:30 EST (winter) = 08:30 Beijing next day
-REM  Both land before the 09:19:40 BJT T1 snapshot, so the local wall-clock
-REM  time never needs adjusting for daylight saving.
+REM  Re-triggering is free: this script asks GitHub whether today's data file
+REM  already exists and exits without dispatching if it does. Even if it did
+REM  dispatch, the workflow has a serial concurrency group and its own
+REM  idempotency check.
 REM
-REM  Sun-Thu is deliberate. US Monday evening is Beijing Tuesday morning, so
-REM  a Mon-Fri local schedule would MISS Beijing Monday and waste a run on
-REM  Beijing Saturday.
-REM
-REM  Re-triggering is harmless: the workflow has a serial concurrency group
-REM  plus an idempotency check. If today's snapshot is already committed the
-REM  whole job is skipped, so no second email.
-REM
-REM  Uses the workflow FILE NAME (auction.yml), not its display name, because
-REM  the display name is Chinese and .cmd files are read in the OEM codepage.
-REM
-REM  Log:    tools/trigger.log (gitignored)
-REM
-REM  Usage:  trigger_auction.cmd          fire the workflow
-REM          trigger_auction.cmd check    verify gh auth and connectivity only
+REM  Log: tools/trigger.log (gitignored)
 REM ===========================================================================
 setlocal
 set "REPO=SophiaSha2026/daily-report"
-REM Log next to the script via %~dp0. Do NOT use %LOCALAPPDATA% here:
-REM under Task Scheduler the write silently did not happen (gh itself ran
-REM fine and the workflow was dispatched, but no log line appeared).
-REM %~dp0 is expanded by cmd itself and never depends on the environment.
 set "LOG=%~dp0trigger.log"
+for /f "delims=" %%i in ('powershell -NoProfile -Command "(Get-Date).ToUniversalTime().AddHours(8).ToString('yyyy-MM-dd')"') do set "BJDATE=%%i"
 for /f "delims=" %%i in ('powershell -NoProfile -Command "Get-Date -Format s"') do set "NOW=%%i"
+set "BJMONTH=%BJDATE:~0,7%"
 
-if /i "%~1"=="check" (
-  echo [%NOW%] check >> "%LOG%"
-  gh auth status >> "%LOG%" 2>&1
-  gh workflow list -R %REPO% >> "%LOG%" 2>&1
-  echo [%NOW%] check exit=%ERRORLEVEL% >> "%LOG%"
+REM Already produced today? Then there is nothing to trigger.
+gh api "repos/%REPO%/contents/data/%BJMONTH%/auction_%BJDATE%.parquet" --silent >nul 2>&1
+if "%ERRORLEVEL%"=="0" (
+  echo [%NOW%] auction: %BJDATE% already done, skip >> "%LOG%"
   goto :eof
 )
 
-echo [%NOW%] trigger >> "%LOG%"
+echo [%NOW%] auction trigger for %BJDATE% >> "%LOG%"
 gh workflow run auction.yml --ref main -R %REPO% >> "%LOG%" 2>&1
-set "RC=%ERRORLEVEL%"
-echo [%NOW%] trigger exit=%RC% >> "%LOG%"
-if not "%RC%"=="0" (
-  echo [%NOW%] FAILED - GitHub cron entries from 07:40 BJT are the fallback >> "%LOG%"
-)
+echo [%NOW%] auction exit=%ERRORLEVEL% >> "%LOG%"
