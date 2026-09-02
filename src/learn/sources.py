@@ -90,38 +90,59 @@ def learnable_dims() -> list[str]:
 # ---------------------------------------------------------------------
 #  免费源：日线
 # ---------------------------------------------------------------------
+def _normalize(h: pd.DataFrame, code: str) -> pd.DataFrame:
+    """统一列类型。
+
+    两个数据源的 `日期` 类型不一样：东财 stock_zh_a_hist 给的是
+    datetime.date 对象，腾讯 K 线给的是字符串。混在一张表里
+    pyarrow 直接报 ArrowTypeError，整批落盘失败——第一次跑就是这么
+    把二十分钟的下载丢掉的。统一成 'YYYY-MM-DD' 字符串。
+    """
+    h = h.copy()
+    h["日期"] = pd.to_datetime(h["日期"], errors="coerce").dt.strftime("%Y-%m-%d")
+    for c in ("开盘", "收盘", "最高", "最低", "成交量", "成交额", "涨跌幅"):
+        if c in h.columns:
+            h[c] = pd.to_numeric(h[c], errors="coerce")
+    h["code"] = str(code).zfill(6)
+    keep = ["日期", "开盘", "收盘", "最高", "最低", "成交量", "成交额",
+            "涨跌幅", "code"]
+    return h[[c for c in keep if c in h.columns]]
+
+
 def fetch_daily(codes, start: str, end: str, workers: int = 4,
-                out: Path | None = None) -> Path:
+                out: Path | None = None, chunk: int = 800) -> Path:
     """拉日线并落一张长表。一只票一次调用覆盖整段（实测 405 根/次）。
 
-    落盘而不是返回，是因为这一步要跑几分钟，中途挂了不该从头再来。
+    分块落盘：5548 只要跑二十来分钟，中途挂了不该从头再来。
+    每 chunk 只写一次，重跑时按已有 code 续传。
     """
     import datasource as ds
     out = out or (CACHE / "hist_daily.parquet")
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    done: set[str] = set()
     frames: list[pd.DataFrame] = []
+    done: set[str] = set()
     if out.exists():
         old = pd.read_parquet(out)
         done = set(old["code"].unique())
         frames.append(old)
         log.info("已有 %d 只，续传", len(done))
 
-    todo = [c for c in codes if c not in done]
+    todo = [c for c in codes if str(c).zfill(6) not in done]
     log.info("待拉 %d 只 %s ~ %s", len(todo), start, end)
     t0 = time.time()
-    got = ds.daily_hist_many(todo, start.replace("-", ""), end.replace("-", ""),
-                             workers=workers)
-    for code, h in got.items():
-        if h is None or len(h) == 0:
-            continue
-        h = h.copy()
-        h["code"] = code
-        frames.append(h)
-    df = pd.concat(frames, ignore_index=True)
-    df.to_parquet(out, index=False)
-    log.info("日线落盘 %s：%d 只 %d 行，%.1fs", out.name,
+    for i in range(0, len(todo), chunk):
+        part = todo[i:i + chunk]
+        got = ds.daily_hist_many(part, start.replace("-", ""),
+                                 end.replace("-", ""), workers=workers)
+        for code, h in got.items():
+            if h is not None and len(h):
+                frames.append(_normalize(h, code))
+        pd.concat(frames, ignore_index=True).to_parquet(out, index=False)
+        log.info("已落盘 %d/%d 只，累计 %.0fs", min(i + chunk, len(todo)),
+                 len(todo), time.time() - t0)
+    df = pd.read_parquet(out)
+    log.info("日线完成 %s：%d 只 %d 行，%.0fs", out.name,
              df["code"].nunique(), len(df), time.time() - t0)
     return out
 

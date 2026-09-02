@@ -25,6 +25,7 @@ A股集合竞价选股流水线。跑在 GitHub Actions，每交易日 09:27:30�
 
 ```
 config.yaml              所有阈值。竞价看 screen/scoring，形态看 pullback
+                         learning 段是学习系统自己的超参，不是被学的对象
 prompts/analyst.md       竞价的 LLM 指令
 prompts/pullback_analyst.md  形态的 LLM 指令
 src/
@@ -39,6 +40,17 @@ src/
   pullback.py            形态主流程，--stage scan / send
   pullback_export.py     形态面板 + 邮件
   selftest_pullback.py   形态离线自测
+  ── 学习线（收盘后）──
+  eval_daily.py          入口 --stage intraday/label/brief/learn/race/backfill
+  learn/vscore.py        score.py 的**向量化孪生体**，被等价性断言钉住
+  learn/objective.py     损失函数：软TopK + Huber + 锚定 + L1
+  learn/optimize.py      拟合 + 走向前 + 按天自助
+  learn/gate.py          六道闸，全过才改参数
+  learn/backfill.py      历史日线+竞价 -> 训练表
+  learn/sources.py       回填源适配器（免费 / Tushare 运行时探测）
+  learn/intraday.py      盘中五时点采样，卖点研究
+  learn/model_select.py  模型擂台（传统 ML 横评，选出的模型不当排序器）
+  selftest_learn.py      学习线离线自测
   ── 共用 ──
   collect_llm.py         structured_output -> commentary.json（LLM_OUT_DIR 选目录）
   build_site.py          把两个面板打包成 _site，两条线都调它
@@ -54,6 +66,8 @@ src/
   refresh_meta.yml       3-刷新缓存 周日 20:17 BJT
   refresh_sector.yml     4-刷新板块成分表 周日 20:40 BJT
   pullback.yml           5-形态扫描 17:00 BJT
+  learn.yml              6-自评估与迭代 16:30 BJT
+  intraday.yml           7-盘中采样 五个时点
 cache/                   codes.csv, sector_map.parquet, universe.parquet
 data/YYYY-MM/            auction_*.parquet 竞价快照 / pullback_*.parquet 形态结果
 out/                     竞价当日产物：panel.html, stamp.txt, 竞价_*.txt, detail.csv
@@ -65,7 +79,10 @@ out_pullback/            形态当日产物：同上结构
 ```bash
 python src/selftest.py            # 竞价：17 用例 + 9 条曲线不变量 + 4 条规则不变量 + 1000 压力样本
 python src/selftest_pullback.py   # 形态：13 条形态判定 + 打分单调性 + 工具函数
+python src/selftest_learn.py      # 学习：40 条，含向量化打分器等价性
 ```
+
+学习线要额外装 `scikit-learn scipy`（另两条线不需要，别混进它们的依赖）。
 
 两个都是离线的，加起来不到 0.5 秒。**改哪条线就跑哪个，改共用代码两个都跑。**
 
@@ -155,6 +172,27 @@ GitHub runner 上用 Playwright 起 chromium 也一样能过，见 `src/refresh_
 - 用 `--json-schema` 拿结构化输出，不要让模型自己写文件
 - OAuth token 只对 Claude Code 有效，**会被 Messages API 拒绝**，
   所以不能用 `anthropic` SDK 直连
+
+### 8. 学习系统改不动准入区间，也改不动 score.py
+
+`state/learned.yaml` 只允许覆盖 `scoring.weights.*` 和三个形状参数
+（`gap_pct_peak` / `auc_ratio_score_hi` / `auc_ratio_decay`），
+白名单在 `cfg.py::_ALLOWED_PREFIX` 里，越界的键整份忽略。
+
+准入区间（涨幅 2~5%、量比 2.5~10）是**用户定的规则**，系统只能提案。
+2026-09-02 用户刚把它们退回初版，机器无权撤销这个决定。
+
+`config.yaml` 永远是人工基线 θ⁰，`git diff` 它只会看到人的意图。
+删掉 `state/learned.yaml` 就是一键回到基线。
+
+三条自测线都不许依赖 `state/`，学习系统没跑过也要能全绿。
+
+### 9. `learn/vscore.py` 和 `score.py` 必须逐位一致
+
+前者是后者的向量化孪生体，只为让优化器能在毫秒级重算 30 万行的分数
+（逐行 `score_one` 是 25 分钟）。改任何一个就必须同步改另一个，
+`selftest_learn.py` 用 2000 个随机样本钉住这件事。那条断言一红，
+学到的参数会被生产打分器用另一套语义执行，整个学习系统的结论作废。
 
 ## 领域知识（改阈值前必读）
 

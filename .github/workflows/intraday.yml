@@ -1,0 +1,74 @@
+name: 7-盘中采样
+
+# 卖点研究用。竞价类信号常见「开盘半小时见顶、尾盘回吐」的形态，
+# 如果真是那样，用收盘价算 IC 会接近 0，把一个有效的打分器误判成没用。
+# 五个时点各采一次全池现价，从此能画出「持有到 X 点」的 IC 曲线。
+# 详见 src/learn/intraday.py 的模块说明。
+#
+# 刻意做成**五个独立的 cron**，而不是一个从 09:30 睡到 15:00 的长任务：
+#   - 长任务占 runner 五个半小时，中途挂掉当天全废
+#   - 五个独立任务里挂一个只丢一列
+# GitHub cron 迟到是常态（CLAUDE.md 记着实测迟到 97 分钟），所以采样点
+# 由**实际时刻**就近归类，并把迟到秒数写进文件；迟到超过 30 分钟的
+# 采样在 load_all() 里会被丢掉——一个本该 10:00 的点 11:30 才采到，
+# 它测的就不是「持有到 10:00」。
+#
+# 这条线是研究性的，断几天不影响任何业务邮件。
+
+on:
+  schedule:
+    - cron: "35 1 * * *"    # 09:35 BJT
+    - cron: "0 2 * * *"     # 10:00 BJT
+    - cron: "30 3 * * *"    # 11:30 BJT
+    - cron: "0 6 * * *"     # 14:00 BJT
+    - cron: "0 7 * * *"     # 15:00 BJT
+  workflow_dispatch:
+    inputs:
+      point:
+        description: "采样点 HH:MM:SS，留空=按当前时刻就近"
+        required: false
+        default: ""
+
+concurrency:
+  group: intraday-${{ github.event.schedule || 'manual' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -q pandas pyarrow pyyaml requests akshare
+
+      - name: 采样
+        run: |
+          python src/eval_daily.py --stage intraday \
+            ${{ github.event.inputs.point && format('--point {0}', github.event.inputs.point) || '' }}
+
+      - name: 提交
+        run: |
+          git config user.name  "learn-bot"
+          git config user.email "learn-bot@users.noreply.github.com"
+          git add -A data/intraday 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "无采样产出（非交易日或当天没有竞价快照）"
+          else
+            git commit -m "intraday: $(date -u -d '+8 hours' +%F) $(date -u -d '+8 hours' +%H:%M)"
+            for i in 1 2 3; do
+              git pull --rebase -q origin "${{ github.ref_name }}" && \
+              git push origin HEAD:"${{ github.ref_name }}" && break
+              sleep $((i * 5))
+            done
+          fi
