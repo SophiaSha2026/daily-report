@@ -325,7 +325,12 @@ def _turnover(q: Quote) -> float:
 #  不进打分。竞价用的真实成交额来自腾讯实时快照，不是这里。
 # ---------------------------------------------------------------------
 
-TX_KLINE = ("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
+# 2026-09-02：用 4 路并发连打 800 只之后，web.ifzq.gtimg.cn 的
+# /appstock/app/fqkline/get 开始整片返回 HTTP 501（JS 挑战页），
+# 而同一时刻 qt.gtimg.cn 批量行情、以及**去掉 web. 前缀**的裸主机
+# ifzq.gtimg.cn 同一路径全部 200。所以那次限流是按「主机+路径」挂的，
+# 不是按 IP。裸主机更不容易被挑战，改用它。
+TX_KLINE = ("https://ifzq.gtimg.cn/appstock/app/fqkline/get"
             "?param={sym},day,{start},{end},{cnt},")
 
 _HIST_COLS = ["日期", "开盘", "收盘", "最高", "最低", "成交量", "成交额", "涨跌幅"]
@@ -365,6 +370,46 @@ def daily_hist_tx(code: str, start: str, end: str,
             continue
         rec.append({
             "日期": d, "开盘": o, "收盘": cl, "最高": hi, "最低": lo,
+            "成交量": vol, "成交额": cl * vol * 100.0,
+            "涨跌幅": round((cl - prev) / prev * 100.0, 2) if prev else 0.0,
+        })
+        prev = cl
+    return pd.DataFrame(rec, columns=_HIST_COLS)
+
+
+SINA_KLINE = ("https://quotes.sina.cn/cn/api/json_v2.php/"
+              "CN_MarketDataService.getKLineData"
+              "?symbol={sym}&scale=240&ma=no&datalen=1023")
+
+
+def daily_hist_sina(code: str, start: str, end: str,
+                    timeout: float = 10.0) -> "pd.DataFrame":  # noqa: F821
+    """新浪日线。第三路兜底，2026-09-02 加。
+
+    单次给 1023 根，实测回溯到 2022-06，比腾讯那路的 640 根上限还长。
+    代价是它**只有 OHLC 和成交量**：
+      成交额  用 收盘×成交量 估算，和腾讯那路一样是估算不是真值
+      涨跌幅  按相邻收盘价算，**除权日会错**（东财那路才是复权真值）
+    所以顺序仍然是 东财 -> 腾讯 -> 新浪，它只在前两路都不通时顶上。
+    """
+    import pandas as pd
+    sym = to_symbol(code)
+    r = _SESSION.get(SINA_KLINE.format(sym=sym), headers=UA, timeout=timeout)
+    js = r.json()
+    if not isinstance(js, list) or not js:
+        return pd.DataFrame(columns=_HIST_COLS)
+    s0, e0 = _dash(start), _dash(end)
+    rec, prev = [], None
+    for it in js:
+        d = str(it.get("day", ""))[:10]
+        if not (s0 <= d <= e0):
+            prev = float(it["close"])
+            continue
+        cl = float(it["close"])
+        vol = float(it["volume"]) / 100.0     # 新浪给的是股，统一成手
+        rec.append({
+            "日期": d, "开盘": float(it["open"]), "收盘": cl,
+            "最高": float(it["high"]), "最低": float(it["low"]),
             "成交量": vol, "成交额": cl * vol * 100.0,
             "涨跌幅": round((cl - prev) / prev * 100.0, 2) if prev else 0.0,
         })
@@ -429,7 +474,8 @@ def daily_hist(code: str, start: str, end: str) -> "pd.DataFrame":  # noqa: F821
     """
     个股不复权日线。用于算 5 日均量、60 日分位、平台高点。
 
-    东财优先（真实成交额），失败重试 3 次；整体不通时熔断走腾讯。
+    三路：东财（成交额是真值）-> 腾讯 -> 新浪。
+    东财失败重试 3 次，整体不通时熔断。腾讯被限流返 501 时新浪顶上。
     """
     import pandas as pd
     if _em_allowed():
@@ -450,6 +496,15 @@ def daily_hist(code: str, start: str, end: str) -> "pd.DataFrame":  # noqa: F821
             return h
     except Exception as e:  # noqa: BLE001
         log.debug("腾讯日线(%s) 失败: %s", code, e)
+    # 第三路。腾讯那路被限流返 501 时，这一路仍然通（2026-09-02 实测）。
+    try:
+        h = daily_hist_sina(code, start, end)
+        if h is not None and len(h) >= 25:
+            with _em_lock:
+                _em_state["sina"] = _em_state.get("sina", 0) + 1
+            return h
+    except Exception as e:  # noqa: BLE001
+        log.debug("新浪日线(%s) 失败: %s", code, e)
     return pd.DataFrame(columns=_HIST_COLS)
 
 

@@ -1,0 +1,30 @@
+{
+  "date": "2026-09-02",
+  "n_days": 1,
+  "days": [
+    "2026-09-02"
+  ],
+  "theta_version": "基线",
+  "metrics": {
+    "days": 1,
+    "ic_mean": -0.2967032967032967,
+    "ic_std": NaN,
+    "icir": NaN,
+    "top_excess": -0.026211337590411186,
+    "hit_rate": 0.2,
+    "avg_pool": 14.0
+  },
+  "source_days_weighted": {},
+  "verdict": {
+    "accepted": false,
+    "checks": [
+      {
+        "name": "最少天数",
+        "passed": false,
+        "detail": "1 天 / 要求 >= 60，不拟合"
+      }
+    ],
+    "moved": {},
+    "evidence": {}
+  }
+}

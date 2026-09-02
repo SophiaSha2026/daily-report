@@ -85,8 +85,8 @@ def stage_brief(c: dict, date: str) -> int:
         return 0
     from learn import vscore
     s, rej = vscore.score_df(df, c)
-    d = df.assign(_s=s, _rej=rej)
-    ok = d[~d["_rej"]].sort_values("_s", ascending=False)
+    d = df.assign(sc=s, rej=rej)
+    ok = d[~d["rej"]].sort_values("sc", ascending=False)
     if ok.empty:
         log.warning("%s 无票通过硬性排除", date)
         return 0
@@ -97,7 +97,7 @@ def stage_brief(c: dict, date: str) -> int:
 
     def pack(g):
         return [{
-            "code": r.code, "name": r["name"], "score": round(r._s, 1),
+            "code": r.code, "name": r.name, "score": round(r.sc, 1),
             "rank": int(i + 1), "gap_pct": round(r.gap_pct, 2),
             "intraday_pct": round(r.r * 100, 2), "ytil": round(r.ytil, 2),
             "sector": r.sector, "risk_tags": list(r.risk_tags),
