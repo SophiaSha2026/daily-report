@@ -57,10 +57,18 @@ CASES = [
                         t3_chg=6.4, slope=2.4),                   "竞价涨幅"),
     ("低开出局",      mk(code="600444", gap_pct=-1.2, gap_norm=-0.12,
                         t1_chg=-1.5, t2_chg=-1.3, t3_chg=-1.2),   "竞价涨幅"),
+    # 2026-09-02 退回原版，+2% 动能下限重新变成硬性剔除（此前只扣分）
+    ("动能不足1.5%",  mk(code="600445", gap_pct=1.5, gap_norm=0.15,
+                        t1_chg=1.0, t2_chg=1.3, t3_chg=1.5),      "竞价涨幅"),
+    ("刚好2%放行",    mk(code="600446", gap_pct=2.1, gap_norm=0.21,
+                        t1_chg=1.6, t2_chg=1.9, t3_chg=2.1),               None),
     ("高开过头",      mk(code="600555", gap_pct=7.0, gap_norm=0.70,
                         t1_chg=6.0, t2_chg=6.5, t3_chg=7.0),      "竞价涨幅"),
     ("量能不足",      mk(code="600666", auc_ratio=0.004),        "竞价量能"),
     ("量能过载",      mk(code="600777", auc_ratio=0.30),         "竞价量能"),
+    # 量比上限退回 10：量比 12 出局，量比 9 放行
+    ("量比12超上限",  mk(code="600778", auc_ratio=0.05),         "竞价量能"),
+    ("量比9放行",     mk(code="600779", auc_ratio=0.0375),                None),
     ("尾盘跳水",      mk(code="600888", t2_chg=5.4, t3_chg=3.0,
                         dive=2.4, monotonic=False),              "尾盘跳水"),
     ("假涨停撤单",    mk(code="600999", t1_chg=9.6, t2_chg=5.0, t3_chg=3.0,
@@ -105,17 +113,54 @@ def check_curves(c: dict) -> int:
        "gap 在峰值左侧单调递增（涨幅越大动能越强）")
 
     ck(abs(f_volume(sat, vlo, vhi, sat, dec) - 1.0) < 1e-9, "volume 饱和点得满分")
-    ck(all(f_volume(r, vlo, vhi, sat, dec) > f_volume(r * 1.2, vlo, vhi, sat, dec)
-           for r in [sat * 1.1 * 1.3 ** i for i in range(6)]
-           if r * 1.2 <= vhi),
+    # 饱和点必须落在准入区间内部。这条同时挡住一类致命配置错误：
+    # 把「竞价量能 >= 昨日全天 10%」当成 auc_ratio_min 打开（=0.10），
+    # 它比 auc_ratio_max(0.0417) 还大，准入区间成空集，每天发空榜而且不报错。
+    ck(vlo < sat < vhi, "量能区间自洽：min < 饱和点 < max（空集会静默发空榜）")
+    # 在实际区间内几何取点，取点数不随上下限变化
+    probes = [sat * (vhi / sat) ** (i / 8.0) for i in range(9)]
+    ck(all(f_volume(probes[i], vlo, vhi, sat, dec)
+           > f_volume(probes[i + 1], vlo, vhi, sat, dec) for i in range(8)),
        "volume 超过饱和点后单调递减（越极端越警惕）")
-    # 关键：衰减速率不能随上限漂移
+    # 关键：衰减速率不能随上限漂移。这两条都显式传 hi，是**纯形状**断言，
+    # 与 config 当前的 auc_ratio_max 无关——否则收窄上限时断言会跟着一起失效。
     probe = sat * 2
     ck(abs(f_volume(probe, vlo, 0.08, sat, dec)
            - f_volume(probe, vlo, 0.30, sat, dec)) < 1e-9,
        "volume 衰减速率与 auc_ratio_max 无关")
-    ck(abs(f_volume(0.0792, vlo, vhi, sat, dec) - 0.61) < 0.02,
-       "volume 在量比 19 处仍是 0.61（与旧配置口径一致）")
+    ck(abs(f_volume(0.0792, vlo, 0.30, sat, dec) - 0.61) < 0.02,
+       "volume 每 e 倍于饱和点扣 0.40（量比 19 处 0.61，与旧配置口径一致）")
+    return bad
+
+
+def check_rules(c: dict) -> int:
+    """非「硬性排除」类规则的行为断言。
+
+    这些规则不会出现在 CASES 的 rejected 字段里，但同样会因为改阈值而
+    静默失效——比如「高位极端放量」的触发线一度写成 auc_ratio_score_hi*2，
+    量比上限收回 10 之后那个值落到准入区间之外，扣分永远不会发生。
+    """
+    bad = 0
+
+    def ck(cond: bool, msg: str) -> None:
+        nonlocal bad
+        if not cond:
+            bad += 1
+        print(f"  {'✓' if cond else '✗'} {msg}")
+
+    print("")
+    print("规则不变量")
+    hi_vol = score_one(mk(code="600801", pos_pct_60d=0.95, auc_ratio=0.0375), c)
+    lo_vol = score_one(mk(code="600802", pos_pct_60d=0.95, auc_ratio=0.02), c)
+    mid_pos = score_one(mk(code="600803", pos_pct_60d=0.60, auc_ratio=0.0375), c)
+    ck("高位极端放量" in hi_vol["risk_tags"],
+       "高位(0.95)+量比9 触发「高位极端放量」扣分")
+    ck("高位极端放量" not in lo_vol["risk_tags"],
+       "高位(0.95)+量比4.8 不触发")
+    ck("高位极端放量" not in mid_pos["risk_tags"],
+       "中位(0.60)+量比9 不触发")
+    ck(hi_vol["penalty"] >= c["scoring"]["penalties"]["high_pos_extreme_volume"],
+       "扣分额度按 config 生效")
     return bad
 
 
@@ -138,6 +183,7 @@ def main() -> int:
               f"{r['group']:<3}{'✓' if ok else '✗'} {got}")
 
     bad += check_curves(c)
+    bad += check_rules(c)
 
     # 压力：1000 只随机票，确认打分不发散、不抛异常、不卡住
     random.seed(7)

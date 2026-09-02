@@ -199,8 +199,9 @@ def stage_quick(c: dict, late: bool = False) -> int:
     if late:
         # 量能维度在抢救模式下是**不可用**的，不是「偏大一点」而已：
         # 当前累计成交额里混着开盘后的连续竞价，跑得越晚混得越多。
-        # 2026-08-28 首次实测，09:51 跑的那次 auc_ratio 全线超出 20.8% 上限，
-        # 635 只被量能条件一刀切光，发出去一封空邮件。
+        # 2026-08-28 首次实测，09:51 跑的那次 auc_ratio 全线超出当时 20.8% 的
+        # 上限，635 只被量能条件一刀切光，发出去一封空邮件。
+        # 2026-09-02 上限收回 4.17%（量比 10）之后只会切得更狠，这段更不能省。
         # 所以这里直接把量能的准入区间放开、权重清零并按比例分给其余维度，
         # 而不是拿一个已知污染的数去做筛选和打分。
         sc = c["screen"]
@@ -307,7 +308,7 @@ def stage_enrich(c: dict) -> int:
     tiers = o["ths_tiers"]
     OUT.mkdir(exist_ok=True)
     blocks = write_ths_blocks(sel, OUT, tiers, today) if sel else []
-    write_ths_panel(sel, texts, OUT, tiers, today, notice)
+    write_ths_panel(sel, texts, OUT, tiers, today, notice, c["screen"])
     if sel:
         write_tdx_custom(sel, OUT)          # 可选：给通达信用
 

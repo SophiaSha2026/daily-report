@@ -60,6 +60,9 @@ def f_gap(gap: float, lo: float, hi: float, peak: float) -> float:
     1.5，于是 +4.99% 得 0.57、+5.00%（仍在允许范围内）却得 0。
     分臂归一同时也让「越接近 5% 的剔除线，扣分越快」成立，这正是用户设这条
     上限的理由（高开过多容易高开低走）。
+
+    2026-09-02 退回 2%~5% 之后两臂又恰好等长（各 1.5），这个 bug 在当前配置下
+    看不出来 —— 正因为看不出来才不能把分臂归一改回去，selftest 的断言留着。
     """
     if gap <= lo or gap >= hi:
         return 0.0
@@ -193,7 +196,11 @@ def score_one(feat: AuctionFeature, cfg: dict[str, Any]) -> dict[str, Any]:
     if feat.dive >= sc["last_min_dive_max"] * 0.6:
         penalty += pen["last_min_dive"] * 0.5
         tags.append("竞价尾段走弱")
-    if feat.pos_pct_60d > 0.9 and feat.auc_ratio > sc["auc_ratio_score_hi"] * 2:
+    # 触发线用绝对量比，不从 auc_ratio_score_hi 推导。原来写的是 sat*2 = 6%
+    # （量比 14.4），量比上限收回 10 之后那个值落在准入区间之外，永远触发不了。
+    # 量比 >10 本身已由 auc_ratio_max 硬剔除，这里管的是「高位 + 逼近上限」。
+    if (feat.pos_pct_60d > 0.9
+            and _liangbi(feat.auc_ratio, sc) >= sc.get("high_pos_liangbi_min", 8.0)):
         penalty += pen["high_pos_extreme_volume"]
         tags.append("高位极端放量")
     if feat.prev_broken_board:

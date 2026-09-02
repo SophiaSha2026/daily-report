@@ -179,8 +179,22 @@ function one(c){put(c,'已复制 '+c);}
 """ + REFRESH_JS + """</script></body></html>"""
 
 
+def _criteria_line(sc: dict) -> str:
+    """把当前生效的准入区间渲染成一行。
+
+    写死一段文案的话，改 config 之后面板会继续显示旧口径，看不出改动生效没有。
+    量比是 AUC_RATIO 的换算显示值，筛选本身仍然用 AUC_RATIO。
+    """
+    k = sc.get("liangbi_per_auc_ratio", 240)
+    return (f'准入：竞价涨幅 {sc["gap_pct_min"]:.0f}%~{sc["gap_pct_max"]:.0f}% · '
+            f'量比 {sc["auc_ratio_min"]*k:.1f}~{sc["auc_ratio_max"]*k:.0f} '
+            f'（竞价量能 {sc["auc_ratio_min"]*100:.2f}%~{sc["auc_ratio_max"]*100:.2f}%）'
+            f' · 竞价额 ≥ {sc["min_auc_amount_wan"]:.0f} 万')
+
+
 def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
-                    tiers: list[float], date: str, notice: str = "") -> Path:
+                    tiers: list[float], date: str, notice: str = "",
+                    screen: dict | None = None) -> Path:
     tr = []
     data = []
     for i, r in enumerate(rows, 1):
@@ -209,6 +223,8 @@ def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
             f'<td>{cell}</td></tr>'
         )
     sub = f'共 {len(rows)} 只 · 采集于 09:25:10'
+    if screen:
+        sub += ' · ' + _criteria_line(screen)
     if notice:
         sub += f' · <span style="color:#d0a34a">{notice}</span>'
     # 每次生成都换一个 stamp。页面拿它跟 stamp.txt 比对，不一致就跳新 URL，
