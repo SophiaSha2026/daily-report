@@ -8,3 +8,13 @@ tools/trigger.log*
 node_modules/
 tools/local.env
 tools/local_run_*.log
+
+# 个人 token，绝不进版本库
+.secret
+.secret.*
+
+# 回填原始数据：体积大、可重建，不进版本库。
+# 派生出来的训练表 data/train/*.parquet 才提交。
+cache/hist_daily.parquet
+cache/hist_auction.parquet
+out_learn/

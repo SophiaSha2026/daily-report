@@ -219,3 +219,111 @@ pullback:
     enabled: true
     model: "claude-opus-5"
     timeout_seconds: 150    # 17:00 没有竞价那种秒级压力，给足时间
+
+# =====================================================================
+#  自评估 · 学习 · 迭代   （每交易日 16:30 BJT，独立 workflow）
+#  完整设计见 docs/learning.md。这里只是旋钮。
+#
+#  本节里的参数是「学习系统自己的超参」，不是被学习的对象。
+#  被学习的对象是上面 screen / scoring 里那几个，学到的值写进
+#  state/learned.yaml，由 cfg.load() 合并。config.yaml 永远是人工基线 θ⁰。
+# =====================================================================
+learning:
+  enabled: true
+  run_at: "16:30:00"        # 收盘后。15:00 收盘，留 90 分钟等数据落定
+  hard_deadline: "23:00:00"
+
+  # ---- 标签 ----
+  label:
+    # r = 收盘 / 开盘 − 1。开盘价就是竞价撮合价，也就是买入价，
+    # 所以这是可执行收益，不是纸面收益。
+    max_open_mismatch_pct: 0.5   # 快照里的 auc_price 与日线开盘价偏离超过这个
+                                 # 百分比 -> 标脏样本，不参与学习
+    cost_bp: 13                  # 单边成本估计（万分之13：印花税10 + 佣金等）
+                                 # 只在汇报里扣，不进优化目标——它是常数，不改排序
+
+  # ---- 日内中性化 ----
+  neutralize:
+    center: median            # median / mean。用中位数：涨跌停会把均值拽偏
+    winsor_q: 0.01            # 按当日 1% / 99% 分位缩尾
+    scale: mad                # mad / std。MAD = 1.4826 × median(|y − median y|)
+    min_pool: 200             # 当日有效样本少于此数 -> 整天丢弃，统计量不可靠
+
+  # ---- 目标函数 ----
+  objective:
+    top_k: 10                 # 软 Top-K 的 K。等于榜单长度，两者要一致
+    tau_perplexity_tol: 0.01  # 二分求温度 τ 的收敛容差（目标 exp(H)=K）
+    huber_c: 1.345            # Huber M 估计的截断点。对高斯 95% 效率的标准取值。
+                              # 它决定单日影响力上限 = c × MAD({G_d})
+    lambda_anchor: 8.0        # λ₀：锚定到人工配置 θ⁰ 的强度
+    anchor_prior_days: 120    # n₀：人工配置值多少天的证据。
+                              # λ_a(N) = λ₀ · n₀/(n₀+N)，见 docs/learning.md 4.4
+    lambda_l1: 0.6            # 相对上一版 θ 的 L1。让更新稀疏 = 邮件可读
+
+  # ---- 接受门（六道闸，全过才改）----
+  gate:
+    min_days: 60              # 少于 60 天，任何改善都在噪声里（见设计文档 5.1）
+    oos_frac: 0.20            # 尾部 20% 的天数留作样本外
+    bootstrap_n: 2000         # 按**天**重抽样。按行会把置信区间算窄好几倍
+    bootstrap_p: 0.90         # 要求 P(新的样本外更好) ≥ 0.90
+    max_step_frac: 0.10       # 单参数每次移动上限 = 箱宽 × 此值
+    max_moves: 2              # 一次最多动几个参数
+    churn_lookback: 20        # 行为回放的天数
+    max_churn: 0.40           # 任何一天前 10 的变动比例上限
+    cooldown_days: 10         # 距上次接受变更的最小间隔
+
+  # ---- 可学参数的箱约束 ----
+  # 只有列在这里的才可能被自动改。准入区间（gap_pct_min/max、auc_ratio_min/max）
+  # 故意不在这里：那是用户定的规则，系统只能提案，见 propose_only。
+  box:
+    scoring.weights.gap:        [0.05, 0.40]
+    scoring.weights.volume:     [0.05, 0.40]
+    scoring.weights.trend:      [0.05, 0.40]
+    scoring.weights.position:   [0.05, 0.35]
+    scoring.weights.sector:     [0.05, 0.35]
+    scoring.weights.continuity: [0.00, 0.20]
+    screen.gap_pct_peak:        [2.5, 4.5]
+    screen.auc_ratio_score_hi:  [0.015, 0.040]
+    screen.auc_ratio_decay:     [0.20, 0.80]
+
+  # 系统可以给建议值和证据，但**必须人工点头**才写入。
+  propose_only:
+    - screen.gap_pct_min
+    - screen.gap_pct_max
+    - screen.auc_ratio_min
+    - screen.auc_ratio_max
+    - output.min_score
+
+  # ---- LLM 归因 Agent ----
+  llm:
+    enabled: true
+    model: "claude-opus-5"
+    timeout_seconds: 240      # 16:30 没有竞价那种秒级压力
+    n_worst: 8                # 高分低收益，取几只
+    n_best: 8                 # 低分高收益，取几只
+    # day_regime -> 优化器里的日权重 w_d。映射写在这里 = 可审计、可复现。
+    regime_weight:
+      数据异常: 0.0           # 我们自己的数据错了，这天不该参与学习
+      大盘系统性: 0.35        # 特征不预测指数，全权重只贡献方差
+      情绪退潮: 0.70          # 真实但罕见的状态，降权不剔除
+      板块轮动: 1.0
+      正常: 1.0
+
+  # ---- 历史回填（H 层）----
+  backfill:
+    start: "2025-01-01"
+    # 历史日线还原不了竞价量能和竞价斜率（2026-09-02 实测：腾讯分钟线硬顶
+    # 320 根 ≈ 1.3 天，东财分钟接口不通）。所以回填只能学下面这四个维度，
+    # volume / trend 的参数必须靠在线积累。详见 docs/learning.md 第 2 节。
+    learnable_dims: [gap, position, sector, continuity]
+    workers: 4                # 和 daily_hist_many 一样保守，免费接口并发高就限流
+
+  # ---- GBDT 老师（不是排序器，见 docs/learning.md 第 7 节）----
+  teacher:
+    enabled: true
+    # 它只做两件事：估函数形式的天花板、给 gap 的形状提建议。
+    # 绝不进生产打分路径——黑箱排名无法归因，也没法用规则语言讨论。
+    n_estimators: 300
+    max_depth: 4
+    learning_rate: 0.05
+    min_child_samples: 200

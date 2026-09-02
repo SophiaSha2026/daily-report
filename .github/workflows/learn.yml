@@ -1,0 +1,148 @@
+name: 6-自评估与迭代
+
+# 收盘后跑。和早上 07:30 的竞价线、17:00 的形态线互不相干：
+# 这条线崩了不影响任何一封业务邮件（docs/learning.md 第 1 节边界 2）。
+#
+# 16:30 BJT = 08:30 UTC。收盘 15:00，留 90 分钟等数据落定。
+# 迟一两小时无所谓，收盘后数据是定死的；真正要防的是早，
+# stage label 会检查快照存在性，盘中跑不出东西。
+
+on:
+  schedule:
+    - cron: "30 8 * * *"      # 16:30 BJT
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "label / brief / learn / race / backfill / 全流程留空"
+        required: false
+        default: ""
+      date:
+        description: "指定日期 YYYY-MM-DD，留空=今天"
+        required: false
+        default: ""
+      dry:
+        description: "dry-run：算但不写参数不发信"
+        type: boolean
+        default: false
+
+concurrency:
+  group: learn
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # scikit-learn / scipy 只有这条线用得到。竞价线和形态线的依赖没变，
+      # 它们不会因为这里多装了东西而变慢或变脆。
+      - name: 装依赖
+        run: |
+          python -m pip install -q --upgrade pip
+          pip install -q pandas pyarrow pyyaml requests akshare \
+                        scikit-learn scipy
+
+      - name: 交易日闸门
+        id: gate
+        run: |
+          python - <<'PY'
+          import os, datetime as dt
+          bj = dt.datetime.utcnow() + dt.timedelta(hours=8)
+          today = bj.strftime("%Y-%m-%d")
+          try:
+              import akshare as ak
+              days = {str(d) for d in
+                      ak.tool_trade_date_hist_sina()["trade_date"].astype(str)}
+              ok = today in days
+          except Exception as e:
+              print(f"交易日历取不到（{e}），按工作日放行")
+              ok = bj.weekday() < 5
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"go={'1' if ok else '0'}\n")
+              f.write(f"date={today}\n")
+          print(("交易日 " if ok else "非交易日 ") + today)
+          PY
+
+      - name: 抓标签
+        if: steps.gate.outputs.go == '1'
+        env:
+          TZ: Asia/Shanghai
+        run: |
+          python src/eval_daily.py --stage label \
+            --date "${{ github.event.inputs.date || steps.gate.outputs.date }}"
+
+      - name: 准备归因输入
+        if: steps.gate.outputs.go == '1'
+        continue-on-error: true
+        run: |
+          python src/eval_daily.py --stage brief \
+            --date "${{ github.event.inputs.date || steps.gate.outputs.date }}"
+
+      # LLM 只做归因，产出落 state/llm_eval/<date>.json。
+      # 它的影响通过 config 里那张 regime_weight 映射表进入优化器，
+      # 全程可审计、可复现。失败不阻断后面的学习步骤。
+      - name: LLM 归因
+        if: steps.gate.outputs.go == '1'
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            按 prompts/eval_analyst.md 的要求，读 out_learn/eval_brief.json，
+            对当天的预测-实际偏差做归因，把结果写入
+            state/llm_eval/${{ steps.gate.outputs.date }}.json
+          claude_args: >-
+            --model claude-opus-5
+            --max-turns 20
+            --allowed-tools "Read,Write,WebSearch,WebFetch"
+
+      - name: 拟合与闸门
+        if: steps.gate.outputs.go == '1'
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+        run: |
+          python src/eval_daily.py --stage learn \
+            --date "${{ github.event.inputs.date || steps.gate.outputs.date }}" \
+            ${{ github.event.inputs.dry == 'true' && '--dry' || '' }}
+
+      - name: 提交结果
+        if: steps.gate.outputs.go == '1'
+        run: |
+          git config user.name  "learn-bot"
+          git config user.email "learn-bot@users.noreply.github.com"
+          git add -A data/labels state docs 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "无改动"
+          else
+            git commit -m "learn: ${{ steps.gate.outputs.date }}"
+            # 竞价线可能在同时提交数据，rebase 一下再推
+            git pull --rebase -q origin "${{ github.ref_name }}" || true
+            git push origin HEAD:"${{ github.ref_name }}"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: learn-${{ steps.gate.outputs.date }}
+          path: |
+            out_learn/
+            state/learning_status.json
+          retention-days: 30
+          if-no-files-found: ignore
