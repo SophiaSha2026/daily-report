@@ -63,13 +63,20 @@ def _trading_days_between(a: str, b: str, all_days: list[str]) -> int:
 def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
              n_days: int, all_days: list[str], today: str,
              boot_p: float, oos_new: float, oos_old: float,
-             churn: dict[str, float]) -> Verdict:
-    """跑完六道闸，返回裁决。
+             churn: dict[str, float], *,
+             online_p: float | None = None,
+             online_days: int = 0) -> Verdict:
+    """跑完六道闸（外加可选的第七道），返回裁决。
 
     参数说明：
-      g          config 里的 learning.gate 段
-      boot_p     按天自助算出的 P(新参数样本外更好)
-      churn      日期 -> 前 K 变动比例（闸门 5 的输入）
+      g            config 里的 learning.gate 段
+      boot_p       按天自助算出的 P(新参数样本外更好)
+      churn        日期 -> 前 K 变动比例（闸门 5 的输入）
+      online_p     P(新参数在**在线真值快照**上更好)。训练数据是回填表，
+                   竞价轨迹是代理值；这道闸保证学到的东西搬到真值上
+                   至少不明显更差。None = 无在线数据，跳过。
+      online_days  参与在线检验的天数。少于 g["online_min_days"] 只记录不否决
+                   ——几天的样本连「明显更差」都判不出来。
     """
     checks: list[Check] = []
     sig = {k: (hi - lo) for k, (lo, hi) in box.items()}
@@ -117,6 +124,20 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
         detail = f"距上次接受 {gap} 个交易日 / 要求 >= {g['cooldown_days']}"
     checks.append(Check("冷却期", ok, detail))
 
+    # 7 在线稳健性否决（只否决不要求，样本不足时放行但记录）
+    if online_p is not None:
+        if online_days >= g.get("online_min_days", 5):
+            ok = online_p >= g.get("online_veto_p", 0.25)
+            checks.append(Check("在线稳健性", ok,
+                                f"真值快照 {online_days} 天上 P(更好)="
+                                f"{online_p:.2f} / 否决线 "
+                                f"{g.get('online_veto_p', 0.25)}"))
+        else:
+            checks.append(Check("在线稳健性", True,
+                                f"仅 {online_days} 天（< "
+                                f"{g.get('online_min_days', 5)}），"
+                                f"记录 P={online_p:.2f} 不否决"))
+
     accepted = all(c.passed for c in checks) and bool(moved)
     if not moved:
         checks.append(Check("有实际改动", False, "优化器给出的参数与当前一致"))
@@ -125,7 +146,8 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
     return Verdict(accepted, checks, moved,
                    {"oos_old": oos_old, "oos_new": oos_new,
                     "bootstrap_p": boot_p, "n_days": n_days,
-                    "worst_churn": worst})
+                    "worst_churn": worst,
+                    "online_p": online_p, "online_days": online_days})
 
 
 def churn_by_day(old_top: dict[str, list], new_top: dict[str, list]

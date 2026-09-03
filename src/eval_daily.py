@@ -143,10 +143,27 @@ def load_day_weights(c: dict) -> dict[str, float]:
 # ---------------------------------------------------------------------
 #  stage: learn
 # ---------------------------------------------------------------------
+def _load_train(c: dict):
+    """训练表：优先回填（404 天，特征齐但竞价轨迹是代理值），
+    没有才用在线积累。返回 (df, source)。
+
+    2026-09-03 用户决定不等 60 天在线积累，直接用回填历史点火学习；
+    在线真值快照转为第七道闸（稳健性否决），见 gate.evaluate。
+    """
+    lc = c["learning"]
+    bf = sorted((ROOT / "data" / "train").glob("backfill_*.parquet"))
+    if bf:
+        raw = pd.read_parquet(bf[-1])
+        raw["dirty"] = raw["one_word"].astype(bool)
+        df = dataset.neutralize(raw, lc["neutralize"])
+        return df, f"backfill:{bf[-1].name}"
+    return dataset.build(None, lc["neutralize"]), "online"
+
+
 def stage_learn(c: dict, date: str, dry: bool) -> int:
     lc = c["learning"]
     box, g = lc["box"], lc["gate"]
-    df = dataset.build(None, lc["neutralize"])
+    df, source = _load_train(c)
     if df.empty:
         log.warning("还没有任何带标签的数据")
         return 0
@@ -154,6 +171,7 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
     n = len(days)
     theta0, theta_prev = C.theta0(box), C.theta_now(box)
     dayw = load_day_weights(c)
+    log.info("训练源 %s：%d 天", source, n)
 
     def mk(sub_days):
         sub = df[df["date"].isin(sub_days)]
@@ -199,9 +217,50 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
     churn = gate.churn_by_day(p_look.top_codes(theta_prev, codes),
                               p_look.top_codes(theta_new, codes))
 
+    # 第七道闸：在线真值快照上的稳健性。训练是回填（轨迹为代理值），
+    # 这里用真采样的那几天做否决检验。抢救日已被 dataset 守卫剔除。
+    online_p, online_days = None, 0
+    if source.startswith("backfill"):
+        dfo = dataset.build(None, lc["neutralize"])
+        if not dfo.empty:
+            p_on = OPT.Problem(dfo, c, box, theta0, theta_prev, dayw,
+                               lc["objective"]["top_k"],
+                               lc["objective"]["huber_c"],
+                               lc["objective"]["tau_perplexity_tol"])
+            online_days = dfo["date"].nunique()
+            online_p = OPT.bootstrap_better(p_on, theta_new, theta_prev,
+                                            g["bootstrap_n"])
+            log.info("在线稳健性：%d 天真值快照，P(新参数更好)=%.2f",
+                     online_days, online_p)
+
     v = gate.evaluate(theta_new, theta_prev, box, g, n, days, date,
-                      g["bootstrap_p"], oos_new, oos_old, churn)
+                      g["bootstrap_p"], oos_new, oos_old, churn,
+                      online_p=online_p, online_days=online_days)
     status["verdict"] = v.to_dict()
+    status["train_source"] = source
+
+    # 在线真值天的逐日指标，喂给学习面板画柱状图
+    try:
+        from learn.model_select import spearman
+        from learn import vscore, panel as LP
+        dfo2 = dfo if source.startswith("backfill") else df
+        daily = []
+        if not dfo2.empty:
+            s_, rej = vscore.score_df(dfo2, c)
+            dd = dfo2.assign(sc=s_, rej=rej)
+            for day, gday in dd[~dd["rej"]].groupby("date"):
+                top = gday.nlargest(lc["objective"]["top_k"], "sc")
+                daily.append({
+                    "date": day,
+                    "ic": spearman(gday["sc"].to_numpy(),
+                                   gday["ytil"].to_numpy()),
+                    "top_excess": float(top["y"].mean()),
+                })
+        status["daily"] = daily
+        R.save_status(status)
+        LP.build(daily)
+    except Exception as e:  # noqa: BLE001
+        log.warning("学习面板生成失败（不影响流程）: %s", e)
     status["lambda_anchor"] = lam_a
     R.save_status(status)
 
@@ -246,7 +305,17 @@ def _regime_counts() -> dict[str, int]:
 def stage_race(c: dict) -> int:
     from learn import model_select as MS
     lc = c["learning"]
-    df = dataset.build(None, lc["neutralize"])
+    # 优先用回填训练表（几百个交易日），没有才退回在线积累（起步只有几天）。
+    # 回填表没有 dirty 列：一字板买不进标脏，其余可执行。
+    bf = sorted((ROOT / "data" / "train").glob("backfill_*.parquet"))
+    if bf:
+        raw = pd.read_parquet(bf[-1])
+        raw["dirty"] = raw["one_word"].astype(bool)
+        df = dataset.neutralize(raw, lc["neutralize"])
+        log.info("擂台用回填表 %s：%d 行 %d 天", bf[-1].name, len(df),
+                 df["date"].nunique())
+    else:
+        df = dataset.build(None, lc["neutralize"])
     if df.empty:
         log.error("没有带标签的数据")
         return 1

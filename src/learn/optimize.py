@@ -111,21 +111,40 @@ class Problem:
 #  拟合
 # ---------------------------------------------------------------------
 def fit(prob: Problem, lam_a: float, lam_1: float,
-        maxiter: int = 600) -> dict[str, float]:
-    """Nelder-Mead。8 维、目标函数不可导（softmax 里有二分求根），
-    导数无关方法是对的选择；维度这么低它也不会退化。
+        maxiter: int = 600, n_starts: int = 5,
+        seed: int = 7) -> dict[str, float]:
+    """多起点 Nelder-Mead。8 维、目标函数不可导（softmax 里有二分求根，
+    L1 在 θ_prev 处还有尖点），导数无关方法是对的选择。
+
+    多起点是首次点火学到的教训：只从 θ_prev 出发，L1 的尖点让单纯形
+    一步都迈不出去——每个小移动的罚分都大于局部目标改善，看起来像
+    「没有信号」，其实是被自己的正则钉死在起点。从几个抖动过的起点
+    再各跑一遍，如果确实存在罚分买得起的更优点，至少有一个起点在
+    尖点外侧能滑进去；如果所有起点都收回 θ_prev，那才是真的没有信号。
     """
     from scipy.optimize import minimize
     keys = prob.keys
-    x0 = np.array([prob.theta_prev[k] for k in keys], float)
+    rng = np.random.default_rng(seed)
+    sig = O.sigma_of(prob.box)
 
     def f(x):
         th = O.project({k: float(v) for k, v in zip(keys, x)}, prob.box)
         return prob.loss(th, lam_a, lam_1)
 
-    r = minimize(f, x0, method="Nelder-Mead",
-                 options={"maxiter": maxiter, "xatol": 1e-4, "fatol": 1e-6})
-    return O.project({k: float(v) for k, v in zip(keys, r.x)}, prob.box)
+    starts = [np.array([prob.theta_prev[k] for k in keys], float)]
+    for _ in range(max(0, n_starts - 1)):
+        starts.append(np.array(
+            [prob.theta_prev[k] + rng.normal(0, 0.15) * sig[k]
+             for k in keys], float))
+
+    best_x, best_v = starts[0], f(starts[0])
+    for x0 in starts:
+        r = minimize(f, x0, method="Nelder-Mead",
+                     options={"maxiter": maxiter, "xatol": 1e-4,
+                              "fatol": 1e-6})
+        if r.fun < best_v - 1e-9:
+            best_x, best_v = r.x, r.fun
+    return O.project({k: float(v) for k, v in zip(keys, best_x)}, prob.box)
 
 
 def split_days(dates: list[str], oos_frac: float) -> tuple[list, list]:
@@ -149,6 +168,10 @@ def bootstrap_better(prob_oos: Problem, theta_new: dict, theta_old: dict,
     m = diff.size
     if m == 0:
         return 0.0
+    if float(np.abs(diff).max()) < 1e-12:
+        # 两组参数产生完全相同的组合：没有证据偏向任何一边。
+        # 不处理的话全零差值算出 P=0，会被误读成「新参数明显更差」。
+        return 0.5
     wins = 0
     for _ in range(n):
         s = diff[rng.integers(0, m, m)]

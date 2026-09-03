@@ -46,6 +46,7 @@ COMPLEXITY = {
     "ExtraTrees": 5,
     "RandomForest": 6,
     "HistGBDT": 7,
+    "XGBoost": 7,          # 和 HistGBDT 同族同复杂度，公平同分
     "Ridge+GBDT残差": 8,
 }
 
@@ -84,7 +85,7 @@ def _models(cfg_t: dict):
     from sklearn.ensemble import (HistGradientBoostingRegressor,
                                   RandomForestRegressor, ExtraTreesRegressor)
     t = cfg_t
-    return {
+    out = {
         "RankRidge": lambda: Ridge(alpha=10.0),
         "RankElasticNet": lambda: ElasticNet(alpha=0.001, l1_ratio=0.5,
                                              max_iter=5000),
@@ -104,6 +105,20 @@ def _models(cfg_t: dict):
             min_samples_leaf=t.get("min_child_samples", 200),
             l2_regularization=1.0, random_state=7),
     }
+    # XGBoost 用户点名要比。装了就上场，没装不报错——擂台的意义在横评，
+    # 缺一个选手不该让整场瘫掉。超参和 HistGBDT 对齐，比的是实现不是调参。
+    try:
+        from xgboost import XGBRegressor
+        out["XGBoost"] = lambda: XGBRegressor(
+            n_estimators=t.get("n_estimators", 300),
+            max_depth=t.get("max_depth", 4),
+            learning_rate=t.get("learning_rate", 0.05),
+            min_child_weight=t.get("min_child_samples", 200),
+            reg_lambda=1.0, tree_method="hist", n_jobs=-1,
+            random_state=7, verbosity=0)
+    except ImportError:
+        pass
+    return out
 
 
 def walk_forward(df: pd.DataFrame, c: dict, n_folds: int = 5,

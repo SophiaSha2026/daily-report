@@ -58,6 +58,16 @@ def neutralize(df: pd.DataFrame, nz: dict) -> pd.DataFrame:
 
     out = []
     for date, g in df.groupby("date", sort=True):
+        # 抢救模式的快照里四个 T 全指向同一次采样：T1=T2=T3、斜率 0。
+        # 正常日子这种票只占 ~6%（流动性差的），抢救日是 100%。
+        # 拿抢救日训练等于教系统「斜率永远是 0」，整天丢弃。
+        if "t1_chg" in g.columns and len(g) > 0:
+            frac = float(((g["t1_chg"] == g["t3_chg"])
+                          & (g["t2_chg"] == g["t3_chg"])).mean())
+            if frac > 0.5:
+                log.info("%s 疑似抢救模式快照（%.0f%% 行 T1=T2=T3），整天丢弃",
+                         date, frac * 100)
+                continue
         ok = g[~g["dirty"].astype(bool)].copy()
         if len(ok) < min_pool:
             log.info("%s 可用样本 %d < %d，整天丢弃", date, len(ok), min_pool)

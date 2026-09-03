@@ -230,6 +230,20 @@ def check_gate(c: dict) -> None:
     ck(not gate.evaluate(**{**ok_args, "theta_new": dict(t0)}).accepted,
        "参数没有实际改动 -> 拒")
 
+    # 第七道闸：在线稳健性只否决不要求
+    g7 = {**g, "online_veto_p": 0.25, "online_min_days": 5}
+    ck(gate.evaluate(**{**ok_args, "g": g7},
+                     online_p=0.90, online_days=8).accepted,
+       "在线 P=0.90 -> 放行")
+    ck(not gate.evaluate(**{**ok_args, "g": g7},
+                         online_p=0.10, online_days=8).accepted,
+       "在线 P=0.10（明显更差）-> 否决")
+    ck(gate.evaluate(**{**ok_args, "g": g7},
+                     online_p=0.10, online_days=3).accepted,
+       "在线只有 3 天 -> 记录不否决（样本不足判不出更差）")
+    ck(gate.evaluate(**{**ok_args, "g": g7}).accepted,
+       "无在线数据 -> 该闸不出现")
+
     ck(gate.churn_by_day({"d": ["a", "b", "c"]}, {"d": ["a", "b", "c"]})["d"] == 0.0,
        "前 K 完全相同时换手为 0")
     ck(abs(gate.churn_by_day({"d": ["a", "b"]}, {"d": ["a", "x"]})["d"] - 0.5)
