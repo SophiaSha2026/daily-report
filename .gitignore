@@ -17,6 +17,10 @@ tools/local_run_*.log
 # 派生出来的训练表 data/train/*.parquet 才提交。
 cache/hist_daily.parquet
 cache/hist_auction.parquet
-out_learn/
+# out_learn 里只有 learn.html 入库：它要进 Pages 站点，而部署跑在
+# 另一个 job 另一次 checkout（历史教训 7：跨 job 传状态要么提交要么
+# download-artifact）。其余产物（PDF、brief、race csv）留本地。
+out_learn/*
+!out_learn/learn.html
 
 cache/hist_auction_c.parquet

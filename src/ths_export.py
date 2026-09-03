@@ -153,6 +153,8 @@ _PANEL = """<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 </tr></thead><tbody>__ROWS__</tbody></table>
 __SHADOW__
 <div class="tip">
+<a href="learn.html" style="color:#8ab4f8">→ 学习面板（自学习系统状态、影子榜战绩、闸门裁决）</a> ·
+<a href="pullback.html" style="color:#8ab4f8">→ 形态面板</a><br>
 点任意代码即复制该代码；上方按钮批量复制。<br>
 复制后切到同花顺，剪贴板识别框会自动弹出 → 点「加入自选股/板块股」。<br>
 或：自选股板块设置 → 导入 → 文件类型选 TXT → 选 out/ 目录下的 竞价_*.txt。

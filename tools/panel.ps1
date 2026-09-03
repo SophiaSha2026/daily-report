@@ -355,7 +355,22 @@ function Run-Local($line) {
 }
 
 function Open-Panel {
-  $line = Pick-Line
+  Say ""
+  Say "    [1] 竞价面板   [2] 形态面板   [3] 学习面板（自学习系统状态可视化）" Gray
+  $w = Read-Host "  选择"
+  if ($w -eq "3") {
+    # 学习面板不挂在某条流水线上，单独处理。
+    Say "    [1] 在线（GitHub Pages）   [2] 本地产物" Gray
+    $k = Read-Host "  选择"
+    if ($k -eq "1") { Start-Process ($PAGE + "learn.html"); return }
+    $p = Join-Path (Join-Path $ROOT "out_learn") "learn.html"
+    if (Test-Path $p) { Start-Process $p }
+    else { Say "  还没有本地学习面板，跑一次学习线：python src\eval_daily.py --stage learn" Yellow; Start-Sleep 2 }
+    return
+  }
+  $line = $null
+  if ($w -eq "1") { $line = $LINES[0] }
+  if ($w -eq "2") { $line = $LINES[1] }
   if (-not $line) { return }
   Say ""
   Say "    [1] 在线（GitHub Pages）   [2] 本地产物" Gray
@@ -369,6 +384,36 @@ function Open-Panel {
 }
 
 # --- 3 状态（流程 + 体检）----------------------------------------------------
+function Learn-Status {
+  # 学习线一行状态 + 影子榜战绩。读 state/learning_status.json，任何问题都沉默——
+  # 状态页的锦上添花不许让状态页本身崩掉。
+  $f = Join-Path (Join-Path $ROOT "state") "learning_status.json"
+  if (-not (Test-Path $f)) { return }
+  try {
+    $j = Get-Content $f -Raw -Encoding UTF8 | ConvertFrom-Json
+    $m = $j.metrics
+    if ($m) {
+      Say ("  学习线   训练 " + $j.n_days + " 天 | IC " +
+           [math]::Round($m.ic_mean, 3) + " | 前10超额 " +
+           [math]::Round($m.top_excess * 100, 2) + "%/日 | 参数=" + $j.theta_version) Gray
+    }
+    if ($j.shadow -and $j.shadow.Count -gt 0) {
+      $b = ($j.shadow | Measure-Object -Property base_top_excess -Average).Average
+      $sh = ($j.shadow | Measure-Object -Property shadow_top_excess -Average).Average
+      $w = @($j.shadow | Where-Object { $_.shadow_top_excess -ge $_.base_top_excess }).Count
+      Say ("  影子榜   " + $j.shadow.Count + " 个真值日 | 正式 " +
+           [math]::Round($b * 100, 2) + "% vs 影子 " +
+           [math]::Round($sh * 100, 2) + "%/日 | 影子占优 " + $w + "/" +
+           $j.shadow.Count + "（转正需>=30天）") Gray
+    }
+    if ($j.verdict) {
+      $acc = "参数未变更（闸门把关中，这是常态）"
+      if ($j.verdict.accepted) { $acc = "参数已变更！详见邮件" }
+      Say ("  最近裁决 " + $j.date + " " + $acc) DarkGray
+    }
+  } catch { }
+}
+
 function Show-Status {
   Clear-Host
   $bj = BJNow
@@ -465,7 +510,7 @@ function Menu {
   Line "="
   Say ""
   Say "    [1] 跑全流程    选 早/晚 + 本地/远端，一路跑到邮件发出" White
-  Say "    [2] 面板        在线 或 本地" White
+  Say "    [2] 面板        竞价 / 形态 / 学习（在线或本地）" White
   Say "    [3] 状态        流程状态 + 体检，一屏看完" White
   Say "    [4] 日志        云端 或 本地" White
   Say "    [5] 退出" White

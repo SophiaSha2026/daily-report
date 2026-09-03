@@ -127,7 +127,9 @@ jobs:
         run: |
           git config user.name  "learn-bot"
           git config user.email "learn-bot@users.noreply.github.com"
-          git add -A data/labels state docs 2>/dev/null || true
+          # learn.html 必须入库：Pages 部署在另一个 job 的另一次 checkout 里，
+          # 不提交它就永远上不了线（历史教训 7）。17:00 形态线的部署会带它上线。
+          git add -A data/labels state docs out_learn/learn.html 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "无改动"
           else

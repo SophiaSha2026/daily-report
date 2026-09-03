@@ -91,6 +91,9 @@ def build(daily_metrics: list[dict] | None = None) -> Path:
          "<title>学习面板</title>",
          f"<style>{_CSS}</style></head><body>",
          "<h1>自评估 · 学习 · 迭代</h1>",
+         "<div class='dim'><a href='index.html' style='color:#8ab4f8'>"
+         "← 竞价面板</a> · <a href='pullback.html' style='color:#8ab4f8'>"
+         "形态面板</a></div>",
          f"<div class='dim'>训练源 {st.get('train_source', '?')} · "
          f"截至 {st.get('date', '?')} · 参数版本 "
          f"{st.get('theta_version', '基线')}</div>"]
