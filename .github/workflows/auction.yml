@@ -191,6 +191,15 @@ jobs:
           RAW: ${{ steps.llm.outputs.structured_output }}
         run: python src/collect_llm.py
 
+      # 本地为主、远端为辅：本地 TUI 一键跑会推 claim/sent 两个标记，
+      # 这一步据此决定要不要让位。无 claim 时 09:27:00 立即放行，
+      # 发信时刻分毫不受影响。协议全文见 src/local_run.py 模块注释。
+      - name: 本地接管检查
+        id: yield
+        if: steps.g.outputs.skip == 'false'
+        continue-on-error: true
+        run: python tools/yield_check.py auction
+
       - name: 发信 + 生成同花顺文件
         if: steps.g.outputs.skip == 'false'
         env:
@@ -201,6 +210,7 @@ jobs:
           MAIL_TO:   ${{ secrets.MAIL_TO }}
           GH_OWNER:  ${{ github.repository_owner }}
           GH_REPO:   ${{ github.event.repository.name }}
+          SKIP_MAIL: ${{ steps.yield.outputs.skip_mail == '1' && '1' || '' }}
         run: python src/run_auction.py --stage enrich
 
       - name: 提交数据（同时充当 60 天 keepalive）

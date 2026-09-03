@@ -4,6 +4,7 @@
     python src/eval_daily.py --stage intraday  盘中采一个时点（卖点研究用）
     python src/eval_daily.py --stage label     收盘后抓标签
     python src/eval_daily.py --stage brief     给 LLM 归因准备输入
+    python src/eval_daily.py --stage llm       本地跑 LLM 归因（走本机 claude CLI）
     python src/eval_daily.py --stage learn     拟合 + 六道闸 + 落参数 + 发信
     python src/eval_daily.py --stage race      模型擂台（选最合适的传统 ML）
     python src/eval_daily.py --stage rollback  删掉学到的参数，回人工基线
@@ -273,7 +274,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage", required=True,
                     choices=["label", "brief", "learn", "race", "rollback",
-                             "status", "backfill", "intraday", "exits"])
+                             "status", "backfill", "intraday", "exits",
+                             "llm", "all"])
     ap.add_argument("--date", default=None)
     ap.add_argument("--backfill", action="store_true",
                     help="label 阶段从 cache/hist_daily.parquet 取，而不是联网")
@@ -350,6 +352,32 @@ def main() -> int:
         return stage_label(c, date, a.backfill)
     if a.stage == "brief":
         return stage_brief(c, date)
+    if a.stage == "llm":
+        from learn import llm_local
+        lc = c["learning"]["llm"]
+        llm_local.run(date, OUT / "eval_brief.json", lc["model"],
+                      lc["timeout_seconds"])
+        return 0
+    if a.stage == "all":
+        # 本地全流程：抓标签 -> 备归因输入 -> 归因 -> 拟合与闸门。
+        # 每一步失败都不阻断后面（归因尤其：它是研究性的，不是关键路径）。
+        from learn import llm_local
+        rc = stage_label(c, date, a.backfill)
+        stage_brief(c, date)
+        lc = c["learning"]["llm"]
+        bp = OUT / "eval_brief.json"
+        fresh = False
+        try:
+            fresh = json.loads(bp.read_text(encoding="utf-8"))["date"] == date
+        except Exception:  # noqa: BLE001
+            pass
+        if lc.get("enabled", True) and fresh:
+            llm_local.run(date, bp, lc["model"], lc["timeout_seconds"])
+        elif not fresh:
+            # brief 是别的日子留下的。拿它归因会把昨天的票安到今天头上，
+            # 归因文件按日期落盘，错一天就污染那一天的日权重。
+            log.info("eval_brief.json 不是 %s 的，跳过归因", date)
+        return rc | stage_learn(c, date, a.dry)
     if a.stage == "race":
         return stage_race(c)
     return stage_learn(c, date, a.dry)

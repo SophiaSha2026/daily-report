@@ -141,6 +141,14 @@ jobs:
           LLM_OUT_DIR: out_pullback
         run: python src/collect_llm.py
 
+      # 本地接管协议（见 src/local_run.py）：本地已发信则这里只发布面板。
+      # 补跑（asof 非空）不做让位检查——那是人工指定的动作，就该发。
+      - name: 本地接管检查
+        id: yield
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true' && inputs.asof == ''
+        continue-on-error: true
+        run: python tools/yield_check.py pullback
+
       - name: 发信 + 生成同花顺文件
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         env:
@@ -151,6 +159,7 @@ jobs:
           MAIL_TO:   ${{ secrets.MAIL_TO }}
           GH_OWNER:  ${{ github.repository_owner }}
           GH_REPO:   ${{ github.event.repository.name }}
+          SKIP_MAIL: ${{ steps.yield.outputs.skip_mail == '1' && '1' || '' }}
         run: python src/pullback.py --stage send --asof "${{ inputs.asof }}"
 
       - name: 提交数据

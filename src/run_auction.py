@@ -333,6 +333,11 @@ def stage_enrich(c: dict) -> int:
         else:
             log.warning("晚于软时点 %s %.0f 秒，仍在硬上限 %s 之内",
                         soft, late, hard)
+    if os.environ.get("SKIP_MAIL"):
+        # 两个来源：本地 dry-run；远端 yield_check 确认本地已发信。
+        # 面板、txt、csv 全部照常生成，只有邮件不发。
+        log.info("SKIP_MAIL=1：面板已生成，邮件不发（本地已接管或 dry-run）")
+        return 0
     send_report(today, {"A": sel, "B": []}, texts, c,
                 attachments=att, stage="清单", notice=notice, page_url=page)
     return 0

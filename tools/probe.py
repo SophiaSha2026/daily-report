@@ -79,6 +79,23 @@ def check_smtp() -> None:
         print("      FAIL SMTP %s" % type(e).__name__)
 
 
+def check_claude() -> None:
+    """本地 LLM 归因走的 claude CLI 通不通。真调一次最小请求（haiku）。
+
+    这条 FAIL 不影响发信：竞价线拿不到文案会按「本次无 LLM 分析」照发，
+    学习线归因失败那天日权重按 1.0 算。它影响的是本地跑有没有 LLM 文案。
+    """
+    try:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent
+                               / "src"))
+        from learn import llm_local
+        ok, msg = llm_local.auth_status()
+        print(("      OK   claude auth   " if ok else "      FAIL claude auth  ")
+              + msg)
+    except Exception as e:  # noqa: BLE001
+        print("      FAIL claude auth  " + type(e).__name__)
+
+
 def main() -> int:
     for name, url in SOURCES:
         t0 = time.time()
@@ -102,6 +119,7 @@ def main() -> int:
         print("      OK   Python deps complete")
 
     check_smtp()
+    check_claude()
     return 0
 
 

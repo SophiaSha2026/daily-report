@@ -178,12 +178,13 @@ function Run-Flow {
   if (-not $line) { return }
   Say ""
   Say ("  " + $line.name + " [" + $line.tag + "] —— 在哪跑？") White
-  Say "    [1] 远端  GitHub Actions，带 LLM 文案，和每天自动跑的一样" Gray
-  Say "    [2] 本地  这台机器直接跑，不排队；无 LLM 文案" Gray
+  Say "    [1] 本地(主)  这台机器完整跑：等到点、采样、LLM、发信、推送。" Gray
+  Say "               远端看到本地成功会自动让位，不会双发。" DarkGray
+  Say "    [2] 远端(辅)  派发 GitHub Actions，和每天自动兜底跑的一样" Gray
   Say "    [0] 返回" DarkGray
   $w = Read-Host "  选择"
-  if ($w -eq "1") { Run-Cloud $line }
-  elseif ($w -eq "2") { Run-Local $line }
+  if ($w -eq "1") { Run-Local $line }
+  elseif ($w -eq "2") { Run-Cloud $line }
 }
 
 function Run-Cloud($line) {
@@ -281,68 +282,78 @@ function Run-Py($argList, $envmap, $tag) {
 }
 
 function Run-Local($line) {
+  # 一键跑全流程：src\local_run.py 负责一切（等到点、采样、LLM、发信、
+  # 推送接管标记）。这里只做三件事：说明计划、流式显示进度、总结结果。
+  # ##STEP n/m 开头的行是编排器的进度协议，高亮显示；其余行灰色透传。
   Say ""
   $envmap = Load-Env
   $canMail = ($envmap.ContainsKey("SMTP_HOST") -and $envmap.ContainsKey("MAIL_TO"))
-  if ($canMail) { Say ("  发信配置已就绪，跑完发到 " + $envmap["MAIL_TO"]) Green }
-  else {
-    Say "  没配 tools\local.env —— 跑完只出本地面板，不会发邮件。" Yellow
-    Say "  想本地也发信：复制 tools\local.env.example 成 local.env 填好，" DarkGray
-    Say "  里面几个值和你 GitHub Secrets 里的一模一样。" DarkGray
+  $bj = BJNow
+  $flow = "evening"; if ($line.key -eq "auction") { $flow = "morning" }
+
+  Line "-"
+  if ($flow -eq "morning") {
+    Say "  计划：候选池 -> 等 09:14 预热 -> 09:19/09:23/09:25 采样" Gray
+    Say "        -> LLM 文案 -> 09:27:30 发信 -> 推送数据和接管标记" Gray
+    if ($bj.Hour -ge 10) {
+      Say "  注意：竞价窗口已过，会走抢救模式（量能维度停用）。" Yellow
+    } elseif (($bj.Hour * 60 + $bj.Minute) -lt 554) {
+      $wait = 554 - ($bj.Hour * 60 + $bj.Minute)
+      Say ("  现在开跑会先等待约 " + $wait + " 分钟到预热时刻。窗口保持打开即可。") Gray
+    }
+  } else {
+    Say "  计划：扫描(未到 17:00 自动等) -> 发信 -> 学习线评估 -> 推送" Gray
   }
-  Say "  本地没有 LLM 文案（那步要 claude-code-action），只有量化结果。" DarkGray
+  Say "  远端 GitHub 每天照常自动跑；本地成功后它今天只发布面板不发邮件。" DarkGray
+  if ($canMail) { Say ("  发信 -> " + $envmap["MAIL_TO"]) Green }
+  else { Say "  未配 tools\local.env，跑完不发邮件（远端今天会照常发）" Yellow }
+  Line "-"
   $a = Read-Host "  开始？(Y/n)"
   if ($a -eq "n") { return }
-  Say ""
-  $t0 = Get-Date
 
-  if ($line.key -eq "auction") {
-    $meta = Join-Path (Join-Path $ROOT "cache") "universe_meta.json"
-    $need = $true
-    if (Test-Path $meta) {
-      try {
-        $j = Get-Content $meta -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ($j.date -eq (BJNow).ToString("yyyy-MM-dd")) { $need = $false }
-      } catch { }
-    }
-    if ($need) {
-      Say "  [1/3] 候选池不是今天的，先建（3-5 分钟）..." Cyan
-      Run-Py @("src\premarket.py") $envmap $line.key | Out-Null
-    } else { Say "  [1/3] 候选池已是今天的，跳过" Gray }
-    $bj = BJNow
-    $lateArg = @()
-    if ($bj.Hour -gt 9 -or ($bj.Hour -eq 9 -and $bj.Minute -ge 27)) {
-      Say "  竞价窗口已过，用抢救模式（今开当竞价价，量能维度停用）" Yellow
-      $lateArg = @("--late")
-    }
-    Say "  [2/3] 采集 + 打分..." Cyan
-    $c = Run-Py (@("src\run_auction.py","--stage","quick") + $lateArg) $envmap $line.key
-    if ($c -ne 0) { Say "  采集失败，退出码 $c" Red; Pause; return }
-    Say "  [3/3] 生成面板 + 附件 + 发信..." Cyan
-    Run-Py @("src\run_auction.py","--stage","enrich") $envmap $line.key | Out-Null
-  } else {
-    Say "  [1/2] 收盘后扫描..." Cyan
-    $c = Run-Py @("src\pullback.py","--stage","scan") $envmap $line.key
-    if ($c -ne 0) { Say "  扫描失败，退出码 $c" Red; Pause; return }
-    Say "  [2/2] 生成面板 + 附件 + 发信..." Cyan
-    Run-Py @("src\pullback.py","--stage","send") $envmap $line.key | Out-Null
+  $old = @{}
+  foreach ($k in $envmap.Keys) {
+    $old[$k] = [Environment]::GetEnvironmentVariable($k)
+    [Environment]::SetEnvironmentVariable($k, $envmap[$k])
   }
+  $env:PYTHONIOENCODING = "utf-8"
+  $logf = Join-Path (Join-Path $ROOT "tools") ("local_run_" + $line.key + ".log")
+  $t0 = Get-Date
+  Say ""
+  Push-Location $ROOT
+  & $PY -u "src\local_run.py" --flow $flow 2>&1 | ForEach-Object {
+    $l = "$_"
+    if ($l -match '^##STEP (\d+)/(\d+) (.*)$') {
+      Say ("  [" + $Matches[1] + "/" + $Matches[2] + "] " + $Matches[3]) Cyan
+    } elseif ($l -match 'ERROR|失败|Traceback') {
+      Say ("    " + $l) Red
+    } elseif ($l -match 'WARNING|警告|兜底|抢救') {
+      Say ("    " + $l) Yellow
+    } else {
+      Say ("    " + $l) DarkGray
+    }
+    Add-Content -Path $logf -Value ((Get-Date -Format "HH:mm:ss") + " " + $l) -Encoding UTF8
+  }
+  $code = $LASTEXITCODE
+  Pop-Location
+  foreach ($k in $old.Keys) { [Environment]::SetEnvironmentVariable($k, $old[$k]) }
 
   Say ""
-  Say ("  完成，耗时 " + [int]((Get-Date) - $t0).TotalSeconds + " 秒") Green
-  $lm = Local-Meta $line
-  if ($lm) { Say ("  本地产物：" + $lm.date + "，" + $lm.n + " 只") Green }
-  if ($canMail) { Say "  邮件已发出（上面日志里有「已发送」那行）" Green }
-  else { Say "  没发邮件（未配 local.env）。用 [2] 面板看本地结果。" Yellow }
-  $p = Join-Path (Join-Path $ROOT $line.out) "panel.html"
-  if (Test-Path $p) {
+  $dur = [int]((Get-Date) - $t0).TotalSeconds
+  if ($code -eq 0) {
+    Say ("  完成，耗时 " + $dur + " 秒。远端今天不会再发重复邮件。") Green
+  } else {
+    Say ("  本地失败（退出码 " + $code + "，耗时 " + $dur + " 秒）。") Red
+    Say "  远端兜底仍然有效：它没看到成功标记，会照常发信。" Yellow
+  }
+  $pp = Join-Path (Join-Path $ROOT $line.out) "panel.html"
+  if (Test-Path $pp) {
     $a = Read-Host "  打开本地面板？(Y/n)"
-    if ($a -ne "n") { Start-Process $p }
+    if ($a -ne "n") { Start-Process $pp }
   }
   Pause
 }
 
-# --- 2 面板 ------------------------------------------------------------------
 function Open-Panel {
   $line = Pick-Line
   if (-not $line) { return }

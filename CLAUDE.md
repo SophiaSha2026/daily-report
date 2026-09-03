@@ -52,6 +52,7 @@ src/
   learn/model_select.py  模型擂台（传统 ML 横评，选出的模型不当排序器）
   selftest_learn.py      学习线离线自测
   ── 共用 ──
+  local_run.py           本地一键全流程（TUI 的 [1] 按的就是它），含接管协议
   collect_llm.py         structured_output -> commentary.json（LLM_OUT_DIR 选目录）
   build_site.py          把两个面板打包成 _site，两条线都调它
   mailer.py              SMTP 发信
@@ -357,6 +358,33 @@ AUC_RATIO 本身。
     **区间边界是准入条件，曲线形状是偏好强度，两者必须解耦。**
     同一次改动还暴露了 `f_gap` 两臂共用 `max()` 归一的老问题。
     已加 `selftest.py::check_curves` 断言。
+
+### 本地为主，远端为辅（2026-09-03 起）
+
+用户方针：日常在本机 TUI（桌面「A股流水线」）一键跑完整流程，
+GitHub Actions 每天照常自动跑，只当兜底。两边靠**接管协议**协商，
+保证每天恰好一封邮件：
+
+```
+state/claim/<flow>_<date>.json   本地开跑即推送「今天我接管」
+state/sent/<flow>_<date>.json    本地发信成功后推送
+```
+
+远端 workflow 里的 `tools/yield_check.py` 在发信前查这两个标记：
+无 claim -> 照常发（时刻分毫不动）；claim+sent -> 只发布面板不发邮件；
+claim 无 sent（本地挂了）-> 竞价线等到 09:28:20 兜底发出，仍在硬上限内。
+方向是 fail-open：远端只有拿到本地成功的证据才让位，宁重不漏。
+
+`SKIP_MAIL=1` 环境变量让 enrich/send 生成全部产物但不发邮件，
+本地 dry-run 和远端让位共用这个开关。
+
+本地 LLM 走 `learn/llm_local.py`：OAuth 自动识别链是
+环境变量 -> tools/local.env 的 CLAUDE_CODE_OAUTH_TOKEN -> CLI 登录态。
+CLI 的坑：**认证失败时退出码 1 但 stdout 仍是合法 JSON**，错误在
+is_error/result 字段里，stderr 是空的。要解析 JSON 不能只看退出码。
+
+计划任务一律经 `tools/headless.vbs` 起（wscript 无控制台），
+直接指到 cmd.exe 会闪黑框，任务设隐藏也没用。
 
 ### 外部调度器一律当成不可靠
 

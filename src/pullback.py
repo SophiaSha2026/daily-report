@@ -500,6 +500,10 @@ def stage_send(c: dict, asof: str | None = None) -> int:
     if (OUT / "detail.csv").exists():
         att.append(OUT / "detail.csv")
 
+    if os.environ.get("SKIP_MAIL"):
+        # 本地 dry-run，或远端 yield_check 确认本地已发信。面板照常生成。
+        log.info("SKIP_MAIL=1：面板已生成，邮件不发")
+        return 0
     send_pullback(today, sel, texts, notice=notice, attachments=att,
                   page_url=page, stat=stamp)
     return 0
