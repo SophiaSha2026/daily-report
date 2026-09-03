@@ -65,7 +65,8 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
              boot_p: float, oos_new: float, oos_old: float,
              churn: dict[str, float], *,
              online_p: float | None = None,
-             online_days: int = 0) -> Verdict:
+             online_days: int = 0,
+             intents: list[str] | None = None) -> Verdict:
     """跑完六道闸（外加可选的第七道），返回裁决。
 
     参数说明：
@@ -99,13 +100,24 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
     checks.append(Check("按天自助显著", ok,
                         f"P(更好)={boot_p:.3f} / 要求 >= {g['bootstrap_p']}"))
 
-    # 4 步长上限 + 改动个数
+    # 4 步长上限 + 改动个数。
+    # intents 给出时按**意图**计数：动一个权重必然带出其余权重的等比再归一
+    # （和为 1 是硬约束），那些是结果不是决定，不占改动名额；
+    # 但步长上限对**所有**实际变化生效，包括再归一的残差。
     over = {k: abs(v[1] - v[0]) / sig[k] for k, v in moved.items()
             if abs(v[1] - v[0]) / sig[k] > g["max_step_frac"] + 1e-12}
-    ok = not over and len(moved) <= g["max_moves"]
-    checks.append(Check("步长与改动个数", ok,
-                        f"动了 {len(moved)} 个（上限 {g['max_moves']}）"
-                        + (f"；超步长: {list(over)}" if over else "")))
+    if intents is not None:
+        ok = not over and len(intents) <= g["max_moves"]
+        checks.append(Check("步长与改动个数", ok,
+                            f"意图 {len(intents)} 个: {intents}"
+                            f"（上限 {g['max_moves']}，实际触及 {len(moved)} 个"
+                            f"含权重再归一）"
+                            + (f"；超步长: {list(over)}" if over else "")))
+    else:
+        ok = not over and len(moved) <= g["max_moves"]
+        checks.append(Check("步长与改动个数", ok,
+                            f"动了 {len(moved)} 个（上限 {g['max_moves']}）"
+                            + (f"；超步长: {list(over)}" if over else "")))
 
     # 5 行为回放
     worst = max(churn.values()) if churn else 0.0

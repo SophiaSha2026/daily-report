@@ -184,7 +184,16 @@ def walk_forward(df: pd.DataFrame, c: dict, n_folds: int = 5,
         sub = d[mte]
         for name, p in preds.items():
             for day, g in sub.assign(_p=p).groupby("date"):
-                ic = spearman(g["_p"].to_numpy(), g["ytil"].to_numpy())
+                gp = g
+                if name.startswith("Baseline"):
+                    # 基线的被拒票全被压成 -1e9 同分。让它们进 Spearman，
+                    # 97% 的并列值会把 IC 拖到 0——那是构造出来的假象，
+                    # 不是打分器的真实区分力。基线的 IC 只在**过了准入**
+                    # 的票内算；前 10 指标两边口径本来就一致，不用改。
+                    gp = g[g["_p"] > -1e8]
+                    if len(gp) < 5:
+                        continue
+                ic = spearman(gp["_p"].to_numpy(), gp["ytil"].to_numpy())
                 top = g.nlargest(top_k, "_p")
                 rows.append({
                     "fold": fi, "model": name, "date": day, "ic": ic,

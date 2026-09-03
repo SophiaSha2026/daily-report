@@ -147,6 +147,45 @@ def fit(prob: Problem, lam_a: float, lam_1: float,
     return O.project({k: float(v) for k, v in zip(keys, best_x)}, prob.box)
 
 
+def sparsify(theta_fit: dict, theta_prev: dict, box: dict,
+             max_moves: int, max_step_frac: float,
+             min_frac: float = 0.02) -> tuple[dict, list[str]]:
+    """把优化器的连续解投影成「最多 max_moves 个意图」的稀疏提案。
+
+    为什么需要：Nelder-Mead 的单纯形在所有维度上一起挪，不会像坐标下降
+    那样给出精确零。第三次点火实测：全部 9 个参数各漂一点，被闸门 4
+    按「动了 9 个」拦下——闸门没错，是提案侧欠一步稀疏化。
+
+    规则：
+      按 |Δ|/σ 排序取前 max_moves 个（小于 min_frac·σ 的不算意图，是噪声）；
+      每个意图的步长截到 max_step_frac × 箱宽；
+      **权重类意图**改完后其余权重等比再归一——那是「和为 1」的必然结果，
+      语义上仍是一个旋钮，闸门按意图数计数（见 gate.evaluate 的 intents 参数）。
+    """
+    sig = O.sigma_of(box)
+    delta = {k: (theta_fit[k] - theta_prev[k]) / sig[k] for k in box}
+    ranked = sorted((k for k in box if abs(delta[k]) >= min_frac),
+                    key=lambda k: -abs(delta[k]))[:max_moves]
+    t = dict(theta_prev)
+    for k in ranked:
+        lo, hi = box[k]
+        step = np.clip(theta_fit[k] - theta_prev[k],
+                       -max_step_frac * (hi - lo), max_step_frac * (hi - lo))
+        t[k] = float(np.clip(theta_prev[k] + step, lo, hi))
+    # 权重意图 -> 其余权重等比压缩/放大，保持和为 1
+    wk = [k for k in box if k.startswith("scoring.weights.")]
+    intent_w = [k for k in ranked if k in wk]
+    if intent_w:
+        fixed = sum(t[k] for k in intent_w)
+        others = [k for k in wk if k not in intent_w]
+        rest_prev = sum(theta_prev[k] for k in others)
+        target = 1.0 - fixed
+        if rest_prev > 0 and target > 0:
+            for k in others:
+                t[k] = theta_prev[k] * target / rest_prev
+    return O.project(t, box), ranked
+
+
 def split_days(dates: list[str], oos_frac: float) -> tuple[list, list]:
     """尾部 oos_frac 的天数留作样本外。时间序列不能随机切。"""
     n = len(dates)

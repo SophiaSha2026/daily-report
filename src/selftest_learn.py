@@ -250,6 +250,36 @@ def check_gate(c: dict) -> None:
        < 1e-9, "换手比例算法正确")
 
 
+def check_sparsify(c: dict) -> None:
+    print("")
+    print("稀疏化投影")
+    from learn import optimize as OPT
+    box = c["learning"]["box"]
+    t0 = C.theta0(box)
+    # 模拟 Nelder-Mead 的连续解：9 个参数全漂
+    fit = {k: v + 0.03 * (i - 4) / 10 * (box[k][1] - box[k][0])
+           for i, (k, v) in enumerate(t0.items())}
+    fit["scoring.weights.trend"] = t0["scoring.weights.trend"] + 0.06
+    fit["screen.auc_ratio_score_hi"] = t0["screen.auc_ratio_score_hi"] - 0.006
+    prop, intents = OPT.sparsify(fit, t0, box, max_moves=2, max_step_frac=0.10)
+    ck(len(intents) == 2, f"9 参数连续漂移 -> 意图恰好 2 个（{intents}）")
+    ck("scoring.weights.trend" in intents
+       and "screen.auc_ratio_score_hi" in intents,
+       "选中的是 |Δ|/σ 最大的两个方向")
+    wk = [k for k in prop if k.startswith("scoring.weights.")]
+    ck(abs(sum(prop[k] for k in wk) - 1.0) < 1e-9, "权重和仍为 1")
+    sig = {k: (hi - lo) for k, (lo, hi) in box.items()}
+    non_intent = [k for k in box if k not in intents
+                  and not k.startswith("scoring.weights.")]
+    ck(all(abs(prop[k] - t0[k]) < 1e-12 for k in non_intent),
+       "非意图的标量参数纹丝不动")
+    ck(all(abs(prop[k] - t0[k]) <= 0.10 * sig[k] + 1e-9 for k in intents),
+       "意图步长被截在箱宽 10% 以内")
+    # 全零输入 -> 无意图
+    _, none_int = OPT.sparsify(dict(t0), t0, box, 2, 0.10)
+    ck(none_int == [], "无漂移 -> 无意图")
+
+
 def check_cfg(c: dict) -> None:
     print("\n配置合并")
     box = c["learning"]["box"]
@@ -273,6 +303,7 @@ def main() -> int:
     check_project(c)
     check_neutralize()
     check_gate(c)
+    check_sparsify(c)
     check_cfg(c)
     print(f"\n耗时 {time.time()-t0:.2f}s | 断言失败 {BAD} 个")
     return 1 if BAD else 0

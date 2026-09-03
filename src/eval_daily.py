@@ -204,7 +204,12 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
     p_tr, p_te = mk(tr), mk(te)
     lam_a = O.lambda_anchor(lc["objective"]["lambda_anchor"], n,
                             lc["objective"]["anchor_prior_days"])
-    theta_new = OPT.fit(p_tr, lam_a, lc["objective"]["lambda_l1"])
+    theta_fit = OPT.fit(p_tr, lam_a, lc["objective"]["lambda_l1"])
+    theta_new, intents = OPT.sparsify(theta_fit, theta_prev, box,
+                                      g["max_moves"], g["max_step_frac"])
+    log.info("稀疏化：连续解触及 %d 个参数 -> 意图 %s",
+             sum(1 for k in box
+                 if abs(theta_fit[k] - theta_prev[k]) > 1e-9), intents)
 
     oos_new = p_te.G(theta_new)[0]
     oos_old = p_te.G(theta_prev)[0]
@@ -235,7 +240,8 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
 
     v = gate.evaluate(theta_new, theta_prev, box, g, n, days, date,
                       g["bootstrap_p"], oos_new, oos_old, churn,
-                      online_p=online_p, online_days=online_days)
+                      online_p=online_p, online_days=online_days,
+                      intents=intents)
     status["verdict"] = v.to_dict()
     status["train_source"] = source
 
@@ -257,6 +263,25 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
                     "top_excess": float(top["y"].mean()),
                 })
         status["daily"] = daily
+        # 影子排序器：refit + 在线双榜对比。研究性组件，失败不影响任何东西。
+        try:
+            from learn import shadow
+            shadow.fit(df)
+            if not dfo2.empty:
+                s2, rej2 = vscore.score_df(dfo2, c)
+                cmp_ = shadow.daily_compare(dfo2, s2, rej2,
+                                            lc["objective"]["top_k"])
+                status["shadow"] = cmp_
+                if cmp_:
+                    import numpy as _np
+                    b = _np.nanmean([x["base_top_excess"] for x in cmp_])
+                    sh = _np.nanmean([x["shadow_top_excess"] for x in cmp_])
+                    log.info("影子对比（%d 个真值日）：前10超额 基线 %+.3f%% "
+                             "vs 影子 %+.3f%%，日均重合 %.0f%%",
+                             len(cmp_), b * 100, sh * 100,
+                             _np.mean([x["overlap"] for x in cmp_]) * 100)
+        except Exception as e:  # noqa: BLE001
+            log.warning("影子对比失败（不影响流程）: %s", e)
         R.save_status(status)
         LP.build(daily)
     except Exception as e:  # noqa: BLE001
