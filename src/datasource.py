@@ -18,10 +18,13 @@ import re
 import time
 import logging
 from dataclasses import dataclass, field
-from typing import Iterable, Sequence
+from typing import Sequence, TYPE_CHECKING
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+if TYPE_CHECKING:                       # 只给类型标注用，运行时不导入 pandas
+    import pandas as pd                 # noqa: F401  （竞价 quick 阶段要快起）
 
 log = logging.getLogger(__name__)
 

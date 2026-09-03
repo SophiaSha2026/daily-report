@@ -15,11 +15,10 @@ import logging
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-import numpy as np
-
 log = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent.parent
-HISTORY = ROOT / "state" / "theta_history.jsonl"
+HISTORY = ROOT / "state" / "theta_history.jsonl"     # 只记接受了的变更
+VERDICTS = ROOT / "state" / "verdict_log.jsonl"     # 每次裁决都记，面板画进度用
 
 
 @dataclass
@@ -61,17 +60,27 @@ def _trading_days_between(a: str, b: str, all_days: list[str]) -> int:
 
 
 def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
-             n_days: int, all_days: list[str], today: str,
+             n_days: int, all_days: list[str], today: str, *,
              boot_p: float, oos_new: float, oos_old: float,
-             churn: dict[str, float], *,
+             churn: dict[str, float],
              online_p: float | None = None,
              online_days: int = 0,
-             intents: list[str] | None = None) -> Verdict:
+             intents: list[str] | None = None,
+             paired_delta: float | None = None) -> Verdict:
     """跑完六道闸（外加可选的第七道），返回裁决。
+
+    统计量一律**关键字传入**。2026-09-04 全仓 debug 抓到：调用方按位置把
+    配置阈值 g["bootstrap_p"] 传到了 boot_p 的位置，闸门 3 变成 0.9 >= 0.9
+    永远通过，而真正算出来的 P 被丢掉。关键字参数让这种错位在代码里一眼可见，
+    selftest_learn.check_wiring 再用 AST 钉住调用方。
 
     参数说明：
       g            config 里的 learning.gate 段
       boot_p       按天自助算出的 P(新参数样本外更好)
+      paired_delta 样本外逐日差 G_d(new) − G_d(old) 的 Huber 位置。闸门 2 比的是
+                   两个位置估计之差，闸门 3 自助的是配对差的位置，两者可以
+                   一正一负（各自都对，量的不是同一件事）；把配对量也写进
+                   裁决，读的人不用猜为什么 P 高而 ΔĜ 为负
       churn        日期 -> 前 K 变动比例（闸门 5 的输入）
       online_p     P(新参数在**在线真值快照**上更好)。训练数据是回填表，
                    竞价轨迹是代理值；这道闸保证学到的东西搬到真值上
@@ -98,7 +107,9 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
     # 3 自助显著性
     ok = boot_p >= g["bootstrap_p"]
     checks.append(Check("按天自助显著", ok,
-                        f"P(更好)={boot_p:.3f} / 要求 >= {g['bootstrap_p']}"))
+                        f"P(更好)={boot_p:.3f} / 要求 >= {g['bootstrap_p']}"
+                        + (f"；配对 ΔĜ={paired_delta:+.4f}"
+                           if paired_delta is not None else "")))
 
     # 4 步长上限 + 改动个数。
     # intents 给出时按**意图**计数：动一个权重必然带出其余权重的等比再归一
@@ -157,9 +168,10 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
 
     return Verdict(accepted, checks, moved,
                    {"oos_old": oos_old, "oos_new": oos_new,
-                    "bootstrap_p": boot_p, "n_days": n_days,
-                    "worst_churn": worst,
-                    "online_p": online_p, "online_days": online_days})
+                    "bootstrap_p": boot_p, "paired_delta": paired_delta,
+                    "n_days": n_days, "worst_churn": worst,
+                    "online_p": online_p, "online_days": online_days,
+                    "intents": list(intents or [])})
 
 
 def churn_by_day(old_top: dict[str, list], new_top: dict[str, list]
@@ -171,6 +183,51 @@ def churn_by_day(old_top: dict[str, list], new_top: dict[str, list]
         k = max(len(a), len(b), 1)
         out[day] = 1.0 - len(set(a) & set(b)) / k
     return out
+
+
+def log_verdict(today: str, verdict: Verdict, extra: dict | None = None
+                ) -> None:
+    """每次裁决记一行（接受与否都记）。同一天重复跑（本地一次、远端一次）
+    只保留最后一次，面板上的「第 N 次裁决」才不会虚高。
+    """
+    VERDICTS.parent.mkdir(parents=True, exist_ok=True)
+    rows = read_verdicts()
+    rows = [r for r in rows if r.get("date") != today]
+    rows.append({
+        "date": today,
+        "ts": dt.datetime.now().isoformat(timespec="seconds"),
+        "accepted": bool(verdict.accepted),
+        "passed": [c.name for c in verdict.checks if c.passed],
+        "failed": [c.name for c in verdict.checks if not c.passed],
+        "moved": {k: list(v) for k, v in verdict.moved.items()},
+        "evidence": verdict.evidence,
+        **(extra or {}),
+    })
+    tmp = VERDICTS.with_suffix(".jsonl.tmp")
+    tmp.write_text("".join(json.dumps(r, ensure_ascii=False, default=str) + "\n"
+                           for r in rows), encoding="utf-8")
+    import os
+    os.replace(tmp, VERDICTS)
+
+
+def read_verdicts() -> list[dict]:
+    if not VERDICTS.exists():
+        return []
+    out = []
+    for line in VERDICTS.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            try:
+                out.append(json.loads(line))
+            except Exception:  # noqa: BLE001
+                pass
+    return out
+
+
+def accepted_count() -> int:
+    if not HISTORY.exists():
+        return 0
+    return sum(1 for ln in HISTORY.read_text(encoding="utf-8").splitlines()
+               if ln.strip())
 
 
 def record(today: str, theta: dict, verdict: Verdict, metrics: dict) -> None:

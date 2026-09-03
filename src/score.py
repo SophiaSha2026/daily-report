@@ -10,8 +10,6 @@ import math
 from dataclasses import dataclass, asdict
 from typing import Any
 
-from datasource import Quote, limit_pct
-
 
 # ---------------------------------------------------------------------
 #  单只票的竞价特征

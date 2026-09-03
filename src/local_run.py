@@ -290,7 +290,9 @@ def flow_evening(dry: bool) -> int:
         log.warning("学习线退出码 %d（研究性步骤，不影响业务邮件）", rc2)
 
     step(5, n, "推送学习产物")
-    push_all(f"learn: {d} [local]", ["data/labels", "state"], dry)
+    # learn.html 也推：它进 Pages 站点，不推就只有远端 16:30 那份能上线
+    push_all(f"learn: {d} [local]",
+             ["data/labels", "state", "out_learn/learn.html"], dry)
     return rc
 
 

@@ -39,7 +39,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import yaml
-import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).parent))

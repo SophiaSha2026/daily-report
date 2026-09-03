@@ -12,6 +12,8 @@
 """
 from __future__ import annotations
 
+import ast
+import os
 import sys
 import time
 import dataclasses
@@ -25,7 +27,7 @@ import pandas as pd
 import cfg as C
 from score import AuctionFeature, score_one, f_gap as rf_gap, \
     f_volume as rf_vol, f_trend as rf_trend
-from learn import vscore, objective as O, dataset, gate
+from learn import vscore, objective as O, dataset, gate, shadow
 
 ROOT = Path(__file__).resolve().parent.parent
 BAD = 0
@@ -199,6 +201,20 @@ def check_neutralize() -> None:
     ck(len(dataset.neutralize(flat, {"min_pool": 200})) == 0,
        "离散度为 0 的天被整天丢弃（尺度无意义）")
 
+    # 抢救日守卫：55% 行 T1=T2=T3。在线快照要丢，回填表要留
+    # （回填的 t1/t2/t3 是代理值，单价竞价天然三者相等，正常日就有 ~39%）
+    m = 400
+    t3 = g.normal(0, 1, m)
+    same = np.arange(m) < int(m * 0.55)
+    salv = pd.DataFrame({"date": ["2025-04-08"] * m, "r": g.normal(0, .02, m),
+                         "dirty": [False] * m, "t3_chg": t3,
+                         "t1_chg": np.where(same, t3, t3 - 0.5),
+                         "t2_chg": np.where(same, t3, t3 - 0.2)})
+    ck(len(dataset.neutralize(salv, {"min_pool": 100})) == 0,
+       "在线快照：>50% 行 T1=T2=T3 判为抢救日，整天丢弃")
+    ck(len(dataset.neutralize(salv, {"min_pool": 100}, salvage_guard=False)) == m,
+       "回填表：同样的数据关掉守卫后整天保留（2026-09-04 前误丢 3 天）")
+
 
 def check_gate(c: dict) -> None:
     print("\n接受门")
@@ -280,6 +296,115 @@ def check_sparsify(c: dict) -> None:
     ck(none_int == [], "无漂移 -> 无意图")
 
 
+def check_wiring() -> None:
+    """闸门的统计量必须来自计算，不能来自配置。
+
+    2026-09-04 全仓 debug 抓到 stage_learn 按位置把 g["bootstrap_p"]（阈值）
+    传到了 boot_p（统计量）的位置，闸门 3 变成 0.9 >= 0.9 永远通过。
+    这里用 AST 钉住调用方：evaluate 的 boot_p 关键字必须是一个由
+    bootstrap_better 赋值的变量。
+    """
+    print("\n闸门接线（AST）")
+    src = (ROOT / "src" / "eval_daily.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    fn = next((n for n in ast.walk(tree)
+               if isinstance(n, ast.FunctionDef) and n.name == "stage_learn"), None)
+    ck(fn is not None, "找到 stage_learn")
+    if fn is None:
+        return
+    from_boot = set()
+    for n in ast.walk(fn):
+        if (isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
+                and getattr(n.value.func, "attr", "") == "bootstrap_better"):
+            from_boot |= {t.id for t in n.targets if isinstance(t, ast.Name)}
+    calls = [n for n in ast.walk(fn) if isinstance(n, ast.Call)
+             and getattr(n.func, "attr", "") == "evaluate"]
+    ck(len(calls) == 1, "stage_learn 恰好调用一次 gate.evaluate")
+    kw = {k.arg: k.value for k in calls[0].keywords} if calls else {}
+    bp = kw.get("boot_p")
+    ck(isinstance(bp, ast.Name) and bp.id in from_boot,
+       "boot_p 关键字来自 bootstrap_better 的返回值（不是配置阈值）")
+    op = kw.get("online_p")
+    ck(isinstance(op, ast.Name) and op.id in from_boot and op.id != getattr(bp, "id", ""),
+       "online_p 是另一次 bootstrap_better 的结果，和 boot_p 不是同一个变量")
+    ck(not any(isinstance(a, ast.Subscript) for a in calls[0].args) if calls else False,
+       "evaluate 的位置参数里没有配置下标（阈值不许按位置混进统计量）")
+
+
+def check_shadow_stat() -> None:
+    print("\n影子转正证据")
+    good = [{"date": f"d{i}", "base_top_excess": 0.0, "shadow_top_excess": 0.01,
+             "base_ic": 0.0, "shadow_ic": 0.1} for i in range(35)]
+    s = shadow.promotion_stat(good, 30, 0.9, 500)
+    ck(s["ready"] and s["p_better"] > 0.99 and s["wins"] == 35 and s["ic_wins"] == 35,
+       "影子稳定领先 35 天 -> 就绪，P≈1，占优 35/35")
+    s8 = shadow.promotion_stat(good[:8], 30, 0.9, 500)
+    ck((not s8["ready"]) and s8["need_days"] == 22 and s8["p_better"] > 0.99,
+       "只有 8 天 -> 未就绪（还差 22 天），即使 P≈1 也不提案")
+    mixed = [{**x, "shadow_top_excess": (0.01 if i % 2 else -0.01)}
+             for i, x in enumerate(good)]
+    sm = shadow.promotion_stat(mixed, 30, 0.9, 500)
+    ck((not sm["ready"]) and 0.2 < sm["p_better"] < 0.8,
+       "一半天赢一半天输 -> P 在 0.5 附近，不就绪")
+    tie = [{**x, "shadow_top_excess": 0.0} for x in good]
+    ck(not shadow.promotion_stat(tie, 30, 0.9, 200)["ready"],
+       "两榜完全一样 -> 无证据，不就绪")
+    ck(shadow.promotion_stat([], 30, 0.9, 200)["days"] == 0, "空输入不抛异常")
+
+
+def check_report_send() -> None:
+    """变更/提案邮件的发送接线。用假 SMTP 层，不联网。
+
+    2026-09-04 前 report.send 把 (conf, subject, html) 按位置塞给
+    mailer._send(msg, conf)，一旦真有变更被接受，邮件永远发不出去。
+    """
+    print("\n学习邮件接线")
+    import mailer
+    from learn import report as R
+    got: dict = {}
+    orig = mailer._send
+
+    def fake(msg, c):
+        got["subject"] = str(msg["Subject"])
+        got["to"] = str(msg["To"])
+        got["html"] = msg.get_body(preferencelist=("html",)) is not None
+        got["conf_is_dict"] = isinstance(c, dict)
+
+    keep = {k: os.environ.get(k) for k in
+            ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "MAIL_TO", "SKIP_MAIL")}
+    os.environ.update(SMTP_HOST="smtp.test", SMTP_PORT="587", SMTP_USER="u@test",
+                      SMTP_PASS="x", MAIL_TO="a@test, b@test")
+    os.environ.pop("SKIP_MAIL", None)
+    mailer._send = fake
+    try:
+        R.send("2026-09-04", "<b>ok</b>", {})
+        ck(got.get("conf_is_dict") and got.get("html")
+           and got.get("subject", "").startswith("[参数更新]"),
+           "send() 构造 EmailMessage 并按 (msg, conf) 交给 SMTP 层")
+        ck("a@test" in got.get("to", "") and "b@test" in got.get("to", ""),
+           "收件人来自 MAIL_TO，多个用逗号分")
+        got.clear()
+        R.send("2026-09-04", "<b>ok</b>", {}, subject="[提案] 测试")
+        ck(got.get("subject") == "[提案] 测试", "自定义主题（提案邮件）生效")
+        got.clear()
+        os.environ["SKIP_MAIL"] = "1"
+        R.send("2026-09-04", "<b>ok</b>", {})
+        ck(not got, "SKIP_MAIL=1 时不发（本地 dry-run / 远端让位共用）")
+        html = R.build_proposal_html("2026-09-04", shadow.promotion_stat(
+            [{"date": "2026-09-01", "base_top_excess": 0.0, "shadow_top_excess": 0.01,
+              "base_ic": 0.0, "shadow_ic": 0.1, "overlap": 0.5}] * 31, 30, 0.9, 100),
+            [{"date": "2026-09-01", "base_top_excess": 0.0, "shadow_top_excess": 0.01,
+              "base_ic": 0.0, "shadow_ic": 0.1, "overlap": 0.5}])
+        ck("提案" in html and "切换意味着什么" in html, "提案邮件正文能生成")
+    finally:
+        mailer._send = orig
+        for k, v in keep.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
 def check_cfg(c: dict) -> None:
     print("\n配置合并")
     box = c["learning"]["box"]
@@ -305,6 +430,9 @@ def main() -> int:
     check_gate(c)
     check_sparsify(c)
     check_cfg(c)
+    check_wiring()
+    check_shadow_stat()
+    check_report_send()
     print(f"\n耗时 {time.time()-t0:.2f}s | 断言失败 {BAD} 个")
     return 1 if BAD else 0
 

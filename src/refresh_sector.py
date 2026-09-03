@@ -22,7 +22,6 @@ akshare 那套 ths.js 算出来的 v cookie，照样 403 Nginx forbidden；同�
 from __future__ import annotations
 
 import sys
-import json
 import logging
 from pathlib import Path
 

@@ -385,32 +385,66 @@ function Open-Panel {
 
 # --- 3 状态（流程 + 体检）----------------------------------------------------
 function Learn-Status {
-  # 学习线一行状态 + 影子榜战绩。读 state/learning_status.json，任何问题都沉默——
-  # 状态页的锦上添花不许让状态页本身崩掉。
+  # 自学习系统一屏摘要：阶段与进度、训练/在线指标、影子榜战绩、最近裁决、
+  # 今日影子参考榜。读 state/learning_status.json 和 out/shadow.json，
+  # 任何问题都沉默——状态页的锦上添花不许让状态页本身崩掉。
   $f = Join-Path (Join-Path $ROOT "state") "learning_status.json"
   if (-not (Test-Path $f)) { return }
   try {
     $j = Get-Content $f -Raw -Encoding UTF8 | ConvertFrom-Json
+    Say ""
+    Say "  【自学习系统】 每交易日 16:30 结算 -> 归因 -> 拟合 -> 七道闸" White
+    $online = 0; if ($j.daily) { $online = @($j.daily).Count }
+    $ss = $j.shadow_stat
+    $need = 30; if ($ss -and $ss.min_days) { $need = [int]$ss.min_days }
+    $pTxt = "-"
+    if ($ss -and ($ss.p_better -ne $null)) { $pTxt = ([math]::Round([double]$ss.p_better * 100)).ToString() + "%" }
+    if ($ss -and $ss.ready) {
+      $phase = "影子达标，切换提案已发邮件，等你决定"; $pc = "Green"
+    } elseif ($online -ge $need) {
+      $phase = "在线 " + $online + " 天已够，影子优势还不显著（P=" + $pTxt + "，需 90%）"; $pc = "Yellow"
+    } else {
+      $phase = "在线真值积累 " + $online + "/" + $need + " 天，还差 " + ($need - $online) + " 个交易日"; $pc = "Cyan"
+    }
+    Write-Host "    阶段: " -NoNewline; Say $phase $pc
     $m = $j.metrics
     if ($m) {
-      Say ("  学习线   训练 " + $j.n_days + " 天 | IC " +
-           [math]::Round($m.ic_mean, 3) + " | 前10超额 " +
-           [math]::Round($m.top_excess * 100, 2) + "%/日 | 参数=" + $j.theta_version) Gray
+      Say ("    训练  回填 " + $j.n_days + " 天 | IC " + [math]::Round([double]$m.ic_mean, 3) +
+           " | 前10超额 " + [math]::Round([double]$m.top_excess * 100, 2) +
+           "%/日 | 参数版本 " + $j.theta_version) Gray
     }
-    if ($j.shadow -and $j.shadow.Count -gt 0) {
-      $b = ($j.shadow | Measure-Object -Property base_top_excess -Average).Average
-      $sh = ($j.shadow | Measure-Object -Property shadow_top_excess -Average).Average
-      $w = @($j.shadow | Where-Object { $_.shadow_top_excess -ge $_.base_top_excess }).Count
-      Say ("  影子榜   " + $j.shadow.Count + " 个真值日 | 正式 " +
-           [math]::Round($b * 100, 2) + "% vs 影子 " +
-           [math]::Round($sh * 100, 2) + "%/日 | 影子占优 " + $w + "/" +
-           $j.shadow.Count + "（转正需>=30天）") Gray
+    if ($j.shadow -and @($j.shadow).Count -gt 0) {
+      $sh = @($j.shadow)
+      $b = ($sh | Measure-Object -Property base_top_excess -Average).Average
+      $s2 = ($sh | Measure-Object -Property shadow_top_excess -Average).Average
+      $w = @($sh | Where-Object { $_.shadow_top_excess -gt $_.base_top_excess }).Count
+      Say ("    影子  " + $sh.Count + " 个真值日 | 前10超额 正式 " + [math]::Round($b * 100, 2) +
+           "% vs 影子 " + [math]::Round($s2 * 100, 2) + "%/日 | 影子占优 " + $w + "/" +
+           $sh.Count + " | P(影子更好)=" + $pTxt) Gray
     }
-    if ($j.verdict) {
-      $acc = "参数未变更（闸门把关中，这是常态）"
-      if ($j.verdict.accepted) { $acc = "参数已变更！详见邮件" }
-      Say ("  最近裁决 " + $j.date + " " + $acc) DarkGray
+    if ($j.verdict -and $j.verdict.checks) {
+      $chk = @($j.verdict.checks)
+      $pass = @($chk | Where-Object { $_.passed }).Count
+      $failed = @($chk | Where-Object { -not $_.passed } | ForEach-Object { $_.name }) -join "、"
+      $acc = "参数未变更"; $ac = "Gray"
+      if ($j.verdict.accepted) { $acc = "参数已变更！详见邮件"; $ac = "Yellow" }
+      $line = "    裁决  " + $j.date + "  " + $pass + "/" + $chk.Count + " 闸通过 -> " + $acc
+      if ($failed) { $line += "（没过: " + $failed + "）" }
+      Say $line $ac
     }
+    $sf = Join-Path (Join-Path $ROOT "out") "shadow.json"
+    if (Test-Path $sf) {
+      $s = Get-Content $sf -Raw -Encoding UTF8 | ConvertFrom-Json
+      if ($s.rows -and @($s.rows).Count -gt 0) {
+        Say ("    影子参考榜 " + $s.date + "（与正式榜重合 " + $s.overlap + "/10，正式榜以邮件为准）:") Gray
+        $items = @($s.rows | ForEach-Object { $_.code + " " + $_.name })
+        for ($i = 0; $i -lt $items.Count; $i += 5) {
+          $end = [math]::Min($i + 4, $items.Count - 1)
+          Say ("      " + ($items[$i..$end] -join "   ")) DarkGray
+        }
+      }
+    }
+    Say "    详情: 主菜单 [2] -> [3] 学习面板（阶段进度条、双榜逐日对比、闸门明细）" DarkGray
   } catch { }
 }
 

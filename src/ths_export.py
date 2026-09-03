@@ -25,7 +25,6 @@ from __future__ import annotations
 import json
 import datetime as _dt
 from pathlib import Path
-from typing import Any
 
 
 def _tier(score: float, tiers: list[float]) -> str:

@@ -14,8 +14,6 @@ numpy 版本是 10 毫秒量级。
 """
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import pandas as pd
 

@@ -24,7 +24,6 @@ fail-open：这个脚本自己崩了就输出 skip_mail=0，远端照发。
 from __future__ import annotations
 
 import datetime as dt
-import json
 import os
 import subprocess
 import sys
@@ -80,8 +79,13 @@ def main() -> int:
 
     try:
         if flow == "auction":
-            # 09:27:00 查 claim。没有就立刻放行，发信时刻分毫不动。
-            sleep_to("09:27:00")
+            # 发信前 30 秒查 claim（send_at 09:27:30 -> 09:27:00）。
+            # 没有就立刻放行，发信时刻分毫不动。时点从 config 推，
+            # 改了 send_at 这里自动跟着走，不再各写各的。
+            h, m, s = (int(x) for x in soft.split(":"))
+            chk = (dt.datetime(2000, 1, 1, h, m, s)
+                   - dt.timedelta(seconds=30)).strftime("%H:%M:%S")
+            sleep_to(chk)
             if not marker_on_origin("claim", "auction", date):
                 out(False, "无本地接管声明，照常发信")
                 return 0

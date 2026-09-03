@@ -50,6 +50,9 @@ src/
   learn/sources.py       回填源适配器（免费 / Tushare 运行时探测）
   learn/intraday.py      盘中五时点采样，卖点研究
   learn/model_select.py  模型擂台（传统 ML 横评，选出的模型不当排序器）
+  learn/shadow.py        影子排序器（RankHuber 线性，试运行；转正证据与提案）
+  learn/panel.py         学习面板 learn.html（阶段进度、双榜对比、裁决时间线）
+  learn/report.py        学习邮件（变更 / 提案）+ state/learning_status.json
   selftest_learn.py      学习线离线自测
   ── 共用 ──
   local_run.py           本地一键全流程（TUI 的 [1] 按的就是它），含接管协议
@@ -71,21 +74,28 @@ src/
   intraday.yml           7-盘中采样 五个时点
 cache/                   codes.csv, sector_map.parquet, universe.parquet
 data/YYYY-MM/            auction_*.parquet 竞价快照 / pullback_*.parquet 形态结果
-out/                     竞价当日产物：panel.html, stamp.txt, 竞价_*.txt, detail.csv
+out/                     竞价当日产物：panel.html, stamp.txt, 竞价_*.txt, detail.csv,
+                         shadow.json（当日影子参考榜，TUI 和学习面板读它）
 out_pullback/            形态当日产物：同上结构
+out_learn/               学习产物：learn.html（唯一入库的，进 Pages）、eval_brief.json、PDF
+state/                   学习系统状态：learning_status.json / verdict_log.jsonl /
+                         shadow_model.json / shadow_proposal.json / learned.yaml（接受变更后才有）
 ```
 
 ## 改动前必须跑
 
 ```bash
-python src/selftest.py            # 竞价：17 用例 + 9 条曲线不变量 + 4 条规则不变量 + 1000 压力样本
+python src/selftest.py            # 竞价：17 用例 + 9 条曲线不变量 + 4 条规则不变量 + 1000 压力样本 + 影子榜渲染
 python src/selftest_pullback.py   # 形态：13 条形态判定 + 打分单调性 + 工具函数
-python src/selftest_learn.py      # 学习：40 条，含向量化打分器等价性
+python src/selftest_learn.py      # 学习：70 余条，含向量化打分器等价性、闸门接线 AST、邮件接线
+python -m pyflakes src tools      # 静态检查，必须零输出（pip install pyflakes）
 ```
 
 学习线要额外装 `scikit-learn scipy`（另两条线不需要，别混进它们的依赖）。
 
-两个都是离线的，加起来不到 0.5 秒。**改哪条线就跑哪个，改共用代码两个都跑。**
+三条自测都是离线的，加起来不到 2 秒。**改哪条线就跑哪个，改共用代码全跑。**
+pyflakes 报「赋值了没用」不是风格问题，是**接错线的信号**：2026-09-04 闸门 3
+那次就是 `bp` 算了没传、传的是阈值（历史教训 11）。
 
 联网测试只在 GitHub Actions 上跑（`0-冒烟测试`），本地和沙箱都访问不了国内行情源。
 
@@ -358,6 +368,22 @@ AUC_RATIO 本身。
     **区间边界是准入条件，曲线形状是偏好强度，两者必须解耦。**
     同一次改动还暴露了 `f_gap` 两臂共用 `max()` 归一的老问题。
     已加 `selftest.py::check_curves` 断言。
+11. **把阈值当统计量传进闸门**（2026-09-04 全仓 debug）— `gate.evaluate` 按位置
+    接收 `boot_p`，调用方传成了 `g["bootstrap_p"]`，闸门 3 变成 `0.9 >= 0.9`
+    永远通过，四次点火都没发现，因为它输出的「P=0.900」看起来完全合理。
+    真正算出来的 `bp` 一直没人用，pyflakes 一行就能指出来。
+    统计量一律**关键字传入**，`selftest_learn.check_wiring` 用 AST 钉住调用方。
+12. **守卫认数据模式，不认数据来源** — 抢救日守卫（>50% 行 T1=T2=T3 整天丢弃）
+    是为在线快照写的；回填表的 T1/T2/T3 是代理值，单价竞价天然三者相等，
+    正常日就有 39%，三天到 51~55% 被当抢救日丢了（含 2025-04-08 这种极端日）。
+    开关由调用方按来源决定：`neutralize(..., salvage_guard=False)`。
+13. **fail-open 路径的接线没人测** — `report.send` 把 `(conf, subject, html)`
+    按位置塞给 `mailer._send(msg, conf)`，异常被吞成一行 warning，
+    参数变更邮件永远发不出去。凡是「失败不阻断」的分支，必须有假 SMTP
+    之类的接线测试，否则它坏了没人知道。
+14. **触发提前量要和 job 超时一起算** — 本机备份触发 07:00 BJT 派发（登录触发
+    还能更早，实测 06:57），job 自旋到 09:27:30 发信要 150 分钟，超时正好 150，
+    几秒之差就在发信前被杀。派发脚本加 07:30~09:16 窗口，超时放到 175。
 
 ### 本地为主，远端为辅（2026-09-03 起）
 

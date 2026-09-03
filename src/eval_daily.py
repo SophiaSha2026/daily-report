@@ -26,7 +26,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-import numpy as np
 import pandas as pd
 
 import cfg as C
@@ -155,9 +154,20 @@ def _load_train(c: dict):
     if bf:
         raw = pd.read_parquet(bf[-1])
         raw["dirty"] = raw["one_word"].astype(bool)
-        df = dataset.neutralize(raw, lc["neutralize"])
+        # 抢救日守卫只认在线快照。回填表的 t1/t2/t3 是代理值，单价竞价
+        # 天然三者相等，开着守卫会误伤（2026-09-04 复查丢了 3 天）。
+        df = dataset.neutralize(raw, lc["neutralize"], salvage_guard=False)
         return df, f"backfill:{bf[-1].name}"
     return dataset.build(None, lc["neutralize"]), "online"
+
+
+def _regime_of(date: str) -> str | None:
+    """当天的 LLM 归因结论（day_regime），没有就 None。"""
+    p = STATE / "llm_eval" / f"{date}.json"
+    try:
+        return json.loads(p.read_text(encoding="utf-8")).get("day_regime")
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def stage_learn(c: dict, date: str, dry: bool) -> int:
@@ -211,9 +221,13 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
              sum(1 for k in box
                  if abs(theta_fit[k] - theta_prev[k]) > 1e-9), intents)
 
-    oos_new = p_te.G(theta_new)[0]
-    oos_old = p_te.G(theta_prev)[0]
+    oos_new, gd_new = p_te.G(theta_new)
+    oos_old, gd_old = p_te.G(theta_prev)
     bp = OPT.bootstrap_better(p_te, theta_new, theta_prev, g["bootstrap_n"])
+    # 闸门 3 自助的是逐日配对差的 Huber 位置；把它的点估计也报出来，
+    # 免得「P 高但 ΔĜ 为负」看起来像矛盾（两者量的不是同一件事）。
+    paired = float(O.huber_location(gd_new - gd_old, None,
+                                    lc["objective"]["huber_c"]))
 
     look = days[-g["churn_lookback"]:]
     p_look = mk(look)
@@ -238,14 +252,25 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
             log.info("在线稳健性：%d 天真值快照，P(新参数更好)=%.2f",
                      online_days, online_p)
 
+    # 统计量一律关键字传入（闸门 3 曾因位置错位拿到阈值本身，见 gate.evaluate）
     v = gate.evaluate(theta_new, theta_prev, box, g, n, days, date,
-                      g["bootstrap_p"], oos_new, oos_old, churn,
-                      online_p=online_p, online_days=online_days,
-                      intents=intents)
+                      boot_p=bp, oos_new=oos_new, oos_old=oos_old,
+                      churn=churn, online_p=online_p, online_days=online_days,
+                      intents=intents, paired_delta=paired)
     status["verdict"] = v.to_dict()
     status["train_source"] = source
+    status["intents"] = list(intents)
+    status["lambda_anchor"] = lam_a
+    status["run_at"] = lc.get("run_at", "16:30:00")
+    status["accepted_total"] = gate.accepted_count()
+    status["generated_at"] = dt.datetime.now().isoformat(timespec="seconds")
+    status["regime_today"] = _regime_of(date)
+    if not dry:
+        # 每次裁决都记（接受与否），面板上的「第 N 次裁决」和时间线靠它
+        gate.log_verdict(date, v, {"source": source, "n_days": n})
 
-    # 在线真值天的逐日指标，喂给学习面板画柱状图
+    # 在线真值天的逐日指标 + 影子双榜对比 + 转正证据，喂给学习面板。
+    # 全段 fail-open：面板是给人看的，不许拖垮裁决本身。
     try:
         from learn.model_select import spearman
         from learn import vscore, panel as LP
@@ -263,7 +288,8 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
                     "top_excess": float(top["y"].mean()),
                 })
         status["daily"] = daily
-        # 影子排序器：refit + 在线双榜对比。研究性组件，失败不影响任何东西。
+        status["online_days"] = len(daily)
+        # 影子排序器：refit + 在线双榜对比 + 转正证据。研究性组件，失败不影响任何东西。
         try:
             from learn import shadow
             shadow.fit(df)
@@ -272,6 +298,11 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
                 cmp_ = shadow.daily_compare(dfo2, s2, rej2,
                                             lc["objective"]["top_k"])
                 status["shadow"] = cmp_
+                scfg = lc.get("shadow") or {}
+                stat = shadow.promotion_stat(
+                    cmp_, int(scfg.get("min_days", 30)),
+                    float(scfg.get("p_better", 0.90)), int(g["bootstrap_n"]))
+                status["shadow_stat"] = stat
                 if cmp_:
                     import numpy as _np
                     b = _np.nanmean([x["base_top_excess"] for x in cmp_])
@@ -280,13 +311,19 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
                              "vs 影子 %+.3f%%，日均重合 %.0f%%",
                              len(cmp_), b * 100, sh * 100,
                              _np.mean([x["overlap"] for x in cmp_]) * 100)
+                    log.info("转正证据：%d/%d 天，P(影子更好)=%.2f，%s",
+                             stat["days"], stat["min_days"],
+                             stat["p_better"] or 0.0,
+                             "达标" if stat["ready"] else "未达标")
+                if not dry and shadow.maybe_propose(
+                        date, stat, cmp_, c, int(scfg.get("remind_days", 10))):
+                    log.info("影子转正提案已发出（切换与否由用户决定）")
         except Exception as e:  # noqa: BLE001
             log.warning("影子对比失败（不影响流程）: %s", e)
         R.save_status(status)
-        LP.build(daily)
+        LP.build()
     except Exception as e:  # noqa: BLE001
         log.warning("学习面板生成失败（不影响流程）: %s", e)
-    status["lambda_anchor"] = lam_a
     R.save_status(status)
 
     for ck in v.checks:
@@ -370,7 +407,7 @@ def stage_race(c: dict) -> int:
     if bf:
         raw = pd.read_parquet(bf[-1])
         raw["dirty"] = raw["one_word"].astype(bool)
-        df = dataset.neutralize(raw, lc["neutralize"])
+        df = dataset.neutralize(raw, lc["neutralize"], salvage_guard=False)
         log.info("擂台用回填表 %s：%d 行 %d 天", bf[-1].name, len(df),
                  df["date"].nunique())
     else:
@@ -431,7 +468,8 @@ def main() -> int:
         print("已回滚" if A.rollback() else "本来就是人工基线")
         return 0
     if a.stage == "status":
-        print(R.status_line() or "还没有学习状态")
+        lines = R.status_lines()
+        print("\n".join(lines) if lines else "还没有学习状态")
         for path, old, new in C.diff():
             print(f"  {path}: {old} -> {new}")
         return 0

@@ -256,7 +256,7 @@ def main():
     E.append(tbl(["按键", "功能", "说明"],
                  [["1", "一键跑全流程", "选 早/晚 + 本地/远端。本地跑完远端自动让位，不会收到两封"],
                   ["2", "面板", "打开在线或本地的结果网页"],
-                  ["3", "状态", "两条线今天跑没跑、体检（行情源/依赖/邮箱/Claude 登录）"],
+                  ["3", "状态", "两条线今天跑没跑、自学习系统阶段与今日影子榜、体检（行情源/依赖/邮箱/Claude 登录）"],
                   ["4", "日志", "云端或本地的运行日志"],
                   ["5", "退出", ""]],
                  widths=[12 * mm, 34 * mm, 124 * mm]))
@@ -273,7 +273,8 @@ def main():
                  [["竞价榜邮件", "每交易日 09:27:30 发到邮箱，附同花顺导入文件和明细 CSV"],
                   ["竞价面板", "sophiasha2026.github.io/daily-report/（点代码即复制，可推同花顺）"],
                   ["形态面板", "同上域名 /pullback.html"],
-                  ["学习面板", "同上域名 /learn.html（IC 曲线、闸门裁决、归因分布、模型擂台）"],
+                  ["学习面板", "同上域名 /learn.html。顶部四步进度条一眼看阶段：回填训练 → 在线积累(x/30天) → "
+                              "影子提案 → 人工切换；往下是今日循环、双榜逐日对比、裁决时间线、归因、擂台"],
                   ["参数变更邮件", "只在学习系统真的改了参数那天发：动了哪个旋钮、证据、怎么回滚"]],
                  widths=[36 * mm, 134 * mm]))
     E.append(KeepTogether(_sec2))
@@ -372,7 +373,13 @@ def main():
         import statistics as _st
         b = _st.mean(x["base_top_excess"] for x in sh)
         s2 = _st.mean(x["shadow_top_excess"] for x in sh)
-        E.append(P(f"影子对比进度：{len(sh)} 个真值交易日，前10日均超额 "
+        stt = st.get("shadow_stat") or {}
+        pb = stt.get("p_better")
+        E.append(P(f"影子对比进度：{len(sh)} 个真值交易日（提案门槛 {stt.get('min_days', 30)} 天），"
+                   f"前10日均超额 基线 {b:+.2%} vs 影子 {s2:+.2%}，"
+                   f"按天自助 P(影子更好)={pb:.0%}（门槛 {stt.get('p_req', 0.9):.0%}）。"
+                   if isinstance(pb, (int, float)) else
+                   f"影子对比进度：{len(sh)} 个真值交易日，前10日均超额 "
                    f"基线 {b:+.2%} vs 影子 {s2:+.2%}。", "dim"))
     E.append(Spacer(1, 2 * mm))
     E.append(P("<b>喂给影子/擂台的特征已扩到 27 个</b>，新增三组："
@@ -404,6 +411,7 @@ def main():
                  [["改筛选阈值", "改 config.yaml 里 screen 段，git push 即生效（先跑 python src/selftest.py）"],
                   ["回滚学习系统的改动", "删掉 state/learned.yaml 并 push"],
                   ["补跑某天形态线", "GitHub Actions -> 5-形态扫描 -> Run workflow，填 asof 日期"],
+                  ["看自学习系统到哪一步了", "TUI 按 3 的【自学习系统】段；或 learn.html 顶部四步进度条"],
                   ["看学习系统学了什么", "learn.html 面板；或 python src/eval_daily.py --stage status"],
                   ["本地 LLM 不工作", "终端跑一次 claude 完成登录；TUI 按 3 体检里有一行 claude auth"],
                   ["全部数据源都挂了", "TUI 按 1 选本地跑——本机可达全部行情源，比 GitHub 的机器通路更多"]],

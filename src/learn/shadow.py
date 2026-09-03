@@ -38,6 +38,7 @@ import pandas as pd
 log = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent.parent
 MODEL = ROOT / "state" / "shadow_model.json"
+PROPOSAL = ROOT / "state" / "shadow_proposal.json"
 
 # 和擂台同一张特征表（learn/model_select.py::FEATURES），刻意不另起炉灶：
 # 影子的正当性来自「它就是擂台上赢的那个东西」，特征一换比较就失效了。
@@ -131,3 +132,72 @@ def daily_compare(df_online: pd.DataFrame, base_scores: np.ndarray,
                              & set(ok.nlargest(top_k, "_s")["code"])) / top_k
         out.append(row)
     return out
+
+
+def promotion_stat(cmp_: list[dict], min_days: int, p_req: float,
+                   n_boot: int = 2000, seed: int = 11) -> dict:
+    """转正证据：在线真值天上，(影子 − 正式) 前 10 超额的按天自助。
+
+    按天不按票，和主线闸门 3 同一纪律。统计量用配对差的均值——
+    「平均每天多赚多少」是能写进提案邮件、能用人话讨论的量。
+    ready = 天数 ≥ min_days 且 P(均值 > 0) ≥ p_req。两个条件缺一不可：
+    天数不够时 P 再高也只是运气。
+    """
+    pairs = [(x.get("shadow_top_excess"), x.get("base_top_excess"),
+              x.get("shadow_ic"), x.get("base_ic")) for x in cmp_]
+    d = np.array([s - b for s, b, _, _ in pairs
+                  if s is not None and b is not None
+                  and np.isfinite(s) and np.isfinite(b)], float)
+    n = int(d.size)
+    out = {"days": n, "min_days": int(min_days), "p_req": float(p_req),
+           "need_days": max(0, int(min_days) - n),
+           "p_better": None, "mean_diff": None, "wins": 0, "ic_wins": 0,
+           "ready": False}
+    if n == 0:
+        return out
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, n, (int(n_boot), n))
+    p = float((d[idx].mean(axis=1) > 0).mean())
+    ic_wins = sum(1 for _, _, si, bi in pairs
+                  if si is not None and bi is not None
+                  and np.isfinite(si) and np.isfinite(bi) and si > bi)
+    out.update(p_better=p, mean_diff=float(d.mean()),
+               wins=int((d > 0).sum()), ic_wins=int(ic_wins),
+               ready=bool(n >= int(min_days) and p >= float(p_req)))
+    return out
+
+
+def load_proposal() -> dict | None:
+    try:
+        return json.loads(PROPOSAL.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def maybe_propose(date: str, stat: dict, cmp_: list[dict], cfg: dict,
+                  remind_days: int = 10) -> bool:
+    """证据达标就发「切换提案」邮件并落 state/shadow_proposal.json。
+
+    已发过的按 remind_days 间隔再提醒，不天天催。切换动作本身永远是
+    人工的：这里不写任何参数，不动 score.py，只把证据摆到用户面前。
+    """
+    if not stat.get("ready"):
+        return False
+    prev = load_proposal()
+    if prev:
+        try:
+            last = dt.date.fromisoformat(prev.get("last_sent", prev["date"]))
+            if (dt.date.fromisoformat(date) - last).days < int(remind_days):
+                return False
+        except Exception:  # noqa: BLE001
+            pass
+    from learn import report as R
+    html = R.build_proposal_html(date, stat, cmp_)
+    doc = {"date": prev["date"] if prev else date, "last_sent": date,
+           "times": int(prev.get("times", 0) if prev else 0) + 1,
+           "stat": stat}
+    PROPOSAL.parent.mkdir(parents=True, exist_ok=True)
+    PROPOSAL.write_text(json.dumps(doc, ensure_ascii=False, indent=2,
+                                   default=str), encoding="utf-8")
+    R.send(date, html, cfg, subject=f"[提案] 影子排序器转正 · {date}")
+    return True

@@ -332,6 +332,11 @@ def stage_enrich(c: dict) -> int:
                 ov = len(base_top & {x["code"] for x in shadow_rows})
                 log.info("影子参考榜 %d 只，与正式榜重合 %d/10",
                          len(shadow_rows), ov)
+                # 落盘给 TUI 状态页和学习面板读。带日期，读的一方要核对。
+                (OUT / "shadow.json").write_text(json.dumps({
+                    "date": today, "rows": shadow_rows, "overlap": ov,
+                    "base_top": [x["code"] for x in sel[:10]],
+                }, ensure_ascii=False, indent=1), encoding="utf-8")
     except Exception as e:  # noqa: BLE001
         log.warning("影子参考榜生成失败（不影响发信）: %s", e)
 

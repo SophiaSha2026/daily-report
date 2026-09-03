@@ -614,3 +614,46 @@ LLM 的 day_regime 继续做样本权重（通道 2），两条路互补：
 `advisory`（默认）意见附在变更邮件里；`veto` 下「反对」把变更搁置成
 `state/held_change.json`，人工 `--stage apply-held` 才落地。
 LLM 只能按暂停不能按删除，人永远有终审权。失败 fail-open。
+
+
+## 15. 全仓 debug（2026-09-04）
+
+静态检查（pyflakes）+ 三条自测 + 各阶段空跑 + 远端日志，抓到三处接线错误和
+一处误伤，全部已修并加了断言：
+
+| # | 问题 | 后果 | 修法 | 钉住它的断言 |
+|---|---|---|---|---|
+| 1 | `stage_learn` 把配置阈值 `g["bootstrap_p"]` 按位置传到了 `gate.evaluate` 的 `boot_p` | 闸门 3 永远是 0.9 ≥ 0.9 通过；四次点火报告里的「P=0.900」全是阈值本身 | 统计量改关键字传入；配对 ΔĜ 一并写进裁决 | `check_wiring`（AST：boot_p 必须来自 bootstrap_better） |
+| 2 | `report.send` 把 `(conf, subject, html)` 塞给 `mailer._send(msg, conf)` | 参数变更邮件永远发不出（异常被 fail-open 吞掉） | 按 mailer 约定构造 EmailMessage；支持自定义主题、SKIP_MAIL | `check_report_send`（假 SMTP） |
+| 3 | 抢救日守卫对回填表也生效 | 2025-04-08 / 10-30 / 12-12 三天（51~55% 单价竞价）被当抢救日丢弃，04-08 是全年最极端的一天 | `neutralize(salvage_guard=)` 由调用方按来源开关，回填关 | `check_neutralize` 两条 |
+| 4 | 本机备份触发 07:00（登录触发可更早）派发，job 超时 150 分钟 | 06:57 派发的 job 会在 09:27:23 被杀，发信前几秒 | 派发窗口 07:30~09:16；超时 175 | 无（时序问题，写进 CLAUDE.md 教训 14） |
+
+顺手修的：`yield_check` 的检查时刻改从 `send_at` 推（原来写死 09:27:00）；
+9 处未用 import；`learn.html` 本地跑也推送；`out/shadow.json` 落盘当日影子榜。
+
+### 15.1 闸门 2 与闸门 3 量的不是同一件事
+
+闸门 2 比的是两个 Huber 位置估计之差 `Ĝ(θ*) − Ĝ(θ)`，闸门 3 自助的是**逐日配对差**
+`G_d(θ*) − G_d(θ)` 的 Huber 位置。两者可以一正一负：配对差消掉了日间共同波动，
+对「新参数是否稳定地略好」更敏感；位置差看的是整体水平。两条都要过是刻意的
+双保险，不是矛盾。裁决里现在同时报两个数（`evidence.paired_delta`），读的人不用猜。
+
+### 15.2 影子转正提案的判据（config `learning.shadow`）
+
+```
+在线真值天数 ≥ min_days(30)
+且 按天自助 P( mean_d[ 影子前10超额_d − 正式前10超额_d ] > 0 ) ≥ p_better(0.90)
+```
+
+达标 → 发「[提案] 影子排序器转正」邮件、落 `state/shadow_proposal.json`，
+之后每 `remind_days`(10) 天最多再提醒一次。切换动作永远人工：系统不写参数、
+不动 score.py。`shadow.promotion_stat` 是这段统计，`selftest_learn.check_shadow_stat`
+钉住五种情形（稳定领先 / 天数不足 / 五五开 / 完全相同 / 空）。
+
+### 15.3 面板与状态
+
+- `learn.html`：阶段进度条（回填训练 → 在线积累 → 影子提案 → 人工切换）→
+  今日循环六格（含七道闸圆点）→ 关键数字 → 今日影子参考榜 + 双榜逐日配对柱 →
+  裁决时间线（`state/verdict_log.jsonl`，每次裁决一格）→ 归因 / 擂台 / 影子系数
+- TUI 按 3：同一份状态的文字版，含今日影子参考榜十只
+- `out/shadow.json`：竞价线 enrich 落盘的当日影子榜，TUI 和面板都读它

@@ -55,17 +55,75 @@ def save_status(payload: dict) -> Path:
     return STATUS
 
 
+def _shadow_wins(s: dict) -> tuple[int, int]:
+    sh = s.get("shadow") or []
+    w = sum(1 for x in sh
+            if (x.get("shadow_top_excess") or 0) > (x.get("base_top_excess") or 0))
+    return w, len(sh)
+
+
 def status_line() -> str:
-    """竞价面板底部那一行。读不到就返回空串，绝不抛异常。"""
+    """竞价面板底部那一行。读不到就返回空串，绝不抛异常。
+
+    「训练 N 天」是回填历史，「在线真值 M 天」才是系统上线后攒下的，
+    两个数字必须分开写，混成一个「已积累」会让人以为系统已经跑了一年。
+    """
     try:
         s = json.loads(STATUS.read_text(encoding="utf-8"))
-        m = s.get("metrics", {})
-        return (f"学习状态：已积累 {s.get('n_days', 0)} 天 · "
-                f"IC {m.get('ic_mean', float('nan')):.3f} · "
-                f"前10超额 {m.get('top_excess', float('nan'))*100:+.2f}% · "
-                f"参数版本 {s.get('theta_version', '基线')}")
+        w, n = _shadow_wins(s)
+        st = s.get("shadow_stat") or {}
+        parts = [f"学习状态：训练 {s.get('n_days', 0)} 天（回填）",
+                 f"在线真值 {n} 天" + (f"（影子占优 {w}/{n}）" if n else ""),
+                 f"参数版本 {s.get('theta_version', '基线')}"]
+        v = s.get("verdict") or {}
+        if v.get("checks"):
+            parts.append(f"最近裁决 {s.get('date', '?')} "
+                         + ("已变更" if v.get("accepted") else "未变更"))
+        if st.get("ready"):
+            parts.append("影子转正提案已发")
+        return " · ".join(parts)
     except Exception:  # noqa: BLE001
         return ""
+
+
+def status_lines() -> list[str]:
+    """`--stage status` 打印的多行摘要。TUI 的状态页读的是同一份 JSON。"""
+    try:
+        s = json.loads(STATUS.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    m = s.get("metrics", {})
+    w, n = _shadow_wins(s)
+    st = s.get("shadow_stat") or {}
+    need = int(st.get("min_days", 30))
+    p = st.get("p_better")
+    ptxt = f"{p:.0%}" if isinstance(p, (int, float)) else "-"
+    if st.get("ready"):
+        phase = "影子达标，切换提案已发邮件，等你决定"
+    elif n >= need:
+        phase = f"在线 {n} 天已够，影子优势还不显著（P={ptxt}，需 {st.get('p_req', 0.9):.0%}）"
+    else:
+        phase = f"在线真值积累 {n}/{need} 天，还差 {need - n} 个交易日"
+    out = [f"阶段：{phase}",
+           f"训练：回填 {s.get('n_days', 0)} 天 · IC {m.get('ic_mean', float('nan')):.3f}"
+           f" · 前10超额 {m.get('top_excess', float('nan'))*100:+.2f}%/日"
+           f" · 参数版本 {s.get('theta_version', '基线')}"
+           f" · 累计接受变更 {s.get('accepted_total', 0)} 次"]
+    if n:
+        sh = s["shadow"]
+        b = sum(x.get("base_top_excess") or 0 for x in sh) / n
+        s2 = sum(x.get("shadow_top_excess") or 0 for x in sh) / n
+        out.append(f"影子：{n} 个真值日 · 前10超额 正式 {b*100:+.2f}% vs 影子 "
+                   f"{s2*100:+.2f}%/日 · 影子占优 {w}/{n} · P(影子更好)={ptxt}")
+    v = s.get("verdict") or {}
+    if v.get("checks"):
+        ck = v["checks"]
+        passed = sum(1 for c in ck if c.get("passed"))
+        failed = "、".join(c["name"] for c in ck if not c.get("passed"))
+        out.append(f"裁决：{s.get('date', '?')} {passed}/{len(ck)} 闸通过 -> "
+                   + ("参数已变更" if v.get("accepted") else "参数未变更")
+                   + (f"（没过: {failed}）" if failed else ""))
+    return out
 
 
 def _param_table(moved: dict) -> str:
@@ -121,8 +179,10 @@ def build_html(date: str, verdict, metrics_old: dict, metrics_new: dict,
          "<h2>证据</h2>",
          f"<div class='box'>样本外目标 Ĝ：<b>{ev['oos_old']:+.4f} → "
          f"{ev['oos_new']:+.4f}</b>（{ev['oos_new']-ev['oos_old']:+.4f}）<br>"
-         f"按天自助 2000 次，P(新参数更好) = <b>{ev['bootstrap_p']:.1%}</b><br>"
-         f"行为回放最大单日换手 {ev['worst_churn']:.0%}</div>",
+         f"按天自助 2000 次，P(新参数更好) = <b>{ev['bootstrap_p']:.1%}</b>"
+         + (f"，逐日配对 ΔĜ = {ev['paired_delta']:+.4f}"
+            if ev.get("paired_delta") is not None else "")
+         + f"<br>行为回放最大单日换手 {ev['worst_churn']:.0%}</div>",
          _gate_table(v["checks"]),
          "<h2>指标对比（全样本）</h2>",
          "<table><tr><th>指标</th><th>原参数</th><th>新参数</th></tr>"
@@ -156,14 +216,70 @@ def build_html(date: str, verdict, metrics_old: dict, metrics_new: dict,
     return "".join(p)
 
 
-def send(date: str, html: str, cfg: dict) -> None:
+def build_proposal_html(date: str, stat: dict, cmp_: list[dict]) -> str:
+    """影子转正提案邮件。只摆证据，不做决定；切换动作在这封信之外。"""
+    rows = "".join(
+        f"<tr><td>{x['date']}</td>"
+        f"<td>{(x.get('base_top_excess') or 0):+.2%}</td>"
+        f"<td>{(x.get('shadow_top_excess') or 0):+.2%}</td>"
+        f"<td>{(x.get('base_ic') or 0):+.3f}</td>"
+        f"<td>{(x.get('shadow_ic') or 0):+.3f}</td>"
+        f"<td>{(x.get('overlap') or 0):.0%}</td></tr>"
+        for x in cmp_[-20:])
+    return "".join([
+        f"<style>{_CSS}</style>",
+        f"<h1>提案：让影子排序器转正 · {date}</h1>",
+        "<div class='meta'>这是一封提案，不是通知。系统没有改任何东西，"
+        "切不切换由你决定。</div>",
+        "<h2>证据</h2>",
+        f"<div class='box'>在线真值 <b>{stat['days']}</b> 个交易日"
+        f"（门槛 {stat['min_days']}）<br>"
+        f"影子前 10 日均超额比正式榜高 <b>{(stat.get('mean_diff') or 0):+.2%}</b>"
+        f"/日，影子占优 {stat['wins']}/{stat['days']} 天，"
+        f"IC 占优 {stat.get('ic_wins', 0)}/{stat['days']} 天<br>"
+        f"按天自助 P(影子更好) = <b>{(stat.get('p_better') or 0):.1%}</b>"
+        f"（门槛 {stat['p_req']:.0%}）</div>",
+        "<h2>最近 20 个真值日</h2>",
+        "<table><tr><th>日期</th><th>正式 前10超额</th><th>影子 前10超额</th>"
+        "<th>正式 IC</th><th>影子 IC</th><th>榜单重合</th></tr>" + rows + "</table>",
+        "<h2>切换意味着什么</h2>",
+        "<div class='box'>正式榜改由 27 特征线性模型排序（系数在 "
+        "<code>state/shadow_model.json</code>，可打印可归因，仍是 100% 确定性）；"
+        "手写六维打分器降为参考榜。准入区间（涨幅 2~5%、量比 2.5~10）不变，"
+        "它是政策层，两个排序器共用。</div>",
+        "<h2>怎么回复</h2>",
+        "<div class='box'>同意：告诉我「切换」，我实现开关并把两榜位置对调；"
+        "不同意或再看看：什么都不用做，系统继续并行记账，"
+        "10 天后若仍达标会再提醒一次。</div>",
+        "<div class='meta'>面板 learn.html 顶部进度条实时显示这项证据。</div>",
+    ])
+
+
+def send(date: str, html: str, cfg: dict, subject: str | None = None) -> None:
     """复用竞价线的 SMTP 底层。失败只记日志，不抛——学习系统崩了不能
     影响别的东西，这封信本身也不是关键路径。
+
+    2026-09-04 全仓 debug 抓到：以前这里把 (conf, subject, html) 按位置塞给
+    mailer._send(msg, conf)，一旦真有变更被接受，邮件永远发不出去，
+    只会在日志里留一行 warning。现在按 mailer 的约定构造 EmailMessage，
+    selftest_learn.check_report_send 用假 SMTP 钉住这条接线。
     """
+    import os
+    if os.environ.get("SKIP_MAIL") == "1":
+        log.info("SKIP_MAIL=1，学习邮件生成但不发")
+        return
     try:
         import mailer
+        from email.message import EmailMessage
+        from email.utils import formataddr
         c = mailer._conf()
-        mailer._send(c, f"[参数更新] A股竞价筛选 {date}", html)
-        log.info("变更邮件已发出")
+        m = EmailMessage()
+        m["Subject"] = subject or f"[参数更新] A股竞价筛选 {date}"
+        m["From"] = formataddr(("学习机器人", c["user"]))
+        m["To"] = ", ".join(c["to"])
+        m.set_content(f"{date} 学习系统邮件。请用 HTML 视图查看。")
+        m.add_alternative(html, subtype="html")
+        mailer._send(m, c)
+        log.info("学习邮件已发出：%s", m["Subject"])
     except Exception as e:  # noqa: BLE001
-        log.warning("变更邮件发送失败（不影响参数已生效）: %s", e)
+        log.warning("学习邮件发送失败（不影响参数已生效）: %s", e)

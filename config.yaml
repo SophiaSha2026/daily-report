@@ -289,6 +289,14 @@ learning:
     online_veto_p: 0.25
     online_min_days: 5
 
+  # ---- 影子排序器转正提案（learn/shadow.py，docs/learning.md 第 13 节）----
+  # 影子每天和正式榜并排记账。在线真值天数够了、且按天自助显示影子的
+  # 前 10 超额显著更高，系统才发一封「切换提案」邮件。切不切换是人的决定。
+  shadow:
+    min_days: 30              # 在线真值天数达到这个数才有资格提案
+    p_better: 0.90            # 按天自助 P(影子前10超额 > 正式) 的门槛
+    remind_days: 10           # 提案发出后，再次提醒的最小间隔（自然日）
+
   # ---- 可学参数的箱约束 ----
   # 只有列在这里的才可能被自动改。准入区间（gap_pct_min/max、auc_ratio_min/max）
   # 故意不在这里：那是用户定的规则，系统只能提案，见 propose_only。

@@ -228,6 +228,29 @@ def main() -> int:
     html = build_html(dt.date.today().isoformat(), res, {}, "自测")
     (OUT / "preview.html").write_text(html, encoding="utf-8")
 
+    # 影子参考榜：邮件和面板都要能带上第二个榜，也要能不带（影子失败时）。
+    # 面板写到临时目录，不许碰 out/panel.html（那是当天的生产产物）。
+    import tempfile
+    from ths_export import write_ths_panel
+    shadow_rows = [{"code": "600000", "name": "影子甲", "gap_pct": 3.1,
+                    "liangbi": 4.2, "sscore": 0.512},
+                   {"code": "300750", "name": "影子乙", "gap_pct": 2.4,
+                    "liangbi": 6.0, "sscore": -0.08}]
+    h2 = build_html("2026-09-04", res, {}, "自测", shadow_rows=shadow_rows)
+    assert "影子参考榜" in h2 and "600000" in h2 and "影子乙" in h2, "邮件缺影子榜"
+    assert "影子参考榜" not in build_html("2026-09-04", res, {}, "自测"), \
+        "无影子行时邮件不该出现影子榜"
+    tmp = Path(tempfile.mkdtemp(prefix="selftest_panel_"))
+    pp = write_ths_panel(sel, {}, tmp, c["output"]["ths_tiers"], "2026-09-04",
+                         "", c["screen"], shadow_rows)
+    ptxt = pp.read_text(encoding="utf-8")
+    assert "影子参考榜" in ptxt and "300750" in ptxt, "面板缺影子榜"
+    assert "learn.html" in ptxt, "面板缺学习面板入口"
+    pp2 = write_ths_panel(sel, {}, tmp, c["output"]["ths_tiers"], "2026-09-04",
+                          "", c["screen"], [])
+    assert "影子参考榜" not in pp2.read_text(encoding="utf-8"), \
+        "无影子行时面板不该出现影子榜"
+
     print("\n通达信自定义数据前 3 行:")
     for line in paths[0].read_bytes().decode("gbk").splitlines()[:3]:
         print("   ", line)

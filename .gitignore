@@ -8,6 +8,7 @@ tools/trigger.log*
 node_modules/
 tools/local.env
 tools/local_run_*.log
+.claude/
 
 # 个人 token，绝不进版本库
 .secret

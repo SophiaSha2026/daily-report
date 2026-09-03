@@ -45,11 +45,18 @@ def mad(x: np.ndarray) -> float:
     return float(1.4826 * np.median(np.abs(x - np.median(x))))
 
 
-def neutralize(df: pd.DataFrame, nz: dict) -> pd.DataFrame:
+def neutralize(df: pd.DataFrame, nz: dict, *,
+               salvage_guard: bool = True) -> pd.DataFrame:
     """按天做中性化，写入列 y（中心化+缩尾）和 ytil（再除 MAD）。
 
     整天被丢弃的条件：可用样本少于 min_pool，或者 MAD 为 0
     （全池同涨同跌，尺度没有意义）。
+
+    salvage_guard 只对**在线快照**打开。回填表的 t1/t2/t3 是竞价段的
+    open/vwap/close 代理值，单价竞价（指示价全程没变）的票天然三者相等，
+    正常日就有 39% 左右；2026-09-04 复查发现这个守卫把 2025-04-08、
+    10-30、12-12 三个 51~55% 的日子当成抢救日丢了。守卫认的是数据来源，
+    不是数据模式，所以由调用方按来源决定开关。
     """
     q = float(nz.get("winsor_q", 0.01))
     use_med = nz.get("center", "median") == "median"
@@ -61,7 +68,7 @@ def neutralize(df: pd.DataFrame, nz: dict) -> pd.DataFrame:
         # 抢救模式的快照里四个 T 全指向同一次采样：T1=T2=T3、斜率 0。
         # 正常日子这种票只占 ~6%（流动性差的），抢救日是 100%。
         # 拿抢救日训练等于教系统「斜率永远是 0」，整天丢弃。
-        if "t1_chg" in g.columns and len(g) > 0:
+        if salvage_guard and "t1_chg" in g.columns and len(g) > 0:
             frac = float(((g["t1_chg"] == g["t3_chg"])
                           & (g["t2_chg"] == g["t3_chg"])).mean())
             if frac > 0.5:
