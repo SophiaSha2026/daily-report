@@ -305,10 +305,41 @@ def stage_enrich(c: dict) -> int:
     if not sel and not o.get("send_when_empty", True):
         log.info("空榜且配置为不发信"); return 0
 
+    # 影子参考榜：用影子模型（RankHuber 线性系数）给同一个池子打分，取前 10。
+    # 用户要求两个榜都给。它是**参考**不是正式榜：正式榜仍由 score.py 排。
+    # 整段 fail-open——影子是研究组件，任何失败都不许影响发信（硬约束 2）。
+    shadow_rows = []
+    try:
+        det = OUT / "detail.csv"
+        if det.exists() and (ROOT / "state" / "shadow_model.json").exists():
+            import pandas as pd
+            sys.path.insert(0, str(ROOT / "src"))
+            from learn import shadow as _sh
+            dfa = pd.read_csv(det, dtype={"code": str})
+            dfa["date"] = today
+            sc = _sh.score(dfa)
+            if sc is not None:
+                dfa = dfa.assign(ss=sc)
+                ok = dfa[dfa["rejected"].isna() | (dfa["rejected"] == "")]
+                top = ok.nlargest(10, "ss")
+                shadow_rows = [
+                    {"code": r.code, "name": r.name,
+                     "gap_pct": float(r.gap_pct),
+                     "liangbi": float(getattr(r, "liangbi", 0) or 0),
+                     "sscore": round(float(r.ss), 3)}
+                    for r in top.itertuples(index=False)]
+                base_top = {x["code"] for x in sel[:10]}
+                ov = len(base_top & {x["code"] for x in shadow_rows})
+                log.info("影子参考榜 %d 只，与正式榜重合 %d/10",
+                         len(shadow_rows), ov)
+    except Exception as e:  # noqa: BLE001
+        log.warning("影子参考榜生成失败（不影响发信）: %s", e)
+
     tiers = o["ths_tiers"]
     OUT.mkdir(exist_ok=True)
     blocks = write_ths_blocks(sel, OUT, tiers, today) if sel else []
-    write_ths_panel(sel, texts, OUT, tiers, today, notice, c["screen"])
+    write_ths_panel(sel, texts, OUT, tiers, today, notice, c["screen"],
+                    shadow_rows)
     if sel:
         write_tdx_custom(sel, OUT)          # 可选：给通达信用
 
@@ -339,7 +370,8 @@ def stage_enrich(c: dict) -> int:
         log.info("SKIP_MAIL=1：面板已生成，邮件不发（本地已接管或 dry-run）")
         return 0
     send_report(today, {"A": sel, "B": []}, texts, c,
-                attachments=att, stage="清单", notice=notice, page_url=page)
+                attachments=att, stage="清单", notice=notice, page_url=page,
+                shadow_rows=shadow_rows)
     return 0
 
 

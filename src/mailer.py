@@ -93,7 +93,8 @@ def _rows_html(rows: list[dict], texts: dict) -> str:
 
 
 def build_html(date: str, result: dict, texts: dict, stage: str,
-               notice: str = "", page_url: str = "") -> str:
+               notice: str = "", page_url: str = "",
+               shadow_rows: list | None = None) -> str:
     th = "".join(f"<th>{h}</th>" for h in _HDR)
     n = len(result["A"]) + len(result["B"])
     parts = [f"<style>{_CSS}</style>",
@@ -112,6 +113,20 @@ def build_html(date: str, result: dict, texts: dict, stage: str,
     if not result["A"] and not result["B"]:
         parts.append('<div class="warn">今日无标的通过筛选。'
                      '空仓也是一种仓位。</div>')
+    if shadow_rows:
+        # 影子参考榜：候任线性模型的当日前 10。只做参考，正式榜在上面。
+        rows = "".join(
+            f'<tr><td>{i}</td><td>{r["code"]}</td><td>{r["name"]}</td>'
+            f'<td class="up">+{r["gap_pct"]:.2f}%</td>'
+            f'<td>{r.get("liangbi", 0):.1f}</td><td>{r["sscore"]:+.2f}</td></tr>'
+            for i, r in enumerate(shadow_rows, 1))
+        parts.append(
+            '<h2>影子参考榜（试运行中）</h2>'
+            '<table><tr><th>#</th><th>代码</th><th>名称</th><th>高开</th>'
+            '<th>量比</th><th>影子分</th></tr>' + rows + '</table>'
+            '<div class="meta">候任排序器（27 特征线性模型）对同一个池子的'
+            '前 10。正在与正式榜并行考核，攒够 30 个交易日且显著更优时'
+            '会发切换提案；在那之前以上方正式榜为准。</div>')
     parts.append('<div class="warn">本清单为量化筛选结果，非投资建议。'
                  '竞价数据采集于 09:25:10，开盘后走势可能与竞价背离。</div>')
     return "".join(parts)
@@ -121,7 +136,8 @@ def send_report(date: str, result: dict, texts: dict, cfg: dict,
                 all_rows: list[dict] | None = None,
                 attachments: list[Path] | None = None,
                 stage: str = "清单", notice: str = "",
-                page_url: str = "") -> None:
+                page_url: str = "",
+                shadow_rows: list | None = None) -> None:
     c = _conf()
     m = EmailMessage()
     n = len(result["A"]) + len(result["B"])
@@ -133,7 +149,8 @@ def send_report(date: str, result: dict, texts: dict, cfg: dict,
 
     m.set_content(f"{date} 竞价{stage}：{n} 只。请用 HTML 视图查看。"
                   + (f"\n在线面板：{page_url}" if page_url else ""))
-    html = build_html(date, result, texts, stage, notice, page_url)
+    html = build_html(date, result, texts, stage, notice, page_url,
+                      shadow_rows)
     m.add_alternative(html, subtype="html")
 
     for p in (attachments or []):

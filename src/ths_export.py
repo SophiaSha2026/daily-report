@@ -151,6 +151,7 @@ _PANEL = """<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <th>#</th><th>代码</th><th>名称</th><th>层</th><th>竞价价</th><th>高开</th>
 <th>量能(量比)</th><th>形态</th><th>板块</th><th>分</th><th>理由 / 风险</th>
 </tr></thead><tbody>__ROWS__</tbody></table>
+__SHADOW__
 <div class="tip">
 点任意代码即复制该代码；上方按钮批量复制。<br>
 复制后切到同花顺，剪贴板识别框会自动弹出 → 点「加入自选股/板块股」。<br>
@@ -194,7 +195,8 @@ def _criteria_line(sc: dict) -> str:
 
 def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
                     tiers: list[float], date: str, notice: str = "",
-                    screen: dict | None = None) -> Path:
+                    screen: dict | None = None,
+                    shadow_rows: list | None = None) -> Path:
     tr = []
     data = []
     for i, r in enumerate(rows, 1):
@@ -233,10 +235,24 @@ def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
         "%Y%m%d-%H%M%S")
     (out_dir / "stamp.txt").write_text(stamp, encoding="utf-8")
 
+    shadow_html = ""
+    if shadow_rows:
+        body = "".join(
+            f"""<tr><td>{i}</td><td class="code" onclick="one('{r["code"]}')">{r["code"]}</td><td>{r["name"]}</td><td class="up">+{r["gap_pct"]:.2f}%</td><td>{r.get("liangbi", 0):.1f}</td><td>{r["sscore"]:+.2f}</td></tr>"""
+            for i, r in enumerate(shadow_rows, 1))
+        shadow_html = (
+            '<h1 style="font-size:15px;margin-top:18px">影子参考榜（试运行）</h1>'
+            '<div class="sub">候任 27 特征线性模型的前 10 · 并行考核中 · '
+            '正式榜在上方，此榜仅参考</div>'
+            '<table><thead><tr><th>#</th><th>代码</th><th>名称</th>'
+            '<th>高开</th><th>量比</th><th>影子分</th></tr></thead>'
+            '<tbody>' + body + '</tbody></table>')
+
     html = (_PANEL.replace("__DATE__", date).replace("__SUB__", sub)
             .replace("__STAMP__", stamp)
             .replace("__STAMPFILE__", "stamp.txt")
             .replace("__ROWS__", "".join(tr))
+            .replace("__SHADOW__", shadow_html)
             .replace("__DATA__", json.dumps(data, ensure_ascii=False)))
     p = out_dir / "panel.html"
     p.write_text(html, encoding="utf-8")
