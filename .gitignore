@@ -18,3 +18,5 @@ tools/local_run_*.log
 cache/hist_daily.parquet
 cache/hist_auction.parquet
 out_learn/
+
+cache/hist_auction_c.parquet

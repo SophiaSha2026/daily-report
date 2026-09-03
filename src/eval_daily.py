@@ -300,11 +300,45 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
         return 0
 
     m_new = full.metrics(theta_new, lc["objective"]["top_k"])
+
+    # 通道 4：Opus 审稿。统计闸门管数字，它管「数字和叙事对不对得上」。
+    from learn import llm_review
+    review = llm_review.run(date, {
+        "moved": {k: list(vv) for k, vv in v.moved.items()},
+        "evidence": v.evidence,
+        "gates": [c_.__dict__ if hasattr(c_, "__dict__") else c_
+                  for c_ in v.checks],
+        "recent_regimes": _regime_counts(),
+        "shadow_compare": status.get("shadow", [])[-10:],
+    }, lc["llm"]["model"])
+    status["review"] = review
+    R.save_status(status)
+    if (lc["llm"].get("review_mode", "advisory") == "veto"
+            and review.get("stance") == "反对"):
+        # 搁置：不写参数，把提案和证据留在 held 文件里，人工确认后落地。
+        held = STATE / "held_change.json"
+        held.write_text(json.dumps({
+            "date": date, "theta": theta_new, "verdict": v.to_dict(),
+            "review": review}, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8")
+        log.warning("变更被 Opus 审稿搁置：%s。人工确认：--stage apply-held",
+                    "；".join(review.get("points", [])))
+        try:
+            import mailer
+            mailer.send_alert(
+                "[学习] " + date + " 参数变更过了七道闸但被 Opus 审稿搁置。"
+                + " 理由：" + "；".join(review.get("points", []))
+                + " 认可就跑：python src/eval_daily.py --stage apply-held")
+        except Exception as e:  # noqa: BLE001
+            log.warning("搁置通知发送失败: %s", e)
+        return 0
+
     A.write(theta_new, v.evidence, date)
     gate.record(date, theta_new, v, m_new)
     html = R.build_html(date, v, m_prev, m_new,
                         p_look.top_codes(theta_prev, codes),
                         p_look.top_codes(theta_new, codes),
+                        llm_note=llm_review.as_note(review),
                         regime_counts=_regime_counts())
     OUT.mkdir(exist_ok=True)
     (OUT / "change.html").write_text(html, encoding="utf-8")
@@ -369,7 +403,7 @@ def main() -> int:
     ap.add_argument("--stage", required=True,
                     choices=["label", "brief", "learn", "race", "rollback",
                              "status", "backfill", "intraday", "exits",
-                             "llm", "all"])
+                             "llm", "all", "apply-held"])
     ap.add_argument("--date", default=None)
     ap.add_argument("--backfill", action="store_true",
                     help="label 阶段从 cache/hist_daily.parquet 取，而不是联网")
@@ -383,6 +417,16 @@ def main() -> int:
     c = C.load()
     date = a.date or today_bj()
 
+    if a.stage == "apply-held":
+        held = STATE / "held_change.json"
+        if not held.exists():
+            print("没有被搁置的变更")
+            return 0
+        j = json.loads(held.read_text(encoding="utf-8"))
+        A.write(j["theta"], j["verdict"]["evidence"], j["date"])
+        held.unlink()
+        print(f"已落地 {j['date']} 被搁置的变更：{list(j['verdict']['moved'])}")
+        return 0
     if a.stage == "rollback":
         print("已回滚" if A.rollback() else "本来就是人工基线")
         return 0

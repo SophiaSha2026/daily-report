@@ -252,15 +252,41 @@ COLS = ["date", "code", "name", "limit_pct", "prev_close", "auc_price",
         "t1_chg", "t2_chg", "t3_chg", "slope", "monotonic", "dive",
         "pos_pct_60d", "ma_bull", "breakout", "prev_limit_up",
         "prev_broken_board", "board_height", "sector", "sector_members",
-        "sector_prev_limitups", "blacklisted", "one_word", "r"]
+        "sector_prev_limitups", "blacklisted", "one_word",
+        "cauc_ratio_prev", "r"]
+
+
+def merge_cauc(d: pd.DataFrame, cauc: pd.DataFrame | None) -> pd.DataFrame:
+    """昨日尾盘集合竞价占比。stk_auction_c（14:57-15:00）是机构收盘
+    定价行为，「昨天尾盘有人大额定价」对次日早盘有信息。
+    没有数据（免费源）就整列 NaN，秩归一后填 0 = 中性。
+    """
+    if cauc is None or cauc.empty:
+        d["cauc_ratio_prev"] = np.nan
+        return d
+    a = cauc.copy()
+    a["code"] = a["ts_code"].str.slice(0, 6)
+    a["date"] = (a["trade_date"].astype(str).str.slice(0, 4) + "-"
+                 + a["trade_date"].astype(str).str.slice(4, 6) + "-"
+                 + a["trade_date"].astype(str).str.slice(6, 8))
+    a = a[["code", "date", "amount"]].rename(columns={"amount": "_cauc_amt"})
+    d = d.merge(a, on=["code", "date"], how="left")
+    g = d.sort_values(["code", "date"], kind="mergesort").groupby("code",
+                                                                  sort=False)
+    d["_cauc_prev"] = g["_cauc_amt"].shift(1)
+    d["cauc_ratio_prev"] = np.where(d["prev_amount"] > 0,
+                                    d["_cauc_prev"] / d["prev_amount"], np.nan)
+    return d.drop(columns=["_cauc_amt", "_cauc_prev"])
 
 
 def build(c: dict, out: Path | None = None) -> Path:
     hp, ap = CACHE / "hist_daily.parquet", CACHE / "hist_auction.parquet"
+    cp = CACHE / "hist_auction_c.parquet"
     if not hp.exists():
         raise FileNotFoundError("先跑 --stage backfill 拉日线")
     h = pd.read_parquet(hp)
     auc = pd.read_parquet(ap) if ap.exists() else None
+    cauc = pd.read_parquet(cp) if cp.exists() else None
     sector = dict(pd.read_parquet(CACHE / "sector_map.parquet")
                   [["code", "sector"]].values)
     names = load_names()
@@ -269,6 +295,7 @@ def build(c: dict, out: Path | None = None) -> Path:
              f"{len(auc)} 行" if auc is not None else "无（免费源）")
     d = daily_features(h, c["screen"]["breakout_lookback"])
     d = merge_auction(d, auc)
+    d = merge_cauc(d, cauc)
     d = to_features(d, sector, names)
     d = build_pool(d, c)
     d = add_sector_stats(d, c)

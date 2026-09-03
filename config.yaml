@@ -316,6 +316,11 @@ learning:
     enabled: true
     model: "claude-opus-5"
     timeout_seconds: 240      # 16:30 没有竞价那种秒级压力
+    # 通道 4：参数变更的审稿人（learn/llm_review.py）。
+    #   advisory  意见附在变更邮件里，不拦（默认）
+    #   veto      「反对」把变更搁置，人工 apply-held 才落地。
+    #             LLM 只能按暂停不能按删除，人永远有终审权。
+    review_mode: advisory
     n_worst: 8                # 高分低收益，取几只
     n_best: 8                 # 低分高收益，取几只
     # day_regime -> 优化器里的日权重 w_d。映射写在这里 = 可审计、可复现。

@@ -397,6 +397,7 @@ function Show-Status {
     if ($ti.ok) { Say $ti.text Gray } else { Say ($ti.text + "  [" + $ti.warn + "]") Red }
   }
 
+  Learn-Status
   Say ""; Line "-"; Say "  体检" White
 
   $guid = ((powercfg /getactivescheme) -split " ")[3]
