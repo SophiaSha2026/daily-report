@@ -1,2 +1,4 @@
 ﻿code,name,close,gain_pct,turnover,vol_hand,amount_wan,launch_date,launch_gain,launch_vol_ratio,launch_turnover,launch_low,launch_high,launch_close,adjust_days,adjust_vol_mean_ratio,adjust_low,adjust_drawdown_pct,vol_ratio,prev_vol_hand,break_launch_high,score,parts
-300572,安车检测,24.11,8.7,5.3,96137.0,22503.0,2026-08-27,5.82,1.58,5.77,20.15,22.2,21.46,3,0.543,21.1,-1.68,2.32,41497.0,True,31.8,"{'trigger': 0.346, 'launch': 0.054, 'shrink': 0.321, 'hold': 0.463, 'speed': 0.667}"
+688479,友车科技,36.88,12.89,7.43,6433008.0,23065.0,2026-08-31,9.87,2.33,5.37,31.08,34.87,34.27,2,0.417,32.05,-6.48,4.76,1350103.0,True,54.3,"{'trigger': 0.763, 'launch': 0.387, 'shrink': 0.479, 'hold': 0.256, 'speed': 0.833}"
+600865,百大集团,10.32,10.02,6.52,245260.0,24699.0,2026-09-01,6.47,2.0,6.2,9.14,9.95,9.71,1,0.698,9.23,-4.94,1.51,162692.0,True,36.7,"{'trigger': 0.503, 'launch': 0.294, 'shrink': 0.128, 'hold': 0.111, 'speed': 1.0}"
+300998,宁波方正,31.07,6.99,6.28,67640.0,20578.0,2026-08-27,6.69,2.97,6.41,26.16,28.28,28.08,4,0.595,26.37,-6.09,2.15,31512.0,True,29.2,"{'trigger': 0.25, 'launch': 0.405, 'shrink': 0.256, 'hold': 0.099, 'speed': 0.5}"
