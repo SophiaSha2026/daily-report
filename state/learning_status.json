@@ -1,5 +1,5 @@
 {
-  "date": "2026-09-04",
+  "date": "2026-09-07",
   "n_days": 404,
   "days": [
     "2025-01-03",
@@ -456,7 +456,7 @@
       {
         "name": "在线稳健性",
         "passed": true,
-        "detail": "真值快照 9 天上 P(更好)=0.53 / 否决线 0.25"
+        "detail": "真值快照 10 天上 P(更好)=0.46 / 否决线 0.25"
       }
     ],
     "moved": {
@@ -490,14 +490,14 @@
       ]
     },
     "evidence": {
-      "oos_old": 0.18628811713420595,
-      "oos_new": 0.18348600968641546,
+      "oos_old": 0.186288117134206,
+      "oos_new": 0.18348600968641549,
       "bootstrap_p": 0.485,
-      "paired_delta": -0.00019448231047490913,
+      "paired_delta": -0.00019448231047487763,
       "n_days": 404,
       "worst_churn": 0.09999999999999998,
-      "online_p": 0.531,
-      "online_days": 9,
+      "online_p": 0.4575,
+      "online_days": 10,
       "intents": [
         "screen.gap_pct_peak",
         "scoring.weights.trend"
@@ -512,7 +512,7 @@
   "lambda_anchor": 0.05725190839694656,
   "run_at": "16:30:00",
   "accepted_total": 0,
-  "generated_at": "2026-09-04T12:52:29",
+  "generated_at": "2026-09-07T14:25:18",
   "regime_today": null,
   "daily": [
     {
@@ -559,9 +559,14 @@
       "date": "2026-09-04",
       "ic": 0.1496794641359196,
       "top_excess": -0.002097395933033841
+    },
+    {
+      "date": "2026-09-07",
+      "ic": 0.08192227060151588,
+      "top_excess": 0.024564908035804255
     }
   ],
-  "online_days": 9,
+  "online_days": 10,
   "shadow": [
     {
       "date": "2026-08-24",
@@ -634,16 +639,24 @@
       "shadow_ic": 0.16547816278870034,
       "shadow_top_excess": 0.0007078903239499112,
       "overlap": 0.1
+    },
+    {
+      "date": "2026-09-07",
+      "base_ic": 0.08192227060151588,
+      "base_top_excess": 0.024564908035804255,
+      "shadow_ic": 0.02604418642154491,
+      "shadow_top_excess": 0.029372703770170004,
+      "overlap": 0.2
     }
   ],
   "shadow_stat": {
-    "days": 9,
+    "days": 10,
     "min_days": 30,
     "p_req": 0.9,
-    "need_days": 21,
-    "p_better": 0.977,
-    "mean_diff": 0.005015286777386116,
-    "wins": 5,
+    "need_days": 20,
+    "p_better": 0.992,
+    "mean_diff": 0.004994537673084079,
+    "wins": 6,
     "ic_wins": 7,
     "ready": false
   }
