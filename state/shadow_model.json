@@ -1,6 +1,6 @@
 {
   "kind": "RankHuber",
-  "fitted_at": "2026-09-07T14:25:30",
+  "fitted_at": "2026-09-08T13:01:56",
   "train_days": 404,
   "train_rows": 405019,
   "features": [

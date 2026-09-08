@@ -1,5 +1,5 @@
 {
-  "date": "2026-09-07",
+  "date": "2026-09-08",
   "n_days": 404,
   "days": [
     "2025-01-03",
@@ -456,7 +456,7 @@
       {
         "name": "在线稳健性",
         "passed": true,
-        "detail": "真值快照 10 天上 P(更好)=0.46 / 否决线 0.25"
+        "detail": "真值快照 11 天上 P(更好)=0.55 / 否决线 0.25"
       }
     ],
     "moved": {
@@ -496,8 +496,8 @@
       "paired_delta": -0.00019448231047487763,
       "n_days": 404,
       "worst_churn": 0.09999999999999998,
-      "online_p": 0.4575,
-      "online_days": 10,
+      "online_p": 0.554,
+      "online_days": 11,
       "intents": [
         "screen.gap_pct_peak",
         "scoring.weights.trend"
@@ -512,7 +512,7 @@
   "lambda_anchor": 0.05725190839694656,
   "run_at": "16:30:00",
   "accepted_total": 0,
-  "generated_at": "2026-09-07T14:25:18",
+  "generated_at": "2026-09-08T13:01:44",
   "regime_today": null,
   "daily": [
     {
@@ -564,9 +564,14 @@
       "date": "2026-09-07",
       "ic": 0.08192227060151588,
       "top_excess": 0.024564908035804255
+    },
+    {
+      "date": "2026-09-08",
+      "ic": 0.030254219557349648,
+      "top_excess": 0.0034347767987992607
     }
   ],
-  "online_days": 10,
+  "online_days": 11,
   "shadow": [
     {
       "date": "2026-08-24",
@@ -647,17 +652,25 @@
       "shadow_ic": 0.02604418642154491,
       "shadow_top_excess": 0.029372703770170004,
       "overlap": 0.2
+    },
+    {
+      "date": "2026-09-08",
+      "base_ic": 0.030254219557349648,
+      "base_top_excess": 0.0034347767987992607,
+      "shadow_ic": 0.15239162443702045,
+      "shadow_top_excess": 0.008769079082144682,
+      "overlap": 0.3
     }
   ],
   "shadow_stat": {
-    "days": 10,
+    "days": 11,
     "min_days": 30,
     "p_req": 0.9,
-    "need_days": 20,
-    "p_better": 0.992,
-    "mean_diff": 0.004994537673084079,
-    "wins": 6,
-    "ic_wins": 7,
+    "need_days": 19,
+    "p_better": 0.995,
+    "mean_diff": 0.005025425364926019,
+    "wins": 7,
+    "ic_wins": 8,
     "ready": false
   }
 }
