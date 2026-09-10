@@ -1,44 +1,16 @@
 [
  {
-  "code": "600059",
-  "name": "古越龙山",
-  "close": 9.4,
-  "gain_pct": 6.82,
-  "turnover": 9.75,
-  "vol_ratio": 2.39,
-  "launch_date": "2026-09-04",
-  "launch_gain": 10.06,
-  "adjust_days": 2,
-  "adjust_drawdown_pct": -4.68,
-  "break_launch_high": true,
-  "score": 53.3
- },
- {
-  "code": "688700",
-  "name": "东威科技",
-  "close": 64.6,
-  "gain_pct": 6.97,
-  "turnover": 6.61,
-  "vol_ratio": 1.58,
+  "code": "920060",
+  "name": "万源通",
+  "close": 25.38,
+  "gain_pct": 9.49,
+  "turnover": 8.96,
+  "vol_ratio": 2.02,
   "launch_date": "2026-09-07",
-  "launch_gain": 15.09,
-  "adjust_days": 1,
-  "adjust_drawdown_pct": -2.81,
+  "launch_gain": 6.96,
+  "adjust_days": 2,
+  "adjust_drawdown_pct": -3.4,
   "break_launch_high": true,
-  "score": 45.9
- },
- {
-  "code": "002171",
-  "name": "楚江新材",
-  "close": 11.06,
-  "gain_pct": 7.38,
-  "turnover": 8.33,
-  "vol_ratio": 2.44,
-  "launch_date": "2026-09-03",
-  "launch_gain": 5.32,
-  "adjust_days": 3,
-  "adjust_drawdown_pct": -3.81,
-  "break_launch_high": true,
-  "score": 45.1
+  "score": 50.3
  }
 ]

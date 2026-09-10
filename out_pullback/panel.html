@@ -1,5 +1,5 @@
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
-<title>形态榜 2026-09-09</title><style>
+<title>形态榜 2026-09-10</title><style>
 *{box-sizing:border-box}
 body{font:14px/1.55 -apple-system,'Microsoft YaHei',sans-serif;margin:0;
      padding:14px;background:#14161a;color:#e6e6e6}
@@ -30,8 +30,8 @@ tr:hover{background:#1b1f26}
 .dim{color:#8f9aa8}.ok{color:#5fd18c}
 </style></head><body>
 <div id="stale"></div>
-<h1>启动-缩量回调-再启动 · 2026-09-09</h1>
-<div class="sub">共 3 只 · 收盘后扫描 · 全市场 5548 → 今日条件 63 → 形态匹配 3</div>
+<h1>启动-缩量回调-再启动 · 2026-09-10</h1>
+<div class="sub">共 1 只 · 收盘后扫描 · 全市场 5548 → 今日条件 30 → 形态匹配 1</div>
 <div class="bar">
   <button onclick="cp('all',this)">复制全部代码</button>
 </div>
@@ -39,7 +39,7 @@ tr:hover{background:#1b1f26}
 <th>#</th><th>代码</th><th>名称</th><th>收盘</th><th>今日涨幅</th><th>今日量比</th>
 <th>今日换手</th><th>启动日</th><th>启动涨幅</th><th>调整</th><th>回撤</th>
 <th>分</th><th>理由 / 风险</th>
-</tr></thead><tbody><tr><td>1</td><td class="code" onclick="one('600059')">600059</td><td>古越龙山 <span class="ok">破启动高</span></td><td>9.40</td><td class="up">+6.82%</td><td>2.39x</td><td>9.75%</td><td class="dim">09-04</td><td class="up">+10.06%</td><td>2日 · 缩至70%</td><td>-4.68%</td><td class="sc">53</td><td><div class="rn">9月4日黄酒板块集体涨停，半年报毛利率40.62%创六年新高，今日无新催化</div><div class="rz">⚠ 二季度营收降30.35%，经营现金流-3.1亿，营收被会稽山反超</div></td></tr><tr><td>2</td><td class="code" onclick="one('688700')">688700</td><td>东威科技 <span class="ok">破启动高</span></td><td>64.60</td><td class="up">+6.97%</td><td>1.58x</td><td>6.61%</td><td class="dim">09-07</td><td class="up">+15.09%</td><td>1日 · 缩至46%</td><td>-2.81%</td><td class="sc">46</td><td><div class="rn">9月7日PCB算力硬件集体走强，公司PCB电镀设备龙头，松下9月起覆铜板提价30%</div><div class="rz">⚠ 未查到解禁、减持或问询函，无个股特异风险</div></td></tr><tr><td>3</td><td class="code" onclick="one('002171')">002171</td><td>楚江新材 <span class="ok">破启动高</span></td><td>11.06</td><td class="up">+7.38%</td><td>2.44x</td><td>8.33%</td><td class="dim">09-03</td><td class="up">+5.32%</td><td>3日 · 缩至53%</td><td>-3.81%</td><td class="sc">45</td><td><div class="rn">LME铜价9月7日破14530美元创历史新高，铜板块爆发，公司铜基新材料龙头</div><div class="rz">⚠ 铜基业务毛利率仅2.6%，一季度营收增36%但净利仅增6.4%</div></td></tr></tbody></table>
+</tr></thead><tbody><tr><td>1</td><td class="code" onclick="one('920060')">920060</td><td>万源通 <span class="ok">破启动高</span></td><td>25.38</td><td class="up">+9.49%</td><td>2.02x</td><td>8.96%</td><td class="dim">09-07</td><td class="up">+6.96%</td><td>2日 · 缩至76%</td><td>-3.40%</td><td class="sc">50</td><td><div class="rn">9月7日PCB板块深南电路等9股涨停带动，今日未查到催化</div><div class="rz">⚠ 两股东5月减持1.04亿元，仍有剩余减持计划</div></td></tr></tbody></table>
 <div class="tip">
 「今日量比」「启动量比」都是<b>成交量</b>相对前一交易日的倍数，不是成交额，
 也不是各家软件那个口径不一的量比。<br>
@@ -49,7 +49,7 @@ tr:hover{background:#1b1f26}
 </div>
 <div id="toast"></div>
 <script>
-const D=[{"code": "600059"}, {"code": "688700"}, {"code": "002171"}];
+const D=[{"code": "920060"}];
 function toast(m){const t=document.getElementById('toast');t.textContent=m;
   t.className='show';setTimeout(()=>t.className='',1300);}
 function put(txt,msg){
@@ -74,7 +74,7 @@ function one(c){put(c,'已复制 '+c);}
    带上 ?v=<新stamp> 就是不同的缓存键，必然回源。
    stamp.txt 的请求也带 cb=<随机> 绕开缓存，否则查的还是旧的。
    --------------------------------------------------------------------- */
-const STAMP='20260909-170826', PDATE='2026-09-09';
+const STAMP='20260910-170253', PDATE='2026-09-10';
 function bjToday(){
   const d=new Date(Date.now()+(new Date().getTimezoneOffset()*6e4)+8*36e5);
   return d.toISOString().slice(0,10);
