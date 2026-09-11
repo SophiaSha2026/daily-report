@@ -1,88 +1,83 @@
 {
- "date": "2026-09-10",
+ "date": "2026-09-11",
  "rows": [
   {
-   "code": "601949",
-   "name": "中国出版",
-   "gap_pct": 2.25,
-   "liangbi": 7.6,
-   "sscore": 0.34
+   "code": "600121",
+   "name": "郑州煤电",
+   "gap_pct": 2.51,
+   "liangbi": 3.4,
+   "sscore": 0.384
   },
   {
-   "code": "002172",
-   "name": "澳洋健康",
-   "gap_pct": 2.46,
-   "liangbi": 9.3,
-   "sscore": 0.329
+   "code": "001299",
+   "name": "美能能源",
+   "gap_pct": 2.03,
+   "liangbi": 9.8,
+   "sscore": 0.236
   },
   {
-   "code": "301322",
-   "name": "绿通科技",
+   "code": "601872",
+   "name": "招商轮船",
+   "gap_pct": 4.28,
+   "liangbi": 4.4,
+   "sscore": 0.183
+  },
+  {
+   "code": "300483",
+   "name": "首华燃气",
+   "gap_pct": 2.58,
+   "liangbi": 2.8,
+   "sscore": 0.149
+  },
+  {
+   "code": "603353",
+   "name": "和顺石油",
+   "gap_pct": 2.5,
+   "liangbi": 4.9,
+   "sscore": 0.14
+  },
+  {
+   "code": "600026",
+   "name": "中远海能",
+   "gap_pct": 2.44,
+   "liangbi": 5.2,
+   "sscore": 0.127
+  },
+  {
+   "code": "300164",
+   "name": "通源石油",
+   "gap_pct": 4.98,
+   "liangbi": 7.4,
+   "sscore": 0.065
+  },
+  {
+   "code": "300369",
+   "name": "绿盟科技",
+   "gap_pct": 3.83,
+   "liangbi": 7.5,
+   "sscore": 0.056
+  },
+  {
+   "code": "603619",
+   "name": "中曼石油",
+   "gap_pct": 3.56,
+   "liangbi": 4.7,
+   "sscore": -0.08
+  },
+  {
+   "code": "300191",
+   "name": "潜能恒信",
    "gap_pct": 2.0,
-   "liangbi": 3.2,
-   "sscore": 0.307
-  },
-  {
-   "code": "002702",
-   "name": "海欣食品",
-   "gap_pct": 2.33,
-   "liangbi": 8.1,
-   "sscore": 0.299
-  },
-  {
-   "code": "000430",
-   "name": "张家界",
-   "gap_pct": 3.23,
-   "liangbi": 3.2,
-   "sscore": 0.285
-  },
-  {
-   "code": "300497",
-   "name": "富祥股份",
-   "gap_pct": 3.66,
-   "liangbi": 3.8,
-   "sscore": 0.274
-  },
-  {
-   "code": "000428",
-   "name": "华天酒店",
-   "gap_pct": 2.14,
-   "liangbi": 4.0,
-   "sscore": 0.264
-  },
-  {
-   "code": "920010",
-   "name": "凯添燃气",
-   "gap_pct": 2.21,
-   "liangbi": 4.3,
-   "sscore": 0.249
-  },
-  {
-   "code": "600722",
-   "name": "金牛化工",
-   "gap_pct": 2.9,
-   "liangbi": 2.8,
-   "sscore": 0.242
-  },
-  {
-   "code": "603402",
-   "name": "陕西旅游",
-   "gap_pct": 2.41,
-   "liangbi": 2.8,
-   "sscore": 0.238
+   "liangbi": 3.7,
+   "sscore": -0.21
   }
  ],
  "overlap": 5,
  "base_top": [
-  "300607",
+  "300369",
+  "601872",
   "603619",
-  "002059",
-  "000430",
-  "300497",
-  "601949",
-  "002702",
-  "600121",
-  "000428",
-  "002011"
+  "300164",
+  "600026"
  ]
 }
