@@ -1,16 +1,1 @@
-[
- {
-  "code": "920060",
-  "name": "万源通",
-  "close": 25.38,
-  "gain_pct": 9.49,
-  "turnover": 8.96,
-  "vol_ratio": 2.02,
-  "launch_date": "2026-09-07",
-  "launch_gain": 6.96,
-  "adjust_days": 2,
-  "adjust_drawdown_pct": -3.4,
-  "break_launch_high": true,
-  "score": 50.3
- }
-]
+[]
