@@ -1,4 +1,4 @@
-name: 5-形态扫描 (17:00 BJT)
+name: 5-形态扫描 (仅手动)
 
 # 启动 -> 缩量回调 -> 再启动。收盘后跑，和竞价那条线完全独立。
 #
@@ -9,10 +9,14 @@ name: 5-形态扫描 (17:00 BJT)
 # 早触发反而要防：手动 dispatch 到盘中会扫到实时数据，涨幅和量都没定型，
 # 出来的榜是假的。所以 job 内会自旋等到 config 里的 run_at。
 on:
-  schedule:
-    - cron: "00 9 * * 1-5"   # 17:00 BJT
-    - cron: "30 9 * * 1-5"   # 17:30 BJT 备用
-    - cron: "20 10 * * 1-5"  # 18:20 BJT 最后一班
+  # 2026-09-12 用户取消每日形态报告，三个 cron 入口全部停掉，不再自动发信。
+  # 代码、面板、本机 TUI 入口都保留：临时想扫一次就手动 dispatch。
+  # 要恢复自动跑，把下面三行取消注释，并重新启用本机计划任务
+  # DailyReport-TriggerPullback（Enable-ScheduledTask）。
+  # schedule:
+  #   - cron: "00 9 * * 1-5"   # 17:00 BJT
+  #   - cron: "30 9 * * 1-5"   # 17:30 BJT 备用
+  #   - cron: "20 10 * * 1-5"  # 18:20 BJT 最后一班
   workflow_dispatch:
     inputs:
       force:
