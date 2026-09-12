@@ -47,12 +47,24 @@ HOLDOUT_MARK = OUT / "holdout_used.json"
 
 
 def load(with_holdout: bool = False) -> pd.DataFrame:
+    """读训练表。特征列一律降到 float32。
+
+    426 万行 x 87 特征，float64 是 3.3GB，加上走向前每月切片的复制，
+    在 14GB 的机器上会很紧。float32 直接砍一半，而特征本身是横截面
+    百分位（值域 [0,1]），float32 的精度远远够用。
+    """
     df = pd.read_parquet(DATA / "train.parquet")
+    fc = [c for c in df.columns if "__" in c]
+    df[fc] = df[fc].astype("float32")
+    for c in ("y_up", "y_t0", "y_top", "close", "float_mcap"):
+        if c in df.columns:
+            df[c] = df[c].astype("float32")
     if not with_holdout:
         n0 = len(df)
-        df = df[df["date"] < HOLDOUT_START]
+        df = df[df["date"] < HOLDOUT_START].copy()
         log.info("已切掉 holdout：%d -> %d 行（%s 之后不可见）",
                  n0, len(df), HOLDOUT_START)
+    log.info("内存占用约 %.1f GB", df.memory_usage(deep=False).sum() / 2**30)
     return df
 
 
@@ -83,7 +95,7 @@ def run(with_holdout: bool = False, top_n: int = 10,
     # ---- 特征选择：只在训练段上做 ----
     tr = df[df["date"] < V.TRAIN_END]
     log.info("特征选择（只用 %s 之前的 %d 行）", V.TRAIN_END, len(tr))
-    rep = FS.run(tr, feats_all, y="y_t0", out_dir=OUT)
+    rep = FS.run(tr, feats_all, y="y_up", out_dir=OUT)
     feats = rep["keep"]
     log.info("特征 %d -> %d", rep["start"], rep["end"])
     if len(feats) < 3:

@@ -81,6 +81,13 @@ class L0Logistic:
         self.sd = None
 
     def fit(self, df, cols, y):
+        # sklearn 1.8 起 penalty 被 l1_ratio 取代，但 liblinear 还认 penalty。
+        # 警告每月刷一次会把走向前的日志淹掉，这里就地静音。
+        import warnings
+        warnings.filterwarnings("ignore", category=FutureWarning,
+                                module="sklearn")
+        warnings.filterwarnings("ignore", category=UserWarning,
+                                module="sklearn")
         from sklearn.linear_model import LogisticRegression
         self.cols = cols
         X, yy = _xy(df, cols, y)
