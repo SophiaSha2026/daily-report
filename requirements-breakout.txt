@@ -1,0 +1,10 @@
+# 爆发线依赖。竞价线和形态线的 requirements.txt 不动 —— CLAUDE.md 的规矩是
+# 依赖分线管理，别让一条线的依赖污染另外两条。
+#
+#   pip install -r requirements-breakout.txt
+#   torch 走官方 CPU 源，默认源会拉 CUDA 版（2GB+）：
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+lightgbm>=4.7.0
+scikit-learn>=1.5.0
+scipy>=1.14.0
+torch>=2.0.0        # L2 序列模型。不装也能跑，擂台自动跳过这一层
