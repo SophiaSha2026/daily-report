@@ -60,6 +60,16 @@ src/
   learn/panel.py         学习面板 learn.html（阶段进度、双榜对比、裁决时间线）
   learn/report.py        学习邮件（变更 / 提案）+ state/learning_status.json
   selftest_learn.py      学习线离线自测
+  ── 爆发线（收盘后，2026-09-12 起）──
+  breakout/backfill.py   回填三年日线。主源新浪（多进程），腾讯兜底
+  breakout/chips.py      筹码分布**自算**，六项一致性检验钉住
+  breakout/label.py      起涨/见顶标注。和 features 物理隔离，防前视偏差
+  breakout/features.py   三层变换（横截面百分位->中性化->正交）+ 五组特征
+  breakout/fselect.py    四道筛。**别改回 select.py**，和标准库冲突
+  breakout/build.py      组装训练表
+  breakout/model.py      L0 逻辑回归 / L1 LightGBM / L2 GRU / L3 集成
+  breakout/validate.py   走向前 + 验收表
+  breakout/arena.py      擂台主脚本，holdout 纪律在这里用代码强制
   ── 控制台（GUI，2026-09-12）──
   gui/server.py          HTTP 服务。标准库 ThreadingHTTPServer，零第三方依赖
   gui/ui.py              单页界面（HTML/CSS/JS 都在这个字符串里）
@@ -105,12 +115,15 @@ python src/selftest.py            # 竞价：17 用例 + 9 条曲线不变量 + 
 python src/selftest_pullback.py   # 形态：13 条形态判定 + 打分单调性 + 工具函数
 python src/selftest_learn.py      # 学习：70 余条，含向量化打分器等价性、闸门接线 AST、邮件接线
 python src/selftest_gui.py        # 控制台：按钮接线、流程表一致性、开跑窗口、两道防护
+python src/selftest_breakout.py   # 爆发线：筹码六项一致性、标签、前视偏差、横截面百分位
 python -m pyflakes src tools      # 静态检查，必须零输出（pip install pyflakes）
 ```
 
-学习线要额外装 `scikit-learn scipy`（另两条线不需要，别混进它们的依赖）。
+学习线要额外装 `scikit-learn scipy`，爆发线要 `lightgbm torch`
+（见 `requirements-breakout.txt`）。竞价线和形态线的 `requirements.txt`
+不许动 —— 依赖分线管理。
 
-四条自测都是离线的，加起来不到 4 秒。**改哪条线就跑哪个，改共用代码全跑。**
+五条自测都是离线的，加起来不到 7 秒。**改哪条线就跑哪个，改共用代码全跑。**
 
 `selftest_gui.py` 钉的是**接线**不是界面：`gui/status.py` 的 `LINES` 和
 `local_run.py` 的 `FLOWS` 是同一张表的两份副本，漂了的话总览页会长期显示
@@ -180,6 +193,26 @@ commentary 就在邮件顶部声明「本次无 LLM 分析」照发。已测三�
 | `vip.stock.finance.sina.com.cn` | 新浪分页行情/行业 | ✗ 返回空体 | ✓ |
 | `push2*.eastmoney.com` | 东财全部接口 | ✗ | ✗ |
 | `q.10jqka.com.cn` | 同花顺行业 | ✓ 但**只认真浏览器** | ✓ 同左 |
+
+2026-09-12 为爆发线补测的几条（都在本机）：
+
+| 接口 | 给什么 | 本机 | 备注 |
+|---|---|---|---|
+| 新浪 `stock_zh_a_daily` | OHLCV + 成交额 + **换手率** + **逐日流通股本** | ✓ | 字段最全。内部用 py_mini_racer，**不能多线程**，见教训 19 |
+| 腾讯 `fqkline/get` | 只有 OHLCV 六个字段 | ✓ 但有配额 | 800 根 = 3.28 年；北交所**一根都没有** |
+| 东财 `push2his/kline/get` | 日线 | ✗ | 被掐 |
+| 东财 `push2his/fflow/daykline` | 资金流 | ✓ | 只有 120 天。**同一主机不同路径，可达性相反** |
+| 东财 `gdhs_detail_em` | 股东户数（2013 起） | ✓ | 含户均持股、总市值 |
+| 东财 `gbjg_em` | 历史股本变更 | ✓ | 新浪那份更好用，这个是备份 |
+| 东财 `qbzf_em` | 全市场增发，含锁定期 | ✓ | |
+| 巨潮 `stock_hold_change_cninfo` | 全市场减持，**带公告日** | ✓ | 公告日字段是防前视偏差的关键 |
+
+**东财是按接口路径限流，不是按主机。** `push2his` 的 kline 三次重试全部
+`ConnectionError`，同主机的 `fflow/daykline` 却正常返回 —— 「东财不通」
+这句话在这个项目里从来都不够精确，必须逐路径实测。
+
+**腾讯没有北交所历史日线。** 前缀 `bj` 是对的（接口返回 data dict 不报错），
+但 K 线数组是空的。338 只北交所要走新浪。
 
 同花顺那条要单独说：它挡的是**客户端指纹**，不是 IP。用 requests 带上
 akshare 自带 ths.js 算出的 v cookie，照样 403 Nginx forbidden；同一台机器、
@@ -437,6 +470,31 @@ AUC_RATIO 本身。
     产物」，说明作者清楚这条线，只是另外三个文件漏了。
     **自测的所有产物一律写临时目录。** 验收方法是跑完四条自测后
     `git status` 必须和跑之前一模一样。
+
+18. **模块名和标准库撞车**（2026-09-12）— `src/breakout/select.py` 和标准库的
+    `select` 同名。Python 会把**脚本所在目录**放进 `sys.path[0]`，于是
+    `akshare -> curl_cffi -> from select import select` 导入了我那个文件，
+    整个 akshare 起不来，报的还是个看不懂的 ImportError。
+    已改名 `fselect.py`。新建模块前先跑一句：
+    `python -c "import sys;print('名字' in sys.stdlib_module_names)"`。
+
+19. **第三方库不是线程安全的**（2026-09-12）— 新浪日线接口内部用
+    `py_mini_racer` 跑 JS 解密，多线程并发调用直接让 V8 **进程级 FATAL 崩溃**
+    （`Check failed: !IsConfigurablePoolInitialized()`），不是抛异常，
+    try/except 接不住。改用多进程，每个进程一个独立 V8。
+    凡是底层带 C 扩展或嵌入式解释器的库，上并发前先查线程安全。
+
+20. **限流是累积配额，不是瞬时速率**（2026-09-12）— 腾讯日 K 在本机短时间
+    打 500+ 请求后限流数十分钟。第一版回填给每只各自退避重试 4 次
+    （每次 25s 超时），结果一批 120 只跑满一小时还拉不到东西 —— 因为
+    120 只各自把 4 次重试跑了个遍，全在撞同一堵墙。
+    **限流要全局熔断**（连续失败到阈值就整体停下等配额），不是逐个重试。
+
+21. **末尾裁剪的范围写错了会静默清空整列**（2026-09-12）— `label_top` 里
+    `y[n-horizon:] = nan`，horizon = window×3 = 60。序列短于 60 天时
+    **整个数组**都成了 NaN，见顶标签一个都出不来，而且不报错。
+    自测的「见顶标签有命中」就是为了钉住这个。
+    凡是 `arr[n-k:]` 这种写法，先想清楚 k > n 时会发生什么。
 
 ### 完全本地化（2026-09-12 起）
 
