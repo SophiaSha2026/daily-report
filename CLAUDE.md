@@ -1,7 +1,11 @@
 # CLAUDE.md
 
-A股集合竞价选股流水线。跑在 GitHub Actions，每交易日 09:27:30（北京时间）
-把竞价强弱榜前 10 发到邮箱并更新 GitHub Pages 面板。
+A股集合竞价选股流水线。**2026-09-12 起完全本地化**：所有流水线在本机跑，
+GitHub 仓库只做版本控制。每交易日 09:27:30（北京时间）把竞价强弱榜前 10
+发到邮箱并更新 GitHub Pages 面板。
+
+主界面是本地控制台 `tools/gui.cmd`（桌面「A股流水线」），
+自动跑靠 Windows 计划任务 `DailyReport-Local-*`。
 
 ## 沟通约定
 
@@ -19,7 +23,9 @@ A股集合竞价选股流水线。跑在 GitHub Actions，每交易日 09:27:30�
 仓库里跑着**两条互不相干的流水线**，共用数据源、邮件底层和 Pages 站点：
 
 - **竞价线**（早上）：09:25 集合竞价强弱榜，09:27:30 发信
-- **形态线**（收盘后）：启动-缩量回调-再启动，17:00 扫描发信
+- **形态线**（收盘后）：启动-缩量回调-再启动。
+  **2026-09-12 用户取消了这份每日报告**，只剩控制台上的手动入口，
+  代码、面板、自测全部保留
 
 改其中一条不要顺手动另一条。
 
@@ -54,8 +60,14 @@ src/
   learn/panel.py         学习面板 learn.html（阶段进度、双榜对比、裁决时间线）
   learn/report.py        学习邮件（变更 / 提案）+ state/learning_status.json
   selftest_learn.py      学习线离线自测
+  ── 控制台（GUI，2026-09-12）──
+  gui/server.py          HTTP 服务。标准库 ThreadingHTTPServer，零第三方依赖
+  gui/ui.py              单页界面（HTML/CSS/JS 都在这个字符串里）
+  gui/jobs.py            子进程任务：启动一条流程，把输出实时喂给界面
+  gui/status.py          状态汇总：流程 / 同步 / 排期 / 面板四类信号
   ── 共用 ──
-  local_run.py           本地一键全流程（TUI 的 [1] 按的就是它），含接管协议
+  local_run.py           本地一键全流程。--flow morning/evening/learn，
+                         --if-needed 幂等（计划任务反复重试要靠它）
   collect_llm.py         structured_output -> commentary.json（LLM_OUT_DIR 选目录）
   build_site.py          把两个面板打包成 _site，两条线都调它
   mailer.py              SMTP 发信
@@ -63,7 +75,7 @@ src/
   refresh_meta.py        每周刷新行业成分 + 代码表
   refresh_sector.py      Playwright 抓同花顺板块成分
   smoke_test.py          联网冒烟测试
-.github/workflows/
+.github/workflows/       **cron 已全部停用**，只剩 workflow_dispatch 手动应急
   smoke_test.yml         0-冒烟测试（手动）
   premarket.yml          1-盘前候选池 08:23 BJT
   auction.yml            2-竞价选股 07:40 起八个入口
@@ -80,6 +92,10 @@ out_pullback/            形态当日产物：同上结构
 out_learn/               学习产物：learn.html（唯一入库的，进 Pages）、eval_brief.json、PDF
 state/                   学习系统状态：learning_status.json / verdict_log.jsonl /
                          shadow_model.json / shadow_proposal.json / learned.yaml（接受变更后才有）
+                         push_status.json 上次推送成没成，控制台总览读它
+tools/gui.cmd            控制台入口（桌面快捷方式指向它）
+tools/run_local.cmd      计划任务调的本地流程入口，带 --if-needed
+tools/panel.cmd/.ps1     旧的 PowerShell TUI，保留作没有浏览器时的兜底
 ```
 
 ## 改动前必须跑
@@ -88,16 +104,26 @@ state/                   学习系统状态：learning_status.json / verdict_log
 python src/selftest.py            # 竞价：17 用例 + 9 条曲线不变量 + 4 条规则不变量 + 1000 压力样本 + 影子榜渲染
 python src/selftest_pullback.py   # 形态：13 条形态判定 + 打分单调性 + 工具函数
 python src/selftest_learn.py      # 学习：70 余条，含向量化打分器等价性、闸门接线 AST、邮件接线
+python src/selftest_gui.py        # 控制台：按钮接线、流程表一致性、开跑窗口、两道防护
 python -m pyflakes src tools      # 静态检查，必须零输出（pip install pyflakes）
 ```
 
 学习线要额外装 `scikit-learn scipy`（另两条线不需要，别混进它们的依赖）。
 
-三条自测都是离线的，加起来不到 2 秒。**改哪条线就跑哪个，改共用代码全跑。**
+四条自测都是离线的，加起来不到 4 秒。**改哪条线就跑哪个，改共用代码全跑。**
+
+`selftest_gui.py` 钉的是**接线**不是界面：`gui/status.py` 的 `LINES` 和
+`local_run.py` 的 `FLOWS` 是同一张表的两份副本，漂了的话总览页会长期显示
+「未完成」而流程其实跑完了；两道防护（Host 白名单、写操作 token）失效也是
+静默的，界面上完全看不出来。它还故意把 git 和 PowerShell 换成死实现，
+顺带证明外部命令全挂时页面照样出得来。
 pyflakes 报「赋值了没用」不是风格问题，是**接错线的信号**：2026-09-04 闸门 3
 那次就是 `bp` 算了没传、传的是阈值（历史教训 11）。
 
-联网测试只在 GitHub Actions 上跑（`0-冒烟测试`），本地和沙箱都访问不了国内行情源。
+联网测试在**本机**跑：控制台「运行 -> 自测 -> 体检」就是 `tools/probe.py`，
+逐个探行情源可达性。本机实测可达全部源（连 runner 上不通的新浪 vip 和东财都通）。
+云端的 `0-冒烟测试` 还在，手动 dispatch 才跑。
+写代码的沙箱访问不了国内行情源，那里只能跑上面四条离线自测。
 
 ## 硬约束（改代码时不要破坏）
 
@@ -385,21 +411,50 @@ AUC_RATIO 本身。
     还能更早，实测 06:57），job 自旋到 09:27:30 发信要 150 分钟，超时正好 150，
     几秒之差就在发信前被杀。派发脚本加 07:30~09:16 窗口，超时放到 175。
 
-### 本地为主，远端为辅（2026-09-03 起）
+15. **失败恢复路径本身要能从失败中恢复**（2026-09-07 ~ 09-11 失联五天）—
+    `push_all` 的重试循环是 `pull --rebase` 然后 `push`，重试三次。
+    第一次冲突把仓库停在 rebase-merge 中间状态**没人清理**，此后每天
+    每一次 pull 都直接报 "already a rebase-merge directory" 秒退，
+    三次重试全是空转。它不是错了一天，是错了之后再也好不了。
+    而且 `pull --rebase` 没带 `--autostash`，盘前刚写完
+    `cache/universe.parquet` 工作区是脏的，rebase 根本不会开始。
+    **重试之前先清残留**（`git_commit_push` 进场就 `_git_unstick`），
+    否则「重试三次」只是看起来有容错。
 
-用户方针：日常在本机 TUI（桌面「A股流水线」）一键跑完整流程，
-GitHub Actions 每天照常自动跑，只当兜底。两边靠**接管协议**协商，
-保证每天恰好一封邮件：
+16. **失败只写日志等于没写** — 同一件事连错五个交易日没有任何人发现，
+    因为唯一的信号是 `log.warning` 一行。同期本地和云端各发各的邮件，
+    用户每天收到两封也没意识到是故障。
+    凡是 fail-open 的分支（教训 13 是同一个毛病的另一面），
+    **失败必须留下一个能被界面查询的对象**：现在是
+    `state/push_status.json`，控制台总览页读它，红了一眼就看见。
+
+### 完全本地化（2026-09-12 起）
+
+用户方针：**所有流水线在本机跑，GitHub 仓库只做版本控制。**
+八个 workflow 的 `schedule` 全部注释掉，只留 `workflow_dispatch`
+（本机长时间关机时手动派发一次应急）。
 
 ```
-state/claim/<flow>_<date>.json   本地开跑即推送「今天我接管」
-state/sent/<flow>_<date>.json    本地发信成功后推送
+tools/gui.cmd          控制台，桌面「A股流水线」指向它。手动跑用这个
+DailyReport-Local-Morning   竞价线。美东周日到周四 18:00 起每 15 分钟，共 3h15m
+DailyReport-Local-Learn     学习线。美东周一到周五 04:40 起每 30 分钟，共 4h
 ```
 
-远端 workflow 里的 `tools/yield_check.py` 在发信前查这两个标记：
-无 claim -> 照常发（时刻分毫不动）；claim+sent -> 只发布面板不发邮件；
-claim 无 sent（本地挂了）-> 竞价线等到 09:28:20 兜底发出，仍在硬上限内。
-方向是 fail-open：远端只有拿到本地成功的证据才让位，宁重不漏。
+跨时区排期两个坑都还在，改时刻前先算一遍：夏令时会让固定本地时刻漂
+1 小时（所以窗口要盖住两种时令）；美东的星期几和北京的星期几差一天，
+竞价线按美东**周日到周四**排，按周一到周五排会漏掉北京周一。
+
+反复重试是因为笔记本可能整段时间不在线（2026-08-27 漏发过一次）。
+重试安全的前提是 `local_run.py --if-needed` **幂等**：今天跑完了、
+不在开跑窗口内、或者是周末，都直接退出 0。计划任务带「登录时触发」，
+没有窗口上界的话盘后每次开机都会发一封告警邮件。
+
+`state/claim/` 和 `state/sent/` 两个标记仍然照写照推，
+云端手动 dispatch 应急时 `tools/yield_check.py` 还读它们。
+
+推送必须自愈，见历史教训 15。`state/push_status.json` 记录上次推送
+成没成，控制台总览页读它——失败要有一个**能被界面查询的对象**，
+只写日志等于没写。
 
 `SKIP_MAIL=1` 环境变量让 enrich/send 生成全部产物但不发邮件，
 本地 dry-run 和远端让位共用这个开关。
