@@ -20,7 +20,6 @@ from tdx_export import write_tdx_custom
 from mailer import build_html
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "out"
 
 
 def cfg():
@@ -221,8 +220,15 @@ def main() -> int:
     assert all(res["A"][i]["score"] >= res["A"][i + 1]["score"]
                for i in range(len(res["A"]) - 1)), "A组未按分降序"
 
-    # 下游产物
-    OUT.mkdir(exist_ok=True)
+    # 下游产物。**一律写临时目录，不许碰 out/。**
+    # 自测用的是编造的代码（历史教训 2），而 out/ 是当天的生产产物：
+    # watchlist.ebk 是给同花顺导入的自选股，out/*.txt 会被 build_site.py
+    # 发布到 Pages。跑一次自测就把当天真实的榜换成假数据，人在手机上
+    # 点开、或者导进同花顺，拿到的是 17 个测试用例里编出来的票。
+    # panel.html 一直有这个保护（见下面影子榜那段），preview.html、
+    # watchlist.ebk、外部数据.txt 这三个漏了。
+    import tempfile
+    OUT = Path(tempfile.mkdtemp(prefix="selftest_out_"))
     sel = res["A"] + res["B"]
     paths = write_tdx_custom(sel, OUT)
     html = build_html(dt.date.today().isoformat(), res, {}, "自测")
