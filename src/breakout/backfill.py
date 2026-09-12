@@ -83,9 +83,17 @@ def codes(include_bj: bool = False) -> list[str]:
     ST 在打分阶段才剔除，回填阶段全要：训练需要负样本，也需要
     「后来变成 ST」的票在变 ST 之前的那段历史。
 
-    北交所默认排除：2026-09-12 实测腾讯**不提供北交所历史日线** ——
-    前缀 bj 是对的（接口返回了 data dict，不是报错），但 K 线数组是空的，
-    920268 只给当天 1 根。338 只北交所要单独找源，见 stage_daily_bj。
+    北交所（代码表里是 920xxx 段，2024 年启用的北交所专属代码段，
+    338 只稀疏分布在 920000~920992）：
+      · **腾讯完全不支持**，实测 v_pv_none_match，新旧代码段都不认
+      · **新浪支持**，实测 9/9 全通，历史 77~1388 行
+    所以走新浪的 stage_daily_sina 默认**包含**北交所，走腾讯的
+    stage_daily 默认排除。
+
+    踩过的坑：一开始拿 832735 / 430139 / 873169 这些老代码段测，
+    全部失败就以为北交所拿不到 —— 而它们根本不在 codes.csv 里。
+    CLAUDE.md 教训 2「测试用编造的代码」的翻版：**测试数据必须取自
+    真实的代码表**，不能凭记忆写。
     """
     p = ROOT / "cache" / "codes.csv"
     cs = pd.read_csv(p, dtype=str)["code"].tolist()
@@ -252,7 +260,8 @@ def stage_daily_sina() -> int:
             done = set(json.loads(done_f.read_text(encoding="utf-8")))
         except Exception:  # noqa: BLE001
             pass
-    todo = [c for c in codes() if c not in done]
+    # 新浪支持北交所，这里要 include_bj=True（腾讯那条路不支持，见 codes）
+    todo = [c for c in codes(include_bj=True) if c not in done]
     if LIMIT["n"]:
         todo = todo[:LIMIT["n"]]
     log.info("新浪日线：共 %d 只，已完成 %d，本轮 %d 只",
