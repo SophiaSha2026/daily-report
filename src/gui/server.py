@@ -45,9 +45,9 @@ ALLOWED_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
 
 # 面板文件：界面上用 iframe 嵌这三个。键要和前端对得上。
 PANELS = {
-    "auction": ("out/panel.html", "竞价面板"),
-    "pullback": ("out_pullback/panel.html", "形态面板"),
-    "learn": ("out_learn/learn.html", "学习面板"),
+    "auction": ("out/panel.html", "早盘选股面板"),
+    "pullback": ("out_pullback/panel.html", "回调形态面板"),
+    "learn": ("out_learn/learn.html", "参数自学面板"),
 }
 
 

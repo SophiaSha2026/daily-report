@@ -109,7 +109,7 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
     <button data-v="run">运行</button>
     <button data-v="panel">面板</button>
     <button data-v="sched">排期</button>
-    <button data-v="log">自动日志</button>
+    <button data-v="log">运行记录</button>
     <button data-v="conf">配置</button>
     <span class="gap"></span>
   </nav>
@@ -118,7 +118,7 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
 
   <section id="v-run" hidden>
     <div id="runbar"></div>
-    <div class="desc" id="rundesc">把鼠标放到按钮上看它做什么</div>
+    <div class="desc" id="rundesc">把鼠标放到按钮上看它具体做什么</div>
     <h2>输出 <span class="hint" id="joblbl"></span>
       <button class="act" id="stopbtn" hidden style="float:right;padding:3px 10px">停止</button>
     </h2>
@@ -128,9 +128,9 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
   <section id="v-panel" hidden class="flush">
     <div class="frame">
       <div class="tabs">
-        <button data-p="auction" class="on">竞价面板</button>
-        <button data-p="pullback">形态面板</button>
-        <button data-p="learn">学习面板</button>
+        <button data-p="auction" class="on">早盘选股</button>
+        <button data-p="pullback">回调形态</button>
+        <button data-p="learn">参数自学</button>
       </div>
       <div class="body"><iframe id="pframe" src="/panel/auction"></iframe></div>
     </div>
@@ -139,12 +139,12 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
   <section id="v-sched" hidden></section>
 
   <section id="v-log" hidden>
-    <h2>计划任务的输出<span class="hint">tools/local_flow.log，自动跑的记录。手动跑的在「运行」页</span></h2>
+    <h2>自动运行记录<span class="hint">计划任务每天自己跑的输出。手动跑的记录在「运行」页</span></h2>
     <pre class="log" id="flowlog">读取中...</pre>
   </section>
 
   <section id="v-conf" hidden>
-    <h2>config.yaml<span class="hint">只读。阈值是人工基线，改它请直接编辑文件并跑自测</span></h2>
+    <h2>参数配置<span class="hint">只读。所有阈值都在这里，要改请直接编辑 config.yaml 并跑一次自检</span></h2>
     <pre class="log" id="confbody" style="max-height:calc(100vh - 150px)">读取中...</pre>
   </section>
 </main>
@@ -234,7 +234,7 @@ function renderHome(s) {
 
   const h2 = el("h2", null, "同步");
   h2.appendChild(Object.assign(el("span", "hint"),
-    { textContent: "2026-09-07 到 09-11 连错五天没人发现，就是因为这里以前只写日志" }));
+    { textContent: "上次连错五天没人发现，就是因为这里以前只写日志不上界面" }));
   box.appendChild(h2);
 
   const g2 = el("div", "cards");
@@ -358,7 +358,7 @@ function renderSched(s) {
   const box = $("#v-sched"); box.innerHTML = "";
   const h = el("h2", null, "Windows 计划任务");
   h.appendChild(Object.assign(el("span", "hint"),
-    { textContent: "自动跑靠这个。时刻是美东本地时间，括号里是对应的北京时间" }));
+    { textContent: "每天自动运行靠这个。时刻是本机（美东）时间，括号里是对应的北京时间" }));
   box.appendChild(h);
 
   const t = el("table");
@@ -397,12 +397,12 @@ function renderSched(s) {
   const tip = el("div", "muted");
   tip.style.cssText = "font-size:12px;margin-top:14px;line-height:1.8";
   tip.innerHTML =
-    "竞价线 <b>DailyReport-Local-Morning</b>：美东周日到周四 18:00 起每 15 分钟，" +
+    "早盘选股 <b>DailyReport-Local-Morning</b>：美东周日到周四 18:00 起每 15 分钟，" +
     "持续 3 小时 15 分。夏令时对应北京 06:00-09:15，冬令时 07:00-10:15，" +
     "两种时令都盖得住 09:16 这条开跑上界。<br>" +
-    "学习线 <b>DailyReport-Local-Learn</b>：美东周一到周五 04:40 起每 30 分钟。<br>" +
+    "参数自学 <b>DailyReport-Local-Learn</b>：美东周一到周五 04:40 起每 30 分钟。<br>" +
     "反复重试是因为笔记本可能整段时间不在线（2026-08-27 就漏发过一次）。" +
-    "重试安全的前提是 <b>--if-needed</b> 幂等：跑完了再敲也不会重发邮件。";
+    "反复敲是安全的：流程会先查今天跑过没有，跑完了再敲直接退出，不会重发邮件。";
   box.appendChild(tip);
 }
 

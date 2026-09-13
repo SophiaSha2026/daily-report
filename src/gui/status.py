@@ -33,13 +33,13 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 # 这里重复一份而不是 import，是因为 GUI 不该因为 local_run 的依赖
 # （akshare 之类）而起不来。字段少，漂了也一眼看得出来。
 LINES = [
-    {"key": "morning", "name": "竞价线", "meta": "out/run_meta.json",
+    {"key": "morning", "name": "早盘选股", "meta": "out/run_meta.json",
      "panel": "out/panel.html", "due": "09:27:30",
      "task": "DailyReport-Local-Morning"},
-    {"key": "evening", "name": "形态线", "meta": "out_pullback/run_meta.json",
+    {"key": "evening", "name": "回调形态", "meta": "out_pullback/run_meta.json",
      "panel": "out_pullback/panel.html", "due": "已停用自动",
      "task": None},
-    {"key": "learn", "name": "学习线", "meta": "state/learning_status.json",
+    {"key": "learn", "name": "参数自学", "meta": "state/learning_status.json",
      "panel": "out_learn/learn.html", "due": "收盘后",
      "task": "DailyReport-Local-Learn"},
 ]

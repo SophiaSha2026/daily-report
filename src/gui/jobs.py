@@ -41,74 +41,93 @@ PY = sys.executable
 # 这一下会不会有邮件飞出去。
 ACTIONS: dict[str, dict] = {
     "morning": {
-        "name": "竞价线", "group": "流程",
+        "name": "早盘选股", "group": "每日流程",
         "cmd": ["src/local_run.py", "--flow", "morning"],
         "mail": True, "danger": True,
-        "desc": "候选池 -> 三次采样 -> LLM 文案 -> 09:27:30 发信。"
-                "未到点会在进程内自旋等待，早点跑没关系。",
+        "desc": "建候选池 -> 集合竞价三次采样 -> AI 写点评 -> 09:27:30 发邮件。没到点会自己等，提前跑没关系。",
     },
     "morning_dry": {
-        "name": "竞价线（试跑）", "group": "流程",
+        "name": "早盘选股（试跑）", "group": "每日流程",
         "cmd": ["src/local_run.py", "--flow", "morning", "--dry"],
         "mail": False, "danger": False,
         "desc": "同上，但不发信、不推仓库。验证数据通路用。",
     },
     "evening": {
-        "name": "形态线", "group": "流程",
+        "name": "回调形态", "group": "每日流程",
         "cmd": ["src/local_run.py", "--flow", "evening"],
         "mail": True, "danger": True,
-        "desc": "启动-缩量回调-再启动。每日自动报告已于 2026-09-12 停用，"
-                "这里是手动入口。平均每个交易日约 1 只，0 只是常态。",
+        "desc": "找「放量启动 -> 缩量回调 -> 再次启动」的形态。每日自动报告已于 "
+                "2026-09-12 停用，这里是手动入口。平均每个交易日约 1 只，0 只是常态，不是故障。",
     },
     "learn": {
-        "name": "学习线", "group": "流程",
+        "name": "参数自学", "group": "每日流程",
         "cmd": ["src/local_run.py", "--flow", "learn"],
         "mail": False, "danger": False,
-        "desc": "标签 -> 归因 -> 拟合 -> 六道闸门。只在闸门全过时才提案改参数，"
-                "改不动准入区间，也改不动 score.py。",
+        "desc": "拿实际涨跌回头检验早盘选股的打分参数，六道检查全过才提出修改建议。它改不动准入条件（涨幅 2~5%、量比 2.5~10），那是你定的规则。",
     },
     "premarket": {
-        "name": "盘前候选池", "group": "流程",
+        "name": "早盘候选池", "group": "每日流程",
         "cmd": ["src/premarket.py"],
         "mail": False, "danger": False,
-        "desc": "两阶段收缩构建 cache/universe.parquet，3-5 分钟。"
-                "竞价线会自己判断要不要建，一般不用手点。",
+        "desc": "筛出当天要盯的股票池，3-5 分钟。早盘选股会自己判断要不要建，一般不用手点。",
+    },
+    "bk_backfill": {
+        "name": "起涨预测·补数据", "group": "起涨预测",
+        "cmd": ["src/breakout/backfill.py", "--stage", "sina"],
+        "mail": False, "danger": False,
+        "desc": "下载全市场三年日线。中断了可以接着跑，已下好的会跳过。首次约 70 分钟，之后只补新增的那几天。",
+    },
+    "bk_build": {
+        "name": "起涨预测·建特征表", "group": "起涨预测",
+        "cmd": ["src/breakout/build.py"],
+        "mail": False, "danger": False,
+        "desc": "把日线算成模型能用的特征表：筹码分布、量价指标、股东人数等，再按全市场当日排名归一。约 13 分钟，产出 426 万行 x 87 个特征。",
+    },
+    "bk_arena": {
+        "name": "起涨预测·模型对比", "group": "起涨预测",
+        "cmd": ["src/breakout/arena.py"],
+        "mail": False, "danger": False,
+        "desc": "筛特征 + 逐月滚动测试几个模型，看哪个准。**读不到封存的那 9 个月**，那段数据只许验收时用一次。约 25 分钟。",
+    },
+    "selftest_breakout": {
+        "name": "起涨预测自检", "group": "自检",
+        "cmd": ["src/selftest_breakout.py"], "mail": False, "danger": False,
+        "desc": "检查筹码算法的六条数学性质、涨跌标注是否正确、有没有偷看未来数据、当日排名是否抹掉了大盘涨跌。2.6 秒。",
     },
     "selftest": {
-        "name": "竞价自测", "group": "自测",
+        "name": "早盘选股自检", "group": "自检",
         "cmd": ["src/selftest.py"], "mail": False, "danger": False,
-        "desc": "17 用例 + 9 条曲线不变量 + 4 条规则不变量 + 1000 压力样本。",
+        "desc": "17 个打分用例 + 9 条打分曲线形状检查 + 4 条规则检查 + 1000 个随机样本。",
     },
     "selftest_pullback": {
-        "name": "形态自测", "group": "自测",
+        "name": "回调形态自检", "group": "自检",
         "cmd": ["src/selftest_pullback.py"], "mail": False, "danger": False,
-        "desc": "13 条形态判定 + 打分单调性 + 工具函数。",
+        "desc": "13 条形态判定 + 打分排序是否单调 + 工具函数。",
     },
     "selftest_learn": {
-        "name": "学习自测", "group": "自测",
+        "name": "参数自学自检", "group": "自检",
         "cmd": ["src/selftest_learn.py"], "mail": False, "danger": False,
-        "desc": "70 余条，含向量化打分器逐位等价、闸门接线 AST、邮件接线。",
+        "desc": "70 余条。重点检查两套打分代码结果是否完全一致、检查项有没有接错线、邮件发得出去。",
     },
     "probe": {
-        "name": "体检", "group": "自测",
+        "name": "数据源体检", "group": "自检",
         "cmd": ["tools/probe.py"], "mail": False, "danger": False,
-        "desc": "行情源可达性 + 本地依赖。东财 FAIL 不影响出榜，只是慢一点。",
+        "desc": "逐个探测行情数据源通不通 + 本地依赖装齐没有。东方财富连不上不影响出榜，只是慢一点。",
     },
     "refresh_meta": {
-        "name": "刷新代码表", "group": "维护",
+        "name": "刷新股票代码表", "group": "维护",
         "cmd": ["src/refresh_meta.py"], "mail": False, "danger": False,
-        "desc": "重建 cache/codes.csv 和行业成分。每周一次就够。",
+        "desc": "重新下载全市场股票代码表和行业分类。每周一次就够。",
     },
     "refresh_sector": {
-        "name": "刷新板块成分", "group": "维护",
+        "name": "刷新行业成分", "group": "维护",
         "cmd": ["src/refresh_sector.py"], "mail": False, "danger": False,
-        "desc": "Playwright 起 chromium 抓同花顺。它挡的是客户端指纹不是 IP，"
-                "所以必须用真浏览器，requests 带 cookie 也是 403。",
+        "desc": "开一个真浏览器去同花顺抓行业成分。它认浏览器指纹，用程序直接请求会被拒，所以必须这么绕。",
     },
     "build_site": {
-        "name": "重建站点", "group": "维护",
+        "name": "重建网页面板", "group": "维护",
         "cmd": ["src/build_site.py"], "mail": False, "danger": False,
-        "desc": "把三个面板打包成 _site。两条线共用一份 Pages 部署。",
+        "desc": "把各条流程的网页面板打包发布。所有面板共用一个网站。",
     },
 }
 
