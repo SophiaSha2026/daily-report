@@ -198,6 +198,26 @@ def check_wiring() -> None:
        "板块判定正确")
 
 
+def check_quote_wiring() -> None:
+    """daily.py 调 fetch_quotes 时必须经过 to_symbol 转前缀。
+
+    2026-09-12 踩过：直接把裸代码（600000）传进去，腾讯一个都不认，
+    **静默返回 0 只**，于是 ST 剔除整个失效而日志只有一行「返回 0 只」。
+    这是历史教训 11/13 那一类：代码跑得通、输出看着合理、线没接上。
+    联网的东西自测测不了，就用 AST 钉调用点。
+    """
+    print("\n[行情接线]")
+    import ast
+    src = (ROOT / "src" / "breakout" / "daily.py").read_text(encoding="utf-8")
+    calls = [n for n in ast.walk(ast.parse(src))
+             if isinstance(n, ast.Call)
+             and isinstance(n.func, ast.Attribute)
+             and n.func.attr == "fetch_quotes"]
+    ck(len(calls) >= 2, f"daily.py 里有 {len(calls)} 处 fetch_quotes 调用")
+    ok = all("to_symbol" in ast.dump(c.args[0]) for c in calls if c.args)
+    ck(ok, "每处 fetch_quotes 的参数都经过 to_symbol 转了市场前缀")
+
+
 def main() -> int:
     t0 = time.time()
     check_chips()
@@ -205,6 +225,7 @@ def main() -> int:
     check_lookahead()
     check_cross_section()
     check_wiring()
+    check_quote_wiring()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")

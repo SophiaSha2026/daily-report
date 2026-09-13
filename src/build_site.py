@@ -31,6 +31,7 @@ log = logging.getLogger("site")
 PAGES = [
     (ROOT / "out",          "index.html",    "stamp.txt"),
     (ROOT / "out_pullback", "pullback.html", "stamp-pullback.txt"),
+    (ROOT / "out_breakout", "breakout.html", "stamp-breakout.txt"),
 ]
 
 

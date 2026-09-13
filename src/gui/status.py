@@ -42,6 +42,9 @@ LINES = [
     {"key": "learn", "name": "参数自学", "meta": "state/learning_status.json",
      "panel": "out_learn/learn.html", "due": "收盘后",
      "task": "DailyReport-Local-Learn"},
+    {"key": "breakout", "name": "起涨预测", "meta": "out_breakout/run_meta.json",
+     "panel": "out_breakout/panel.html", "due": "17:00",
+     "task": "DailyReport-Local-Evening"},
 ]
 
 

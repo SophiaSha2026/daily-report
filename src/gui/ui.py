@@ -130,6 +130,7 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
       <div class="tabs">
         <button data-p="auction" class="on">早盘选股</button>
         <button data-p="pullback">回调形态</button>
+        <button data-p="breakout">起涨预测</button>
         <button data-p="learn">参数自学</button>
       </div>
       <div class="body"><iframe id="pframe" src="/panel/auction"></iframe></div>

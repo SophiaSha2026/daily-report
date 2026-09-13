@@ -41,50 +41,63 @@ PY = sys.executable
 # 这一下会不会有邮件飞出去。
 ACTIONS: dict[str, dict] = {
     "morning": {
-        "name": "早盘选股", "group": "每日流程",
+        "name": "早盘选股", "group": "早盘系统",
         "cmd": ["src/local_run.py", "--flow", "morning"],
         "mail": True, "danger": True,
         "desc": "建候选池 -> 集合竞价三次采样 -> AI 写点评 -> 09:27:30 发邮件。没到点会自己等，提前跑没关系。",
     },
     "morning_dry": {
-        "name": "早盘选股（试跑）", "group": "每日流程",
+        "name": "早盘选股（试跑）", "group": "早盘系统",
         "cmd": ["src/local_run.py", "--flow", "morning", "--dry"],
         "mail": False, "danger": False,
         "desc": "同上，但不发信、不推仓库。验证数据通路用。",
     },
     "evening": {
-        "name": "回调形态", "group": "每日流程",
+        "name": "回调形态", "group": "晚间系统",
         "cmd": ["src/local_run.py", "--flow", "evening"],
         "mail": True, "danger": True,
         "desc": "找「放量启动 -> 缩量回调 -> 再次启动」的形态。每日自动报告已于 "
                 "2026-09-12 停用，这里是手动入口。平均每个交易日约 1 只，0 只是常态，不是故障。",
     },
     "learn": {
-        "name": "参数自学", "group": "每日流程",
+        "name": "参数自学", "group": "早盘系统",
         "cmd": ["src/local_run.py", "--flow", "learn"],
         "mail": False, "danger": False,
-        "desc": "拿实际涨跌回头检验早盘选股的打分参数，六道检查全过才提出修改建议。它改不动准入条件（涨幅 2~5%、量比 2.5~10），那是你定的规则。",
+        "desc": "【早盘系统的一部分，收盘后跑】拿实际涨跌回头检验早盘选股的打分参数，六道检查全过才提出修改建议。它改不动准入条件（涨幅 2~5%、量比 2.5~10），那是你定的规则。",
     },
     "premarket": {
-        "name": "早盘候选池", "group": "每日流程",
+        "name": "早盘候选池", "group": "早盘系统",
         "cmd": ["src/premarket.py"],
         "mail": False, "danger": False,
         "desc": "筛出当天要盯的股票池，3-5 分钟。早盘选股会自己判断要不要建，一般不用手点。",
     },
+    "breakout": {
+        "name": "起涨预测", "group": "晚间系统",
+        "cmd": ["src/breakout/daily.py", "--stage", "all"],
+        "mail": True, "danger": True,
+        "desc": "打分全市场 -> 剔除 ST/减持/解禁/增发 -> 出清单 A（接近起涨，"
+                "10 只）和清单 B（见顶信号）-> 面板 + 邮件。约 3 分钟。",
+    },
+    "breakout_dry": {
+        "name": "起涨预测（试跑）", "group": "晚间系统",
+        "cmd": ["src/breakout/daily.py", "--stage", "scan"],
+        "mail": False, "danger": False,
+        "desc": "只打分出清单，不发邮件、不做面板。看看今天会选出哪些票。",
+    },
     "bk_backfill": {
-        "name": "起涨预测·补数据", "group": "起涨预测",
+        "name": "补数据", "group": "晚间系统·模型维护",
         "cmd": ["src/breakout/backfill.py", "--stage", "sina"],
         "mail": False, "danger": False,
         "desc": "下载全市场三年日线。中断了可以接着跑，已下好的会跳过。首次约 70 分钟，之后只补新增的那几天。",
     },
     "bk_build": {
-        "name": "起涨预测·建特征表", "group": "起涨预测",
+        "name": "建特征表", "group": "晚间系统·模型维护",
         "cmd": ["src/breakout/build.py"],
         "mail": False, "danger": False,
         "desc": "把日线算成模型能用的特征表：筹码分布、量价指标、股东人数等，再按全市场当日排名归一。约 13 分钟，产出 426 万行 x 87 个特征。",
     },
     "bk_arena": {
-        "name": "起涨预测·模型对比", "group": "起涨预测",
+        "name": "模型对比", "group": "晚间系统·模型维护",
         "cmd": ["src/breakout/arena.py"],
         "mail": False, "danger": False,
         "desc": "筛特征 + 逐月滚动测试几个模型，看哪个准。**读不到封存的那 9 个月**，那段数据只许验收时用一次。约 25 分钟。",

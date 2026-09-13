@@ -384,6 +384,8 @@ FLOWS = {
     "morning": ("out/run_meta.json", "竞价线", (6, 0), (9, 16)),
     "evening": ("out_pullback/run_meta.json", "形态线", (16, 0), (22, 0)),
     "learn": ("state/learning_status.json", "学习线", (16, 0), (23, 30)),
+    # 晚间系统：起涨预测。17:00 发信，16:30 起跑（要算全市场特征）
+    "breakout": ("out_breakout/run_meta.json", "起涨预测", (16, 0), (23, 0)),
 }
 
 
@@ -407,10 +409,41 @@ def already_done(flow: str) -> bool:
         return False
 
 
+def flow_breakout(dry: bool) -> int:
+    """晚间系统：起涨预测。补当天数据 -> 打分 -> 两个清单 -> 面板 + 邮件。"""
+    n = 4
+    d = today()
+    step(1, n, "同步仓库")
+    if not dry:
+        _git_unstick()
+        _git("pull", "--rebase", "--autostash", "-q", "origin", "main")
+
+    step(2, n, "补当天日线 + 重算特征表")
+    if py("src/breakout/backfill.py", "--stage", "sina") != 0:
+        log.warning("补数据非零退出，继续用已有数据")
+    rc = py("src/breakout/build.py")
+    if rc != 0:
+        log.error("特征表没建出来（退出码 %d），今天不出清单", rc)
+        return rc
+
+    step(3, n, "打分 + 出清单")
+    rc = py("src/breakout/daily.py", "--stage", "scan")
+    if rc != 0:
+        return rc
+
+    step(4, n, "面板 + 邮件")
+    if dry:
+        os.environ["SKIP_MAIL"] = "1"
+    rc = py("src/breakout/daily.py", "--stage", "send")
+    push_all(f"起涨预测 {d} [local]",
+             [f"data/breakout/{d[:7]}", "out_breakout", "state/breakout"], dry)
+    return rc
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--flow", required=True,
-                    choices=["morning", "evening", "learn"])
+                    choices=["morning", "evening", "learn", "breakout"])
     ap.add_argument("--dry", action="store_true",
                     help="只跑不发不推（测试）")
     ap.add_argument("--if-needed", action="store_true",
@@ -438,7 +471,7 @@ def main() -> int:
     log.info("本地全流程 %s 启动 @ %s%s", a.flow,
              t0.strftime("%H:%M:%S"), "（dry-run）" if a.dry else "")
     rc = {"morning": flow_morning, "evening": flow_evening,
-          "learn": flow_learn}[a.flow](a.dry)
+          "learn": flow_learn, "breakout": flow_breakout}[a.flow](a.dry)
     log.info("总耗时 %.0f 秒，退出码 %d",
              (now_bj() - t0).total_seconds(), rc)
     return rc

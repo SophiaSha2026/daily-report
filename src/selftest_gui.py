@@ -49,9 +49,11 @@ def check_actions() -> None:
     ck(all(a.get("desc") for a in ACTIONS.values()),
        "每个动作都有说明文字（界面靠它告诉人这一下会发生什么）")
     # 会发信的动作必须标出来，否则人点之前不知道有邮件飞出去
+    # 会发信的动作清单。加新的必须同时改这里 —— 这条断言的意义就是
+    # 强迫「又多了一个会往外发邮件的按钮」这件事被人看见一次。
     mail_keys = {k for k, a in ACTIONS.items() if a.get("mail")}
-    ck(mail_keys == {"morning", "evening"},
-       f"标了会发信的正好是竞价线和形态线（实际 {sorted(mail_keys)}）")
+    ck(mail_keys == {"morning", "evening", "breakout"},
+       f"会发信的正好是早盘选股/回调形态/起涨预测（实际 {sorted(mail_keys)}）")
     ck(all(ACTIONS[k]["danger"] for k in mail_keys),
        "会发信的动作都标了 danger（按钮是红边的）")
 
@@ -156,7 +158,9 @@ def check_http() -> None:
             o = {}
         ck({"lines", "sync", "tasks"} <= set(o), "状态里有 lines/sync/tasks")
         # 上面的 git 是死的，所以这同时证明了「外部命令全挂也出得来页面」
-        ck(len(o.get("lines", [])) == 3, "git 不可用时三条线照样列得出来")
+        from gui.status import LINES
+        ck(len(o.get("lines", [])) == len(LINES),
+           f"git 不可用时 {len(LINES)} 条流程照样列得出来")
 
         ck(call("/api/status", host="evil.example.com")[0] == 403,
            "伪造 Host 被挡（防 DNS rebinding）")

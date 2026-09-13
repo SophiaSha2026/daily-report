@@ -48,6 +48,7 @@ PANELS = {
     "auction": ("out/panel.html", "早盘选股面板"),
     "pullback": ("out_pullback/panel.html", "回调形态面板"),
     "learn": ("out_learn/learn.html", "参数自学面板"),
+    "breakout": ("out_breakout/panel.html", "起涨预测面板"),
 }
 
 
