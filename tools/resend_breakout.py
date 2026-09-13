@@ -54,6 +54,11 @@ def main() -> int:
     px = pd.read_parquet(D.DATA / "daily.parquet",
                          columns=["code", "date", "close"])
 
+    # 模型日期要在改 STATE 之前读：model_status() 找的是 STATE/model.json，
+    # 换成临时目录后就找不到了，2026-09-13 那批补发邮件头上因此印着
+    # 「模型训练于 ?」。
+    model_date = D.model_status().get("fit_date", "?")
+
     # A 池在临时目录里重建，不碰 state/breakout/a_pool.json。
     # 补发要还原「当天为止」的池，拿生产那份（已经含 5 天全部）会让
     # 09-07 那天的清单 B 看到 09-11 才进池的票。
@@ -66,12 +71,14 @@ def main() -> int:
             date = str(picks["date"].iloc[0])
             pool = D.update_pool(picks, date)
             blist = D.build_list_b(px, pool, asof=date)
+            # 落盘的清单只有入选的票，当天剔除了几只已经不可知，
+            # 给 None 让邮件头不印这一段，不要印个假的 0。
             meta = {"date": date, "n_a": len(picks), "n_b": len(blist),
                     "score_min": D.SCORE_MIN,
                     "n_streak3": int((picks["streak"] >= 3).sum()),
                     "pool": len(pool),
-                    "model_date": D.model_status().get("fit_date", "?"),
-                    "rejected": int((picks.get("reject", "") != "").sum())}
+                    "model_date": model_date,
+                    "rejected": None}
             E.write_panel(picks, blist, meta, tmp / date, date)
             log.info("%s  A %d 只（连续3天以上 %d）  B %d 只  池 %d",
                      date, len(picks), meta["n_streak3"], len(blist),

@@ -126,9 +126,12 @@ def _rows_b(b: pd.DataFrame) -> str:
 
 def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
           for_panel: bool) -> str:
+    # rejected 为 None 表示不可知（补发历史清单时），这段就不印
+    rej = meta.get("rejected", 0)
+    rej_txt = f"风险剔除 {rej} 只 · " if rej is not None else ""
     head = (f'<h1>起涨预测 · {date}</h1>'
             f'<div class="sub">清单 A {len(a)} 只，清单 B {len(b)} 只 · '
-            f'风险剔除 {meta.get("rejected", 0)} 只 · '
+            f'{rej_txt}'
             f'模型训练于 {meta.get("model_date", "?")}</div>')
     tip = (f'<div class="tip" style="margin:0 0 14px;padding:10px 12px;'
            f'background:#1e2229;border-radius:5px">{DISCLAIMER}</div>')
