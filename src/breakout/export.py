@@ -25,10 +25,26 @@ from ths_export import PANEL_CSS, REFRESH_JS  # noqa: E402
 
 log = logging.getLogger("breakout.export")
 
-# 封存数据（2026-01..08）上的实测成绩。改模型后要同步改这里，
-# 否则邮件会拿旧成绩给新模型背书。
-PERF = {"hit": 14.43, "base": 2.91, "lift": 4.96, "top": 10,
-        "window": "2026-01 至 2026-08"}
+# 实测成绩。改规则或改模型后必须同步改这里，否则邮件会拿旧成绩
+# 给新规则背书。数字来源：docs/breakout_log.md 实验 7（验证集 207 个交易日）。
+#
+# 清单 A 的规则是「≥97 分才上榜」，而**连续够格的天数**是清单里最强的
+# 单一信号，所以准确率按连续天数分档报，不报一个笼统的平均值。
+BASE = 3.55                       # 全市场基准：随便买一只涨超 50% 的概率
+STREAK_PERF = [
+    (3, 32.0, 9.0),               # 连续 3 天及以上
+    (2, 25.8, 7.3),
+    (1, 15.4, 4.3),
+]
+PERF = {"base": BASE, "window": "验证集 207 个交易日"}
+
+
+def streak_perf(k: int) -> tuple[float, float]:
+    """连续 k 天够格的历史准确率和倍数。"""
+    for need, hit, lift in STREAK_PERF:
+        if k >= need:
+            return hit, lift
+    return STREAK_PERF[-1][1], STREAK_PERF[-1][2]
 
 # 分数段 -> 实际命中率。验证集 10 个月、111 万个样本逐月滚动测出来的，
 # 严格单调上升（分数越高越准），没有一档倒挂。
@@ -42,29 +58,32 @@ SCORE_TABLE = [
 ]
 
 DISCLAIMER = (
-    f"分数是 0~100 的<b>排名</b>，不是上涨概率。"
-    f"封存数据（{PERF['window']}，模型训练时从未见过）实测："
-    f"每天 {PERF['top']} 只里约 {PERF['top'] * PERF['hit'] / 100:.1f} 只"
-    f"会在未来 20 个交易日内最高价涨超 50%，"
-    f"是全市场平均（{PERF['base']}%）的 {PERF['lift']} 倍。"
-    f"所以这份清单的意思是「这批票里出黑马的密度比市场高 {PERF['lift']:.0f} 倍」，"
-    f"不是「选出来的会涨」。"
+    f"上榜条件是分数 ≥ 97，够不到就不上，所以<b>清单为空是正常的</b>。"
+    f"「连续」指这只票连着几个交易日都够格 —— 这是清单里最强的信号："
+    f"连续 3 天的历史准确率 {STREAK_PERF[0][1]}%（是随便买的 "
+    f"{STREAK_PERF[0][2]:.0f} 倍），连续 2 天 {STREAK_PERF[1][1]}%，"
+    f"首日 {STREAK_PERF[2][1]}%。全市场随便买一只是 {BASE}%。"
+    f"准确率的含义是「这只票未来 20 个交易日内最高价涨超 50%」。"
 )
 
 
 def _rows_a(a: pd.DataFrame) -> str:
     if not len(a):
-        return ('<tr><td colspan="5" style="color:#8f9aa8;padding:18px;'
-                'text-align:center">今天没有符合条件的股票。'
+        return ('<tr><td colspan="7" style="color:#8f9aa8;padding:18px;'
+                'text-align:center">今天没有够格的股票（没有一只到 97 分）。'
                 '这是正常的，不是故障。</td></tr>')
     out = []
     for i, r in enumerate(a.itertuples(), 1):
-        code = str(r.code)
+        k = int(getattr(r, "streak", 1) or 1)
+        hit, lift = streak_perf(k)
+        mark = f"{k} 天" + ("　🔥" if k >= 3 else "")
         out.append(
             f'<tr><td>{i}</td>'
-            f'<td class="code">{code}</td>'
+            f'<td class="code">{r.code}</td>'
             f'<td>{getattr(r, "name", "") or ""}</td>'
             f'<td class="sc">{r.score:.0f}</td>'
+            f'<td class="up">{mark}</td>'
+            f'<td>{hit:.0f}%</td>'
             f'<td>{getattr(r, "close", 0):.2f}</td></tr>')
     return "".join(out)
 
@@ -92,27 +111,34 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
             f'模型训练于 {meta.get("model_date", "?")}</div>')
     tip = (f'<div class="tip" style="margin:0 0 14px;padding:10px 12px;'
            f'background:#1e2229;border-radius:5px">{DISCLAIMER}</div>')
+    n3 = int((a["streak"] >= 3).sum()) if len(a) and "streak" in a else 0
     ta = (f'<h1 style="margin-top:18px">清单 A · 接近起涨</h1>'
-          f'<table><tr><th>#</th><th>代码</th><th>名称</th>'
-          f'<th>分数</th><th>现价</th></tr>{_rows_a(a)}</table>')
+          f'<div class="sub">按连续够格天数排序，连续越久越可靠。'
+          f'今天连续 3 天以上的有 {n3} 只。</div>'
+          f'<table><tr><th>#</th><th>代码</th><th>名称</th><th>分数</th>'
+          f'<th>连续</th><th>历史准确率</th><th>现价</th></tr>'
+          f'{_rows_a(a)}</table>')
     tb = (f'<h1 style="margin-top:22px">清单 B · 见顶信号</h1>'
-          f'<div class="sub">曾在清单 A 拿过 90 分以上、之后涨过一波、现在见顶回落的股票</div>'
+          f'<div class="sub">上过清单 A、之后涨过一波、现在见顶回落的股票</div>'
           f'<table><tr><th>#</th><th>代码</th><th>名称</th>'
           f'<th>曾用最高分</th><th>距高点</th></tr>{_rows_b(b)}</table>')
     # 分数对照表。用户拿到清单第一个问题就是「92 分和 85 分差多少」，
     # 不给这张表的话，分数就只是个没有意义的数字。
     rows = "".join(
-        f'<tr><td>{lbl}</td><td class="sc">{hit:.1f}%</td>'
-        f'<td>{lift:.1f} 倍</td></tr>'
-        for lbl, hit, lift in SCORE_TABLE)
-    tc = (f'<h1 style="margin-top:22px">分数怎么看</h1>'
-          f'<div class="sub">同一个分数段的票，历史上有多少在一个月内涨超 50%。'
-          f'验证了 111 万个样本，分数越高越准，没有例外。</div>'
-          f'<table><tr><th>分数</th><th>涨超 50% 的比例</th>'
+        f'<tr><td>{("连续 " + str(k) + " 天及以上") if k > 1 else "首次上榜"}'
+        f'</td><td class="sc">{hit:.1f}%</td><td>{lift:.1f} 倍</td></tr>'
+        for k, hit, lift in STREAK_PERF)
+    rows += (f'<tr><td>随便买</td><td class="sc">{BASE}%</td>'
+             f'<td>1.0 倍</td></tr>')
+    tc = (f'<h1 style="margin-top:22px">连续天数怎么看</h1>'
+          f'<div class="sub">同样是 97 分以上，连着够格的天数越多越可靠。'
+          f'下面是 {PERF["window"]}的实测准确率。</div>'
+          f'<table><tr><th>连续天数</th><th>涨超 50% 的比例</th>'
           f'<th>相对随便买</th></tr>{rows}</table>'
-          f'<div class="tip">清单 A 取的是当天全市场<b>前 10 名</b>，'
-          f'比「90 分以上」这个绝对标准更严，所以清单的实际命中率'
-          f'（{PERF["hit"]}%）高于表里 90 分那一档。</div>')
+          f'<div class="tip">光有高分没用：97 分以上但只够格一天的，'
+          f'准确率只有 {STREAK_PERF[2][1]}%；连续三天的能到 '
+          f'{STREAK_PERF[0][1]}%。所以清单按连续天数排序，'
+          f'带 🔥 的是连续 3 天以上。</div>')
 
     foot = ('<div class="tip">清单 B 的三个条件：进清单 A 满 5 个交易日、'
             '进入后涨过 20%、现在从那个高点回落 8%~20% 且高点在最近 10 天内。'

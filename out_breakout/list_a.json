@@ -1,72 +1,82 @@
 [
   {
-    "code":"920119",
-    "name":"美德乐",
-    "score":99.0,
-    "close":51.48,
-    "board":"bj"
+    "code":"688655",
+    "name":"迅捷兴",
+    "score":98.0,
+    "streak":5,
+    "close":60.12,
+    "board":"star"
+  },
+  {
+    "code":"688209",
+    "name":"英集芯",
+    "score":97.0,
+    "streak":5,
+    "close":32.51,
+    "board":"star"
   },
   {
     "code":"920159",
     "name":"农大科技",
     "score":98.0,
+    "streak":2,
     "close":31.43,
     "board":"bj"
   },
   {
-    "code":"688293",
-    "name":"奥浦迈",
-    "score":98.0,
-    "close":65.1,
+    "code":"600403",
+    "name":"大有能源",
+    "score":97.0,
+    "streak":2,
+    "close":7.17,
+    "board":"main"
+  },
+  {
+    "code":"688205",
+    "name":"德科立",
+    "score":97.0,
+    "streak":2,
+    "close":218.89,
     "board":"star"
+  },
+  {
+    "code":"920119",
+    "name":"美德乐",
+    "score":99.0,
+    "streak":1,
+    "close":51.48,
+    "board":"bj"
   },
   {
     "code":"688260",
     "name":"昀冢科技",
     "score":98.0,
+    "streak":1,
     "close":109.9,
     "board":"star"
   },
   {
-    "code":"688655",
-    "name":"迅捷兴",
+    "code":"688293",
+    "name":"奥浦迈",
     "score":98.0,
-    "close":60.12,
+    "streak":1,
+    "close":65.1,
     "board":"star"
   },
   {
-    "code":"688195",
-    "name":"腾景科技",
+    "code":"688543",
+    "name":"国科军工",
     "score":97.0,
-    "close":194.89,
+    "streak":1,
+    "close":46.32,
     "board":"star"
   },
   {
     "code":"688485",
     "name":"九州一轨",
     "score":97.0,
+    "streak":1,
     "close":94.98,
-    "board":"star"
-  },
-  {
-    "code":"688205",
-    "name":"德科立",
-    "score":97.0,
-    "close":218.89,
-    "board":"star"
-  },
-  {
-    "code":"603466",
-    "name":"风语筑",
-    "score":97.0,
-    "close":13.27,
-    "board":"main"
-  },
-  {
-    "code":"688135",
-    "name":"利扬芯片",
-    "score":97.0,
-    "close":37.07,
     "board":"star"
   }
 ]

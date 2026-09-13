@@ -51,8 +51,22 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
                     datefmt="%H:%M:%S")
 log = logging.getLogger("breakout")
 
-TOP_A = 10          # 清单 A 每天几只（用户 2026-09-12 定的）
-SCORE_B = 90        # 进 B 池的分数门槛
+# 清单 A 的规则（2026-09-13 按用户「最大化准确率」的要求定，实测见
+# docs/breakout_log.md 实验 7）。
+#
+# 核心是**门槛制 + 持续性**，不是「每天取前 N 名」：
+#   · 用户原话「如果当天没有符合要求的个股，清单可以为空」——
+#     所以够格才上，弱势日就空着，不凑数
+#   · 用户原话「如某个个股持续符合条件，可以连续几个交易日推荐」——
+#     连续够格的天数是最强的单一信号，实测：
+#         ≥97 分不看连续   15.43%（4.34 倍）
+#         ≥97 分 连续 2 天  25.81%（7.26 倍）
+#         ≥97 分 连续 3 天  32.04%（9.01 倍）
+#     光有分数门槛没用，门槛 + 持续性才有效。
+SCORE_MIN = 97      # 够不到这个分数就不上清单，当天可以为空
+CAP_A = 10          # 上限。防止极端强势日几百只同时够格，清单没法看
+TOP_A = CAP_A       # 兼容旧名字
+SCORE_B = SCORE_MIN  # 进 B 池的门槛。清单 A 本身就是 ≥97 分，两者一致
 POOL_DAYS = 60      # A 池里的股票保留多少个交易日
 MODEL_MAX_AGE = 30  # 模型多少天重训一次
 TRAIN_END_GAP = 25  # 训练只用到 N 个交易日之前（标签要 20 天才能确定）
@@ -261,6 +275,32 @@ def update_pool(picks: pd.DataFrame, date: str) -> dict:
 
 
 # ---------------------------------------------------------------
+def count_streak(code: str, date: str) -> int:
+    """这只票在 date **之前**已经连续够格几天。
+
+    读的是每天落盘的 breakout_<date>.parquet。断一天就归零 ——
+    「持续符合条件」指的是没断过，不是「最近几天里有几天符合」。
+    """
+    n = 0
+    cur = dt.date.fromisoformat(date)
+    for _ in range(12):                       # 最多往回数 12 个交易日
+        cur -= dt.timedelta(days=1)
+        # 跳过周末；节假日会让这里提前断掉，宁可少算不多算
+        while cur.weekday() >= 5:
+            cur -= dt.timedelta(days=1)
+        f = DATA / cur.strftime("%Y-%m") / f"breakout_{cur}.parquet"
+        if not f.exists():
+            break
+        try:
+            prev = pd.read_parquet(f, columns=["code"])
+        except Exception:  # noqa: BLE001
+            break
+        if code not in set(prev["code"].astype(str)):
+            break
+        n += 1
+    return n
+
+
 def stage_scan(asof: str = "", force_fit: bool = False) -> int:
     t0 = time.time()
     tp = DATA / "train.parquet"
@@ -299,8 +339,17 @@ def stage_scan(asof: str = "", force_fit: bool = False) -> int:
     cand = today.head(60)["code"].tolist()      # 只查前 60 只，省接口调用
     bad = risk_filter(cand)
     today["reject"] = today["code"].map(bad).fillna("")
-    picks = today[today["reject"] == ""].head(TOP_A).copy()
-    log.info("清单 A：%d 只（剔除 %d 只）", len(picks), len(bad))
+    ok = today[(today["reject"] == "") & (today["score"] >= SCORE_MIN)]
+    picks = ok.head(CAP_A).copy()
+    log.info("清单 A：%d 只够格（≥%d 分），剔除 %d 只",
+             len(picks), SCORE_MIN, len(bad))
+    if not len(picks):
+        log.info("今天没有够格的股票，清单 A 为空。这是正常的，不是故障。")
+
+    # 连续够格天数：清单里最强的信号。从已落盘的历史里数，
+    # 相邻交易日才算连续，断一天就重新计数。
+    picks["streak"] = [count_streak(c, date) + 1 for c in picks["code"]]
+    picks = picks.sort_values(["streak", "_p"], ascending=[False, False])
 
     # 名字从腾讯快照拿
     try:
@@ -346,13 +395,15 @@ def stage_scan(asof: str = "", force_fit: bool = False) -> int:
     log.info("清单 B：%d 只（A 池 %d 只）", len(blist), len(pool))
 
     OUT.mkdir(parents=True, exist_ok=True)
-    cols = ["code", "name", "score", "close", "board"]
+    cols = ["code", "name", "score", "streak", "close", "board"]
     picks[cols].to_json(OUT / "list_a.json", orient="records",
                         force_ascii=False, indent=2)
     blist.to_json(OUT / "list_b.json", orient="records",
                   force_ascii=False, indent=2)
     (OUT / "run_meta.json").write_text(json.dumps(
         {"date": date, "n_a": len(picks), "n_b": len(blist),
+         "score_min": SCORE_MIN,
+         "n_streak3": int((picks["streak"] >= 3).sum()) if len(picks) else 0,
          "pool": len(pool), "model_date": obj["fit_date"],
          "rejected": len(bad)}, ensure_ascii=False), encoding="utf-8")
     (DATA / date[:7]).mkdir(parents=True, exist_ok=True)
