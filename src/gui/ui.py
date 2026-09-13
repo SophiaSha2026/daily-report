@@ -92,6 +92,55 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
    margin:0 4px}
 .frame{display:flex;flex-direction:column;height:100%}
 .frame>.body{flex:1;min-height:0}
+
+/* ==== 系统卡片（总览）==== */
+.sys{background:var(--surface,#1a1d23);border:1px solid #2a2f38;border-radius:8px;
+     margin-bottom:14px;overflow:hidden}
+.sys>.hd{display:flex;align-items:baseline;gap:10px;padding:12px 16px;
+     background:#20242b;border-bottom:1px solid #2a2f38}
+.sys>.hd .n{font:700 15px/1 var(--mono,Consolas);color:#c1440e}
+.sys>.hd .t{font-size:15px;font-weight:650}
+.sys>.hd .w{margin-left:auto;font-size:12px;color:#7d8590}
+.item{display:grid;grid-template-columns:44px 1fr auto;gap:12px;
+      align-items:center;padding:12px 16px;border-bottom:1px solid #232830}
+.item:last-child{border-bottom:none}
+.item .no{font:700 13px/1 var(--mono,Consolas);color:#7d8590}
+.item .nm{font-size:14px;font-weight:600}
+.item .sub{font-size:12px;color:#7d8590;margin-top:3px}
+.item .st{text-align:right;font-size:13px;white-space:nowrap}
+.item .st b{display:block;font:700 17px/1.2 var(--mono,Consolas)}
+.st.ok b{color:#3fb950}.st.no b{color:#7d8590}.st.warn b{color:#d29922}
+.st.bad b{color:#f85149}
+/* ==== 运行页的大按钮 ==== */
+.act-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+     gap:10px;margin-bottom:20px}
+.act-card{background:#1a1d23;border:1px solid #2a2f38;border-radius:8px;
+     padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.act-card.danger{border-color:#5c2626}
+.act-card .top{display:flex;align-items:baseline;gap:9px}
+.act-card .no{font:700 12px/1 var(--mono,Consolas);color:#c1440e}
+.act-card .nm{font-size:15px;font-weight:650}
+.act-card .ml{margin-left:auto;font-size:11px;color:#ff8f8f;
+     border:1px solid #5c2626;border-radius:3px;padding:1px 6px}
+.act-card .what{font-size:13px;color:#b4becA;line-height:1.55;flex:1}
+.act-card .go{align-self:flex-start;background:#2a2f38;color:#e6e6e6;
+     border:1px solid #3a4149;border-radius:5px;padding:6px 16px;
+     font-size:13px;cursor:pointer}
+.act-card .go:hover{background:#39404b}
+.act-card.danger .go{border-color:#7a3520}
+.act-card.danger .go:hover{background:#8a3a18}
+.act-card .go:disabled{opacity:.45;cursor:not-allowed}
+.act-card .more{font-size:11.5px;color:#6B7683;line-height:1.5;display:none}
+.act-card.open .more{display:block}
+.act-card .tg{font-size:11px;color:#6B7683;background:none;border:none;
+     cursor:pointer;padding:0;align-self:flex-start}
+/* ==== 成绩条 ==== */
+.perf{display:flex;align-items:center;gap:10px;margin-top:6px}
+.perf .lbl{font-size:11.5px;color:#7d8590;width:64px;flex:none}
+.perf .bar2{flex:1;height:12px;background:#232830;border-radius:3px;overflow:hidden}
+.perf .bar2 i{display:block;height:100%;background:#c1440e}
+.perf .bar2.grey i{background:#3a4149}
+.perf .v{font:600 12px/1 var(--mono,Consolas);width:52px;text-align:right}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
    background:#c1440e;padding:8px 18px;border-radius:5px;opacity:0;
    transition:.25s;font-size:13px;pointer-events:none;z-index:9}
@@ -124,8 +173,7 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
 
   <section id="v-run" hidden>
     <div id="runbar"></div>
-    <div class="desc" id="rundesc">把鼠标放到按钮上看它具体做什么</div>
-    <h2>输出 <span class="hint" id="joblbl"></span>
+      <h2>输出 <span class="hint" id="joblbl"></span>
       <button class="act" id="stopbtn" hidden style="float:right;padding:3px 10px">停止</button>
     </h2>
     <pre class="log" id="joblog">还没有跑过任何东西。</pre>
@@ -219,60 +267,137 @@ function card(title, dotClass, rows, probs, cls) {
   return c;
 }
 
+function sysItem(no, name, sub, stateCls, big, small) {
+  const d = el("div", "item");
+  d.appendChild(el("div", "no", no));
+  const mid = el("div");
+  mid.appendChild(el("div", "nm", name));
+  if (sub) mid.appendChild(el("div", "sub", sub));
+  d.appendChild(mid);
+  const st = el("div", "st " + stateCls);
+  st.appendChild(el("b", null, big));
+  if (small) st.appendChild(el("div", null, small));
+  d.appendChild(st);
+  return d;
+}
+
+function sysCard(no, title, when, items) {
+  const c = el("div", "sys");
+  const hd = el("div", "hd");
+  hd.appendChild(el("span", "n", no));
+  hd.appendChild(el("span", "t", title));
+  hd.appendChild(el("span", "w", when));
+  c.appendChild(hd);
+  items.forEach(x => c.appendChild(x));
+  return c;
+}
+
+function lineOf(s, key) { return s.lines.find(l => l.key === key) || {}; }
+
+function pickState(l, s) {
+  // 三种状态：跑完了(ok) / 周末不用跑(no) / 该跑没跑(warn)
+  if (l.done) return ["ok", (l.n === undefined || l.n === null)
+    ? "已完成" : l.n + " 只", "数据 " + (l.date || "-")];
+  if (s.weekend) return ["no", "周末", "不用跑"];
+  return ["warn", "没跑", "数据 " + (l.date || "无")];
+}
+
 function renderHome(s) {
   const box = $("#v-home"); box.innerHTML = "";
   const h = el("h2", null, "今天");
   h.appendChild(Object.assign(el("span", "hint"),
     { textContent: `北京 ${s.bj} 周${s.weekday}` +
-      (s.weekend ? "（周末，两条线都不该运行）" : "") }));
+      (s.weekend ? "（周末，两个系统都不该跑）" : "") }));
   box.appendChild(h);
 
-  const g = el("div", "cards");
-  s.lines.forEach(l => {
-    const dot = l.done ? "ok" : (s.weekend ? "idle" : "warn");
-    const rows = [["今日产出", l.done ? (l.n === undefined || l.n === null
-        ? "已完成" : l.n + " 只")
-        : (s.weekend ? "周末停跑" : "未完成")],
-      ["数据日期", l.date || "无"],
-      ["应跑时刻", l.due]];
-    if (l.task) rows.push(["排期", (l.task_state || "?") +
-      (l.task_next ? " 下次 " + l.task_next : "")]);
-    g.appendChild(card(l.name, dot, rows, null,
-      (!l.done && !s.weekend && l.key !== "evening") ? "warn" : ""));
-  });
-  box.appendChild(g);
+  // ===== 1 早盘系统 =====
+  const m = lineOf(s, "morning"), lr = lineOf(s, "learn");
+  const [ms, mb, mm] = pickState(m, s);
+  const [ls, lb, lm] = pickState(lr, s);
+  box.appendChild(sysCard("1", "早盘系统", "每天早上 9:27 发邮件", [
+    sysItem("1-1", "早盘选股", "挑出当天最强的股票发给你", ms, mb, mm),
+    sysItem("1-2", "参数自学", "回头检查打分准不准，自动改进", ls, lb, lm),
+  ]));
 
-  const h2 = el("h2", null, "同步");
+  // ===== 2 晚间系统 =====（结构和上面一模一样：选股 + 自学）
+  const bk = lineOf(s, "breakout");
+  const [bs, bb, bm] = pickState(bk, s);
+  const mo = s.model || {};
+  const moState = mo.exists ? "ok" : "warn";
+  const moBig = mo.exists ? mo.age_days + " 天前" : "没训练";
+  const moSmall = mo.exists ? (mo.days_to_refit + " 天后重学") : "点 2-2 训练";
+  box.appendChild(sysCard("2", "晚间系统", "每天下午 5:00 发邮件", [
+    sysItem("2-1", "起涨预测", "挑出可能要涨的股票发给你", bs, bb, bm),
+    sysItem("2-2", "模型自学", "用最新数据重新学习，每 30 天一次",
+            moState, moBig, moSmall),
+  ]));
+
+  // ===== 起涨预测的实际成绩（可视化）=====
+  const hit = 14.43, base = 2.91;
+  const perf = el("div", "sys");
+  const ph = el("div", "hd");
+  ph.appendChild(el("span", "n", "?"));
+  ph.appendChild(el("span", "t", "起涨预测到底准不准"));
+  ph.appendChild(Object.assign(el("span", "w"),
+    { textContent: "用模型从没见过的 8 个月数据测出来的" }));
+  perf.appendChild(ph);
+  const pb = el("div");
+  pb.style.padding = "14px 16px";
+  [["清单里的票", hit, false], ["全市场平均", base, true]].forEach(
+    ([lbl, v, grey]) => {
+      const r = el("div", "perf");
+      r.appendChild(el("div", "lbl", lbl));
+      const bar = el("div", "bar2" + (grey ? " grey" : ""));
+      const i2 = el("i"); i2.style.width = (v / hit * 100) + "%";
+      bar.appendChild(i2); r.appendChild(bar);
+      r.appendChild(el("div", "v", v.toFixed(2) + "%"));
+      pb.appendChild(r);
+    });
+  const note = el("div", "sub");
+  note.style.cssText = "margin-top:10px;font-size:12.5px;line-height:1.7";
+  note.textContent = "意思是：清单里每 10 只，大约 1.4 只会在接下来一个月内"
+    + "涨超 50%，是随便买的 " + (hit / base).toFixed(1) + " 倍。"
+    + "不是「选出来的都会涨」。";
+  pb.appendChild(note);
+  perf.appendChild(pb);
+  box.appendChild(perf);
+
+  return renderSync(box, s);
+}
+
+function renderSync(box, s) {
+  const h2 = el("h2", null, "系统健康");
   h2.appendChild(Object.assign(el("span", "hint"),
-    { textContent: "上次连错五天没人发现，就是因为这里以前只写日志不上界面" }));
+    { textContent: "这里红了才需要管，平时不用看" }));
   box.appendChild(h2);
 
   const g2 = el("div", "cards");
   const sy = s.sync;
-  const syncCard = card("仓库", sy.ok ? "ok" : "bad", [
-    ["本地未推送", sy.ahead + " 个 commit"],
-    ["远端未拉取", sy.behind + " 个 commit"],
-    ["工作区改动", sy.dirty + " 个文件"],
-    ["上次推送", (sy.last_push || "无记录") +
-      (sy.last_push_ok === false ? " 失败" : "")],
+  const syncCard = card("和 GitHub 的同步", sy.ok ? "ok" : "bad", [
+    ["本地没上传的", sy.ahead + " 次改动"],
+    ["远端没下载的", sy.behind + " 次改动"],
+    ["上次上传", (sy.last_push || "无记录")
+      + (sy.last_push_ok === false ? " 失败" : "")],
   ], sy.problems, sy.ok ? "" : "bad");
   if (!sy.ok) {
-    const b = el("button", "act", "重试推送");
+    const b = el("button", "act", "重试上传");
     b.style.marginTop = "10px";
-    b.onclick = async () => { b.disabled = true; b.textContent = "推送中...";
+    b.onclick = async () => {
+      b.disabled = true; b.textContent = "上传中…";
       try { const r = await api("/api/push", {});
         toast("已重试"); alert(r.log || "(无输出)"); refresh(); }
       catch (e) { toast("失败: " + e.message); }
-      finally { b.disabled = false; b.textContent = "重试推送"; } };
+      finally { b.disabled = false; b.textContent = "重试上传"; }
+    };
     syncCard.appendChild(b);
   }
   g2.appendChild(syncCard);
 
   const live = s.cloud_cron_live || [];
-  g2.appendChild(card("云端", live.length ? "warn" : "ok",
-    [["自动触发", live.length ? live.length + " 个 workflow 仍有 cron" : "已全停"],
-     ["仓库角色", live.length ? "仍在自动跑" : "只做版本控制"]],
-    live.length ? live.map(x => x) : null, live.length ? "warn" : ""));
+  g2.appendChild(card("云端自动运行", live.length ? "warn" : "ok",
+    [["状态", live.length ? live.length + " 个还在自动跑" : "已全部关掉"],
+     ["现在的角色", live.length ? "仍在云端跑" : "只存代码和数据"]],
+    live.length ? live : null, live.length ? "warn" : ""));
   box.appendChild(g2);
 }
 
@@ -285,31 +410,48 @@ function renderRun(a) {
   bar.innerHTML = "";
   const groups = {};
   a.actions.forEach(x => (groups[x.group] = groups[x.group] || []).push(x));
-  Object.entries(groups).forEach(([name, items]) => {
-    const g = el("div", "grp");
-    g.appendChild(el("div", "lbl", name));
-    const row = el("div", "bar");
-    items.forEach(x => {
-      const b = el("button", "act" + (x.danger ? " danger" : ""),
-        x.name + (x.mail ? " ✉" : ""));
-      b.dataset.key = x.key;
-      b.onmouseenter = () => $("#rundesc").textContent =
-        x.desc + (x.mail ? "  【会真的发邮件】" : "");
-      b.onclick = () => run(x.key);
-      row.appendChild(b);
-    });
-    g.appendChild(row); bar.appendChild(g);
+  Object.keys(groups).sort().forEach(name => {
+    const h = el("h2", null, name);
+    h.style.cssText = "margin:4px 0 12px";
+    bar.appendChild(h);
+    const grid = el("div", "act-grid");
+    groups[name].forEach(x => grid.appendChild(actCard(x)));
+    bar.appendChild(grid);
   });
   bar.dataset.built = "1";
   syncRunButtons(a);
 }
 
+function actCard(x) {
+  const c = el("div", "act-card" + (x.danger ? " danger" : ""));
+  const top = el("div", "top");
+  top.appendChild(el("span", "no", x.no || ""));
+  top.appendChild(el("span", "nm", x.name));
+  if (x.mail) top.appendChild(el("span", "ml", "会发邮件"));
+  c.appendChild(top);
+  c.appendChild(el("div", "what", x.what || x.desc || ""));
+
+  const tg = el("button", "tg", "详细说明 ▾");
+  const more = el("div", "more", x.desc || "");
+  tg.onclick = () => {
+    c.classList.toggle("open");
+    tg.textContent = c.classList.contains("open") ? "收起 ▴" : "详细说明 ▾";
+  };
+  if (x.desc && x.desc !== x.what) { c.appendChild(tg); c.appendChild(more); }
+
+  const go = el("button", "go", "运行");
+  go.dataset.key = x.key;
+  go.onclick = () => run(x.key);
+  c.appendChild(go);
+  return c;
+}
+
 function syncRunButtons(a) {
   const running = new Set(a.running);
-  document.querySelectorAll("#runbar button").forEach(b => {
+  document.querySelectorAll("#runbar button.go").forEach(b => {
     const r = running.has(b.dataset.key);
-    b.classList.toggle("on", r);
     b.disabled = r;
+    b.textContent = r ? "正在跑…" : "运行";
   });
 }
 

@@ -120,6 +120,20 @@ class Handler(BaseHTTPRequestHandler):
             total, lines = j.tail(start)
             return self._json({**j.brief(), "next": total, "new": lines})
 
+        # 面板 iframe 里的自动刷新脚本会轮询 stamp 文件。它用的是相对
+        # 路径，而 iframe 的地址是 /panel/<key>，所以请求落在
+        # /panel/stamp.txt 上 —— 没有这条路由的话每 15 秒一个 404，
+        # 控制台的网络面板会被刷屏。
+        if p.startswith("/panel/stamp"):
+            name = p.rsplit("/", 1)[-1]
+            src = {"stamp.txt": "out", "stamp-pullback.txt": "out_pullback",
+                   "stamp-breakout.txt": "out_breakout",
+                   }.get(name, "out")
+            f = ROOT / src / "stamp.txt"
+            txt = f.read_text(encoding="utf-8") if f.exists() else ""
+            return self._send(200, txt.encode("utf-8"),
+                              "text/plain; charset=utf-8")
+
         if p.startswith("/panel/"):
             key = p.rsplit("/", 1)[-1]
             if key not in PANELS:

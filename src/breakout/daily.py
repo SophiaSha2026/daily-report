@@ -391,12 +391,50 @@ def stage_send(asof: str = "") -> int:
     return 0
 
 
+def stage_refit() -> int:
+    """只重训模型，不打分不发信。晚间系统的「模型自学」。
+
+    平时不用手点：scan 阶段发现模型超过 30 天会自己重训。这个入口是给
+    「我现在就想让它重新学一遍」用的，比如刚补了一批新数据。
+    """
+    tp = DATA / "train.parquet"
+    if not tp.exists():
+        log.error("缺 %s，先跑「补数据」和「建特征表」", tp)
+        return 1
+    df = pd.read_parquet(tp)
+    fc = [c for c in df.columns if "__" in c]
+    df[fc] = df[fc].astype("float32")
+    obj = load_or_fit(df, force=True)
+    log.info("重训完成：%d 个特征，数据截止 %s",
+             len(obj["feats"]), obj["train_cut"])
+    return 0
+
+
+def model_status() -> dict:
+    """模型的年龄和下次重训时间。控制台总览读它。"""
+    mp = model_path().with_suffix(".json")
+    if not mp.exists():
+        return {"exists": False}
+    try:
+        meta = json.loads(mp.read_text(encoding="utf-8"))
+        age = (now_bj().date() - dt.date.fromisoformat(meta["fit_date"])).days
+        return {"exists": True, "fit_date": meta["fit_date"],
+                "age_days": age, "n_feats": len(meta["feats"]),
+                "train_cut": meta["train_cut"],
+                "days_to_refit": max(MODEL_MAX_AGE - age, 0)}
+    except Exception:  # noqa: BLE001
+        return {"exists": False}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--stage", default="all", choices=["scan", "send", "all"])
+    ap.add_argument("--stage", default="all",
+                    choices=["scan", "send", "all", "refit"])
     ap.add_argument("--asof", default="")
     ap.add_argument("--refit", action="store_true", help="强制重训模型")
     a = ap.parse_args()
+    if a.stage == "refit":
+        return stage_refit()
     rc = 0
     if a.stage in ("scan", "all"):
         rc = stage_scan(a.asof, a.refit)

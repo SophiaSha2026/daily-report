@@ -40,109 +40,147 @@ PY = sys.executable
 # 环境变量和各流程自己的 dry 分支。写在这里是为了让人点之前就知道
 # 这一下会不会有邮件飞出去。
 ACTIONS: dict[str, dict] = {
+    # no    界面上的编号。1=早盘系统 2=晚间系统 3=数据维护 4=检查
+    # what  一句人话，说清楚点了会发生什么
+    # mail  会不会真的往外发邮件。这一列是给人看的，不是开关
     "morning": {
-        "name": "早盘选股", "group": "早盘系统",
+        "no": "1-1", "name": "早盘选股", "group": "1 早盘系统",
         "cmd": ["src/local_run.py", "--flow", "morning"],
         "mail": True, "danger": True,
-        "desc": "建候选池 -> 集合竞价三次采样 -> AI 写点评 -> 09:27:30 发邮件。没到点会自己等，提前跑没关系。",
+        "what": "每天早上 9:27 把当天最强的股票发到你邮箱",
+        "desc": "建候选池 -> 集合竞价三次采样 -> AI 写点评 -> 9:27:30 发邮件。"
+                "没到点会自己等着，提前点没关系。",
     },
     "morning_dry": {
-        "name": "早盘选股（试跑）", "group": "早盘系统",
+        "no": "1-1", "name": "早盘选股（试跑）", "group": "1 早盘系统",
         "cmd": ["src/local_run.py", "--flow", "morning", "--dry"],
         "mail": False, "danger": False,
-        "desc": "同上，但不发信、不推仓库。验证数据通路用。",
+        "what": "跑一遍看看会选出哪些股票，不发邮件",
+        "desc": "和上面一样，但不发信、不上传。想验证数据通不通的时候用。",
     },
     "learn": {
-        "name": "参数自学", "group": "早盘系统",
+        "no": "1-2", "name": "参数自学", "group": "1 早盘系统",
         "cmd": ["src/local_run.py", "--flow", "learn"],
         "mail": False, "danger": False,
-        "desc": "【早盘系统的一部分，收盘后跑】拿实际涨跌回头检验早盘选股的打分参数，六道检查全过才提出修改建议。它改不动准入条件（涨幅 2~5%、量比 2.5~10），那是你定的规则。",
+        "what": "回头检查早盘选股打分准不准，不准就提修改建议",
+        "desc": "拿实际涨跌验证昨天的打分，六道检查全过才提建议。"
+                "它改不动准入条件（涨幅 2~5%、量比 2.5~10），那是你定的规则。",
     },
     "premarket": {
-        "name": "早盘候选池", "group": "早盘系统",
+        "no": "3-1", "name": "早盘候选池", "group": "3 辅助工具",
         "cmd": ["src/premarket.py"],
         "mail": False, "danger": False,
-        "desc": "筛出当天要盯的股票池，3-5 分钟。早盘选股会自己判断要不要建，一般不用手点。",
+        "what": "提前筛出当天要盯的股票",
+        "desc": "3~5 分钟。早盘选股会自己判断要不要建，一般不用手点。",
     },
     "breakout": {
-        "name": "起涨预测", "group": "晚间系统",
+        "no": "2-1", "name": "起涨预测", "group": "2 晚间系统",
         "cmd": ["src/breakout/daily.py", "--stage", "all"],
         "mail": True, "danger": True,
-        "desc": "打分全市场 -> 剔除 ST/减持/解禁/增发 -> 出清单 A（接近起涨，"
-                "10 只）和清单 B（见顶信号）-> 面板 + 邮件。约 3 分钟。",
+        "what": "每天下午 5 点把可能要涨的股票发到你邮箱",
+        "desc": "给全市场打分 -> 剔掉 ST、有减持、有解禁、有增发的 -> "
+                "出清单 A（接近起涨，10 只）和清单 B（可能见顶）-> 面板 + 邮件。"
+                "约 3 分钟。",
     },
     "breakout_dry": {
-        "name": "起涨预测（试跑）", "group": "晚间系统",
+        "no": "2-1", "name": "起涨预测（试跑）", "group": "2 晚间系统",
         "cmd": ["src/breakout/daily.py", "--stage", "scan"],
         "mail": False, "danger": False,
-        "desc": "只打分出清单，不发邮件、不做面板。看看今天会选出哪些票。",
+        "what": "跑一遍看看会选出哪些股票，不发邮件",
+        "desc": "只打分出清单，不做面板也不发信。",
+    },
+    "bk_refit": {
+        "no": "2-2", "name": "模型自学", "group": "2 晚间系统",
+        "cmd": ["src/breakout/daily.py", "--stage", "refit"],
+        "mail": False, "danger": False,
+        "what": "用最新数据重新训练起涨预测的模型",
+        "desc": "平时不用点：每天跑的时候发现模型超过 30 天会自己重训。"
+                "这里是「我现在就想让它重学一遍」的入口。约 5 分钟。",
     },
     "evening": {
-        "name": "回调形态", "group": "晚间系统",
+        "no": "3-2", "name": "回调形态", "group": "3 辅助工具",
         "cmd": ["src/local_run.py", "--flow", "evening"],
         "mail": True, "danger": True,
-        "desc": "找「放量启动 -> 缩量回调 -> 再次启动」的形态。每日自动报告已于 "
-                "2026-09-12 停用，这里是手动入口。平均每个交易日约 1 只，0 只是常态，不是故障。",
+        "what": "找「涨停后缩量回调、现在重新启动」的股票",
+        "desc": "每日自动发送已于 2026-09-12 关掉，这里是手动入口。"
+                "平均每个交易日约 1 只，0 只是常态不是故障。",
     },
     "bk_backfill": {
-        "name": "补数据", "group": "晚间系统·模型维护",
+        "no": "3-3", "name": "补数据", "group": "3 辅助工具",
         "cmd": ["src/breakout/backfill.py", "--stage", "sina"],
         "mail": False, "danger": False,
-        "desc": "下载全市场三年日线。中断了可以接着跑，已下好的会跳过。首次约 70 分钟，之后只补新增的那几天。",
+        "what": "下载全市场三年日线，起涨预测要用",
+        "desc": "中断了可以接着跑，已下好的会跳过。首次约 70 分钟，"
+                "之后每天只补新增的那一天。",
     },
     "bk_build": {
-        "name": "建特征表", "group": "晚间系统·模型维护",
+        "no": "3-4", "name": "算特征", "group": "3 辅助工具",
         "cmd": ["src/breakout/build.py"],
         "mail": False, "danger": False,
-        "desc": "把日线算成模型能用的特征表：筹码分布、量价指标、股东人数等，再按全市场当日排名归一。约 13 分钟，产出 426 万行 x 87 个特征。",
+        "what": "把日线算成模型能用的数据",
+        "desc": "筹码分布、量价指标、股东人数等，再按当天全市场排名归一。"
+                "约 13 分钟，产出 426 万行 x 87 个指标。",
     },
     "bk_arena": {
-        "name": "模型对比", "group": "晚间系统·模型维护",
+        "no": "3-5", "name": "比模型", "group": "3 辅助工具",
         "cmd": ["src/breakout/arena.py"],
         "mail": False, "danger": False,
-        "desc": "筛特征 + 逐月滚动测试几个模型，看哪个准。**读不到封存的那 9 个月**，那段数据只许验收时用一次。约 25 分钟。",
-    },
-    "selftest_breakout": {
-        "name": "起涨预测自检", "group": "自检",
-        "cmd": ["src/selftest_breakout.py"], "mail": False, "danger": False,
-        "desc": "检查筹码算法的六条数学性质、涨跌标注是否正确、有没有偷看未来数据、当日排名是否抹掉了大盘涨跌。2.6 秒。",
-    },
-    "selftest": {
-        "name": "早盘选股自检", "group": "自检",
-        "cmd": ["src/selftest.py"], "mail": False, "danger": False,
-        "desc": "17 个打分用例 + 9 条打分曲线形状检查 + 4 条规则检查 + 1000 个随机样本。",
-    },
-    "selftest_pullback": {
-        "name": "回调形态自检", "group": "自检",
-        "cmd": ["src/selftest_pullback.py"], "mail": False, "danger": False,
-        "desc": "13 条形态判定 + 打分排序是否单调 + 工具函数。",
-    },
-    "selftest_learn": {
-        "name": "参数自学自检", "group": "自检",
-        "cmd": ["src/selftest_learn.py"], "mail": False, "danger": False,
-        "desc": "70 余条。重点检查两套打分代码结果是否完全一致、检查项有没有接错线、邮件发得出去。",
-    },
-    "probe": {
-        "name": "数据源体检", "group": "自检",
-        "cmd": ["tools/probe.py"], "mail": False, "danger": False,
-        "desc": "逐个探测行情数据源通不通 + 本地依赖装齐没有。东方财富连不上不影响出榜，只是慢一点。",
+        "what": "试几种模型，看哪个预测得准",
+        "desc": "读不到封存的那 9 个月数据 —— 那段只许最终验收时用一次。"
+                "约 25 分钟。",
     },
     "refresh_meta": {
-        "name": "刷新股票代码表", "group": "维护",
+        "no": "3-6", "name": "更新股票名单", "group": "3 辅助工具",
         "cmd": ["src/refresh_meta.py"], "mail": False, "danger": False,
-        "desc": "重新下载全市场股票代码表和行业分类。每周一次就够。",
+        "what": "重新下载全市场股票代码和行业分类",
+        "desc": "每周一次就够。",
     },
     "refresh_sector": {
-        "name": "刷新行业成分", "group": "维护",
+        "no": "3-7", "name": "更新行业成分", "group": "3 辅助工具",
         "cmd": ["src/refresh_sector.py"], "mail": False, "danger": False,
-        "desc": "开一个真浏览器去同花顺抓行业成分。它认浏览器指纹，用程序直接请求会被拒，所以必须这么绕。",
+        "what": "重新抓每个行业有哪些股票",
+        "desc": "会开一个真浏览器去抓，因为对方认浏览器指纹，"
+                "用程序直接请求会被拒。",
     },
     "build_site": {
-        "name": "重建网页面板", "group": "维护",
+        "no": "3-8", "name": "重建网页", "group": "3 辅助工具",
         "cmd": ["src/build_site.py"], "mail": False, "danger": False,
-        "desc": "把各条流程的网页面板打包发布。所有面板共用一个网站。",
+        "what": "把所有面板打包发到网站上",
+        "desc": "手机上看的就是这个网站。",
+    },
+    "selftest": {
+        "no": "4-1", "name": "检查早盘选股", "group": "4 检查",
+        "cmd": ["src/selftest.py"], "mail": False, "danger": False,
+        "what": "确认早盘选股的打分逻辑没被改坏",
+        "desc": "17 个打分用例 + 9 条曲线形状检查 + 4 条规则检查 + 1000 个随机样本。",
+    },
+    "selftest_learn": {
+        "no": "4-2", "name": "检查参数自学", "group": "4 检查",
+        "cmd": ["src/selftest_learn.py"], "mail": False, "danger": False,
+        "what": "确认参数自学没被改坏",
+        "desc": "70 余条。重点是两套打分代码结果要完全一致、检查项别接错线。",
+    },
+    "selftest_breakout": {
+        "no": "4-3", "name": "检查起涨预测", "group": "4 检查",
+        "cmd": ["src/selftest_breakout.py"], "mail": False, "danger": False,
+        "what": "确认起涨预测没被改坏，特别是没偷看未来数据",
+        "desc": "筹码算法的六条数学性质、涨跌标注、偷看未来检测、"
+                "当天排名是否抹掉了大盘涨跌。",
+    },
+    "selftest_pullback": {
+        "no": "4-4", "name": "检查回调形态", "group": "4 检查",
+        "cmd": ["src/selftest_pullback.py"], "mail": False, "danger": False,
+        "what": "确认回调形态没被改坏",
+        "desc": "13 条形态判定 + 打分排序 + 工具函数。",
+    },
+    "probe": {
+        "no": "4-5", "name": "检查数据源", "group": "4 检查",
+        "cmd": ["tools/probe.py"], "mail": False, "danger": False,
+        "what": "看看行情数据下载得通不通",
+        "desc": "逐个探测数据源。东方财富连不上不影响出榜，只是慢一点。",
     },
 }
+
 
 _seq = itertools.count(1)
 

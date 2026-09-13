@@ -33,18 +33,19 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 # 这里重复一份而不是 import，是因为 GUI 不该因为 local_run 的依赖
 # （akshare 之类）而起不来。字段少，漂了也一眼看得出来。
 LINES = [
-    {"key": "morning", "name": "早盘选股", "meta": "out/run_meta.json",
-     "panel": "out/panel.html", "due": "09:27:30",
-     "task": "DailyReport-Local-Morning"},
-    {"key": "evening", "name": "回调形态", "meta": "out_pullback/run_meta.json",
-     "panel": "out_pullback/panel.html", "due": "已停用自动",
-     "task": None},
-    {"key": "learn", "name": "参数自学", "meta": "state/learning_status.json",
-     "panel": "out_learn/learn.html", "due": "收盘后",
-     "task": "DailyReport-Local-Learn"},
-    {"key": "breakout", "name": "起涨预测", "meta": "out_breakout/run_meta.json",
-     "panel": "out_breakout/panel.html", "due": "17:00",
-     "task": "DailyReport-Local-Evening"},
+    # system 字段决定总览页归到哪一组。仓库里就两个系统，别再加第三个。
+    {"key": "morning", "name": "早盘选股", "system": "早盘系统",
+     "meta": "out/run_meta.json", "panel": "out/panel.html",
+     "due": "09:27:30", "task": "DailyReport-Local-Morning"},
+    {"key": "learn", "name": "参数自学", "system": "早盘系统",
+     "meta": "state/learning_status.json", "panel": "out_learn/learn.html",
+     "due": "收盘后", "task": "DailyReport-Local-Learn"},
+    {"key": "breakout", "name": "起涨预测", "system": "晚间系统",
+     "meta": "out_breakout/run_meta.json", "panel": "out_breakout/panel.html",
+     "due": "17:00", "task": "DailyReport-Local-Evening"},
+    {"key": "evening", "name": "回调形态", "system": "辅助工具",
+     "meta": "out_pullback/run_meta.json", "panel": "out_pullback/panel.html",
+     "due": "已停用自动", "task": None},
 ]
 
 
@@ -183,6 +184,7 @@ def line_status(tasks: dict) -> list[dict]:
         t = tasks.get(ln["task"] or "", {})
         out.append({
             "key": ln["key"], "name": ln["name"], "due": ln["due"],
+            "system": ln["system"],
             "done": done, "date": meta.get("date", ""),
             "n": meta.get("n"), "panel_date": pdate, "panel_mtime": pmtime,
             "task": ln["task"], "task_state": t.get("state", ""),
@@ -190,6 +192,27 @@ def line_status(tasks: dict) -> list[dict]:
             "task_next": t.get("next", ""),
         })
     return out
+
+
+def breakout_model() -> dict:
+    """起涨预测的模型状态。晚间系统的自学习是否在正常转，看这个。
+
+    不 import breakout.daily（那会连带拉起 lightgbm/pandas，控制台就起不来了），
+    直接读它写的 json。字段漂了这里会返回 exists=False，界面上看得见。
+    """
+    f = ROOT / "state" / "breakout" / "model.json"
+    if not f.exists():
+        return {"exists": False}
+    try:
+        m = json.loads(f.read_text(encoding="utf-8"))
+        age = (now_bj().date()
+               - dt.date.fromisoformat(m["fit_date"])).days
+        return {"exists": True, "fit_date": m["fit_date"], "age_days": age,
+                "n_feats": len(m.get("feats", [])),
+                "train_cut": m.get("train_cut", ""),
+                "days_to_refit": max(30 - age, 0)}
+    except Exception:  # noqa: BLE001
+        return {"exists": False}
 
 
 def overview() -> dict:
@@ -213,5 +236,6 @@ def overview() -> dict:
         "sync": sync,
         "tasks": tasks,
         "cloud_cron_live": cloud_live,
+        "model": breakout_model(),
         "generated": dt.datetime.now().strftime("%H:%M:%S"),
     }
