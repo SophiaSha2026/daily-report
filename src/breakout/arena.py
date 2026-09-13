@@ -84,7 +84,7 @@ def guard_holdout(config: dict) -> None:
 
 
 def run(with_holdout: bool = False, top_n: int = 10,
-        quick: bool = False) -> int:
+        quick: bool = False, with_l2: bool = False) -> int:
     t0 = time.time()
     OUT.mkdir(parents=True, exist_ok=True)
     df = load(with_holdout)
@@ -107,10 +107,16 @@ def run(with_holdout: bool = False, top_n: int = 10,
     zoo = [("L0_logistic", lambda: M.L0Logistic()),
            ("L1_lightgbm", lambda: M.L1Lgbm(
                n_estimators=150 if quick else 400))]
-    if M.L2Gru.available():
-        zoo.append(("L2_gru", lambda: M.L2Gru(epochs=3 if quick else 6)))
-    else:
-        log.warning("torch 没装，L2 序列模型跳过")
+    # L2 默认不进擂台：2026-09-12 在验证集上实测它比 L0 线性尺子还差
+    # 4.06 个百分点（4.40% vs 8.45%）。原因是 model.py 的 _seq 从三个
+    # 统计量线性重建 5 步序列，这个近似不但丢信息还引入了不存在的平滑
+    # 结构。要救它得在 build 阶段落逐日 [5x26] 真序列（训练表膨胀 5 倍）。
+    # 用 --with-l2 可以强行拉它进来复现这个结论。
+    if with_l2:
+        if M.L2Gru.available():
+            zoo.append(("L2_gru", lambda: M.L2Gru(epochs=3 if quick else 6)))
+        else:
+            log.warning("torch 没装，L2 序列模型跳过")
 
     end = "2026-10-01" if with_holdout else V.VALID_END
     results = {}
@@ -121,10 +127,26 @@ def run(with_holdout: bool = False, top_n: int = 10,
         if not len(by_month):
             log.warning("%s 没有有效月份，跳过", name)
             continue
-        acc = V.acceptance(by_month, extra["picks"], df)
+        # holdout 模式下走向前跨了验证集段和 holdout 段两截，
+        # **验收只能看 holdout 那一截**，混在一起算等于让已经看过的
+        # 验证集月份去稀释（或美化）最终成绩。
+        if with_holdout:
+            hp = extra["picks"][extra["picks"]["month"] >= HOLDOUT_START[:7]]
+            hb = by_month[by_month["month"] >= HOLDOUT_START[:7]]
+            hd = df[df["date"] >= HOLDOUT_START]
+            acc = V.acceptance(hb, hp, hd)
+            acc_valid = V.acceptance(
+                by_month[by_month["month"] < HOLDOUT_START[:7]],
+                extra["picks"][extra["picks"]["month"] < HOLDOUT_START[:7]],
+                df[df["date"] < HOLDOUT_START])
+            log.info("%s 验证集段 %.2f%%（%.1f倍）",
+                     name, 100 * acc_valid["overall_hit"], acc_valid["lift"])
+        else:
+            acc = V.acceptance(by_month, extra["picks"], df)
         results[name] = {"by_month": by_month, "acc": acc}
-        log.info("%s 总命中 %.2f%%（基础 %.2f%%，%.1f倍）验收 %s",
-                 name, 100 * acc["overall_hit"], 100 * acc["base_rate"],
+        log.info("%s %s %.2f%%（基础 %.2f%%，%.1f倍）验收 %s",
+                 name, "HOLDOUT 命中" if with_holdout else "总命中",
+                 100 * acc["overall_hit"], 100 * acc["base_rate"],
                  acc["lift"], "通过" if acc["ok"] else "不通过")
 
     if not results:
@@ -167,10 +189,12 @@ def main() -> int:
                     help="动 holdout。全程只许一次，脚本会拦第二次")
     ap.add_argument("--top-n", type=int, default=10, help="清单 A 每天几只")
     ap.add_argument("--quick", action="store_true", help="减少迭代，快速冒烟")
+    ap.add_argument("--with-l2", action="store_true",
+                    help="把 L2 序列模型拉回擂台（已证明是负贡献）")
     a = ap.parse_args()
     if a.holdout:
         guard_holdout({"top_n": a.top_n, "quick": a.quick})
-    return run(a.holdout, a.top_n, a.quick)
+    return run(a.holdout, a.top_n, a.quick, a.with_l2)
 
 
 if __name__ == "__main__":
