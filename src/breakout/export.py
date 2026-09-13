@@ -203,10 +203,12 @@ def write_panel(a: pd.DataFrame, b: pd.DataFrame, meta: dict,
 
 
 def send_mail(date: str, a: pd.DataFrame, b: pd.DataFrame,
-              meta: dict) -> None:
+              meta: dict, tag: str = "") -> None:
+    """tag 给补发用：主题上标出来，免得和当天那封混在一起。"""
     c = _conf()
     m = EmailMessage()
-    m["Subject"] = f"起涨预测 {date}：A {len(a)} 只 / B {len(b)} 只"
+    pre = f"[{tag}] " if tag else ""
+    m["Subject"] = f"{pre}起涨预测 {date}：A {len(a)} 只 / B {len(b)} 只"
     m["From"] = c["user"]
     m["To"] = ", ".join(c["to"])
     m.set_content("请用支持 HTML 的客户端查看。")

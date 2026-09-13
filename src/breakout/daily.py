@@ -298,6 +298,55 @@ def update_pool(picks: pd.DataFrame, date: str) -> dict:
 
 
 # ---------------------------------------------------------------
+def build_list_b(df: pd.DataFrame, pool: dict,
+                 asof: str = "") -> pd.DataFrame:
+    """清单 B：A 池里的票**涨上去之后**见顶。
+
+    用户的原意是「A 清单的票涨了一波，现在到顶了」。所以三个条件缺一不可：
+
+      1. 进池后至少过了 MIN_HOLD_DAYS 个交易日（当天进池当天见顶是荒谬的）
+      2. 进池之后确实涨过 RISE_MIN（没涨过就谈不上「波段结束」）
+      3. 现在从那个高点回落 8%~20%，且高点就在最近 10 天内
+
+    第一版漏了前两条，结果 A 池刚建立当天，5 只票同时出现在 A 和 B 上，
+    一边说「接近起涨」一边说「见顶」。
+
+    `df` 只需要 code / date / close 三列，所以补发历史清单时可以喂
+    `daily.parquet`（122MB）而不是 `train.parquet`（2.5GB）。
+    `asof` 给补发用：只看到那一天为止的价格，不许用之后的。
+    """
+    if asof:
+        df = df[df["date"] <= asof]
+    bl = []
+    for c, info in pool.items():
+        g = df[df["code"] == c].sort_values("date")
+        first = info.get("first", "")
+        after = g[g["date"] >= first]
+        if len(after) < MIN_HOLD_DAYS:
+            continue
+        px = after["close"].to_numpy(float)
+        if len(px) < 3 or not np.isfinite(px).all() or px[0] <= 0:
+            continue
+        peak_i = int(np.nanargmax(px))
+        peak = float(px[peak_i])
+        rise = peak / px[0] - 1                 # 进池之后涨了多少
+        drop = px[-1] / peak - 1                # 从高点回落多少
+        recent_peak = (len(px) - 1 - peak_i) <= 10
+        if rise >= RISE_MIN and -0.20 < drop < -0.08 and recent_peak:
+            # 清单 B 的列和清单 A 对齐：代码 / 名称 / 分数 / 上榜天数 /
+            # 历史准确率 / 现价。准确率由 export 按 streak 换算，
+            # 这里只把它上清单 A 时的最长连续天数带出去。
+            bl.append({"code": c, "name": info.get("name", ""),
+                       "best": info["best"],
+                       "days": int(info.get("days", 0)),
+                       "streak": int(info.get("streak", 1) or 1),
+                       "close": float(px[-1]),
+                       "rise": round(100 * rise, 1),
+                       "drop": round(100 * drop, 1),
+                       "first": first})
+    return pd.DataFrame(bl)
+
+
 def count_streak(code: str, date: str) -> int:
     """这只票在 date **之前**已经连续够格几天。
 
@@ -385,42 +434,7 @@ def stage_scan(asof: str = "", force_fit: bool = False) -> int:
 
     pool = update_pool(picks, date)
 
-    # ---- 清单 B：A 池里的票**涨上去之后**见顶 ----
-    # 用户的原意是「A 清单的票涨了一波，现在到顶了」。所以三个条件缺一不可：
-    #   1. 进池后至少过了 MIN_HOLD_DAYS 个交易日（当天进池当天见顶是荒谬的）
-    #   2. 进池之后确实涨过 RISE_MIN（没涨过就谈不上「波段结束」）
-    #   3. 现在从那个高点回落 8%~20%，且高点就在最近 10 天内
-    #
-    # 第一版漏了前两条，结果 A 池刚建立当天，5 只票同时出现在 A 和 B 上，
-    # 一边说「接近起涨」一边说「见顶」。
-    bl = []
-    for c, info in pool.items():
-        g = df[df["code"] == c].sort_values("date")
-        first = info.get("first", "")
-        after = g[g["date"] >= first]
-        if len(after) < MIN_HOLD_DAYS:
-            continue
-        px = after["close"].to_numpy(float)
-        if len(px) < 3 or not np.isfinite(px).all() or px[0] <= 0:
-            continue
-        peak_i = int(np.nanargmax(px))
-        peak = float(px[peak_i])
-        rise = peak / px[0] - 1                 # 进池之后涨了多少
-        drop = px[-1] / peak - 1                # 从高点回落多少
-        recent_peak = (len(px) - 1 - peak_i) <= 10
-        if rise >= RISE_MIN and -0.20 < drop < -0.08 and recent_peak:
-            # 清单 B 的列和清单 A 对齐：代码 / 名称 / 分数 / 上榜天数 /
-            # 历史准确率 / 现价。准确率由 export 按 streak 换算，
-            # 这里只把它上清单 A 时的最长连续天数带出去。
-            bl.append({"code": c, "name": info.get("name", ""),
-                       "best": info["best"],
-                       "days": int(info.get("days", 0)),
-                       "streak": int(info.get("streak", 1) or 1),
-                       "close": float(px[-1]),
-                       "rise": round(100 * rise, 1),
-                       "drop": round(100 * drop, 1),
-                       "first": first})
-    blist = pd.DataFrame(bl)
+    blist = build_list_b(df, pool)
     log.info("清单 B：%d 只（A 池 %d 只）", len(blist), len(pool))
 
     OUT.mkdir(parents=True, exist_ok=True)
