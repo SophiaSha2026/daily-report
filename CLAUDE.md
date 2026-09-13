@@ -7,15 +7,24 @@ GitHub 仓库只做版本控制。每交易日 09:27:30（北京时间）把竞�
 主界面是本地控制台 `tools/gui.cmd`（桌面「A股流水线」），
 自动跑靠 Windows 计划任务 `DailyReport-Local-*`。
 
-## 名称对照（界面上只用「统一名称」，别用代号）
+## 两个系统（仓库里就这两个，别再分出第三个）
 
-| 统一名称 | 内部代号 | 跑的时间 | 状态 |
+| 系统 | 包含 | 发信时间 | 计划任务 |
 |---|---|---|---|
-| **早盘选股** | auction / morning / 竞价线 | 每交易日 09:27:30 发邮件 | 在跑 |
-| **回调形态** | pullback / evening / 形态线 | 收盘后 | 自动已停，只剩手动 |
-| **参数自学** | learn / 学习线 | 收盘后 | 在跑 |
-| **起涨预测** | breakout / 爆发线 | 下午 5 点（计划） | 模型已验收，每日流程未做 |
-| **控制台** | GUI | 桌面「A股流水线」 | 在用 |
+| **早盘系统** | 早盘选股 + 参数自学 | 每交易日 09:27:30 | `DailyReport-Local-Morning`（美东周日~周四 18:00 起）<br>`DailyReport-Local-Learn`（美东周一~周五 04:40 起） |
+| **晚间系统** | 起涨预测（+ 回调形态，自动已停） | 每交易日 17:00 | `DailyReport-Local-Evening`（美东周一~周五 04:30 起） |
+
+「参数自学」属于早盘系统（它调的是早盘选股的参数），只是运行时间在收盘后。
+
+### 名称对照（界面上只用「统一名称」，别用代号）
+
+| 统一名称 | 内部代号 | 归属 |
+|---|---|---|
+| **早盘选股** | auction / morning / 竞价线 | 早盘系统 |
+| **参数自学** | learn / 学习线 | 早盘系统 |
+| **起涨预测** | breakout / 爆发线 | 晚间系统 |
+| **回调形态** | pullback / evening / 形态线 | 晚间系统（自动已停，只剩手动） |
+| **控制台** | GUI | 桌面「A股流水线」，所有东西的唯一入口 |
 
 术语也统一，界面和对用户的说明里不许出现下面左边那列：
 
@@ -91,7 +100,9 @@ src/
   breakout/build.py      组装训练表
   breakout/model.py      L0 逻辑回归 / L1 LightGBM / L2 GRU / L3 集成
   breakout/validate.py   走向前 + 验收表
-  breakout/arena.py      擂台主脚本，holdout 纪律在这里用代码强制
+  breakout/arena.py      模型对比主脚本，封存数据的纪律在这里用代码强制
+  breakout/daily.py      每日流程：打分 -> 风险剔除 -> 清单A/B。晚间系统主脚本
+  breakout/export.py     起涨预测的面板 + 邮件
   ── 控制台（GUI，2026-09-12）──
   gui/server.py          HTTP 服务。标准库 ThreadingHTTPServer，零第三方依赖
   gui/ui.py              单页界面（HTML/CSS/JS 都在这个字符串里）
