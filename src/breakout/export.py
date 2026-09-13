@@ -85,15 +85,27 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
           f'<table><tr><th>#</th><th>代码</th><th>名称</th>'
           f'<th>分数</th><th>现价</th></tr>{_rows_a(a)}</table>')
     tb = (f'<h1 style="margin-top:22px">清单 B · 见顶信号</h1>'
-          f'<div class="sub">曾在清单 A 拿过 90 分以上、现在从近期高点回落的股票</div>'
+          f'<div class="sub">曾在清单 A 拿过 90 分以上、之后涨过一波、现在见顶回落的股票</div>'
           f'<table><tr><th>#</th><th>代码</th><th>名称</th>'
           f'<th>曾用最高分</th><th>距高点</th></tr>{_rows_b(b)}</table>')
-    foot = ('<div class="tip">清单 B 目前用的是规则判定（从近期高点回落 '
-            '8%~20% 且高点在最近 10 天内），不是训练出来的模型。'
-            '等清单 A 积累出足够样本后会换成模型。</div>')
-    js = REFRESH_JS.replace("__STAMPFILE__", "stamp-breakout.txt") \
-        if for_panel else ""
-    return head + tip + ta + tb + foot + js
+    foot = ('<div class="tip">清单 B 的三个条件：进清单 A 满 5 个交易日、'
+            '进入后涨过 20%、现在从那个高点回落 8%~20% 且高点在最近 10 天内。'
+            '目前是规则判定，不是训练出来的模型 —— 等清单 A 积累出足够样本'
+            '后会换成模型。</div>')
+    # 自动刷新脚本只放面板，不放邮件（邮件客户端会剥掉 script，放了也没用）。
+    # 三件事缺一不可，缺了就会像 2026-09-13 那次一样把整段 JS 当正文印出来：
+    #   1. 包在 <script> 里
+    #   2. __STAMPFILE__ 换成本面板自己的 stamp 文件名
+    #   3. __STAMP__ / __DATE__ 换成当前日期，否则脚本一跑就判定自己过期
+    if for_panel:
+        js = ("<script>" + REFRESH_JS
+              .replace("__STAMPFILE__", "stamp-breakout.txt")
+              .replace("__STAMP__", date)
+              .replace("__DATE__", date) + "</script>")
+        stale = '<div id="stale"></div>'
+    else:
+        js, stale = "", ""
+    return stale + head + tip + ta + tb + foot + js
 
 
 def write_panel(a: pd.DataFrame, b: pd.DataFrame, meta: dict,

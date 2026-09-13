@@ -52,13 +52,6 @@ ACTIONS: dict[str, dict] = {
         "mail": False, "danger": False,
         "desc": "同上，但不发信、不推仓库。验证数据通路用。",
     },
-    "evening": {
-        "name": "回调形态", "group": "晚间系统",
-        "cmd": ["src/local_run.py", "--flow", "evening"],
-        "mail": True, "danger": True,
-        "desc": "找「放量启动 -> 缩量回调 -> 再次启动」的形态。每日自动报告已于 "
-                "2026-09-12 停用，这里是手动入口。平均每个交易日约 1 只，0 只是常态，不是故障。",
-    },
     "learn": {
         "name": "参数自学", "group": "早盘系统",
         "cmd": ["src/local_run.py", "--flow", "learn"],
@@ -83,6 +76,13 @@ ACTIONS: dict[str, dict] = {
         "cmd": ["src/breakout/daily.py", "--stage", "scan"],
         "mail": False, "danger": False,
         "desc": "只打分出清单，不发邮件、不做面板。看看今天会选出哪些票。",
+    },
+    "evening": {
+        "name": "回调形态", "group": "晚间系统",
+        "cmd": ["src/local_run.py", "--flow", "evening"],
+        "mail": True, "danger": True,
+        "desc": "找「放量启动 -> 缩量回调 -> 再次启动」的形态。每日自动报告已于 "
+                "2026-09-12 停用，这里是手动入口。平均每个交易日约 1 只，0 只是常态，不是故障。",
     },
     "bk_backfill": {
         "name": "补数据", "group": "晚间系统·模型维护",

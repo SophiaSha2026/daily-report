@@ -80,10 +80,16 @@ tr:hover td{background:#1b1f26}
 .mono{font-family:Consolas,monospace;font-size:12px}
 .muted{color:#7d8590}
 iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
-.tabs{display:flex;gap:2px;background:#1a1d23;border-bottom:1px solid #2a2f38;flex:none}
+.tabs{display:flex;gap:2px;background:#1a1d23;border-bottom:1px solid #2a2f38;
+   flex:none;overflow-x:auto;white-space:nowrap}
+.tabs button{flex:none}
 .tabs button{background:none;border:none;color:#8f9aa8;padding:9px 16px;
    font-size:13px;cursor:pointer;border-bottom:2px solid transparent}
 .tabs button.on{color:#e6e6e6;border-bottom-color:#c1440e}
+.tabs .tabgrp{align-self:center;font-family:var(--mono);font-size:10px;
+   letter-spacing:.1em;color:#6B7683;padding:0 8px 0 14px}
+.tabs .tabsep{align-self:center;width:1px;height:16px;background:#2a2f38;
+   margin:0 4px}
 .frame{display:flex;flex-direction:column;height:100%}
 .frame>.body{flex:1;min-height:0}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
@@ -128,10 +134,13 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
   <section id="v-panel" hidden class="flush">
     <div class="frame">
       <div class="tabs">
+        <span class="tabgrp">早盘系统</span>
         <button data-p="auction" class="on">早盘选股</button>
-        <button data-p="pullback">回调形态</button>
-        <button data-p="breakout">起涨预测</button>
         <button data-p="learn">参数自学</button>
+        <span class="tabsep"></span>
+        <span class="tabgrp">晚间系统</span>
+        <button data-p="breakout">起涨预测</button>
+        <button data-p="pullback">回调形态</button>
       </div>
       <div class="body"><iframe id="pframe" src="/panel/auction"></iframe></div>
     </div>
