@@ -218,6 +218,31 @@ def check_quote_wiring() -> None:
     ck(ok, "每处 fetch_quotes 的参数都经过 to_symbol 转了市场前缀")
 
 
+def check_panel_html() -> None:
+    """面板/邮件的 HTML 里不许出现 markdown 语法。
+
+    2026-09-13 犯了两次：DISCLAIMER 里写了 **排名**、分数对照表里写了
+    **前 10 名**，在 HTML 里都原样显示成星号。写 HTML 就用 <b>，
+    这条断言防的是「下次又顺手打了两个星号」。
+    """
+    print("\n[面板 HTML]")
+    import export as E
+    fake_a = pd.DataFrame({"code": ["600000"], "name": ["测试"],
+                           "score": [95.0], "close": [10.0]})
+    fake_b = pd.DataFrame(columns=["code", "name", "best", "drop"])
+    for for_panel in (True, False):
+        html = E._body("2026-09-11", fake_a, fake_b,
+                       {"rejected": 0, "model_date": "2026-09-13"}, for_panel)
+        tag = "面板" if for_panel else "邮件"
+        ck("**" not in html, f"{tag}里没有 markdown 粗体（**）")
+        ck("__STAMP" not in html and "__DATE__" not in html,
+           f"{tag}里没有没替换的占位符")
+    html = E._body("2026-09-11", fake_a, fake_b, {}, True)
+    ck(html.count("<script>") == 1, "面板有且只有一个 script 标签")
+    ck(E._body("2026-09-11", fake_a, fake_b, {}, False).count("<script") == 0,
+       "邮件里没有 script（邮件客户端会剥掉）")
+
+
 def main() -> int:
     t0 = time.time()
     check_chips()
@@ -226,6 +251,7 @@ def main() -> int:
     check_cross_section()
     check_wiring()
     check_quote_wiring()
+    check_panel_html()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")
