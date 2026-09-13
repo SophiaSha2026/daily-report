@@ -29,3 +29,13 @@ tools/local_flow.log
 
 # 本机推送状态，控制台总览读它。每次推送都变，进仓库只是噪音
 state/push_status.json
+
+# 起涨预测的中间数据。都能从 backfill + build 重新生成，而且很大
+# （train.parquet 2.4GB，远超 GitHub 单文件 100MB 的上限）。
+# 每日清单 data/breakout/YYYY-MM/breakout_*.parquet 要入库 ——
+# 连续天数靠它数，丢了连续计数就断了。
+data/breakout/raw/
+data/breakout/daily.parquet
+data/breakout/train.parquet
+data/breakout/holders.parquet
+data/breakout/shares.parquet
