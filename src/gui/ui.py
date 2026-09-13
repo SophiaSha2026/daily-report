@@ -345,11 +345,14 @@ function renderHome(s) {
   const mp = s.morning_perf || {};
   if (mp.exists) {
     const hitPct = 100 * mp.hit, exc = 100 * mp.excess;
-    c1.appendChild(perfBlock("这个系统准不准（" + mp.days + " 个交易日实测）", [
-      perfRow("榜上的票", hitPct.toFixed(1), "%", (hitPct - 45) / 10 * 100, false),
-      perfRow("随便买", "50.0", "%", (50 - 45) / 10 * 100, true),
-    ], "榜上的票有 " + hitPct.toFixed(1) + "% 跑赢当天大盘（随便买是 50%），"
-     + "平均每只比大盘多赚 " + exc.toFixed(2) + "%。优势不大但是稳定的。"));
+    c1.appendChild(perfBlock(
+      "100 只票里，有多少当天跑赢了大盘？（" + mp.days + " 个交易日实测）", [
+      perfRow("按榜单买", hitPct.toFixed(1) + " 只", "",
+              (hitPct - 45) / 10 * 100, false),
+      perfRow("随便买", "50.0 只", "", (50 - 45) / 10 * 100, true),
+    ], "榜上的票平均每只比大盘多赚 " + exc.toFixed(2) + "%。"
+     + "跑赢的比例只比随便买高一点点（50.3 对 50.0），"
+     + "优势主要在那 " + exc.toFixed(2) + "% 的超额上，不在「挑中上涨的票」上。"));
   }
   box.appendChild(c1);
 
@@ -365,12 +368,15 @@ function renderHome(s) {
             mo.exists ? mo.days_to_refit + " 天后重学" : "点 2-2 训练"),
   ]);
   const hit = 14.43, base = 2.91;
-  c2.appendChild(perfBlock("这个系统准不准（模型从没见过的 8 个月实测）", [
-    perfRow("清单里的票", hit.toFixed(2), "%", 100, false),
-    perfRow("随便买", base.toFixed(2), "%", base / hit * 100, true),
-  ], "清单里每 10 只，大约 " + (hit / 10).toFixed(1)
-   + " 只会在接下来一个月内涨超 50%，是随便买的 " + (hit / base).toFixed(1)
-   + " 倍。不是「选出来的都会涨」。"));
+  c2.appendChild(perfBlock(
+    "100 只票里，有多少会在接下来一个月内涨超 50%？（用模型从没见过的 8 个月算的）", [
+    perfRow("按清单买", hit.toFixed(1) + " 只", "", 100, false),
+    perfRow("随便买", base.toFixed(1) + " 只", "", base / hit * 100, true),
+  ], "也就是每天那 10 只里，大约 " + (hit / 10).toFixed(1)
+   + " 只会涨超 50%，随便买只有 " + (base / 10).toFixed(1) + " 只，差 "
+   + (hit / base).toFixed(1) + " 倍。"
+   + "反过来说：10 只里仍有 8~9 只涨不到 50%，这份清单是提高出黑马的密度，"
+   + "不是「选出来的都会涨」。"));
   box.appendChild(c2);
 
   return renderSync(box, s);
