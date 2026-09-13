@@ -58,11 +58,21 @@ log = logging.getLogger("breakout")
 #   · 用户原话「如果当天没有符合要求的个股，清单可以为空」——
 #     所以够格才上，弱势日就空着，不凑数
 #   · 用户原话「如某个个股持续符合条件，可以连续几个交易日推荐」——
-#     连续够格的天数是最强的单一信号，实测：
-#         ≥97 分不看连续   15.43%（4.34 倍）
-#         ≥97 分 连续 2 天  25.81%（7.26 倍）
-#         ≥97 分 连续 3 天  32.04%（9.01 倍）
+#     连续够格的天数是最强的单一信号。实验 8 用**生产口径**（≥97 分按
+#     预测值取前 10，就是下面这段代码在做的事）重测：
+#         全部上榜的       18.04%（5.1 倍，样本 815）
+#         连续 2 天         25.65%（7.2 倍，样本 230）
+#         连续 3 天         31.31%（8.8 倍，样本  99）
+#         连续 4 天         32.61%（9.2 倍，样本  46）
+#         连续 5 天         35.00%（9.9 倍，样本  20）
 #     光有分数门槛没用，门槛 + 持续性才有效。
+#     实验 7 报的 15.43 / 25.81 / 32.04 是「每天只看前 30 名」的口径，
+#     和生产不一致，已作废；邮件和面板一律用上面这组。
+#
+# 入选条件只看**当天**（2026-09-13 用户确认）。实验 8 另测了「过去 5 个
+# 交易日内够格 ≥k 次」当入选条件：≥3 次 28.85%、≥4 次 30.14%，和同 k 的
+# 连续版在误差内持平，但每天出票从 3.94 只掉到 0.75 只。用户决定不改
+# 入选规则，连续天数继续只用来排序和展示。
 SCORE_MIN = 97      # 够不到这个分数就不上清单，当天可以为空
 CAP_A = 10          # 上限。防止极端强势日几百只同时够格，清单没法看
 TOP_A = CAP_A       # 兼容旧名字
@@ -249,7 +259,16 @@ def pool_path() -> Path:
 
 
 def update_pool(picks: pd.DataFrame, date: str) -> dict:
-    """把当天 90 分以上的票记进 A 池，顺便清掉过期的。"""
+    """把当天 90 分以上的票记进 A 池，顺便清掉过期的。
+
+    除了最高分，还累计两个给清单 B 用的数字：
+
+        days    一共上过几天清单 A（不要求连续）
+        streak  上榜期间最长的连续天数
+
+    同一天重复跑（补跑、手点控制台）不能把 days 加两次，所以按
+    `last == date` 判重。
+    """
     p = pool_path()
     pool = {}
     if p.exists():
@@ -259,9 +278,13 @@ def update_pool(picks: pd.DataFrame, date: str) -> dict:
             pool = {}
     for _, r in picks[picks["score"] >= SCORE_B].iterrows():
         c = r["code"]
-        e = pool.get(c, {"first": date, "best": 0.0})
+        e = pool.get(c, {"first": date, "best": 0.0, "days": 0})
+        if e.get("last") != date:
+            e["days"] = int(e.get("days", 0)) + 1
         e["last"] = date
         e["best"] = max(float(e.get("best", 0)), float(r["score"]))
+        e["streak"] = max(int(e.get("streak", 0)),
+                          int(r.get("streak", 1) or 1))
         e["name"] = r.get("name", "")
         pool[c] = e
     # 过期清理：POOL_DAYS 个交易日按 1.47 折算成自然日
@@ -386,8 +409,14 @@ def stage_scan(asof: str = "", force_fit: bool = False) -> int:
         drop = px[-1] / peak - 1                # 从高点回落多少
         recent_peak = (len(px) - 1 - peak_i) <= 10
         if rise >= RISE_MIN and -0.20 < drop < -0.08 and recent_peak:
+            # 清单 B 的列和清单 A 对齐：代码 / 名称 / 分数 / 上榜天数 /
+            # 历史准确率 / 现价。准确率由 export 按 streak 换算，
+            # 这里只把它上清单 A 时的最长连续天数带出去。
             bl.append({"code": c, "name": info.get("name", ""),
                        "best": info["best"],
+                       "days": int(info.get("days", 0)),
+                       "streak": int(info.get("streak", 1) or 1),
+                       "close": float(px[-1]),
                        "rise": round(100 * rise, 1),
                        "drop": round(100 * drop, 1),
                        "first": first})

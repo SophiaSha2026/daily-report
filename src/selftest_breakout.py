@@ -229,7 +229,8 @@ def check_panel_html() -> None:
     import export as E
     fake_a = pd.DataFrame({"code": ["600000"], "name": ["测试"],
                            "score": [95.0], "close": [10.0]})
-    fake_b = pd.DataFrame(columns=["code", "name", "best", "drop"])
+    fake_b = pd.DataFrame(columns=["code", "name", "best", "days",
+                                   "streak", "close", "rise", "drop"])
     for for_panel in (True, False):
         html = E._body("2026-09-11", fake_a, fake_b,
                        {"rejected": 0, "model_date": "2026-09-13"}, for_panel)
@@ -241,6 +242,42 @@ def check_panel_html() -> None:
     ck(html.count("<script>") == 1, "面板有且只有一个 script 标签")
     ck(E._body("2026-09-11", fake_a, fake_b, {}, False).count("<script") == 0,
        "邮件里没有 script（邮件客户端会剥掉）")
+    check_table_shape()
+
+
+def check_table_shape() -> None:
+    """每张表的表头数、数据行列数、空表 colspan 三者必须相等。
+
+    A/B 两张表的列是用户点名要的（代码 / 名称 / 分数 / 上榜天数 /
+    历史准确率 / 现价）。加一列忘了改表头，浏览器不会报错，只会把整行
+    错位一格；空表的 colspan 漂了也只是那句「今天没有」缩成一小格。
+    两种都是静默的，所以用断言钉住。
+    """
+    import re
+    import export as E
+    full_a = pd.DataFrame({"code": ["600000"], "name": ["测试"],
+                           "score": [98.0], "streak": [3], "close": [10.0]})
+    full_b = pd.DataFrame({"code": ["600001"], "name": ["测试二"],
+                           "best": [99.0], "days": [4], "streak": [2],
+                           "close": [12.0], "rise": [25.0], "drop": [-12.0]})
+    empty = pd.DataFrame(columns=list(full_b.columns))
+    html = E._body("2026-09-11", full_a, full_b, {}, False)
+    tables = re.findall(r"<table>(.*?)</table>", html, re.S)
+    ck(len(tables) == 3, f"面板有 3 张表（实际 {len(tables)}）")
+    for name, t in zip(("清单 A", "清单 B", "连续天数对照"), tables):
+        nth = t.count("<th>")
+        rows = re.findall(r"<tr>(?!<th)(.*?)</tr>", t, re.S)[1:]
+        bad = [r for r in rows if r.count("<td") != nth]
+        ck(not bad, f"{name}：{nth} 个表头，每个数据行都是 {nth} 列")
+    for lbl, fn, df in (("清单 A", E._rows_a, pd.DataFrame(columns=["code"])),
+                        ("清单 B", E._rows_b, empty)):
+        blank = fn(df)
+        m = re.search(r'colspan="(\d+)"', blank)
+        head = tables[0 if lbl == "清单 A" else 1].count("<th>")
+        ck(m is not None and int(m.group(1)) == head,
+           f"{lbl} 空表的 colspan 等于表头数（{head}）")
+    ck("18.0%" in html and "31.3%" in html,
+       "邮件里印的是生产口径的准确率（整体 18.0% / 连续 3 天 31.3%）")
 
 
 def main() -> int:
