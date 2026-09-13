@@ -215,6 +215,21 @@ def breakout_model() -> dict:
         return {"exists": False}
 
 
+def morning_perf() -> dict:
+    """早盘选股的实测成绩，从参数自学的统计里读。
+
+    口径要说准：learn/dataset.py 里的 y 是**按天中心化**的收益，
+    所以 hit_rate 是「跑赢当天大盘的比例」（随机基准 50%），
+    top_excess 是「平均超额收益」（随机基准 0%）。
+    说成「上涨概率」就错了。
+    """
+    m = _json("state/learning_status.json").get("metrics") or {}
+    if not m:
+        return {"exists": False}
+    return {"exists": True, "days": m.get("days"),
+            "hit": m.get("hit_rate"), "excess": m.get("top_excess")}
+
+
 def overview() -> dict:
     tasks = scheduled_tasks()
     lines = line_status(tasks)
@@ -237,5 +252,6 @@ def overview() -> dict:
         "tasks": tasks,
         "cloud_cron_live": cloud_live,
         "model": breakout_model(),
+        "morning_perf": morning_perf(),
         "generated": dt.datetime.now().strftime("%H:%M:%S"),
     }

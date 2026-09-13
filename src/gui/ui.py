@@ -134,6 +134,10 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
 .act-card.open .more{display:block}
 .act-card .tg{font-size:11px;color:#6B7683;background:none;border:none;
      cursor:pointer;padding:0;align-self:flex-start}
+/* ==== 成绩块（嵌在系统卡片里）==== */
+.perfbox{padding:12px 16px 14px;background:#171a1f;border-top:1px solid #232830}
+.perfbox .pt{font-size:12px;color:#7d8590;margin-bottom:9px}
+.perfbox .pn{font-size:12.5px;color:#b4beca;line-height:1.65;margin-top:9px}
 /* ==== 成绩条 ==== */
 .perf{display:flex;align-items:center;gap:10px;margin-top:6px}
 .perf .lbl{font-size:11.5px;color:#7d8590;width:64px;flex:none}
@@ -302,6 +306,26 @@ function pickState(l, s) {
   return ["warn", "没跑", "数据 " + (l.date || "无")];
 }
 
+function perfRow(lbl, val, unit, barPct, grey) {
+  const r = el("div", "perf");
+  r.appendChild(el("div", "lbl", lbl));
+  const bar = el("div", "bar2" + (grey ? " grey" : ""));
+  const i2 = el("i"); i2.style.width = Math.max(barPct, 2) + "%";
+  bar.appendChild(i2); r.appendChild(bar);
+  r.appendChild(el("div", "v", val + unit));
+  return r;
+}
+
+function perfBlock(title, rows, note) {
+  // 成绩块，塞在各自系统卡片的**里面**。它属于哪个系统就放哪个系统，
+  // 不单独成块 —— 单独摆出来的话，看的人不知道它说的是早还是晚。
+  const d = el("div", "perfbox");
+  d.appendChild(el("div", "pt", title));
+  rows.forEach(r => d.appendChild(r));
+  if (note) d.appendChild(el("div", "pn", note));
+  return d;
+}
+
 function renderHome(s) {
   const box = $("#v-home"); box.innerHTML = "";
   const h = el("h2", null, "今天");
@@ -314,53 +338,40 @@ function renderHome(s) {
   const m = lineOf(s, "morning"), lr = lineOf(s, "learn");
   const [ms, mb, mm] = pickState(m, s);
   const [ls, lb, lm] = pickState(lr, s);
-  box.appendChild(sysCard("1", "早盘系统", "每天早上 9:27 发邮件", [
+  const c1 = sysCard("1", "早盘系统", "每天早上 9:27 发邮件", [
     sysItem("1-1", "早盘选股", "挑出当天最强的股票发给你", ms, mb, mm),
     sysItem("1-2", "参数自学", "回头检查打分准不准，自动改进", ls, lb, lm),
-  ]));
+  ]);
+  const mp = s.morning_perf || {};
+  if (mp.exists) {
+    const hitPct = 100 * mp.hit, exc = 100 * mp.excess;
+    c1.appendChild(perfBlock("这个系统准不准（" + mp.days + " 个交易日实测）", [
+      perfRow("榜上的票", hitPct.toFixed(1), "%", (hitPct - 45) / 10 * 100, false),
+      perfRow("随便买", "50.0", "%", (50 - 45) / 10 * 100, true),
+    ], "榜上的票有 " + hitPct.toFixed(1) + "% 跑赢当天大盘（随便买是 50%），"
+     + "平均每只比大盘多赚 " + exc.toFixed(2) + "%。优势不大但是稳定的。"));
+  }
+  box.appendChild(c1);
 
-  // ===== 2 晚间系统 =====（结构和上面一模一样：选股 + 自学）
+  // ===== 2 晚间系统 =====（结构和上面一模一样）
   const bk = lineOf(s, "breakout");
   const [bs, bb, bm] = pickState(bk, s);
   const mo = s.model || {};
-  const moState = mo.exists ? "ok" : "warn";
-  const moBig = mo.exists ? mo.age_days + " 天前" : "没训练";
-  const moSmall = mo.exists ? (mo.days_to_refit + " 天后重学") : "点 2-2 训练";
-  box.appendChild(sysCard("2", "晚间系统", "每天下午 5:00 发邮件", [
+  const c2 = sysCard("2", "晚间系统", "每天下午 5:00 发邮件", [
     sysItem("2-1", "起涨预测", "挑出可能要涨的股票发给你", bs, bb, bm),
     sysItem("2-2", "模型自学", "用最新数据重新学习，每 30 天一次",
-            moState, moBig, moSmall),
-  ]));
-
-  // ===== 起涨预测的实际成绩（可视化）=====
+            mo.exists ? "ok" : "warn",
+            mo.exists ? mo.age_days + " 天前" : "没训练",
+            mo.exists ? mo.days_to_refit + " 天后重学" : "点 2-2 训练"),
+  ]);
   const hit = 14.43, base = 2.91;
-  const perf = el("div", "sys");
-  const ph = el("div", "hd");
-  ph.appendChild(el("span", "n", "?"));
-  ph.appendChild(el("span", "t", "起涨预测到底准不准"));
-  ph.appendChild(Object.assign(el("span", "w"),
-    { textContent: "用模型从没见过的 8 个月数据测出来的" }));
-  perf.appendChild(ph);
-  const pb = el("div");
-  pb.style.padding = "14px 16px";
-  [["清单里的票", hit, false], ["全市场平均", base, true]].forEach(
-    ([lbl, v, grey]) => {
-      const r = el("div", "perf");
-      r.appendChild(el("div", "lbl", lbl));
-      const bar = el("div", "bar2" + (grey ? " grey" : ""));
-      const i2 = el("i"); i2.style.width = (v / hit * 100) + "%";
-      bar.appendChild(i2); r.appendChild(bar);
-      r.appendChild(el("div", "v", v.toFixed(2) + "%"));
-      pb.appendChild(r);
-    });
-  const note = el("div", "sub");
-  note.style.cssText = "margin-top:10px;font-size:12.5px;line-height:1.7";
-  note.textContent = "意思是：清单里每 10 只，大约 1.4 只会在接下来一个月内"
-    + "涨超 50%，是随便买的 " + (hit / base).toFixed(1) + " 倍。"
-    + "不是「选出来的都会涨」。";
-  pb.appendChild(note);
-  perf.appendChild(pb);
-  box.appendChild(perf);
+  c2.appendChild(perfBlock("这个系统准不准（模型从没见过的 8 个月实测）", [
+    perfRow("清单里的票", hit.toFixed(2), "%", 100, false),
+    perfRow("随便买", base.toFixed(2), "%", base / hit * 100, true),
+  ], "清单里每 10 只，大约 " + (hit / 10).toFixed(1)
+   + " 只会在接下来一个月内涨超 50%，是随便买的 " + (hit / base).toFixed(1)
+   + " 倍。不是「选出来的都会涨」。"));
+  box.appendChild(c2);
 
   return renderSync(box, s);
 }
