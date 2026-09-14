@@ -190,7 +190,7 @@ PowerShell 的 `New-ScheduledTaskSettingsSet` 默认
 schtasks /Query /TN DailyReport-Local-Evening /V /FO LIST
 ```
 
-`Ready` 正常，`Queued` 就是被条件挡住了。日志在 `tools/local_flow.log`。
+`Ready` 正常，`Queued` 就是被条件挡住了。日志在 `tools/local_flow_<flow>.log`（一线一个文件）。
 
 ### 还是没邮件怎么办
 

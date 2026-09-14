@@ -19,7 +19,7 @@ GUI 手动跑 vs 计划任务自动跑
 ----------------------------
 这里管的是**手动**跑：进程是 GUI 的子进程，关掉 GUI 就断。自动跑归
 计划任务（DailyReport-Local-*），和 GUI 无关，界面只读它们写的
-tools/local_flow.log。两边靠 local_run.py 的 --if-needed 幂等互不打架。
+tools/local_flow_<flow>.log。两边靠 local_run.py 的 --if-needed 幂等互不打架。
 """
 from __future__ import annotations
 
