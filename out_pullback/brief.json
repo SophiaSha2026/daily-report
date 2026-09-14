@@ -1,1 +1,16 @@
-[]
+[
+ {
+  "code": "300568",
+  "name": "星源材质",
+  "close": 15.32,
+  "gain_pct": 6.39,
+  "turnover": 7.23,
+  "vol_ratio": 2.09,
+  "launch_date": "2026-09-09",
+  "launch_gain": 7.85,
+  "adjust_days": 2,
+  "adjust_drawdown_pct": -6.75,
+  "break_launch_high": true,
+  "score": 37.9
+ }
+]

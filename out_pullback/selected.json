@@ -1,1 +1,33 @@
-[]
+[
+ {
+  "code": "300568",
+  "name": "星源材质",
+  "close": 15.32,
+  "gain_pct": 6.39,
+  "turnover": 7.23,
+  "vol_hand": 873480.0,
+  "amount_wan": 132758.0,
+  "launch_date": "2026-09-09",
+  "launch_gain": 7.85,
+  "launch_vol_ratio": 3.19,
+  "launch_turnover": 8.59,
+  "launch_low": 13.84,
+  "launch_high": 15.19,
+  "launch_close": 14.97,
+  "adjust_days": 2,
+  "adjust_vol_mean_ratio": 0.408,
+  "adjust_low": 13.96,
+  "adjust_drawdown_pct": -6.75,
+  "vol_ratio": 2.09,
+  "prev_vol_hand": 418701.0,
+  "break_launch_high": true,
+  "score": 37.9,
+  "parts": {
+   "trigger": 0.215,
+   "launch": 0.48,
+   "shrink": 0.49,
+   "hold": 0.089,
+   "speed": 0.833
+  }
+ }
+]
