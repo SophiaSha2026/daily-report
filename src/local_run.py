@@ -359,11 +359,17 @@ def sync_repo() -> bool:
         log.info("%s 正在跑，这次不拉远端", FLOWS[busy][1])
         return False
     _git_unstick()
+    before = _git("rev-parse", "HEAD")[1]
     rc, out = _git("pull", "--rebase", "--autostash", "-q", "origin", "main")
     if rc != 0:
         log.warning("拉远端失败: %s", out[:200])
         _git_unstick()
         return False
+    after = _git("rev-parse", "HEAD")[1]
+    if after != before:
+        log.info("已拉取远端 %s -> %s", before[:7], after[:7])
+    else:
+        log.info("远端没有新东西")
     return True
 
 

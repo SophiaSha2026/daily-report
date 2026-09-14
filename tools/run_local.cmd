@@ -25,13 +25,16 @@ REM  WindowsApps stub that opens the Microsoft Store instead of running code.
 REM  A scheduled task does not necessarily inherit the interactive PATH
 REM  order, so resolve 3.11 explicitly and only fall back to PATH.
 REM
-REM  Log: tools/local_flow.log (gitignored)
+REM  Log: tools/local_flow_<flow>.log (gitignored). One file per flow: while
+REM  a long flow (morning waits ~2.5 h for the auction) holds its log open,
+REM  a second cmd cannot append to the same file ("being used by another
+REM  process") and the other tasks would silently not run at all.
 REM ===========================================================================
 setlocal
 set "ROOT=%~dp0.."
-set "LOG=%~dp0local_flow.log"
 set "FLOW=%~1"
 if "%FLOW%"=="" set "FLOW=morning"
+set "LOG=%~dp0local_flow_%FLOW%.log"
 
 set "PY=C:\Users\xueji\AppData\Local\Programs\Python\Python311\python.exe"
 if not exist "%PY%" set "PY=python"

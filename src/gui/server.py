@@ -150,13 +150,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._html(f.read_text(encoding="utf-8"))
 
         if p == "/api/logfile":
-            # 计划任务自动跑的输出。GUI 手动跑的日志走 /api/job/<id>
-            f = ROOT / "tools" / "local_flow.log"
-            try:
-                txt = f.read_text(encoding="utf-8", errors="replace")
-            except Exception:  # noqa: BLE001
-                txt = "（还没有自动运行过）"
-            return self._json({"text": txt[-60000:]})
+            # 计划任务自动跑的输出，每条线一个文件（tools/local_flow_<flow>.log，
+            # 一个文件被长流程占着时别的任务写不进去）。GUI 手动跑的日志走
+            # /api/job/<id>。按最近改动排，每个只取尾巴。
+            files = sorted((ROOT / "tools").glob("local_flow*.log"),
+                           key=lambda f: f.stat().st_mtime, reverse=True)
+            parts = []
+            for f in files:
+                try:
+                    txt = f.read_text(encoding="utf-8", errors="replace")
+                except Exception:  # noqa: BLE001
+                    continue
+                parts.append(f"===== {f.name} =====\n{txt[-15000:]}")
+            return self._json({"text": "\n\n".join(parts)
+                               or "（还没有自动运行过）"})
 
         if p == "/api/config":
             try:
