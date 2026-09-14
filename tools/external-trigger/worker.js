@@ -20,8 +20,11 @@
 const REPO = "SophiaSha2026/daily-report";
 
 // UTC cron -> 要派发的 workflow。和 wrangler.toml 里的 crons 一一对应。
-//   "30 23 * * *" = 北京次日 07:30
-//   "5 9 * * *"   = 北京当日 17:05
+//   "30 23 * * *" = 北京次日 07:30  竞价线云端托底（本地发了信它就只发布面板）
+//   "45 12 * * *" = 北京当日 20:45  晚间托底检查（本地没跑起涨预测就发提醒）
+//
+// 2026-09-15 起不再派发 pullback.yml：回调形态的每日报告 09-12 已经取消，
+// 这条派发一直没关，09-14 还发了一封形态邮件出去。
 //
 // 为什么不限定星期：Cloudflare 的 cron 解析器拒绝 "0-4" 这种星期范围
 // （invalid cron string, code 10100），而且「UTC 星期几」和「北京星期几」
@@ -30,7 +33,7 @@ const REPO = "SophiaSha2026/daily-report";
 // 代价是周末两次空跑，每次不到一分钟。
 const ROUTES = {
   "30 23 * * *": "auction.yml",
-  "5 9 * * *": "pullback.yml",
+  "45 12 * * *": "evening_check.yml",
 };
 
 async function dispatch(workflow, token) {

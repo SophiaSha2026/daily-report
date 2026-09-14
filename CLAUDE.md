@@ -1,18 +1,23 @@
 # CLAUDE.md
 
-A股集合竞价选股流水线。**2026-09-12 起完全本地化**：所有流水线在本机跑，
-GitHub 仓库只做版本控制。每交易日 09:27:30（北京时间）把竞价强弱榜前 10
-发到邮箱并更新 GitHub Pages 面板。
+A股集合竞价选股流水线。**本地为主，云端托底**（2026-09-15 起）：所有流水线
+首选在本机跑，云端 workflow 只在本机没跑的时候补位（协议见「本地为主、云端
+托底」一节）。每交易日 09:27:30（北京时间）把竞价强弱榜前 10 发到邮箱，
+17:00 后发起涨预测清单，GitHub Pages 面板由云端发布。
 
 主界面是本地控制台 `tools/gui.cmd`（桌面「A股流水线」），
-自动跑靠 Windows 计划任务 `DailyReport-Local-*`。
+自动跑靠 Windows 计划任务 `DailyReport-Local-*`（定义在 `tools/setup_tasks.ps1`）。
 
 ## 两个系统（仓库里就这两个，别再分出第三个）
 
 | 系统 | 包含 | 发信时间 | 计划任务 |
 |---|---|---|---|
-| **早盘系统** | 早盘选股 + 参数自学 | 每交易日 09:27:30 | `DailyReport-Local-Morning`（美东周日~周四 18:00 起）<br>`DailyReport-Local-Learn`（美东周一~周五 04:40 起） |
-| **晚间系统** | 起涨预测（+ 回调形态，自动已停） | 每交易日 17:00 | `DailyReport-Local-Evening`（美东周一~周五 04:30 起） |
+| **早盘系统** | 早盘选股 + 参数自学 | 每交易日 09:27:30 | `DailyReport-Local-Morning`（美东周日~周四 18:00 起 3h15m）<br>`DailyReport-Local-Learn`（美东周一~周五 04:40 起 16h） |
+| **晚间系统** | 起涨预测（+ 回调形态，自动已停） | 每交易日 17:00 后，最晚次日 08:30 | `DailyReport-Local-Evening`（美东周一~周五 04:30 起 16h） |
+
+另有 `DailyReport-Local-Sync`（每 30 分钟只拉远端）。云端托底：`auction.yml`
+代跑早盘（本地发了信就只发布面板）、`evening_check.yml` 本地没跑起涨预测就
+发提醒（云端算不了这条线）。
 
 「参数自学」属于早盘系统（它调的是早盘选股的参数），只是运行时间在收盘后。
 
@@ -92,7 +97,8 @@ src/
   learn/report.py        学习邮件（变更 / 提案）+ state/learning_status.json
   selftest_learn.py      学习线离线自测
   ── 爆发线（收盘后，2026-09-12 起）──
-  breakout/backfill.py   回填三年日线。主源新浪（多进程），腾讯兜底
+  breakout/backfill.py   回填三年日线。主源新浪（多进程），腾讯兜底。
+                         --stage update 每日增量（腾讯快照，秒级），refresh 全量重拉
   breakout/chips.py      筹码分布**自算**，六项一致性检验钉住
   breakout/label.py      起涨/见顶标注。和 features 物理隔离，防前视偏差
   breakout/features.py   三层变换（横截面百分位->中性化->正交）+ 五组特征
@@ -118,15 +124,21 @@ src/
   refresh_meta.py        每周刷新行业成分 + 代码表
   refresh_sector.py      Playwright 抓同花顺板块成分
   smoke_test.py          联网冒烟测试
-.github/workflows/       **cron 已全部停用**，只剩 workflow_dispatch 手动应急
+.github/workflows/       只有两条带 cron（云端托底），其余只留 workflow_dispatch
+  auction.yml            2-竞价选股 07:40 起四个入口，本地发了信就让位
+  evening_check.yml      8-晚间托底检查 20:30 BJT，本地没跑起涨预测就发提醒
   smoke_test.yml         0-冒烟测试（手动）
-  premarket.yml          1-盘前候选池 08:23 BJT
-  auction.yml            2-竞价选股 07:40 起八个入口
-  refresh_meta.yml       3-刷新缓存 周日 20:17 BJT
-  refresh_sector.yml     4-刷新板块成分表 周日 20:40 BJT
-  pullback.yml           5-形态扫描 17:00 BJT
-  learn.yml              6-自评估与迭代 16:30 BJT
-  intraday.yml           7-盘中采样 五个时点
+  premarket.yml          1-盘前候选池（手动）
+  refresh_meta.yml       3-刷新缓存（手动）
+  refresh_sector.yml     4-刷新板块成分表（手动）
+  pullback.yml           5-形态扫描（手动，每日报告 09-12 已取消）
+  learn.yml              6-自评估与迭代（手动）
+  intraday.yml           7-盘中采样（手动）
+tools/external-trigger/  Cloudflare Worker：07:30 BJT 派发 auction、20:45 派发 evening_check。
+                         第三层触发。停一条线要连它一起停（历史教训 24）
+tools/setup_tasks.ps1    本机四个计划任务的唯一定义
+tools/evening_check.py   晚间托底检查（只在云端跑）
+tools/yield_check.py     竞价线让位检查（只在云端跑）
 cache/                   codes.csv, sector_map.parquet, universe.parquet
 data/YYYY-MM/            auction_*.parquet 竞价快照 / pullback_*.parquet 形态结果
 out/                     竞价当日产物：panel.html, stamp.txt, 竞价_*.txt, detail.csv,
@@ -537,17 +549,52 @@ AUC_RATIO 本身。
     自测的「见顶标签有命中」就是为了钉住这个。
     凡是 `arr[n-k:]` 这种写法，先想清楚 k > n 时会发生什么。
 
-### 完全本地化（2026-09-12 起）
+22. **「补数据」那一步其实什么都没补**（2026-09-15 发现）— 晚间流程第 2 步调
+    `backfill.py --stage sina`，而那个 stage 是按 `done_sina.json` 断点续传的
+    一次性回填：全部代码都 done 之后它只把旧分片重新合并一遍，一根新 K 线
+    都不拉。要不是 09-14 机器没开机，当天 16:30 就会拿 09-11 的数据重算、
+    把 09-11 的清单再发一遍，而且 run_meta 日期对不上「今天」，每 30 分钟
+    重试一次就重发一次。现在 `--stage update` 走腾讯批量快照追加当天一根
+    （秒级，单位按板块核对、除权整段重拉），追加不到目标日就**不出清单**。
+    流程里每一步「跑完了」都要有产物日期的核对，不能只看退出码。
 
-用户方针：**所有流水线在本机跑，GitHub 仓库只做版本控制。**
-八个 workflow 的 `schedule` 全部注释掉，只留 `workflow_dispatch`
-（本机长时间关机时手动派发一次应急）。
+23. **两个入口各起一个实例**（2026-09-14）— 用户 08:43 在控制台点了「早盘选股」，
+    08:45 计划任务也到点起了一个，`--if-needed` 只查「跑完没」不查「在跑没」。
+    两个进程各采各的样、各发各的信，两封一模一样的邮件同一秒到。
+    现在 `state/lock/<flow>.json` 是进程锁，任何入口都先拿锁。
+
+24. **停一条线要把三层触发都停干净**（2026-09-12 ~ 09-14）— 本地化时注释掉了
+    GitHub cron、停用了本机的派发任务，但 Cloudflare Worker
+    （`tools/external-trigger/`）没动，它每天 17:05 BJT 继续派发已经取消的
+    形态扫描，09-14 还发了一封形态邮件。控制台以前只查 workflow 文件里有没有
+    cron，看不见 Worker。凡是「从外面戳 workflow_dispatch」的东西，都记在
+    OPERATIONS.md 第五节，停线时对着那张表逐个关。
+
+### 本地为主、云端托底（2026-09-15 起）
+
+用户方针：**早晚两条线都以本机手动/自动为主，本地触发最优先；本地在窗口内
+跑了完整流程云端就不跑，本地没跑云端托底。** 全部细节在 OPERATIONS.md 第五节，
+协议在 `src/local_run.py` 模块注释。要点：
 
 ```
 tools/gui.cmd          控制台，桌面「A股流水线」指向它。手动跑用这个
+tools/setup_tasks.ps1  四个计划任务的唯一定义，改排期改它再重跑
 DailyReport-Local-Morning   竞价线。美东周日到周四 18:00 起每 15 分钟，共 3h15m
-DailyReport-Local-Learn     学习线。美东周一到周五 04:40 起每 30 分钟，共 4h
+DailyReport-Local-Evening   起涨预测。美东周一到周五 04:30 起每 30 分钟，共 16h
+DailyReport-Local-Learn     学习线。美东周一到周五 04:40 起每 30 分钟，共 16h
+DailyReport-Local-Sync      每天每 30 分钟只拉远端
 ```
+
+- **目标日**：竞价线是今天；起涨预测和学习线是最近一个已收盘交易日，
+  窗口跨午夜到次日 08:30（`local_run.FLOWS`，上界小于下界即跨午夜）。
+  机器整天没开、美东晚上才醒也能补出当天清单。
+- **进程锁** `state/lock/<flow>.json`：控制台按钮和计划任务同一入口，
+  后来者退出 0。2026-09-14 两边各起一个竞价线，发了两封一样的邮件。
+- **云端**：`auction.yml` 每天照常采样，09:28:20 看本地 sent 标记决定发不发；
+  让位时不提交数据、只发布 Pages。起涨预测云端算不了（特征表 2.5GB 在本机，
+  新浪源 runner 不通），`evening_check.yml` 20:30 只发提醒。
+- **三层触发都要管**：GitHub cron、本机计划任务、Cloudflare Worker
+  （`tools/external-trigger/`）。停一条线要三处都停。
 
 跨时区排期两个坑都还在，改时刻前先算一遍：夏令时会让固定本地时刻漂
 1 小时（所以窗口要盖住两种时令）；美东的星期几和北京的星期几差一天，

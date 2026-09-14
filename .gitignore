@@ -39,3 +39,6 @@ data/breakout/daily.parquet
 data/breakout/train.parquet
 data/breakout/holders.parquet
 data/breakout/shares.parquet
+
+# 进程锁：本机运行态，不进仓库
+state/lock/

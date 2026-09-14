@@ -1,0 +1,66 @@
+name: 8-晚间托底检查 (20:30 BJT)
+
+# 晚间系统（起涨预测）云端**算不了**：特征表 2.5GB 在本机，新浪日线源在
+# runner 上也不通（CLAUDE.md 5b）。所以云端在这条线上只做一件事：
+# 本地没跑就发一封提醒。协议见 tools/evening_check.py 和 src/local_run.py。
+#
+# 20:30 BJT = 美东 08:30。本机计划任务 16:30 起每 30 分钟重试，机器要是
+# 在 16:30~20:30 之间醒过就已经跑完了；到 20:30 还没有就是整段没开机。
+# 提醒发到邮箱，用户早上（美东）看到后开机，登录触发会自动补跑。
+#
+# 两层触发：这里的 cron + Cloudflare Worker 20:45 BJT 派发（GitHub cron
+# 实测会迟到甚至丢班）。同一天只提醒一次，靠 state/alert/ 里的标记。
+on:
+  schedule:
+    - cron: "30 12 * * 1-5"   # 20:30 BJT，周一到周五
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: "只检查不发信"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: evening-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+
+      - run: pip install -r requirements.txt
+
+      - name: 本地跑了没有
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO:   ${{ secrets.MAIL_TO }}
+        run: python tools/evening_check.py ${{ inputs.dry && '--dry' || '' }}
+
+      - name: 记下「今天已提醒」
+        run: |
+          git config user.name evening-bot
+          git config user.email bot@users.noreply.github.com
+          git add state/alert/ 2>/dev/null || true
+          git diff --staged --quiet && exit 0
+          git commit -m "alert: breakout $(TZ=Asia/Shanghai date +%F)"
+          URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          for i in 1 2 3; do
+            git push "$URL" HEAD:${{ github.ref_name }} && exit 0
+            sleep 5
+            git pull --rebase --autostash || true
+          done
+          echo "::warning::标记推送失败，下一个入口可能重复提醒一次"

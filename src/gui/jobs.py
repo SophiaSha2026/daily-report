@@ -73,21 +73,25 @@ ACTIONS: dict[str, dict] = {
         "what": "提前筛出当天要盯的股票",
         "desc": "3~5 分钟。早盘选股会自己判断要不要建，一般不用手点。",
     },
+    # 和计划任务走同一个入口（local_run.py --flow breakout）：补当天日线、
+    # 重算特征、打分、发信、推仓库，一步不少。以前这里直接调 daily.py，
+    # 不补数据，2026-09-14 用户点了一下，把 09-11 的清单又发了一遍。
     "breakout": {
         "no": "2-1", "name": "起涨预测", "group": "2 晚间系统",
-        "cmd": ["src/breakout/daily.py", "--stage", "all"],
+        "cmd": ["src/local_run.py", "--flow", "breakout"],
         "mail": True, "danger": True,
-        "what": "每天下午 5 点把可能要涨的股票发到你邮箱",
-        "desc": "给全市场打分 -> 剔掉 ST、有减持、有解禁、有增发的 -> "
-                "出清单 A（接近起涨，10 只）和清单 B（可能见顶）-> 面板 + 邮件。"
-                "约 3 分钟。",
+        "what": "把最近一个收盘日可能要涨的股票发到你邮箱",
+        "desc": "补最近一个交易日的日线 -> 重算特征（约 13 分钟）-> 打分 -> "
+                "剔掉 ST、有减持、有解禁、有增发的 -> 清单 A（接近起涨）和 "
+                "清单 B（可能见顶）-> 面板 + 邮件。收盘后到次日开盘前都能跑，"
+                "结果一样。已经在跑或今天跑过会直接退出。",
     },
     "breakout_dry": {
         "no": "2-1", "name": "起涨预测（试跑）", "group": "2 晚间系统",
-        "cmd": ["src/breakout/daily.py", "--stage", "scan"],
+        "cmd": ["src/local_run.py", "--flow", "breakout", "--dry"],
         "mail": False, "danger": False,
         "what": "跑一遍看看会选出哪些股票，不发邮件",
-        "desc": "只打分出清单，不做面板也不发信。",
+        "desc": "和上面一样，但不发信、不上传。",
     },
     "bk_refit": {
         "no": "2-2", "name": "模型自学", "group": "2 晚间系统",
@@ -141,6 +145,14 @@ ACTIONS: dict[str, dict] = {
         "what": "重新抓每个行业有哪些股票",
         "desc": "会开一个真浏览器去抓，因为对方认浏览器指纹，"
                 "用程序直接请求会被拒。",
+    },
+    "sync": {
+        "no": "3-0", "name": "同步远端产物", "group": "3 辅助工具",
+        "cmd": ["src/local_run.py", "--sync"],
+        "mail": False, "danger": False,
+        "what": "把云端替本机跑出来的清单拉到本地面板",
+        "desc": "本机没开机那天云端会代跑早盘选股，结果在 GitHub 上。"
+                "计划任务每次重试都会自动拉，这里是手动入口。几秒钟。",
     },
     "build_site": {
         "no": "3-8", "name": "重建网页", "group": "3 辅助工具",

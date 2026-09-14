@@ -1,10 +1,27 @@
 """
 爆发线的数据回填：三年日线 + 历史股本 + 股东人数。
 
-    python src/breakout/backfill.py --stage daily     日线（最慢，25~40 分钟）
+    python src/breakout/backfill.py --stage update    每日增量：追加最近一个交易日（秒级）
+    python src/breakout/backfill.py --stage refresh   全量重拉新浪日线 + 股东人数（约 70 分钟）
+    python src/breakout/backfill.py --stage sina      新浪三年日线，断点续传（首次回填）
+    python src/breakout/backfill.py --stage daily     腾讯日线（兜底源，最慢，25~40 分钟）
     python src/breakout/backfill.py --stage shares    历史流通股本
     python src/breakout/backfill.py --stage holders   股东人数
     python src/breakout/backfill.py --stage all
+
+每日增量为什么走腾讯快照而不是新浪
+----------------------------------
+新浪的日线接口没有「只要最近几根」的参数，每只都回整段历史，5515 只
+四进程要 70 分钟，每天下午这么拉一遍太慢。腾讯批量快照一次给全市场
+5548 只当天的 OHLCV + 成交额 + 换手率，4 秒。收盘后快照就是当天的日线，
+`--stage update` 把它追加进 daily.parquet。
+
+两个坑（都在 stage_update 里处理）：
+  · 腾讯快照的成交量单位**按板块不同**：主板/创业板/北交所是手，科创板是股。
+    不按代码段猜，按「换手率 × 流通股本」核对，哪个单位对得上用哪个。
+  · 除权除息日新浪的前复权历史会整体重算，只追加当天一根会留下断崖。
+    腾讯的昨收是复权后的，和历史最后一根收盘对不上就说明发生了除权，
+    这只票整段从新浪重拉。
 
 为什么要限速
 ------------
@@ -26,6 +43,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import random
 import sys
 import time
@@ -201,7 +219,11 @@ def merge_daily(pattern: str = "daily_*.parquet") -> int:
         log.error("没有任何分片")
         return 1
     df = pd.concat([pd.read_parquet(p) for p in shards], ignore_index=True)
-    df = df.drop_duplicates(["code", "date"]).sort_values(["code", "date"])
+    # keep="last"：分片按文件名排序，增量分片 sina_9_<时间戳>_* 排在初始
+    # 回填 sina_0000.. 之后，同一 (code, date) 以**后拉到的**为准。
+    # 除权后重拉的整段历史才能盖掉旧的前复权值。
+    df = (df.drop_duplicates(["code", "date"], keep="last")
+            .sort_values(["code", "date"]))
     OUT.mkdir(parents=True, exist_ok=True)
     df.to_parquet(OUT / "daily.parquet", index=False)
     log.info("日线合并完成：%d 行，%d 只，%s .. %s",
@@ -271,6 +293,8 @@ def stage_daily_sina() -> int:
 
     t0 = time.time()
     shard = len(list(RAW.glob("sina_*.parquet")))
+    stamp = now_bj().strftime("%Y%m%d%H%M%S")
+    first = not done                          # 首次回填用 sina_0000.. 编号
     failed: list[str] = []
     buf = []
     STEP = 200
@@ -284,8 +308,11 @@ def stage_daily_sina() -> int:
                     buf.append(d)
                     done.add(c)
         if buf:
-            pd.concat(buf, ignore_index=True).to_parquet(
-                RAW / f"sina_{shard:04d}.parquet", index=False)
+            # 重拉的分片带时间戳：merge 按文件名排序、后者覆盖前者，
+            # 它们必须排在原始分片 sina_0000.. 之后
+            name = (f"sina_{shard:04d}.parquet" if first
+                    else f"sina_9_{stamp}_full{shard:04d}.parquet")
+            pd.concat(buf, ignore_index=True).to_parquet(RAW / name, index=False)
             shard += 1
             buf = []
         done_f.write_text(json.dumps(sorted(done), ensure_ascii=False),
@@ -297,6 +324,151 @@ def stage_daily_sina() -> int:
                  (len(todo) - i - len(chunk)) / max(rate, 1e-9) / 60)
     log.info("新浪拉取结束，失败 %d 只", len(failed))
     return merge_daily(pattern="sina_*.parquet")
+
+
+# ---------------------------------------------------------------
+#  每日增量（腾讯快照）
+# ---------------------------------------------------------------
+def now_bj():
+    import datetime as dt
+    return dt.datetime.now(dt.timezone(dt.timedelta(hours=8)))
+
+
+def last_closed_trade_day(now=None) -> str:
+    """最近一个**已收盘**的交易日。15:05 之后算当天，之前算上一个交易日。
+
+    晚间系统的「目标日」就是它：北京 09-15 早上 07:00 跑，目标日仍是 09-14，
+    数据和 09-14 下午 17:00 跑一模一样。
+    """
+    sys.path.insert(0, str(ROOT / "src"))
+    import datasource as ds
+    now = now or now_bj()
+    tds = sorted(ds.trade_dates())
+    today = now.strftime("%Y-%m-%d")
+    closed = (now.hour, now.minute) >= (15, 5)
+    cands = [d for d in tds if d < today or (d == today and closed)]
+    return cands[-1]
+
+
+def _shard_name(kind: str) -> Path:
+    ts = now_bj().strftime("%Y%m%d%H%M%S")
+    return RAW / f"sina_9_{ts}_{kind}.parquet"
+
+
+def refetch_codes(cs: list[str]) -> int:
+    """整段重拉指定代码（新浪，多进程）。除权那天用。"""
+    if not cs:
+        return 0
+    buf = []
+    with ProcessPoolExecutor(max_workers=SINA_WORKERS) as ex:
+        for c, d in ex.map(_sina_one, cs, chunksize=2):
+            if d is not None:
+                buf.append(d)
+    if buf:
+        pd.concat(buf, ignore_index=True).to_parquet(_shard_name("ref"),
+                                                     index=False)
+    log.info("重拉 %d 只，成功 %d 只", len(cs), len(buf))
+    return len(buf)
+
+
+def stage_update() -> int:
+    """把最近一个已收盘交易日追加进 daily.parquet。秒级，每天收盘后跑。
+
+    返回 0 表示 daily.parquet 已经覆盖到目标日（不管是刚追加的还是本来
+    就有）。中间缺了不止一个交易日（机器几天没开）就退化成全量刷新。
+    """
+    sys.path.insert(0, str(ROOT / "src"))
+    import datasource as ds
+    dp = OUT / "daily.parquet"
+    if not dp.exists():
+        log.error("缺 %s，先跑 --stage sina 做首次回填", dp)
+        return 1
+    target = last_closed_trade_day()
+    daily = pd.read_parquet(dp)
+    hist_max = str(daily["date"].max())
+    if hist_max >= target:
+        log.info("日线已覆盖到 %s（目标日 %s），不用追加", hist_max, target)
+        return 0
+    tds = sorted(ds.trade_dates())
+    missing = [d for d in tds if hist_max < d <= target]
+    if len(missing) > 1:
+        log.warning("日线停在 %s，到 %s 缺 %d 个交易日，改走全量刷新（约 70 分钟）",
+                    hist_max, target, len(missing))
+        return stage_refresh()
+
+    last = (daily.sort_values("date").groupby("code").tail(1)
+            .set_index("code"))
+    cs = codes(include_bj=True)
+    q = ds.fetch_quotes([ds.to_symbol(c) for c in cs])
+    log.info("快照 %d 只，目标日 %s", len(q), target)
+    tkey = target.replace("-", "")
+    rows, refetch, stale, nohist = [], [], 0, 0
+    for c in cs:
+        v = q.get(ds.to_symbol(c))
+        if v is None:
+            continue
+        if not str(v.ts).startswith(tkey):
+            stale += 1                       # 停牌或还没更新，今天没有这根
+            continue
+        if c not in last.index:
+            nohist += 1                      # 新票，等全量刷新再收
+            continue
+        h = last.loc[c]
+        if abs(float(v.prev_close) - float(h["close"])) > 0.006:
+            refetch.append(c)                # 除权/除息，或历史已经不对，整段重拉
+            continue
+        try:
+            high, low = float(v.raw[33]), float(v.raw[34])
+            turn_q = float(v.raw[38] or 0) / 100.0
+        except Exception:  # noqa: BLE001
+            continue
+        if not (v.price > 0 and high > 0 and low > 0 and v.open_ > 0):
+            stale += 1
+            continue
+        os_ = (float(h["outstanding_share"])
+               if pd.notna(h["outstanding_share"]) else 0.0)
+        vol = v.volume_hand * 100.0
+        if turn_q > 0 and os_ > 0:
+            exp = turn_q * os_
+            # 科创板快照的成交量是股不是手，按换手率核对单位
+            vol = min((v.volume_hand * 100.0, v.volume_hand),
+                      key=lambda x: abs(math.log((x + 1.0) / (exp + 1.0))))
+        turn = vol / os_ if os_ > 0 else turn_q
+        rows.append({"date": target, "open": v.open_, "high": high,
+                     "low": low, "close": v.price, "volume": vol,
+                     "amount": v.amount_wan * 1e4,
+                     "outstanding_share": os_ if os_ > 0 else float("nan"),
+                     "turnover": turn, "code": c})
+    log.info("追加 %d 只；无当日数据 %d；无历史 %d；需整段重拉 %d",
+             len(rows), stale, nohist, len(refetch))
+    if len(rows) < 1000:
+        log.error("只拼出 %d 只，快照不像是收盘后的完整数据，本次不追加",
+                  len(rows))
+        return 1
+    pd.DataFrame(rows).to_parquet(_shard_name("upd"), index=False)
+    if refetch:
+        refetch_codes(refetch)
+    return merge_daily(pattern="sina_*.parquet")
+
+
+def stage_refresh() -> int:
+    """全量重拉新浪日线 + 股东人数。每周末跑一次，把增量攒下的误差归零。"""
+    done_f = RAW / "done_sina.json"
+    old = sorted(RAW.glob("sina_*.parquet"))
+    if done_f.exists():
+        done_f.unlink()
+    rc = stage_daily_sina()
+    if rc == 0:
+        # 新分片名 sina_9_<时间戳>_full 排在旧的之后，合并时已经以新为准；
+        # 旧分片留着只占磁盘（每套 140MB），删掉。
+        for p in old:
+            try:
+                p.unlink()
+            except OSError:
+                pass
+        rc = merge_daily(pattern="sina_*.parquet")
+    rc |= stage_holders()
+    return rc
 
 
 def stage_shares() -> int:
@@ -353,10 +525,11 @@ def stage_holders() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     # 2023-05 之后的所有季末 + 半月末（东财按这些日期组织数据）
     periods = []
-    for y in (2023, 2024, 2025, 2026):
+    today = now_bj().strftime("%Y%m%d")
+    for y in range(2023, int(today[:4]) + 1):
         for md in ("0331", "0630", "0930", "1231"):
             d = f"{y}{md}"
-            if "20230501" <= d <= "20260912":
+            if "20230501" <= d <= today:
                 periods.append(d)
     rows = []
     for p in periods:
@@ -389,10 +562,14 @@ def main() -> int:
                     help="只拉前 N 只，用于验证流程")
     ap.add_argument("--stage", default="all",
                     choices=["daily", "sina", "shares", "holders", "all",
-                             "merge"])
+                             "merge", "update", "refresh"])
     a = ap.parse_args()
     if a.stage == "merge":
-        return merge_daily()
+        return merge_daily(pattern="sina_*.parquet")
+    if a.stage == "update":
+        return stage_update()
+    if a.stage == "refresh":
+        return stage_refresh()
     rc = 0
     LIMIT["n"] = a.limit
     if a.stage == "sina":

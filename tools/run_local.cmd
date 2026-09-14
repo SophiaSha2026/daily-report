@@ -5,7 +5,8 @@ REM  trigger_auction.cmd / trigger_pullback.cmd, which only DISPATCHED the
 REM  cloud workflow. Since 2026-09-12 every pipeline runs on this machine and
 REM  the repo is version control only, so there is nothing to dispatch.
 REM
-REM  Usage:  run_local.cmd morning | evening | learn
+REM  Usage:  run_local.cmd morning | breakout | learn | evening | sync
+REM          sync = only pull what the cloud produced; runs no flow.
 REM
 REM  Keep this file PURE ASCII. cmd.exe reads .cmd in the OEM code page, so
 REM  Chinese comments become mojibake and any echo of them prints garbage.
@@ -44,7 +45,11 @@ for /f "delims=" %%i in ('powershell -NoProfile -Command "Get-Date -Format s"') 
 echo [%NOW%] === run_local %FLOW% === >> "%LOG%"
 
 cd /d "%ROOT%"
-"%PY%" src\local_run.py --flow %FLOW% --if-needed >> "%LOG%" 2>&1
+if /i "%FLOW%"=="sync" (
+  "%PY%" src\local_run.py --sync >> "%LOG%" 2>&1
+) else (
+  "%PY%" src\local_run.py --flow %FLOW% --if-needed >> "%LOG%" 2>&1
+)
 set "RC=%ERRORLEVEL%"
 
 for /f "delims=" %%i in ('powershell -NoProfile -Command "Get-Date -Format s"') do set "NOW=%%i"

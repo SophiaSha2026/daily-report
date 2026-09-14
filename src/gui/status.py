@@ -42,7 +42,7 @@ LINES = [
      "due": "收盘后", "task": "DailyReport-Local-Learn"},
     {"key": "breakout", "name": "起涨预测", "system": "晚间系统",
      "meta": "out_breakout/run_meta.json", "panel": "out_breakout/panel.html",
-     "due": "17:00", "task": "DailyReport-Local-Evening"},
+     "due": "17:00 后，最晚次日 08:30", "task": "DailyReport-Local-Evening"},
     {"key": "evening", "name": "回调形态", "system": "辅助工具",
      "meta": "out_pullback/run_meta.json", "panel": "out_pullback/panel.html",
      "due": "已停用自动", "task": None},
@@ -168,11 +168,44 @@ def sync_status() -> dict:
     }
 
 
+# 交易日历一小时刷一次。总览页 5 秒刷一次，不能每次都打网络。
+_td_cache: dict = {"at": 0.0, "s": set()}
+
+
+def _trade_dates() -> set:
+    if time.time() - _td_cache["at"] > 3600:
+        try:
+            import sys
+            sys.path.insert(0, str(ROOT / "src"))
+            import datasource as ds
+            _td_cache["s"] = set(ds.trade_dates())
+        except Exception:  # noqa: BLE001
+            pass                      # 拿不到就按周一到周五（fail-open）
+        _td_cache["at"] = time.time()
+    return _td_cache["s"]
+
+
+def target_date(key: str) -> str:
+    """这条线该产出哪一天。和 local_run.target_date 同一口径：
+    竞价线是今天，其余是最近一个已收盘（15:05 后）的交易日。"""
+    if key == "morning":
+        return today_bj()
+    now = now_bj()
+    tds = _trade_dates()
+    closed = (now.hour, now.minute) >= (15, 5)
+    for back in range(15):
+        day = now.date() - dt.timedelta(days=back)
+        ok = (day.isoformat() in tds) if tds else day.weekday() < 5
+        if ok and (back > 0 or closed):
+            return day.isoformat()
+    return today_bj()
+
+
 def line_status(tasks: dict) -> list[dict]:
-    d = today_bj()
     out = []
     for ln in LINES:
         meta = _json(ln["meta"])
+        d = target_date(ln["key"])
         done = meta.get("date") == d
         panel = ROOT / ln["panel"]
         try:
@@ -185,7 +218,7 @@ def line_status(tasks: dict) -> list[dict]:
         out.append({
             "key": ln["key"], "name": ln["name"], "due": ln["due"],
             "system": ln["system"],
-            "done": done, "date": meta.get("date", ""),
+            "done": done, "date": meta.get("date", ""), "target": d,
             "n": meta.get("n"), "panel_date": pdate, "panel_mtime": pmtime,
             "task": ln["task"], "task_state": t.get("state", ""),
             "task_last": t.get("last", ""), "task_rc": t.get("rc"),
@@ -230,6 +263,13 @@ def morning_perf() -> dict:
             "hit": m.get("hit_rate"), "excess": m.get("top_excess")}
 
 
+# 云端该开着的托底 workflow。多了是没停干净，少了是托底没开。
+CLOUD_FALLBACK = {
+    "auction.yml": "竞价线代跑（本地发了信就只发布面板）",
+    "evening_check.yml": "晚间提醒（本地没跑起涨预测就发邮件）",
+}
+
+
 def overview() -> dict:
     tasks = scheduled_tasks()
     lines = line_status(tasks)
@@ -237,11 +277,22 @@ def overview() -> dict:
     bj = now_bj()
     weekend = bj.weekday() >= 5
 
-    # 云端是不是真的停干净了。改完 workflow 忘了推是很容易犯的错，
-    # 这里直接读远端 main 上的文件，而不是读工作区。
+    # 云端哪些 workflow 在自动跑。读远端 main 上的文件而不是工作区：
+    # 改完 workflow 忘了推是很容易犯的错。
+    # 该开着的只有两条托底（竞价线代跑、晚间提醒），别的还带 cron 就是
+    # 没停干净，总览页亮黄。
     cloud = _git("grep", "-c", "^  *- cron:", "origin/main",
                  "--", ".github/workflows")
-    cloud_live = [x for x in cloud.splitlines() if x.strip()]
+    live = {}
+    for x in cloud.splitlines():
+        # 形如 origin/main:.github/workflows/auction.yml:4
+        parts = x.strip().split(":")
+        if len(parts) >= 3:
+            live[parts[-2].rsplit("/", 1)[-1]] = int(parts[-1] or 0)
+    unexpected = sorted(k for k in live if k not in CLOUD_FALLBACK)
+    missing = sorted(k for k in CLOUD_FALLBACK if k not in live)
+    cloud_live = [f"{k}: {v} 个 cron 还开着" for k, v in live.items()
+                  if k in unexpected]
 
     return {
         "bj": bj.strftime("%Y-%m-%d %H:%M:%S"),
@@ -251,6 +302,12 @@ def overview() -> dict:
         "sync": sync,
         "tasks": tasks,
         "cloud_cron_live": cloud_live,
+        "cloud_fallback": {
+            "on": [f"{k}：{CLOUD_FALLBACK[k]}" for k in CLOUD_FALLBACK
+                   if k in live],
+            "missing": [f"{k}：{CLOUD_FALLBACK[k]}" for k in missing],
+            "unexpected": unexpected,
+        },
         "model": breakout_model(),
         "morning_perf": morning_perf(),
         "generated": dt.datetime.now().strftime("%H:%M:%S"),

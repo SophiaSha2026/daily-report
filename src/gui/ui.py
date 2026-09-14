@@ -420,10 +420,14 @@ function renderSync(box, s) {
   g2.appendChild(syncCard);
 
   const live = s.cloud_cron_live || [];
-  g2.appendChild(card("云端自动运行", live.length ? "warn" : "ok",
-    [["状态", live.length ? live.length + " 个还在自动跑" : "已全部关掉"],
-     ["现在的角色", live.length ? "仍在云端跑" : "只存代码和数据"]],
-    live.length ? live : null, live.length ? "warn" : ""));
+  const fb = s.cloud_fallback || { on: [], missing: [], unexpected: [] };
+  const fbBad = live.length || (fb.missing || []).length;
+  const probs = [].concat(live, (fb.missing || []).map(x => "托底没开：" + x));
+  g2.appendChild(card("云端托底", fbBad ? "warn" : "ok",
+    [["角色", "本机为主，云端只在本机没跑时补位"],
+     ["开着的托底", (fb.on || []).length + " 条"],
+     ["不该开的", live.length ? live.length + " 条还在自动跑" : "无"]],
+    probs.length ? probs : (fb.on || []), fbBad ? "warn" : ""));
   box.appendChild(g2);
 }
 
@@ -578,9 +582,14 @@ function renderSched(s) {
     "早盘选股 <b>DailyReport-Local-Morning</b>：美东周日到周四 18:00 起每 15 分钟，" +
     "持续 3 小时 15 分。夏令时对应北京 06:00-09:15，冬令时 07:00-10:15，" +
     "两种时令都盖得住 09:16 这条开跑上界。<br>" +
-    "参数自学 <b>DailyReport-Local-Learn</b>：美东周一到周五 04:40 起每 30 分钟。<br>" +
+    "起涨预测 <b>DailyReport-Local-Evening</b>：美东周一到周五 04:30 起每 30 分钟，持续 16 小时。" +
+    "目标日是最近一个已收盘的交易日，北京 16:00 到次日 08:30 都能补跑，结果一样。<br>" +
+    "参数自学 <b>DailyReport-Local-Learn</b>：美东周一到周五 04:40 起每 30 分钟，持续 16 小时。<br>" +
+    "同步远端 <b>DailyReport-Local-Sync</b>：每 30 分钟把云端代跑的产物拉到本地面板。<br>" +
     "反复重试是因为笔记本可能整段时间不在线（2026-08-27 就漏发过一次）。" +
-    "反复敲是安全的：流程会先查今天跑过没有，跑完了再敲直接退出，不会重发邮件。";
+    "反复敲是安全的：流程会先查目标日跑过没有、有没有正在跑，跑完了再敲直接退出，不会重发邮件。" +
+    "本机整天没开时云端补位：早盘由云端代发；起涨预测云端算不了，北京 20:30 发提醒，开机后自动补。" +
+    "排期定义在 tools/setup_tasks.ps1。";
   box.appendChild(tip);
 }
 

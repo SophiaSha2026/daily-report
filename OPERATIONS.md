@@ -123,85 +123,83 @@ T3: 1092/1092 只, 1.3s      ← 命中率低于 80% 说明被限流，把 fetch
 
 ---
 
-## 五、cron 靠不住，所以有两道保险
+## 五、本地为主，云端托底（2026-09-15 起）
 
-GitHub 的 cron 是尽力而为，不是定时器。连续两天实测都很糟：
+这台笔记本（美东时间）是首选执行方，两条线都由本机计划任务跑；云端
+workflow 只在本机没跑的时候补位。每条线的入口都是同一个：
+`src/local_run.py`（计划任务、控制台按钮都调它），跑完产物 commit + push。
 
-- **2026-08-24**：08:23 那班盘前延迟 **97 分钟**（00:23 UTC 的 cron 到 02:00 UTC 才跑）
-- **2026-08-25**：到北京 08:46 为止，盘前 + 竞价前三班 **一条都没触发**，
-  当天那封是人工 `workflow_dispatch` 触发的
+### 本机计划任务（定义在 `tools/setup_tasks.ps1`，改排期改它再重跑）
 
-关键认识：**决定能不能赶上竞价窗口的是「最早那个真正启动的入口」，
-不是入口个数。** 平台拥堵时所有 schedule 事件一起顺延，五个入口挤在
-08:35-09:11 只能吃掉 44 分钟延迟，不够。
-
-### 保险一：GitHub cron 第一班提前到 07:40
-
-八个入口，最早 07:40。07:40 + 99 分钟 = 09:19，刚好赶上 09:19:40 采 T1。
-早触发不影响采样，job 内一律自旋等待到精确时刻，代价只是空转占用 runner。
-`timeout-minutes` 相应提到 150。
-
-### 保险二：你本机的计划任务（不依赖 GitHub）
-
-两个任务：
-
-| 任务名 | 美东触发 | 对应北京 | 触发哪条线 |
+| 任务 | 美东触发 | 北京窗口（`local_run.FLOWS`） | 跑什么 |
 |---|---|---|---|
-| `DailyReport-TriggerAuction` | 周日到周四 19:30 | **次日** 07:30(夏)/08:30(冬) | 竞价 |
-| `DailyReport-TriggerPullback` | 周一到周五 07:00 | **当日** 19:00(夏)/20:00(冬) | 形态 |
+| `DailyReport-Local-Morning` | 周日~周四 18:00 起每 15 分钟，共 3h15m | 06:00~09:16 | 早盘选股，09:27:30 发信 |
+| `DailyReport-Local-Evening` | 周一~周五 04:30 起每 30 分钟，共 16h | 16:00~次日 08:30 | 起涨预测，目标日 = 最近一个已收盘交易日 |
+| `DailyReport-Local-Learn` | 周一~周五 04:40 起每 30 分钟，共 16h | 16:00~次日 08:30 | 参数自学 |
+| `DailyReport-Local-Sync` | 每天 00:15 起每 30 分钟 | 不限 | 只拉远端：云端代跑的产物落到本地面板 |
 
-竞价那个是傍晚触发、跨了北京的午夜，所以是周日到周四；形态那个是早上触发，
-不跨天，所以是周一到周五。**两个不一样是刻意的，不是笔误。**
+四个都带「登录时触发」、允许唤醒、允许电池、错过就补。反复触发是安全的：
+`--if-needed` 跑过就不再跑、不在窗口只拉一次远端、正在跑就退出
+（`state/lock/<flow>.json` 进程锁，控制台手点和计划任务不会各起一个）。
 
-#### 踩过的坑：笔记本用电池时任务永远不跑
+**晚间系统为什么能补到次日 08:30**：收盘后数据定死，目标日是「最近一个
+已收盘的交易日」，北京 09-15 早上 07:00 补跑出的就是 09-14 的清单，
+和 09-14 17:00 跑一模一样。机器整天没开、美东晚上才醒也赶得上下一个
+交易日开盘。08:30 之后不跑，别抢竞价线 09:14 起的采样。
+
+### 云端托底（`.github/workflows/`）
+
+| workflow | 触发 | 做什么 |
+|---|---|---|
+| `auction.yml` 2-竞价选股 | cron 07:40/08:20/08:59/09:11 BJT + Cloudflare Worker 07:30 BJT 派发 | 照常采样；09:27:00 看到本地 claim 就等到 09:28:20 确认 sent：有 sent 只发布 Pages 面板，不发信、不提交数据；没 claim 或没 sent 就云端发信 |
+| `evening_check.yml` 8-晚间托底检查 | cron 20:30 BJT + Worker 20:45 BJT | 起涨预测**云端算不了**（特征表 2.5GB 在本机，新浪源 runner 不通），只检查 origin/main 上有没有目标日的 out_breakout，没有就发一封「本机今天没跑」提醒。同一天只提醒一次（`state/alert/`） |
+
+其余 workflow（形态扫描、盘中采样、自评估、刷新缓存、冒烟）全部只留
+`workflow_dispatch` 手动入口，没有 cron。控制台总览的「云端托底」卡片读
+origin/main 上的 workflow 文件：该开的两条没开、不该开的带了 cron，都会亮黄。
+
+Cloudflare Worker 在 `tools/external-trigger/`，是第三层触发（GitHub cron
+实测迟到甚至丢班，本机可能睡着）。改派发时刻改 `wrangler.toml` 和
+`worker.js` 的 ROUTES，`npx wrangler deploy`。**09-12 本地化时忘了它**，
+它每天 17:05 BJT 继续派发已经取消的形态扫描，09-14 还发了一封形态邮件，
+09-15 才改掉。停一条线要把三层触发都停干净：GitHub cron、本机计划任务、
+Worker。
+
+### 让位协议
+
+```
+state/claim/<flow>_<date>.json   本地开跑时推送：「我来」
+state/sent/<flow>_<date>.json    本地发信成功后推送：「我发了」
+```
+
+竞价线云端 09:25:50 还会看本地有没有推当天的数据快照（09:25:42 推），
+推了就跳过云端的 Claude 分析，省订阅额度；之后本地要是没发出去，
+云端 09:28:20 仍然兜底发信，只是没有文案（硬约束 2）。
+
+### 踩过的坑：笔记本用电池时任务永远不跑
 
 PowerShell 的 `New-ScheduledTaskSettingsSet` 默认
 `DisallowStartIfOnBatteries = True`。拔了电源，任务就一直卡在 `Queued`
-从不启动，而且 `LastTaskResult` 依然报 **0**,从任务计划界面上完全看不出
-出了问题。2026-08-26 实测：一个只写文件的最简任务同样报 0、同样什么都没干。
+从不启动，而且 `LastTaskResult` 依然报 **0**，从任务计划界面上完全看不出
+出了问题。`setup_tasks.ps1` 里四个任务都带
+`-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`，别用默认设置。
 
-两个任务现在都带 `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`，
-已在电池供电（54%，未插电）状态下实测触发成功。
-
-**以后重建任务别用默认设置。** 自查方法：
+自查：控制台「排期」页，或
 
 ```bash
-schtasks /Query /TN DailyReport-TriggerPullback /V /FO LIST
+schtasks /Query /TN DailyReport-Local-Evening /V /FO LIST
 ```
 
-看 `Status` 那行。`Ready` 正常，`Queued` 就是被条件挡住了。
-
-为什么是这个时间和星期，两个坑都踩过：
-
-- **不能用 20:30**。夏令时 20:30 = 北京 08:30 没问题，冬令时 20:30 = 北京
-  **09:30**，窗口早过了。19:30 在夏令时是北京 07:30、冬令时是北京 08:30，
-  两边都在窗口内，**全年不用随夏令时改**。
-- **不能用周一到周五**。美东周一晚 = 北京周二早，那样排会**漏掉北京周一**，
-  还白跑一个北京周六。必须是美东周日到周四。
-
-任务设了 `WakeToRun`（睡眠中唤醒）和 `StartWhenAvailable`（错过了就尽快补跑）。
-限制：机器关机或未登录时不会触发，那时靠保险一。
-
-日志在 `%LOCALAPPDATA%\daily-report-trigger.log`。想自查连通性：
-
-```bash
-cmd /c C:\home\daily-report\tools\trigger_auction.cmd check
-```
-
-### 重复触发不会发两封信
-
-`concurrency: auction-daily` 串行 + 幂等检查。当天数据已提交的话，
-后来的 job 整个跳过。所以两道保险同时命中也只发一封。
+`Ready` 正常，`Queued` 就是被条件挡住了。日志在 `tools/local_flow.log`。
 
 ### 还是没邮件怎么办
 
-去 Actions 页面确认四个 workflow 状态还是 active（仓库 60 天无提交会被
-自动停用；流水线每天提交数据，正常不会触发这条）。
-手动补跑：Actions → `2-竞价选股` → 右上 `Run workflow`，
-交易日北京 09:11 之前点都有效。
+- 早盘：Actions → `2-竞价选股` → `Run workflow`，交易日北京 09:11 之前点都有效。
+- 晚间：开机、登录，计划任务自动补跑；或控制台点「起涨预测」。云端补不了。
+- 去 Actions 页面确认 workflow 还是 active（仓库 60 天无提交会被自动停用；
+  流水线每天提交数据，正常不会触发这条）。
 
-非交易日不用担心：`run_auction.py` 查新浪交易日历，非交易日直接退出，
-不会发告警邮件。
+非交易日不用担心：各阶段都查新浪交易日历，非交易日直接退出，不发告警邮件。
 
 ---
 

@@ -13,21 +13,25 @@ name: 2-竞价选股 (09:25 BJT)
 # 早触发不影响采样：job 内一律自旋等待到精确时刻，代价只是空转占用 runner。
 on:
   # ===================================================================
-  # 2026-09-12 全面本地化：仓库只做版本控制，所有流水线在本机跑。
-  # 下面的 schedule 整块停用，云端不再自动触发、不再自动发信。
-  # workflow_dispatch 保留：本机长时间关机时还能手动派发一次应急。
-  # 恢复自动跑 = 取消这一段注释。
+  # 本地为主、云端托底（2026-09-15 起）
+  #
+  # 本机计划任务 DailyReport-Local-Morning 是首选执行方。云端这条每天照常
+  # 起来采样（09:19 采 T1 的时点等不起「本地失败了再启动」），但发不发信
+  # 由 tools/yield_check.py 决定：
+  #   本地推了 claim + sent  -> 云端不发信、不提交数据、只发布 Pages 面板
+  #   本地没 claim / 没 sent -> 云端 09:27:30 照常发信 + 提交数据
+  # 本地推了当日数据快照（09:25:42）就说明它活着，云端连 Claude 分析也省掉。
+  #
+  # 触发有两层：这里的 cron（GitHub 实测会迟到甚至丢班）+ Cloudflare Worker
+  # 07:30 BJT 派发 workflow_dispatch（tools/external-trigger/）。
+  # 重复触发无害：串行组 + 幂等检查。
   # ===================================================================
-  # schedule:
-  #   # 注意跨 UTC 午夜：BJT 07:40/08:00/08:20 = UTC 23:40(前一天)/00:00/00:20
-  #   - cron: "40 23 * * 0-4"  # 07:40 BJT 第一班，主力容错入口
-  #   - cron: "00 0 * * 1-5"   # 08:00 BJT
-  #   - cron: "20 0 * * 1-5"   # 08:20 BJT
-  #   - cron: "35 0 * * 1-5"   # 08:35 BJT
-  #   - cron: "47 0 * * 1-5"   # 08:47 BJT
-  #   - cron: "59 0 * * 1-5"   # 08:59 BJT
-  #   - cron: "05 1 * * 1-5"   # 09:05 BJT
-  #   - cron: "11 1 * * 1-5"   # 09:11 BJT 最后一班
+  schedule:
+    # 注意跨 UTC 午夜：BJT 07:40 = UTC 23:40 前一天，所以星期写 0-4
+    - cron: "40 23 * * 0-4"  # 07:40 BJT 第一班，主力容错入口
+    - cron: "20 0 * * 1-5"   # 08:20 BJT
+    - cron: "59 0 * * 1-5"   # 08:59 BJT
+    - cron: "11 1 * * 1-5"   # 09:11 BJT 最后一班
   workflow_dispatch:
     inputs:
       force:
@@ -161,6 +165,7 @@ jobs:
       # 就不确定，发信硬上限也就无从保证。quick 阶段 T4 在 09:25:40，
       # 采样加打分约 5 秒，09:25:50 一定已经就绪。
       - name: 闸门（钉死 Claude 起跑时刻）
+        id: gate
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         run: |
           python - <<'PY'
@@ -175,10 +180,22 @@ jobs:
               print(f"等待到 09:25:50，还有 {d:.0f}s")
               time.sleep(d)
           PY
+          # 本地 09:25:42 会推当天的数据快照。推了就说明本地活着、马上要
+          # 自己发信，云端的 Claude 分析纯属白烧订阅额度，跳过。
+          # 本地之后要是没发出去，云端 09:28:20 仍会兜底发信，只是没有文案
+          # （硬约束 2：LLM 缺席不阻断发信）。
+          D=$(TZ=Asia/Shanghai date +%F)
+          git fetch -q origin "${{ github.ref_name }}" 2>/dev/null || true
+          if git cat-file -e "origin/${{ github.ref_name }}:data/${D:0:7}/auction_${D}.parquet" 2>/dev/null; then
+            echo "local_alive=true" >> $GITHUB_OUTPUT
+            echo "本地已推今日数据快照，跳过云端 Claude 分析"
+          else
+            echo "local_alive=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Claude 分析
         id: llm
-        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true' && steps.gate.outputs.local_alive != 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: anthropics/claude-code-action@v1
@@ -195,7 +212,7 @@ jobs:
             --json-schema '{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"code":{"type":"string"},"reason":{"type":"string"},"risk":{"type":"string"}},"required":["code","reason","risk"]}}},"required":["items"]}'
 
       - name: 落盘 Claude 输出
-        if: always() && steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        if: always() && steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true' && steps.gate.outputs.local_alive != 'true'
         env:
           RAW: ${{ steps.llm.outputs.structured_output }}
         run: python src/collect_llm.py
@@ -222,8 +239,10 @@ jobs:
           SKIP_MAIL: ${{ steps.yield.outputs.skip_mail == '1' && '1' || '' }}
         run: python src/run_auction.py --stage enrich
 
+      # 本地发了信就不提交：本地那份才是权威版本，云端再提交一份同名
+      # 文件只会让两边的历史互相撞。云端自己发信的那天才提交。
       - name: 提交数据（同时充当 60 天 keepalive）
-        if: steps.g.outputs.skip == 'false'
+        if: steps.g.outputs.skip == 'false' && steps.yield.outputs.skip_mail != '1'
         run: |
           git config user.name auction-bot
           git config user.email bot@users.noreply.github.com
@@ -255,8 +274,20 @@ jobs:
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         # 一个仓库只有一份 Pages 部署。以前这里是 mkdir _site && cp out/*，
         # 加了形态扫描那条线之后，谁后跑谁就把对方的页面整个冲掉。
-        # build_site.py 从 out/ 和 out_pullback/ 各取一份凑齐再发布。
-        run: python src/build_site.py
+        # build_site.py 从各个 out*/ 目录各取一份凑齐再发布。
+        #
+        # 本地发了信的话，本地那份面板（带 Claude 文案）已经推到 origin，
+        # 用它而不是云端自己生成的（云端跳过了 Claude 分析）。晚间系统的
+        # 面板只有本地能生成，也从 origin 拿最新的。
+        run: |
+          git fetch -q origin "${{ github.ref_name }}" 2>/dev/null || true
+          if [ "${{ steps.yield.outputs.skip_mail }}" = "1" ]; then
+            git checkout "origin/${{ github.ref_name }}" -- out 2>/dev/null || true
+          fi
+          for d in out_breakout out_learn out_pullback; do
+            git checkout "origin/${{ github.ref_name }}" -- "$d" 2>/dev/null || true
+          done
+          python src/build_site.py
       - uses: actions/upload-pages-artifact@v3
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         with: { path: _site }

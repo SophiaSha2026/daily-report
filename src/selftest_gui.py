@@ -78,12 +78,20 @@ def check_windows() -> None:
     import datetime as dt
     import local_run
     orig = local_run.now_bj
+    # 晚间系统和学习线的窗口跨午夜：16:00 到次日 08:30。目标日是最近一个
+    # 已收盘交易日，所以北京 07:00 补跑出的仍是前一天的清单，不会错日。
+    # 08:30 之后不跑：竞价线 09:14 开始采样，别抢那几分钟。
     cases = [
         ("morning", 5, 59, False), ("morning", 6, 0, True),
         ("morning", 9, 16, True), ("morning", 9, 17, False),
         ("morning", 20, 0, False),
         ("learn", 15, 59, False), ("learn", 16, 0, True),
-        ("learn", 23, 30, True), ("learn", 23, 31, False),
+        ("learn", 23, 59, True), ("learn", 0, 0, True),
+        ("learn", 8, 30, True), ("learn", 8, 31, False),
+        ("breakout", 15, 59, False), ("breakout", 16, 0, True),
+        ("breakout", 23, 59, True), ("breakout", 7, 0, True),
+        ("breakout", 8, 30, True), ("breakout", 8, 31, False),
+        ("breakout", 12, 0, False),
         ("evening", 22, 0, True), ("evening", 22, 1, False),
     ]
     try:
@@ -93,6 +101,63 @@ def check_windows() -> None:
             ck(got == want, f"{flow} {h:02d}:{m:02d} -> {'可跑' if want else '跳过'}")
     finally:
         local_run.now_bj = orig
+
+
+def check_target_and_lock() -> None:
+    """目标日：竞价线是今天，其余是最近一个已收盘交易日。进程锁：活的挡、死的不挡。"""
+    print("\n[目标日 / 进程锁]")
+    import datetime as dt
+    import json
+    import os
+    import tempfile
+    import local_run
+    tz = dt.timezone(dt.timedelta(hours=8))
+    orig_td, orig_now = local_run.trade_dates, local_run.now_bj
+    # 假日历：09-14（周一）是交易日，09-12/13 周末不是，09-11 是
+    local_run.trade_dates = lambda: {"2026-09-11", "2026-09-14", "2026-09-15"}
+    try:
+        for (mo, d, h, m), want in [
+            ((9, 14, 16, 30), "2026-09-14"),   # 收盘后：当天
+            ((9, 14, 14, 0), "2026-09-11"),    # 盘中：上一交易日
+            ((9, 15, 7, 30), "2026-09-14"),    # 次日早上补跑：仍是前一天
+            ((9, 13, 12, 0), "2026-09-11"),    # 周末：上周五
+        ]:
+            local_run.now_bj = lambda: dt.datetime(2026, mo, d, h, m, tzinfo=tz)
+            got = local_run.target_date("breakout")
+            ck(got == want, f"breakout 目标日 {mo:02d}-{d:02d} {h:02d}:{m:02d} -> {want}")
+        local_run.now_bj = lambda: dt.datetime(2026, 9, 15, 7, 30, tzinfo=tz)
+        ck(local_run.target_date("morning") == "2026-09-15", "竞价线目标日永远是今天")
+        # 没有日历时按周一到周五
+        local_run.trade_dates = lambda: set()
+        local_run.now_bj = lambda: dt.datetime(2026, 9, 13, 12, 0, tzinfo=tz)
+        ck(local_run.target_date("learn") == "2026-09-11", "日历拿不到时按工作日退化")
+    finally:
+        local_run.trade_dates, local_run.now_bj = orig_td, orig_now
+
+    # 锁：写到临时目录，不碰 state/
+    orig_root = local_run.ROOT
+    local_run.ROOT = Path(tempfile.mkdtemp(prefix="lock_"))
+    try:
+        ck(local_run.running_instance("breakout") is None, "没有锁文件 -> 没在跑")
+        ck(local_run.acquire_lock("breakout"), "拿锁成功")
+        ck(local_run.running_instance("breakout") is None, "自己的锁不算别人在跑")
+        lp = local_run.lock_path("breakout")
+        lp.write_text(json.dumps({"pid": os.getpid(), "flow": "breakout",
+                                  "at": local_run.now_bj().isoformat(timespec="seconds")}),
+                      encoding="utf-8")
+        lp2 = local_run.lock_path("morning")
+        lp2.write_text(json.dumps({"pid": 999999, "flow": "morning",
+                                   "at": local_run.now_bj().isoformat(timespec="seconds")}),
+                       encoding="utf-8")
+        ck(local_run.running_instance("morning") is None, "锁里的进程死了 -> 当没锁")
+        stale = (local_run.now_bj() - dt.timedelta(hours=9)).isoformat(timespec="seconds")
+        lp2.write_text(json.dumps({"pid": os.getpid(), "flow": "morning", "at": stale}),
+                       encoding="utf-8")
+        ck(local_run.running_instance("morning") is None, "锁超过最长运行时间 -> 当没锁")
+        local_run.release_lock("breakout")
+        ck(not lp.exists(), "释放后锁文件删掉")
+    finally:
+        local_run.ROOT = orig_root
 
 
 def check_panels() -> None:
@@ -184,6 +249,7 @@ def main() -> int:
     check_actions()
     check_flow_tables()
     check_windows()
+    check_target_and_lock()
     check_panels()
     check_http()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
