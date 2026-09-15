@@ -134,9 +134,11 @@ def check_target_and_lock() -> None:
     finally:
         local_run.trade_dates, local_run.now_bj = orig_td, orig_now
 
-    # 锁：写到临时目录，不碰 state/
-    orig_root = local_run.ROOT
+    # 锁：写到临时目录，不碰 state/。进程表那一层换成死实现：这里测的是锁的
+    # 逻辑，真机上可能正好有一条线在跑，扫进程表会把它算进来。
+    orig_root, orig_scan = local_run.ROOT, local_run._scan_processes
     local_run.ROOT = Path(tempfile.mkdtemp(prefix="lock_"))
+    local_run._scan_processes = lambda flow: None
     try:
         ck(local_run.running_instance("breakout") is None, "没有锁文件 -> 没在跑")
         ck(local_run.acquire_lock("breakout"), "拿锁成功")
@@ -156,8 +158,12 @@ def check_target_and_lock() -> None:
         ck(local_run.running_instance("morning") is None, "锁超过最长运行时间 -> 当没锁")
         local_run.release_lock("breakout")
         ck(not lp.exists(), "释放后锁文件删掉")
+        local_run._scan_processes = lambda flow: {"pid": 1, "flow": flow,
+                                                  "at": "", "source": "进程表"}
+        ck(local_run.running_instance("breakout") is not None,
+           "没有锁但进程表里有 -> 算在跑")
     finally:
-        local_run.ROOT = orig_root
+        local_run.ROOT, local_run._scan_processes = orig_root, orig_scan
 
 
 def check_panels() -> None:

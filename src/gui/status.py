@@ -263,6 +263,133 @@ def morning_perf() -> dict:
             "hit": m.get("hit_rate"), "excess": m.get("top_excess")}
 
 
+# 触发规则，给排期页显式列出来。时刻两套：本机任务是美东时间（跟夏令时走），
+# 开跑窗口是北京时间（local_run.FLOWS 判的就是北京时间）。
+# 规则本身在 src/local_run.py（本机）、tools/yield_check.py 和
+# tools/evening_check.py（云端）里，这里只是把它们用人话写出来。
+RULES = {
+    "morning": {
+        "local_when": "美东周日~周四 18:00 起每 15 分钟，共 3h15m；开机登录时也触发一次",
+        "target_rule": "今天（09:16 之后新起进程来不及赶上 09:25 采样）",
+        "steps": "同步仓库 -> 推 claim -> 候选池 -> 09:14 预热、09:19/09:23/09:25 采样 -> "
+                 "推数据快照 -> Claude 文案 -> 09:27:30 发信 -> 推 sent + 面板",
+        "cloud": "auction.yml：cron 07:40/08:20/08:59/09:11 北京 + Cloudflare Worker 07:30 派发。"
+                 "云端照常采样；09:25:50 看到本地已推数据快照就不跑 Claude；"
+                 "09:27:00 看到本地 claim 就等到 09:28:20 确认 sent：有 sent -> 只发布 Pages 面板，"
+                 "不发信、不提交数据；没 claim 或没 sent -> 云端 09:27:30 发信、提交数据。",
+    },
+    "breakout": {
+        "local_when": "美东周一~周五 04:30 起每 30 分钟，共 16h（到 20:30）；开机登录时也触发一次",
+        "target_rule": "最近一个已收盘（15:05 后）的交易日。北京 09-15 早上补跑出的是 09-14 的清单",
+        "steps": "同步仓库 -> 推 claim -> 腾讯快照追加目标日日线（追加不到就不出清单）-> "
+                 "重算特征（约 13 分钟）-> 打分、风险剔除 -> 面板 + 发信 -> 推 sent + 产物",
+        "cloud": "evening_check.yml：cron 20:30 北京 + Worker 20:45 派发。云端算不了这条线"
+                 "（特征表 2.5GB 在本机，新浪源云端不通），只看 origin/main 有没有目标日的清单，"
+                 "没有就发一封「本机没跑」提醒，同一天只发一次。",
+    },
+    "learn": {
+        "local_when": "美东周一~周五 04:40 起每 30 分钟，共 16h（到 20:40）；开机登录时也触发一次",
+        "target_rule": "同起涨预测：最近一个已收盘的交易日",
+        "steps": "同步仓库 -> 标签 -> 归因 -> 拟合与闸门 -> 推学习产物",
+        "cloud": "无。learn.yml 只留手动入口。",
+    },
+    "evening": {
+        "local_when": "已停用自动（2026-09-12 用户取消每日形态报告），只剩控制台手动入口",
+        "target_rule": "最近一个已收盘的交易日",
+        "steps": "形态扫描 -> 发信 -> 学习线",
+        "cloud": "无。pullback.yml 只留手动入口；Worker 09-15 起不再派发它。",
+    },
+}
+
+# --if-needed 的四道检查，顺序就是 local_run.main 里的顺序
+IF_NEEDED = [
+    "北京时间周末：跳过",
+    "这条线正在跑（state/lock）：跳过",
+    "目标日已经跑完（run_meta 日期 == 目标日）：跳过",
+    "不在开跑窗口：只拉一次远端，不跑",
+    "都通过：先拉远端再核对一次（云端可能已经代跑），然后开跑",
+]
+
+MANUAL_RULE = ("控制台按钮和计划任务走同一个入口。手点不看窗口、不看跑没跑过，"
+               "但看锁：已经在跑就直接退出。带「会发邮件」的按钮点了就真的发，点前会弹确认。")
+
+
+def _local_run():
+    try:
+        import sys
+        sys.path.insert(0, str(ROOT / "src"))
+        import local_run
+        return local_run
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def verdict(key: str, done: bool, target: str) -> str:
+    """现在这一刻触发这条线，会发生什么。逐条复述 local_run.main 的判断。"""
+    L = _local_run()
+    now = now_bj()
+    if key == "evening":
+        return "自动已停用，只有手动"
+    if now.weekday() >= 5:
+        return "北京周末，触发了也跳过"
+    if L:
+        try:
+            other = L.running_instance(key)
+            if other:
+                since = str(other.get("at", ""))[11:16]
+                return (f"正在跑（pid {other.get('pid')}"
+                        + (f"，{since} 起" if since else "") + "），再触发直接退出")
+        except Exception:  # noqa: BLE001
+            pass
+    if done:
+        return f"目标日 {target} 已跑完，再触发直接退出"
+    if L:
+        try:
+            if not L.in_window(key):
+                lo, hi = L.FLOWS[key][2:]
+                return (f"不在开跑窗口 {lo[0]:02d}:{lo[1]:02d}-{hi[0]:02d}:{hi[1]:02d}（北京），"
+                        f"触发了只拉远端不跑")
+        except Exception:  # noqa: BLE001
+            pass
+    return "在窗口内、目标日还没跑：下一次触发就开跑"
+
+
+def window_text(key: str) -> str:
+    L = _local_run()
+    if not L or key not in L.FLOWS:
+        return "?"
+    lo, hi = L.FLOWS[key][2:]
+    s = f"北京 {lo[0]:02d}:{lo[1]:02d}-{hi[0]:02d}:{hi[1]:02d}"
+    return s + ("（跨午夜到次日）" if hi < lo else "")
+
+
+def rules_status(lines: list[dict]) -> dict:
+    now = now_bj()
+    edt = dt.datetime.now()
+    out = []
+    for ln in lines:
+        r = RULES.get(ln["key"], {})
+        out.append({
+            "key": ln["key"], "name": ln["name"], "task": ln["task"],
+            "local_when": r.get("local_when", ""),
+            "window": window_text(ln["key"]),
+            "target_rule": r.get("target_rule", ""),
+            "target": ln.get("target", ""),
+            "done": ln.get("done"),
+            "verdict": verdict(ln["key"], bool(ln.get("done")), ln.get("target", "")),
+            "steps": r.get("steps", ""),
+            "cloud": r.get("cloud", ""),
+        })
+    return {
+        "now": f"北京 {now.strftime('%m-%d %H:%M')}（本机 {edt.strftime('%m-%d %H:%M')}）",
+        "lines": out,
+        "if_needed": IF_NEEDED,
+        "manual": MANUAL_RULE,
+        "worker": "Cloudflare Worker daily-report-trigger：每天 07:30 北京派发 auction.yml，"
+                  "20:45 北京派发 evening_check.yml。第三层触发，改它要重新 deploy。",
+    }
+
+
 # 云端该开着的托底 workflow。多了是没停干净，少了是托底没开。
 CLOUD_FALLBACK = {
     "auction.yml": "竞价线代跑（本地发了信就只发布面板）",
@@ -302,6 +429,7 @@ def overview() -> dict:
         "sync": sync,
         "tasks": tasks,
         "cloud_cron_live": cloud_live,
+        "rules": rules_status(lines),
         "cloud_fallback": {
             "on": [f"{k}：{CLOUD_FALLBACK[k]}" for k in CLOUD_FALLBACK
                    if k in live],

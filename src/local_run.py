@@ -296,26 +296,55 @@ def lock_path(flow: str) -> Path:
     return ROOT / "state" / "lock" / f"{flow}.json"
 
 
+def _scan_processes(flow: str) -> dict | None:
+    """锁之外再看一眼进程表：有没有别的 `local_run.py --flow <flow>` 在跑。
+
+    锁文件可能被手删、也可能是旧版本代码起的进程根本没写锁（2026-09-14
+    晚上就是）。进程表是事实，锁只是快捷方式。只在 Windows 上做，
+    别处返回 None。
+    """
+    if sys.platform != "win32":
+        return None
+    ps = ("Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
+          "ForEach-Object { '' + $_.ProcessId + '|' + $_.CommandLine }")
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive",
+                            "-Command", ps], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=20,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except Exception:  # noqa: BLE001
+        return None
+    for line in (r.stdout or "").splitlines():
+        pid, _, cmd = line.partition("|")
+        if not pid.strip().isdigit() or int(pid) == os.getpid():
+            continue
+        if "local_run.py" in cmd and f"--flow {flow}" in cmd:
+            return {"pid": int(pid), "flow": flow, "at": "", "source": "进程表"}
+    return None
+
+
 def running_instance(flow: str) -> dict | None:
     """这条线现在是否有别的实例在跑。返回锁内容，没有就 None。
 
     锁里的进程死了（崩溃、被杀）就当没锁。超过 MAX_RUN 小时的也当没锁，
-    防 PID 被系统重用后误判成「还在跑」。
+    防 PID 被系统重用后误判成「还在跑」。没有锁再扫一遍进程表兜底。
     """
     p = lock_path(flow)
+    info = None
     try:
         info = json.loads(p.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
-        return None
-    try:
-        age = (now_bj() - dt.datetime.fromisoformat(info["at"])).total_seconds()
-    except Exception:  # noqa: BLE001
-        age = 0
-    if age > MAX_RUN.get(flow, 3) * 3600:
-        return None
-    if int(info.get("pid", 0)) == os.getpid():
-        return None
-    return info if _pid_alive(int(info.get("pid", 0))) else None
+        pass
+    if info:
+        try:
+            age = (now_bj() - dt.datetime.fromisoformat(info["at"])).total_seconds()
+        except Exception:  # noqa: BLE001
+            age = 0
+        if (age <= MAX_RUN.get(flow, 3) * 3600
+                and int(info.get("pid", 0)) != os.getpid()
+                and _pid_alive(int(info.get("pid", 0)))):
+            return info
+    return _scan_processes(flow)
 
 
 def acquire_lock(flow: str) -> bool:
@@ -652,6 +681,11 @@ def main() -> int:
     a = ap.parse_args()
 
     if a.sync:
+        # 有流程在跑时不动工作区，那是正常情况不是失败，退出 0；
+        # 只有真的拉不下来才退出 1（计划任务的「上次结果」会显示出来）
+        if any_flow_running():
+            sync_repo()
+            return 0
         return 0 if sync_repo() else 1
     if not a.flow:
         ap.error("--flow 或 --sync 二选一")

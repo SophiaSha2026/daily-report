@@ -432,9 +432,10 @@ function renderSync(box, s) {
 }
 
 /* ---------------- 运行 ---------------- */
-let curJob = null, logOffset = 0, logTimer = null;
+let curJob = null, logOffset = 0, logTimer = null, lastActions = null;
 
 function renderRun(a) {
+  lastActions = a.actions || [];
   const bar = $("#runbar");
   if (bar.dataset.built) { syncRunButtons(a); return; }
   bar.innerHTML = "";
@@ -486,6 +487,10 @@ function syncRunButtons(a) {
 }
 
 async function run(key) {
+  // 会发邮件的按钮点了就真的发，没有第二道门。2026-09-14 一次误点把上一交易日的
+  // 清单又发了一遍，所以这里先问一句。
+  const a = (lastActions || []).find(x => x.key === key);
+  if (a && a.mail && !confirm(`「${a.name}」会真的发邮件到你邮箱，确定运行？`)) return;
   try {
     const j = await api("/api/run", { key });
     curJob = j.id; logOffset = 0; $("#joblog").textContent = "";
@@ -535,6 +540,51 @@ async function pollLog() {
   }
 }
 
+/* ---------------- 触发规则 ---------------- */
+function renderRules(box, r) {
+  if (!r) return;
+  const h = el("h2", null, "触发规则");
+  h.appendChild(Object.assign(el("span", "hint"),
+    { textContent: "现在 " + r.now + "。每条线：什么时候触发、什么条件下真的跑、云端怎么补位" }));
+  box.appendChild(h);
+
+  const t = el("table");
+  t.innerHTML = "<tr><th>线</th><th>本机什么时候触发</th><th>开跑窗口</th>" +
+    "<th>目标日</th><th>现在触发会怎样</th><th>云端规则</th></tr>";
+  (r.lines || []).forEach(x => {
+    const tr = el("tr");
+    const vcls = x.done ? "ok" : (/开跑/.test(x.verdict) ? "warn" : "idle");
+    tr.innerHTML =
+      `<td><b>${esc(x.name)}</b><div class="muted mono" style="font-size:11px">${esc(x.task || "手动")}</div></td>` +
+      `<td style="font-size:12px">${esc(x.local_when)}<div class="muted" style="font-size:11px;margin-top:4px">步骤：${esc(x.steps)}</div></td>` +
+      `<td class="mono" style="font-size:12px">${esc(x.window)}</td>` +
+      `<td style="font-size:12px"><span class="mono">${esc(x.target)}</span><div class="muted" style="font-size:11px">${esc(x.target_rule)}</div></td>` +
+      `<td style="font-size:12px"><span class="dot ${vcls}"></span>${esc(x.verdict)}</td>` +
+      `<td style="font-size:12px">${esc(x.cloud)}</td>`;
+    t.appendChild(tr);
+  });
+  box.appendChild(t);
+
+  const cond = el("div", "muted");
+  cond.style.cssText = "font-size:12px;margin-top:10px;line-height:1.8";
+  cond.innerHTML = "<b>计划任务每次触发，按顺序过四道检查（--if-needed）：</b><br>" +
+    (r.if_needed || []).map((x, i) => (i + 1) + ". " + esc(x)).join("<br>") +
+    "<br><b>手动：</b>" + esc(r.manual || "") +
+    "<br><b>第三层触发：</b>" + esc(r.worker || "");
+  box.appendChild(cond);
+}
+
+// 计划任务的「上次结果」。Windows 用 HRESULT 报状态，裸数字看不懂：
+//   0x41301 正在运行  0x41303 还没跑过  0x41306 被终止
+//   0x800710E0 上次触发时已有实例在跑，新触发被忽略（MultipleInstances=IgnoreNew）
+function rcText(rc) {
+  if (rc === 0) return "成功";
+  if (rc === null || rc === undefined) return "";
+  const m = { 267009: "正在运行", 267011: "还没跑过", 267014: "被终止",
+              2147946720: "已在跑，新触发被忽略", 1: "退出码 1（看运行记录）" };
+  return m[rc] || ("码 " + rc);
+}
+
 /* ---------------- 排期 ---------------- */
 function renderSched(s) {
   const box = $("#v-sched"); box.innerHTML = "";
@@ -559,9 +609,7 @@ function renderSched(s) {
       `<td><span class="dot ${on ? (legacy ? "warn" : "ok") : "idle"}"></span>` +
         `${esc(d.state)}</td>` +
       `<td class="mono muted">${esc(d.last)}</td>` +
-      `<td class="mono ${d.rc ? "" : "muted"}">${d.never ? "还没跑过" :
-        (d.rc === 0 ? "成功" :
-         (d.rc === null || d.rc === undefined ? "" : "码 " + d.rc))}</td>` +
+      `<td class="mono ${d.rc ? "" : "muted"}">${d.never ? "还没跑过" : rcText(d.rc)}</td>` +
       `<td class="mono muted">${esc(d.next)}</td>`;
     const td = el("td");
     const b = el("button", "act", on ? "停用" : "启用");
@@ -575,6 +623,8 @@ function renderSched(s) {
     td.appendChild(b); tr.appendChild(td); t.appendChild(tr);
   });
   box.appendChild(t);
+
+  renderRules(box, s.rules);
 
   const tip = el("div", "muted");
   tip.style.cssText = "font-size:12px;margin-top:14px;line-height:1.8";
