@@ -307,6 +307,16 @@ def update_pool(picks: pd.DataFrame, date: str) -> dict:
             pool = json.loads(p.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             pool = {}
+    pool = pool_step(pool, picks, date)
+    STATE.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(pool, ensure_ascii=False, indent=2),
+                 encoding="utf-8")
+    return pool
+
+
+def pool_step(pool: dict, picks: pd.DataFrame, date: str) -> dict:
+    """A 池推进一天（纯函数，不碰文件）。update_pool 和历史回放共用。"""
+    pool = {k: dict(v) for k, v in pool.items()}
     for _, r in picks[picks["score"] >= SCORE_B].iterrows():
         c = r["code"]
         e = pool.get(c, {"first": date, "best": 0.0, "days": 0})
@@ -321,11 +331,42 @@ def update_pool(picks: pd.DataFrame, date: str) -> dict:
     # 过期清理：POOL_DAYS 个交易日按 1.47 折算成自然日
     cut = (dt.date.fromisoformat(date)
            - dt.timedelta(days=int(POOL_DAYS * 1.47))).isoformat()
-    pool = {k: v for k, v in pool.items() if v.get("last", "") >= cut}
-    STATE.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(pool, ensure_ascii=False, indent=2),
-                 encoding="utf-8")
-    return pool
+    return {k: v for k, v in pool.items() if v.get("last", "") >= cut}
+
+
+def recent_history(n: int = 30) -> list[dict]:
+    """最近 n 个交易日的清单 A/B，给面板的日期下拉用。
+
+    清单 A 读每天落盘的 breakout_<date>.parquet；清单 B 当时没有落盘，
+    这里从最早一份清单起把 A 池逐日回放出来，再按「那天为止」的价格算
+    （和补发工具 tools/resend_breakout.py 同一套逻辑）。
+    """
+    files = sorted(DATA.glob("*/breakout_*.parquet"))
+    if not files:
+        return []
+    dp = DATA / "daily.parquet"
+    px = (pd.read_parquet(dp, columns=["code", "date", "close"])
+          if dp.exists() else pd.DataFrame(columns=["code", "date", "close"]))
+    pool: dict = {}
+    out = []
+    for f in files:
+        picks = pd.read_parquet(f)
+        if not len(picks):
+            continue
+        date = str(picks["date"].iloc[0])
+        pool = pool_step(pool, picks, date)
+        blist = build_list_b(px, pool, asof=date) if len(px) else pd.DataFrame()
+        # 2026-09-15 之前落盘的清单没有这两列，抬头就不印
+        first = picks.iloc[0]
+        rej = first.get("rejected")
+        out.append({"date": date, "a": picks, "b": blist,
+                    "meta": {"date": date, "n_a": len(picks), "n_b": len(blist),
+                             "n_streak3": int((picks["streak"] >= 3).sum())
+                             if "streak" in picks else 0,
+                             "pool": len(pool),
+                             "model_date": first.get("model_date"),
+                             "rejected": None if pd.isna(rej) else int(rej)}})
+    return out[-n:]
 
 
 # ---------------------------------------------------------------
@@ -511,6 +552,8 @@ def stage_scan(force_fit: bool = False) -> int:
          "dry": bool(os.environ.get("DRY_RUN"))},
         ensure_ascii=False), encoding="utf-8")
     (DATA / date[:7]).mkdir(parents=True, exist_ok=True)
+    # 模型日期和剔除数也落盘：面板按日期回看时抬头要印这两个数
+    picks = picks.assign(model_date=obj["fit_date"], rejected=len(bad))
     picks.to_parquet(DATA / date[:7] / f"breakout_{date}.parquet", index=False)
     log.info("完成，用时 %.1f 分钟", (time.time() - t0) / 60)
     return 0
@@ -547,7 +590,12 @@ def stage_send() -> int:
     for x in (a, b):
         if "code" in x.columns:
             x["code"] = x["code"].astype(str).str.zfill(6)
-    E.write_panel(a, b, meta, OUT, date)
+    try:
+        hist = recent_history(30)
+    except Exception as e:  # noqa: BLE001
+        log.warning("历史清单回放失败（面板只带当天）: %s", e)
+        hist = []
+    E.write_panel(a, b, meta, OUT, date, history=hist)
     import os
     if os.environ.get("SKIP_MAIL"):
         log.info("SKIP_MAIL=1，只生成面板不发邮件")

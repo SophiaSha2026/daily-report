@@ -371,7 +371,40 @@ def check_panel_html() -> None:
     ck(html.count("<script>") == 1, "面板有且只有一个 script 标签")
     ck(E._body("2026-09-11", fake_a, fake_b, {}, False).count("<script") == 0,
        "邮件里没有 script（邮件客户端会剥掉）")
+    check_date_picker()
     check_table_shape()
+
+
+def check_date_picker() -> None:
+    """面板的日期下拉（2026-09-15 加）。
+
+    历史每天的清单 HTML 都嵌在页里，切换只换 innerHTML。要钉的三件事：
+    仍然只有一个 script（第二个会被 REFRESH_JS 那条断言当成占位符没换）；
+    邮件完全不受 history 影响；当天那块用调用方的 meta（有风险剔除数），
+    不用回放出来的（rejected=None，印不出那段）。
+    """
+    import re
+    import export as E
+    a = pd.DataFrame({"code": ["600000"], "name": ["测试"], "score": [98.0],
+                      "streak": [3], "close": [10.0]})
+    b = pd.DataFrame(columns=["code", "name", "best", "days", "streak",
+                              "close", "rise", "drop"])
+    hist = [{"date": d, "a": a, "b": b, "meta": {"date": d, "rejected": None}}
+            for d in ("2026-09-11", "2026-09-12", "2026-09-15")]
+    meta = {"rejected": 2, "model_date": "2026-09-15"}
+    html = E._body("2026-09-15", a, b, meta, True, hist)
+    ck(html.count("<script>") == 1, "带下拉的面板仍然只有一个 script 标签")
+    opts = re.findall(r'<option value="([\d-]+)"', html)
+    ck(opts == ["2026-09-15", "2026-09-12", "2026-09-11"],
+       f"下拉按日期倒序列出全部历史日（{opts}）")
+    ck('<option value="2026-09-15" selected>' in html, "默认选中当天")
+    ck('<div id="day">' in html and "风险剔除 2 只" in html,
+       "当天那块用的是调用方的 meta（有风险剔除数）")
+    ck(E._body("2026-09-15", a, b, meta, False, hist)
+       == E._body("2026-09-15", a, b, meta, False),
+       "邮件不受 history 影响")
+    ck("daysel" not in E._body("2026-09-15", a, b, meta, True),
+       "没给 history 就没有下拉")
 
 
 def check_table_shape() -> None:

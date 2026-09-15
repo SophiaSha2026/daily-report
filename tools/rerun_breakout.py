@@ -148,8 +148,9 @@ def run(a) -> int:
         # 落盘：覆盖这几天的清单（旧模型出的），A 池换成重算的，最后一天进 out_breakout
         for date, picks, blist, meta in outputs:
             (D.DATA / date[:7]).mkdir(parents=True, exist_ok=True)
-            picks.to_parquet(D.DATA / date[:7] / f"breakout_{date}.parquet",
-                             index=False)
+            picks.assign(model_date=meta["model_date"],
+                         rejected=meta["rejected"]).to_parquet(
+                D.DATA / date[:7] / f"breakout_{date}.parquet", index=False)
         shutil.copy2(tmp / "a_pool.json", real_state / "a_pool.json")
         date, picks, blist, meta = outputs[-1]
         D.OUT.mkdir(parents=True, exist_ok=True)
@@ -160,7 +161,9 @@ def run(a) -> int:
                       force_ascii=False, indent=2)
         (D.OUT / "run_meta.json").write_text(json.dumps(meta, ensure_ascii=False),
                                              encoding="utf-8")
-        E.write_panel(picks, blist, meta, D.OUT, date)
+        # 清单刚落盘，回放历史给面板的日期下拉用
+        E.write_panel(picks, blist, meta, D.OUT, date,
+                      history=D.recent_history(30))
         LR.push_marker("sent", "breakout", {"ok": True, "rerun": True}, False, date)
         LR.push_all(f"起涨预测 重算 {dates[0]}..{dates[-1]} [local]",
                     [f"data/breakout/{dates[0][:7]}", f"data/breakout/{dates[-1][:7]}",

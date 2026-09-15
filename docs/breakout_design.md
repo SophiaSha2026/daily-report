@@ -649,6 +649,13 @@ stage=send    LLM 写文案（只写 reason/risk，不参与排序）→ 面板 
 清单为空是正常的，必须在邮件和面板里写明，否则用户会以为流水线坏了
 （形态线已有同样的教训，CLAUDE.md 里记着）。
 
+**面板可以按日期回看**（2026-09-15 加）：`daily.recent_history(30)` 读最近
+30 份 `data/breakout/YYYY-MM/breakout_<date>.parquet`，用纯函数 `pool_step`
+把 A 池逐日回放，再按「那天为止」的价格算清单 B（和补发工具一个口径）。
+每天的 A/B 表都在 Python 里渲染好嵌进 `panel.html`，顶部一个下拉，切换只换
+`innerHTML`，不发请求。邮件不带这些。落盘的清单从这天起多两列
+`model_date` / `rejected`，回看时抬头才印得出来。
+
 ---
 
 ## 7. 在线学习闭环

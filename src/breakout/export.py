@@ -129,17 +129,16 @@ def _rows_b(b: pd.DataFrame) -> str:
     return "".join(out)
 
 
-def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
-          for_panel: bool) -> str:
-    # rejected 为 None 表示不可知（补发历史清单时），这段就不印
+def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
+    """某一天的抬头 + 清单 A + 清单 B。面板按日期切换时整块替换。"""
+    # rejected 为 None 表示不可知（补发/回放历史清单时），这段就不印
     rej = meta.get("rejected", 0)
-    rej_txt = f"风险剔除 {rej} 只 · " if rej is not None else ""
+    rej_txt = f" · 风险剔除 {rej} 只" if rej is not None else ""
+    md = meta.get("model_date")
+    md_txt = f" · 模型训练于 {md}" if md else ""
     head = (f'<h1>起涨预测 · {date}</h1>'
-            f'<div class="sub">清单 A {len(a)} 只，清单 B {len(b)} 只 · '
-            f'{rej_txt}'
-            f'模型训练于 {meta.get("model_date", "?")}</div>')
-    tip = (f'<div class="tip" style="margin:0 0 14px;padding:10px 12px;'
-           f'background:#1e2229;border-radius:5px">{DISCLAIMER}</div>')
+            f'<div class="sub">清单 A {len(a)} 只，清单 B {len(b)} 只'
+            f'{rej_txt}{md_txt}</div>')
     n3 = int((a["streak"] >= 3).sum()) if len(a) and "streak" in a else 0
     ta = (f'<h1 style="margin-top:18px">清单 A · 接近起涨</h1>'
           f'<div class="sub">按连续够格天数排序，同样连续再按预测值。'
@@ -154,6 +153,45 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
           f'<table><tr><th>#</th><th>代码</th><th>名称</th><th>分数</th>'
           f'<th>上榜天数</th><th>历史准确率</th><th>现价</th>'
           f'<th>进榜后涨幅</th><th>距高点</th></tr>{_rows_b(b)}</table>')
+    return head + ta + tb
+
+
+def _date_picker(date: str, history: list[dict],
+                 today_block: str) -> tuple[str, str]:
+    """面板顶部的日期下拉。返回 (下拉 HTML, 切换用的 JS，不带 script 标签)。
+
+    历史每天那块 HTML 提前在 Python 里渲染好嵌进页里，切换时前端只换
+    innerHTML，不用把 Python 和 JS 各写一套渲染。当天那块用调用方传进来的
+    （它的 meta 有模型日期和风险剔除数，回放出来的没有）。只进面板，不进邮件。
+    """
+    import json as _j
+    blocks = {h["date"]: _day_block(h["date"], h["a"], h["b"], h["meta"])
+              for h in history}
+    blocks[date] = today_block
+    dates = sorted(blocks)
+    opts = "".join(
+        f'<option value="{d}"{" selected" if d == date else ""}>{d}'
+        f'{"（最新）" if d == dates[-1] else ""}</option>' for d in reversed(dates))
+    sel = (f'<div class="bar" style="align-items:center;gap:10px">'
+           f'<span class="sub" style="margin:0">看哪一天</span>'
+           f'<select id="daysel" style="background:#2a2f38;color:#e6e6e6;'
+           f'border:1px solid #3a4149;border-radius:5px;padding:5px 8px;'
+           f'font-size:13px">{opts}</select>'
+           f'<span class="sub" style="margin:0">共 {len(dates)} 个交易日。'
+           f'旧日子的清单 B 是按那天为止的价格回放的，和当天发的邮件一致</span>'
+           f'</div>')
+    js = ("(function(){var B=" + _j.dumps(blocks, ensure_ascii=False) + ";"
+          "var s=document.getElementById('daysel');"
+          "s.addEventListener('change',function(){var d=s.value;"
+          "if(B[d]){document.getElementById('day').innerHTML=B[d];}});})();")
+    return sel, js
+
+
+def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
+          for_panel: bool, history: list[dict] | None = None) -> str:
+    day = _day_block(date, a, b, meta)
+    tip = (f'<div class="tip" style="margin:0 0 14px;padding:10px 12px;'
+           f'background:#1e2229;border-radius:5px">{DISCLAIMER}</div>')
     # 分数对照表。用户拿到清单第一个问题就是「92 分和 85 分差多少」，
     # 不给这张表的话，分数就只是个没有意义的数字。
     rows = "".join(
@@ -184,24 +222,30 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
     #   1. 包在 <script> 里
     #   2. __STAMPFILE__ 换成本面板自己的 stamp 文件名
     #   3. __STAMP__ / __DATE__ 换成当前日期，否则脚本一跑就判定自己过期
+    picker, pjs = "", ""
+    if for_panel and history:
+        picker, pjs = _date_picker(date, history, day)
+        day = f'<div id="day">{day}</div>'
     if for_panel:
         js = ("<script>" + REFRESH_JS
               .replace("__STAMPFILE__", "stamp-breakout.txt")
               .replace("__STAMP__", date)
-              .replace("__DATE__", date) + "</script>")
+              .replace("__DATE__", date) + pjs + "</script>")
         stale = '<div id="stale"></div>'
     else:
         js, stale = "", ""
-    return stale + head + tip + ta + tb + tc + foot + js
+    return stale + picker + tip + day + tc + foot + js
 
 
 def write_panel(a: pd.DataFrame, b: pd.DataFrame, meta: dict,
-                out_dir: Path, date: str) -> Path:
+                out_dir: Path, date: str,
+                history: list[dict] | None = None) -> Path:
+    """history 给了就带日期下拉（最近 N 天的清单都嵌在页里，切换不发请求）。"""
     out_dir.mkdir(parents=True, exist_ok=True)
     html = (f'<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>起涨预测 {date}</title><style>{PANEL_CSS}</style></head>'
-            f'<body>{_body(date, a, b, meta, True)}</body></html>')
+            f'<body>{_body(date, a, b, meta, True, history)}</body></html>')
     p = out_dir / "panel.html"
     p.write_text(html, encoding="utf-8")
     (out_dir / "stamp.txt").write_text(date, encoding="utf-8")
