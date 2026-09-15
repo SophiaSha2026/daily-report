@@ -205,6 +205,26 @@ schtasks /Query /TN DailyReport-Local-Evening /V /FO LIST
 
 `Ready` 正常，`Queued` 就是被条件挡住了。日志在 `tools/local_flow_<flow>.log`（一线一个文件）。
 
+### 晚间系统的数据维护
+
+- 每天 `backfill.py --stage update`：腾讯快照追加目标日一根（秒级）；昨收对不上
+  历史最后一根的票整段重拉（除权）；没有历史的新票整段拉；股东人数表超过
+  7 天就刷一次。
+- 全量刷新 `backfill.py --stage refresh`：新浪整段重拉 + 股东人数，拉完把
+  分片收拢成一个 `sina_0000.parquet`。手动跑或机器几天没开时自动走这条。
+- 特征表 `build.py` 每天重算；模型 30 天重训，特征列指纹变了也自动重训。
+- 邮件里的准确率来自 `out_breakout/window_grid.json` 生产口径行（W5），
+  改了口径要重跑 `exp_window.py --refit` 和 `exp_calib.py`，selftest 钉住常量
+  和产物一致。
+
+### 学习系统的数据
+
+训练表 `data/train/backfill_*.parquet` 来自一次性回填源（截止 2026-09-02），
+`python src/eval_daily.py --stage build-train` 可以从缓存的源重建（改了口径
+要重建）。**在线真值标签目前不进训练表**（2026-09-03 决定），只做第七道闸
+和影子对比；要让学习系统在真值上学，得定期 `--stage backfill` 刷新源再
+build-train，或把在线天并进训练表 —— 未做，等用户决定。
+
 ### 还是没邮件怎么办
 
 - 早盘：Actions → `2-竞价选股` → `Run workflow`，交易日北京 09:11 之前点都有效。

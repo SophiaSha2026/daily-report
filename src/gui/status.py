@@ -262,11 +262,21 @@ def morning_perf() -> dict:
     top_excess 是「平均超额收益」（随机基准 0%）。
     说成「上涨概率」就错了。
     """
-    m = _json("state/learning_status.json").get("metrics") or {}
+    st = _json("state/learning_status.json")
+    m = st.get("metrics") or {}
     if not m:
         return {"exists": False}
+    # metrics 是在**回填表**（代理特征）上回放的成绩，不是实盘；
+    # 真值在 daily 里（每天真实榜单的前 10 超额），两者分开报。
+    daily = [d for d in (st.get("daily") or []) if isinstance(d, dict)]
+    ex = [float(d["top_excess"]) for d in daily
+          if d.get("top_excess") is not None]
+    online = {"days": len(ex),
+              "excess": sum(ex) / len(ex) if ex else None,
+              "hit": (sum(1 for x in ex if x > 0) / len(ex)) if ex else None}
     return {"exists": True, "days": m.get("days"),
-            "hit": m.get("hit_rate"), "excess": m.get("top_excess")}
+            "hit": m.get("hit_rate"), "excess": m.get("top_excess"),
+            "online": online}
 
 
 # 触发规则，给排期页显式列出来。时刻两套：本机任务是美东时间（跟夏令时走），

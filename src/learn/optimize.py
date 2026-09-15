@@ -203,6 +203,10 @@ def bootstrap_better(prob_oos: Problem, theta_new: dict, theta_old: dict,
     _, g_new = prob_oos.G(theta_new)
     _, g_old = prob_oos.G(theta_old)
     diff = g_new - g_old
+    # Ĝ 带日权重（数据异常日权重 0），自助也得带，否则被剔除的天又混回来
+    w_all = np.asarray(getattr(prob_oos, "day_w", np.ones(diff.size)), float)
+    keep = w_all > 0
+    diff, w_all = diff[keep], w_all[keep]
     rng = np.random.default_rng(seed)
     m = diff.size
     if m == 0:
@@ -213,7 +217,7 @@ def bootstrap_better(prob_oos: Problem, theta_new: dict, theta_old: dict,
         return 0.5
     wins = 0
     for _ in range(n):
-        s = diff[rng.integers(0, m, m)]
-        if O.huber_location(s, None, prob_oos.huber_c) > 0:
+        idx = rng.integers(0, m, m)
+        if O.huber_location(diff[idx], w_all[idx], prob_oos.huber_c) > 0:
             wins += 1
     return wins / n

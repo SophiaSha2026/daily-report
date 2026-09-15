@@ -31,22 +31,33 @@ def path_for(date: str) -> Path:
     return LABEL_DIR / date[:7] / f"label_{date}.parquet"
 
 
-def from_quotes(codes: list[str]) -> pd.DataFrame:
+def from_quotes(codes: list[str], date: str = "") -> pd.DataFrame:
     """live 路径：收盘后抓一次全池快照。
 
     收盘后 Quote.price 就是收盘价，Quote.open_ 就是当天开盘价。
     并发 5 路是 CLAUDE.md 硬约束 4 定的上限，不要往上调。
+
+    date 给了就只收快照时间戳是那一天的行：隔天盘中手动重跑学习线时，
+    快照里已经是新一天的开盘价和现价，拿它给昨天打标是错的（部分票会
+    穿过 0.5% 的失配守卫）。这种情况返回空表，调用方按「取不到」处理。
     """
     import datasource as ds
     q = ds.fetch_quotes([ds.to_symbol(c) for c in codes])
     rec = []
+    key = date.replace("-", "") if date else ""
+    dropped = 0
     for v in q.values():
+        if key and not str(getattr(v, "ts", "")).startswith(key):
+            dropped += 1
+            continue
         rec.append({
             "code": v.code,
             "open": float(v.open_ or 0.0),
             "close": float(v.price or 0.0),
             "prev_close": float(v.prev_close or 0.0),
         })
+    if dropped:
+        log.warning("%d 只的快照时间戳不是 %s，丢弃（不是当天的价格）", dropped, date)
     return pd.DataFrame(rec)
 
 
@@ -91,8 +102,19 @@ def build(date: str, snap: pd.DataFrame, raw: pd.DataFrame,
 def save(date: str, df: pd.DataFrame) -> Path:
     p = path_for(date)
     p.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(p, index=False)
     n_ok = int((~df["dirty"]).sum())
+    # 已有一份更好的（可用行更多）就不覆盖：重跑拿到的往往是更脏的一份
+    if p.exists():
+        try:
+            old = pd.read_parquet(p)
+            old_ok = int((~old["dirty"]).sum())
+            if old_ok > n_ok:
+                log.warning("标签 %s 已有可用 %d 行的一份，本次只有 %d 行，不覆盖",
+                            date, old_ok, n_ok)
+                return p
+        except Exception:  # noqa: BLE001
+            pass
+    df.to_parquet(p, index=False)
     log.info("标签 %s: %d 行，可用 %d，脏 %d", date, len(df), n_ok,
              len(df) - n_ok)
     return p

@@ -198,7 +198,7 @@ def walk_forward(df: pd.DataFrame, c: dict, n_folds: int = 5,
 
     # 手写打分器不需要训练，直接算一遍
     base_score, base_rej = vscore.score_df(d, C.load())
-    d = d.assign(_base=np.where(base_rej, -1e9, base_score))
+    d = d.assign(_base=np.where(base_rej, -1e9, base_score), _rej=base_rej)
 
     rows = []
     makers = _models(c.get("learning", {}).get("teacher", {}))
@@ -240,18 +240,19 @@ def walk_forward(df: pd.DataFrame, c: dict, n_folds: int = 5,
 
         sub = d[mte]
         for name, p in preds.items():
+            # 准入是政策层，对所有排序器一视同仁：ML 模型也只能从过了硬性
+            # 排除的票里挑前 10。以前只有基线被压成 -1e9，别的模型可以挑
+            # 高开 6%、量比 15 的票，docs 里「RankHuber +1.40% vs 基线 +0.69%」
+            # 不是同口径比较。影子的 daily_compare 一直是这么做的。
+            p = np.where(sub["_rej"].to_numpy(), -1e9, p)
             for day, g in sub.assign(_p=p).groupby("date"):
-                gp = g
-                if name.startswith("Baseline"):
-                    # 基线的被拒票全被压成 -1e9 同分。让它们进 Spearman，
-                    # 97% 的并列值会把 IC 拖到 0——那是构造出来的假象，
-                    # 不是打分器的真实区分力。基线的 IC 只在**过了准入**
-                    # 的票内算；前 10 指标两边口径本来就一致，不用改。
-                    gp = g[g["_p"] > -1e8]
-                    if len(gp) < 5:
-                        continue
+                # 被拒票全是 -1e9 同分，让它们进 Spearman 会把 IC 拖到 0，
+                # 那是构造出来的假象。IC 只在过了准入的票内算。
+                gp = g[g["_p"] > -1e8]
+                if len(gp) < 5:
+                    continue
                 ic = spearman(gp["_p"].to_numpy(), gp["ytil"].to_numpy())
-                top = g.nlargest(top_k, "_p")
+                top = gp.nlargest(top_k, "_p")
                 rows.append({
                     "fold": fi, "model": name, "date": day, "ic": ic,
                     "top_excess": float(top["y"].mean()),

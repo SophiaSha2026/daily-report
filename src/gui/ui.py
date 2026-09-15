@@ -344,15 +344,27 @@ function renderHome(s) {
   ]);
   const mp = s.morning_perf || {};
   if (mp.exists) {
+    // 两个口径分开：回填回放（历史日线拼出来的代理特征，404 天）和
+    // 真实榜单（每天真发出去的前 10，开盘买收盘卖相对大盘的超额）。
+    // 以前把回放当「实测」写，数字还写死在句子里。
     const hitPct = 100 * mp.hit, exc = 100 * mp.excess;
-    c1.appendChild(perfBlock(
-      "100 只票里，有多少当天跑赢了大盘？（" + mp.days + " 个交易日实测）", [
-      perfRow("按榜单买", hitPct.toFixed(1) + " 只", "",
+    const on = mp.online || {};
+    const rows = [
+      perfRow("回填回放·按榜单买", hitPct.toFixed(1) + " 只", "",
               (hitPct - 45) / 10 * 100, false),
       perfRow("随便买", "50.0 只", "", (50 - 45) / 10 * 100, true),
-    ], "榜上的票平均每只比大盘多赚 " + exc.toFixed(2) + "%。"
-     + "跑赢的比例只比随便买高一点点（50.3 对 50.0），"
-     + "优势主要在那 " + exc.toFixed(2) + "% 的超额上，不在「挑中上涨的票」上。"));
+    ];
+    let note = "回填回放（" + mp.days + " 天，历史日线拼的代理特征）：榜上的票平均每只比大盘多赚 "
+      + exc.toFixed(2) + "%，跑赢比例 " + hitPct.toFixed(1) + " 对随便买 50.0。";
+    if (on.days) {
+      const oe = 100 * on.excess, oh = 100 * on.hit;
+      rows.push(perfRow("真实榜单·前 10 日均超额", (oe >= 0 ? "+" : "") + oe.toFixed(2) + "%", "",
+                        Math.max(0, Math.min(100, 50 + oe * 25)), false));
+      note += " 真实榜单（" + on.days + " 个交易日，实盘口径）：前 10 每天平均比大盘 "
+        + (oe >= 0 ? "多赚 " : "少赚 ") + Math.abs(oe).toFixed(2) + "%，"
+        + "跑赢大盘的天数占 " + oh.toFixed(0) + "%。真实榜单的天数还少，先看方向别看精度。";
+    }
+    c1.appendChild(perfBlock("100 只票里，有多少当天跑赢了大盘？", rows, note));
   }
   box.appendChild(c1);
 
@@ -372,20 +384,22 @@ function renderHome(s) {
   // 验收成绩；现在的规则是「≥97 分才上，按连续天数排」，拿旧数字给新规则
   // 背书就是在骗自己。封存数据只许看一次，已经用掉了，所以下面这组是
   // 验证集（2025-03~12，207 个交易日）算的。
-  const hit3 = 22.0, hitAll = 15.7, base = 2.93;
+  // 三个数和 export.STREAK_PERF 一致：hit2 = 连续 2 天以上，hitAll = 全部上榜。
+  // 实验 10（偷看、未净化、筹码网格三处漏洞都修掉之后）连续信号只剩「略高」，
+  // 3 天以上样本不到 100 只，不再单独当一档说。
+  const hit2 = 15.7, hitAll = 12.6, base = 2.93;
   c2.appendChild(perfBlock(
     "100 只票里，有多少会在接下来一个月内涨超 50%？（验证集 207 个交易日）", [
-    perfRow("连续上榜 3 天以上的", hit3.toFixed(1) + " 只", "", 100, false),
+    perfRow("连续上榜 2 天以上的", hit2.toFixed(1) + " 只", "", 100, false),
     perfRow("清单上的全部", hitAll.toFixed(1) + " 只", "",
-            hitAll / hit3 * 100, false),
-    perfRow("随便买", base.toFixed(1) + " 只", "", base / hit3 * 100, true),
-  ], "连着几天都够格是清单里最强的信号：连 3 天的 100 只里有 "
-   + hit3.toFixed(0) + " 只涨超 50%，只上一天的平均下来是 "
-   + hitAll.toFixed(0) + " 只，随便买 " + base.toFixed(1) + " 只。"
-   + "反过来说：连 3 天的票里仍有 7 成涨不到 50%，这份清单是提高出黑马的"
-   + "密度，不是「选出来的都会涨」。"
-   + "旧规则（每天固定 10 只）在封存数据上的验收成绩是 14.43%，"
-   + "那段数据只许用一次，已经用掉了。"));
+            hitAll / hit2 * 100, false),
+    perfRow("随便买", base.toFixed(1) + " 只", "", base / hit2 * 100, true),
+  ], "清单上的票 100 只里约 " + hitAll.toFixed(0) + " 只会在一个月内涨超 50%，"
+   + "随便买是 " + base.toFixed(1) + " 只，差 4 倍多。连续上榜 2 天以上的略高（"
+   + hit2.toFixed(0) + " 只），再往上样本太少不作数。"
+   + "反过来说：清单上仍有近 9 成涨不到 50%，这份清单是提高出黑马的密度，"
+   + "不是「选出来的都会涨」。这组数字是把偷看和未净化的回测都修掉之后的，"
+   + "比早先发布的低，那才是真的。"));
   box.appendChild(c2);
 
   return renderSync(box, s);

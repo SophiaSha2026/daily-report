@@ -78,6 +78,10 @@ def f_volume(ratio: float, lo: float, hi: float, sat: float,
     从「直接出局」变成 0.83/0.74，「越极端越警惕」这层意思被悄悄抹掉了。
     上限只说明「还能接受」，不说明「一样好」，两者必须解耦。
     """
+    if lo <= 0:
+        # 量能维度被停用（抢救模式把下限放到 0）：没有刻度可言，给 0。
+        # 以前这里直接 log(ratio/0) 抛 ZeroDivisionError，抢救模式从没跑通过。
+        return 0.0
     if ratio < lo or ratio > hi:
         return 0.0
     if ratio <= sat:
@@ -149,6 +153,10 @@ def hard_reject(feat: AuctionFeature, sc: dict[str, Any]) -> str | None:
     if not (sc["auc_ratio_min"] <= feat.auc_ratio <= sc["auc_ratio_max"]):
         return (f"竞价量能 {feat.auc_ratio*100:.2f}%"
                 f"(量比≈{_liangbi(feat.auc_ratio, sc):.1f}) 超出区间")
+    # 绝对流动性下限（CLAUDE.md「min_auc_amount_wan 不能删」）。2026-09-15 前
+    # 它只用来数板块成员，从不剔除：竞价额 127 万的票照样进前 10。
+    if not (feat.auc_amount >= sc.get("min_auc_amount_wan", 0) * 1e4):
+        return f"竞价额 {feat.auc_amount/1e4:.0f} 万不足 {sc.get('min_auc_amount_wan', 0)} 万"
     # 先判假涨停：它同时也会触发跳水条件，先判才能给出准确的拒绝原因
     if (feat.t1_chg >= feat.limit_pct * sc["fake_limit_t1_frac"]
             and feat.t3_chg < feat.limit_pct * sc["fake_limit_t3_frac"]):
@@ -212,6 +220,9 @@ def score_one(feat: AuctionFeature, cfg: dict[str, Any]) -> dict[str, Any]:
         "group": group,
         "liangbi": round(_liangbi(feat.auc_ratio, sc), 1),
         "score": round(max(0.0, raw - penalty), 1),
+        # 排序用它，不用取整后的 score：取整到 0.1 后并列的票按候选池顺序
+        # （昨日成交额）定先后，和 vscore（不取整）也对不上。
+        "score_raw": max(0.0, raw - penalty),
         "parts": {k: round(v, 3) for k, v in parts.items()},
         "penalty": round(penalty, 1),
         "risk_tags": tags,
@@ -222,7 +233,8 @@ def score_one(feat: AuctionFeature, cfg: dict[str, Any]) -> dict[str, Any]:
 def rank(rows: list[dict[str, Any]], cfg: dict[str, Any]) -> dict[str, list]:
     out = cfg["output"]
     ok = [r for r in rows if r["rejected"] is None and r["score"] >= out["min_score"]]
-    ok.sort(key=lambda r: r["score"], reverse=True)
+    ok.sort(key=lambda r: (r.get("score_raw", r["score"]), r["score"]),
+            reverse=True)
     return {
         "A": [r for r in ok if r["group"] == "A"][: out["top_n_a"]],
         "B": [r for r in ok if r["group"] == "B"][: out["top_n_b"]],

@@ -218,16 +218,29 @@ def merge_daily(pattern: str = "daily_*.parquet") -> int:
     if not shards:
         log.error("没有任何分片")
         return 1
-    df = pd.concat([pd.read_parquet(p) for p in shards], ignore_index=True)
-    # keep="last"：分片按文件名排序，增量分片 sina_9_<时间戳>_* 排在初始
-    # 回填 sina_0000.. 之后，同一 (code, date) 以**后拉到的**为准。
-    # 除权后重拉的整段历史才能盖掉旧的前复权值。
+    # 腾讯分片（daily_*）是兜底源，量的单位是手、没有换手率和成交额，
+    # 不许覆盖新浪主表：写到 daily_tx.parquet
+    target = OUT / ("daily.parquet" if pattern.startswith("sina") else "daily_tx.parquet")
+    # 分片按文件名排序，增量分片 sina_9_<时间戳>_* 排在初始回填 sina_0000..
+    # 之后，同一 (code, date) 以**后拉到的**为准。
+    # 重拉分片（_ref / _full）对它包含的代码是**整段权威**的：先把这些代码
+    # 在更早分片里的行全部丢掉再拼。只按 (code, date) 覆盖的话，重拉窗口
+    # （最近 800 根）之前的旧行仍是除权前的价格，在窗口起点留一个假跳空。
+    parts: list[pd.DataFrame] = []
+    for p in shards:
+        d = pd.read_parquet(p)
+        if "_ref" in p.name or "_full" in p.name:
+            codes_new = set(d["code"].unique())
+            parts = [x[~x["code"].isin(codes_new)] for x in parts]
+        parts.append(d)
+    df = pd.concat(parts, ignore_index=True)
     df = (df.drop_duplicates(["code", "date"], keep="last")
             .sort_values(["code", "date"]))
     OUT.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(OUT / "daily.parquet", index=False)
-    log.info("日线合并完成：%d 行，%d 只，%s .. %s",
-             len(df), df.code.nunique(), df.date.min(), df.date.max())
+    df.to_parquet(target, index=False)
+    log.info("日线合并完成：%d 行，%d 只，%s .. %s -> %s",
+             len(df), df.code.nunique(), df.date.min(), df.date.max(),
+             target.name)
     return 0
 
 
@@ -262,7 +275,7 @@ def _sina_one(code: str):
             d = ak.stock_zh_a_daily(symbol=sym, adjust="qfq")
             if d is None or len(d) < 60:
                 return code, None
-            d = d.tail(BARS).copy()
+            d = d.copy()        # 不截尾：重拉分片要整段替换旧历史
             d = d[["date", "open", "high", "low", "close", "volume",
                    "amount", "outstanding_share", "turnover"]]
             d["code"] = code
@@ -294,7 +307,11 @@ def stage_daily_sina() -> int:
     t0 = time.time()
     shard = len(list(RAW.glob("sina_*.parquet")))
     stamp = now_bj().strftime("%Y%m%d%H%M%S")
-    first = not done                          # 首次回填用 sina_0000.. 编号
+    # 只有目录里一个分片都没有时才用 sina_0000.. 编号（真正的首次回填）。
+    # 以前按「done 为空」判断：refresh 先删 done 再进来，新分片沿用旧编号，
+    # 第二次 refresh 时同名覆盖、随后又被当旧分片删掉，daily.parquet 只剩
+    # 几百只（2026-09-15 审计）。
+    first = shard == 0
     failed: list[str] = []
     buf = []
     STEP = 200
@@ -402,7 +419,7 @@ def stage_update() -> int:
     q = ds.fetch_quotes([ds.to_symbol(c) for c in cs])
     log.info("快照 %d 只，目标日 %s", len(q), target)
     tkey = target.replace("-", "")
-    rows, refetch, stale, nohist = [], [], 0, 0
+    rows, refetch, newcodes, stale = [], [], [], 0
     for c in cs:
         v = q.get(ds.to_symbol(c))
         if v is None:
@@ -411,7 +428,7 @@ def stage_update() -> int:
             stale += 1                       # 停牌或还没更新，今天没有这根
             continue
         if c not in last.index:
-            nohist += 1                      # 新票，等全量刷新再收
+            newcodes.append(c)               # 没有历史：下面整段拉
             continue
         h = last.loc[c]
         if abs(float(v.prev_close) - float(h["close"])) > 0.006:
@@ -427,10 +444,11 @@ def stage_update() -> int:
             continue
         os_ = (float(h["outstanding_share"])
                if pd.notna(h["outstanding_share"]) else 0.0)
-        vol = v.volume_hand * 100.0
+        # 科创板快照的成交量是股不是手。有换手率就按「换手率 × 流通股本」核对，
+        # 没有就按板块给默认单位（以前没有兜底，换手率偶发为空时科创板放大 100 倍）
+        vol = v.volume_hand if c.startswith("688") else v.volume_hand * 100.0
         if turn_q > 0 and os_ > 0:
             exp = turn_q * os_
-            # 科创板快照的成交量是股不是手，按换手率核对单位
             vol = min((v.volume_hand * 100.0, v.volume_hand),
                       key=lambda x: abs(math.log((x + 1.0) / (exp + 1.0))))
         turn = vol / os_ if os_ > 0 else turn_q
@@ -440,33 +458,64 @@ def stage_update() -> int:
                      "outstanding_share": os_ if os_ > 0 else float("nan"),
                      "turnover": turn, "code": c})
     log.info("追加 %d 只；无当日数据 %d；无历史 %d；需整段重拉 %d",
-             len(rows), stale, nohist, len(refetch))
+             len(rows), stale, len(newcodes), len(refetch))
     if len(rows) < 1000:
         log.error("只拼出 %d 只，快照不像是收盘后的完整数据，本次不追加",
                   len(rows))
         return 1
     pd.DataFrame(rows).to_parquet(_shard_name("upd"), index=False)
-    if refetch:
-        refetch_codes(refetch)
-    return merge_daily(pattern="sina_*.parquet")
+    # 没有历史的票（新上市、首次回填漏掉的）整段拉，不然永远进不来
+    if refetch or newcodes:
+        refetch_codes(refetch + newcodes[:200])
+    rc = merge_daily(pattern="sina_*.parquet")
+    # 股东人数按季披露，日常流程以前从不刷新：公告日对齐修完了，生产侧
+    # 却一直拿着旧表。超过 7 天就刷一次（13 次请求，秒级）。
+    hp = OUT / "holders.parquet"
+    if rc == 0 and (not hp.exists()
+                    or time.time() - hp.stat().st_mtime > 7 * 86400):
+        try:
+            stage_holders()
+        except Exception as e:  # noqa: BLE001
+            log.warning("股东人数刷新失败（%s），继续用旧表", e)
+    return rc
+
+
+def consolidate() -> int:
+    """把 daily.parquet 落成唯一一个分片 sina_0000.parquet，其余分片删掉。
+
+    增量分片和重拉分片会一直攒；每次全量刷新后收拢一次，之后的 merge
+    从这一个分片起算。拉失败的票的旧历史也在 daily.parquet 里，不会丢。
+    """
+    dp = OUT / "daily.parquet"
+    if not dp.exists():
+        return 1
+    df = pd.read_parquet(dp)
+    tmp = RAW / "sina_consolidate.tmp"
+    df.to_parquet(tmp, index=False)
+    for p in RAW.glob("sina_*.parquet"):
+        try:
+            p.unlink()
+        except OSError:
+            pass
+    tmp.replace(RAW / "sina_0000.parquet")
+    log.info("分片已收拢为一个：%d 行", len(df))
+    return 0
 
 
 def stage_refresh() -> int:
-    """全量重拉新浪日线 + 股东人数。每周末跑一次，把增量攒下的误差归零。"""
+    """全量重拉新浪日线 + 股东人数，然后把分片收拢。
+
+    重拉的分片带时间戳、排在旧分片之后，merge 时新数据覆盖旧数据；
+    拉失败的票保留旧历史（不像第一版那样连旧分片一起删）。
+    """
     done_f = RAW / "done_sina.json"
-    old = sorted(RAW.glob("sina_*.parquet"))
     if done_f.exists():
         done_f.unlink()
     rc = stage_daily_sina()
     if rc == 0:
-        # 新分片名 sina_9_<时间戳>_full 排在旧的之后，合并时已经以新为准；
-        # 旧分片留着只占磁盘（每套 140MB），删掉。
-        for p in old:
-            try:
-                p.unlink()
-            except OSError:
-                pass
         rc = merge_daily(pattern="sina_*.parquet")
+    if rc == 0:
+        rc = consolidate()
     rc |= stage_holders()
     return rc
 

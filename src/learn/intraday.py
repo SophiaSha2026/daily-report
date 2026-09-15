@@ -140,7 +140,9 @@ def exit_curve(df: pd.DataFrame, scores: np.ndarray, top_k: int = 10
     """
     from learn.model_select import spearman
     rows = []
-    for col in [c for c in df.columns if c.startswith("t")]:
+    # 只认五个采样时点的列；快照里 t1_chg/t2_chg/t3_chg 也以 t 开头，
+    # 以前被当成价格算出一串 "exit: t1_chg" 的垃圾行
+    for col in [_col(p) for p in POINTS if _col(p) in df.columns]:
         per_day = []
         for day, g in df.assign(_s=scores).groupby("date"):
             px, op = g[col].to_numpy(float), g["auc_price"].to_numpy(float)

@@ -61,6 +61,7 @@ def fit(df: pd.DataFrame) -> dict | None:
             "fitted_at": dt.datetime.now().isoformat(timespec="seconds"),
             "train_days": int(d["date"].nunique()),
             "train_rows": int(len(d)),
+            "train_end": str(d["date"].max()),   # 对比只许用这之后的在线日
             "features": list(FEATURES),
             "coef": {f: float(c) for f, c in zip(FEATURES, m.coef_)},
             "intercept": float(m.intercept_),
@@ -115,9 +116,20 @@ def daily_compare(df_online: pd.DataFrame, base_scores: np.ndarray,
     sh = score(df_online)
     if sh is None:
         return []
+    # 影子在含在线日的回填表上拟合过，那些天是它的样本内，不能拿来
+    # 给它算成绩。只比 train_end 之后的在线日。以前 15 个真值日里 7 个是
+    # 样本内，P(影子更好)=0.97 偏高。
+    train_end = ""
+    try:
+        train_end = str(json.loads(MODEL.read_text(encoding="utf-8"))
+                        .get("train_end", ""))
+    except Exception:  # noqa: BLE001
+        pass
     out = []
     d = df_online.assign(_b=np.where(base_rej, -np.inf, base_scores),
                          _s=np.where(base_rej, -np.inf, sh))
+    if train_end:
+        d = d[d["date"] > train_end]
     for day, g in d.groupby("date"):
         ok = g[np.isfinite(g["_b"])]
         if len(ok) < 5:

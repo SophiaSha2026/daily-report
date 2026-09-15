@@ -93,7 +93,10 @@ def limit_pct(code: str, name: str) -> float:
         return 5.0
     if c.startswith("688") or c.startswith("30"):
         return 20.0
-    if c[0] in ("8", "4"):
+    # 北交所：老代码段 8/4 开头，2024 年起的专属段 920xxx 以 9 开头。
+    # 2026-09-15 前这里漏了 9，50 只北交所全按 10% 算：假涨停判据、
+    # 斜率归一、一字板判定、昨日涨停全错。to_symbol 一直认 9，这里没同步。
+    if c[0] in ("8", "4", "9"):
         return 30.0
     return 10.0
 
@@ -129,12 +132,18 @@ def _one_batch(batch: list[str], timeout: float, retries: int) -> dict[str, Quot
     for attempt in range(retries + 1):
         try:
             r = _SESSION.get(url, headers=UA, timeout=timeout)
+            # 非 200（限流、挑战页）以前当成「成功的空批」静默吞掉，
+            # 一批 60 只就这么消失。当成失败走重试。
+            if r.status_code != 200:
+                raise RuntimeError(f"HTTP {r.status_code}")
             r.encoding = "gbk"
             got = {}
             for m in _LINE.finditer(r.text):
                 q = _parse_tx_body(m.group("sym"), m.group("body"))
                 if q and q.prev_close > 0:
                     got[q.symbol] = q
+            if not got and batch:
+                raise RuntimeError("正文里没有任何行情行")
             return got
         except Exception as e:  # noqa: BLE001
             if attempt == retries:
@@ -531,7 +540,25 @@ def daily_hist_many(codes: Sequence[str], start: str, end: str,
 
 
 def trade_dates() -> set[str]:
-    """交易日历（YYYY-MM-DD）。带本地缓存兜底。"""
-    import akshare as ak
-    df = ak.tool_trade_date_hist_sina()
-    return {str(d) for d in df["trade_date"].astype(str)}
+    """交易日历（YYYY-MM-DD）。接口拿到就写 state/trade_dates.json，
+    接口失败读缓存；两边都没有才抛异常，由调用方决定怎么兜底。
+
+    缓存也给控制台用：它不能 import akshare（历史教训 19），只读这个文件。
+    """
+    import json
+    cache = _ROOT / "state" / "trade_dates.json"
+    try:
+        import akshare as ak
+        df = ak.tool_trade_date_hist_sina()
+        s = {str(d) for d in df["trade_date"].astype(str)}
+        try:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(json.dumps(sorted(s)), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+        return s
+    except Exception as e:  # noqa: BLE001
+        if cache.exists():
+            log.warning("交易日历接口失败（%s），用本地缓存", e)
+            return set(json.loads(cache.read_text(encoding="utf-8")))
+        raise

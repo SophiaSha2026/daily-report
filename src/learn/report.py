@@ -72,8 +72,11 @@ def status_line() -> str:
         s = json.loads(STATUS.read_text(encoding="utf-8"))
         w, n = _shadow_wins(s)
         st = s.get("shadow_stat") or {}
+        # 在线真值天数读 online_days（所有在线标签日）；影子对比只用它训练
+        # 截止之后的日子，n 比它小，两个数分开写
+        od = int(s.get("online_days") or n)
         parts = [f"学习状态：训练 {s.get('n_days', 0)} 天（回填）",
-                 f"在线真值 {n} 天" + (f"（影子占优 {w}/{n}）" if n else ""),
+                 f"在线真值 {od} 天" + (f"（影子对比 {n} 天，影子占优 {w}/{n}）" if n else ""),
                  f"参数版本 {s.get('theta_version', '基线')}"]
         v = s.get("verdict") or {}
         if v.get("checks"):

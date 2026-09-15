@@ -19,7 +19,7 @@ import pandas as pd
 
 # 与 score.py 的 AuctionFeature 字段一一对应，顺序无关
 NEEDED = [
-    "limit_pct", "prev_close", "auc_price", "gap_pct", "auc_ratio",
+    "limit_pct", "prev_close", "auc_price", "gap_pct", "auc_ratio", "auc_amount",
     "t1_chg", "t3_chg", "slope", "monotonic", "dive",
     "pos_pct_60d", "ma_bull", "breakout", "prev_limit_up",
     "prev_broken_board", "board_height", "sector_members",
@@ -41,12 +41,18 @@ def f_gap(gap: np.ndarray, lo: float, hi: float, peak: float) -> np.ndarray:
 def f_volume(ratio: np.ndarray, lo: float, hi: float, sat: float,
              decay: float) -> np.ndarray:
     """对数刻度，衰减速率由 decay 独立给。见 score.py::f_volume 的注释。"""
-    # ratio<=0 会让 log 发散；这些行最后会被区间判据置零，先夹一下避免 warning
-    safe = np.maximum(ratio, 1e-12)
-    rise = np.log(safe / lo) / np.log(sat / lo)
-    fall = np.maximum(0.0, 1.0 - decay * np.log(safe / sat))
+    if lo <= 0:
+        # 维度停用（抢救模式），和 score.py 一样给 0
+        return np.zeros_like(np.asarray(ratio, dtype=float))
+    # ratio<=0 会让 log 发散；这些行最后会被区间判据置零，先夹一下避免 warning。
+    # NaN 也先换成 0：score.py 对 NaN 走到 max(0, nan) 得 0，这里要一样。
+    r = np.where(np.isfinite(ratio), ratio, 0.0)
+    safe = np.maximum(r, 1e-12)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rise = np.log(safe / lo) / np.log(sat / lo)
+        fall = np.maximum(0.0, 1.0 - decay * np.log(safe / sat))
     v = np.where(safe <= sat, rise, fall)
-    return np.where((ratio < lo) | (ratio > hi), 0.0, v)
+    return np.where(~((r >= lo) & (r <= hi)), 0.0, v)
 
 
 def f_trend(slope: np.ndarray, monotonic: np.ndarray,
@@ -94,13 +100,22 @@ def hard_reject(d: dict[str, np.ndarray], sc: dict) -> np.ndarray:
     所以不必复刻 score.py 里的判定顺序。
     """
     lim = d["limit_pct"]
+    # 区间判定写成「不在 [lo, hi] 内」而不是「< lo 或 > hi」：NaN 和任何数比较
+    # 都是 False，后一种写法会让 NaN 悄悄通过，而 score.py 的
+    # `not (lo <= x <= hi)` 对 NaN 是剔除。回填表里有 6950 行 auc_ratio 为 NaN，
+    # 2026-09-15 前这些行在这里不剔除、分数变 NaN，404 天里 159 天的目标函数
+    # 因此和参数无关。
+    gap_in = (d["gap_pct"] >= sc["gap_pct_min"]) & (d["gap_pct"] <= sc["gap_pct_max"])
+    ratio_in = ((d["auc_ratio"] >= sc["auc_ratio_min"])
+                & (d["auc_ratio"] <= sc["auc_ratio_max"]))
+    amt_ok = d["auc_amount"] >= sc.get("min_auc_amount_wan", 0) * 1e4
     return (
         d["blacklisted"]
         | d["one_word"]
         | (d["prev_close"] <= 0) | (d["auc_price"] <= 0)
-        | (d["gap_pct"] < sc["gap_pct_min"]) | (d["gap_pct"] > sc["gap_pct_max"])
-        | (d["auc_ratio"] < sc["auc_ratio_min"])
-        | (d["auc_ratio"] > sc["auc_ratio_max"])
+        | ~gap_in
+        | ~ratio_in
+        | ~amt_ok
         | ((d["t1_chg"] >= lim * sc["fake_limit_t1_frac"])
            & (d["t3_chg"] < lim * sc["fake_limit_t3_frac"]))
         | (d["dive"] >= sc["last_min_dive_max"])

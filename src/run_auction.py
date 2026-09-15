@@ -25,7 +25,6 @@ import logging
 import datetime as dt
 from pathlib import Path
 
-import yaml
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -52,7 +51,10 @@ def now_bj() -> dt.datetime:
 
 
 def cfg() -> dict:
-    return yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
+    """合并 config.yaml + state/learned.yaml。以前直接读 config.yaml，
+    学习线过了闸门写下的参数在生产打分里永远不生效。"""
+    import cfg as _cfg
+    return _cfg.load()
 
 
 def target(hms: str) -> dt.datetime:
@@ -87,6 +89,9 @@ def build_features(uni: pd.DataFrame, snaps: dict[str, dict[str, Quote]],
         t3 = a3.chg_pct
         t1 = a1.chg_pct if a1 else t3
         t2 = a2.chg_pct if a2 else t3
+        # T1/T2 漏采时轨迹是拿 T3 补出来的，斜率 0；「稳步抬升」是没有证据的，
+        # 不能白给 +0.15 趋势分
+        traj_ok = a1 is not None and a2 is not None
         prev_amt = float(row.prev_amount) or 1.0
         up = limit_price(a3.prev_close, lp)
 
@@ -98,7 +103,7 @@ def build_features(uni: pd.DataFrame, snaps: dict[str, dict[str, Quote]],
             auc_ratio=round(a3.amount_yuan / prev_amt, 5),
             t1_chg=round(t1, 2), t2_chg=round(t2, 2), t3_chg=round(t3, 2),
             slope=round(t3 - t1, 2),
-            monotonic=(t1 <= t2 + 0.05 <= t3 + 0.10),
+            monotonic=(traj_ok and (t1 <= t2 + 0.05 <= t3 + 0.10)),
             dive=round(t2 - t3, 2),
             pos_pct_60d=float(row.pos_pct_60d), ma_bull=bool(row.ma_bull),
             breakout=(a3.price > float(row.platform_high)),
@@ -152,10 +157,20 @@ def write_prompt(sel: list[dict], date: str, late: bool = False) -> None:
     # selected.json。采集环节但凡提前退出（非交易日/超死线/候选池缺失），
     # enrich 读到的就是旧清单，会把昨天的票当成今天的发出去。
     # 所以发信前必须比对这个戳。
+    # dry 标记：试跑也会走到这里，不标的话计划任务会把试跑当成「今天跑完了」
     (OUT / "run_meta.json").write_text(
-        json.dumps({"date": date, "n": len(sel), "late": bool(late)},
+        json.dumps({"date": date, "n": len(sel), "late": bool(late),
+                    "dry": bool(os.environ.get("DRY_RUN"))},
                    ensure_ascii=False),
         encoding="utf-8")
+
+
+def _atomic_text(p: Path, text: str) -> None:
+    """先写临时文件再改名。2026-09-14 两个实例并发写 detail.csv，
+    留下一份尾巴坏掉的文件，影子榜读到一半报 utf-8 错。"""
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, p)
 
 
 # ---------------------------------------------------------------------
@@ -191,6 +206,17 @@ def stage_quick(c: dict, late: bool = False) -> int:
     p = ROOT / "cache" / "universe.parquet"
     if not p.exists():
         send_alert(f"{today} 候选池缺失，盘前任务可能失败，今日无清单。")
+        return 1
+    # 候选池必须是今天建的：昨日成交额、昨日涨停、连板高度全是 T-1 的量，
+    # 拿前天的池子算出来的量比、分组全错。以前只查文件在不在。
+    try:
+        meta = json.loads((ROOT / "cache" / "universe_meta.json")
+                          .read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        meta = {}
+    if meta.get("date") != today:
+        send_alert(f"{today} 候选池不是今天的（{meta.get('date', '未知')}），"
+                   f"盘前任务没跑或失败，今日无清单。云端会兜底。")
         return 1
     uni = pd.read_parquet(p)
     syms = [ds.to_symbol(x) for x in uni["code"]]
@@ -236,6 +262,14 @@ def stage_quick(c: dict, late: bool = False) -> int:
         for tag, key in (("T1", "snapshot_t1"), ("T2", "snapshot_t2"),
                          ("T3", "snapshot_t3"), ("T4", "snapshot_t4")):
             sleep_until(rt[key], tag)
+            # 硬约束 3：09:30 之后成交量混入连续竞价，采到的不是竞价数据。
+            # 机器睡着又醒来时 sleep_until 只打一行「时点已过」就放行，
+            # 这里必须拦：宁可不发也不发脏数据。
+            if now_bj() >= target("09:30:00"):
+                send_alert(f"{today} {tag} 采样时刻已过 09:30（现在 "
+                           f"{now_bj():%H:%M:%S}），竞价窗口已关，本次放弃。"
+                           f"本机可能刚从睡眠中醒来。云端会兜底。")
+                return 1
             t0 = time.time()
             snaps[tag] = ds.fetch_quotes(syms)
             log.info("%s: %d/%d 只, %.1fs", tag, len(snaps[tag]), len(syms),
@@ -255,10 +289,11 @@ def stage_quick(c: dict, late: bool = False) -> int:
 
     sel = select(rows, c)
     OUT.mkdir(exist_ok=True)
-    (OUT / "selected.json").write_text(
-        json.dumps(sel, ensure_ascii=False, default=str), encoding="utf-8")
-    pd.DataFrame(rows).to_csv(OUT / "detail.csv", index=False,
-                              encoding="utf-8-sig")
+    _atomic_text(OUT / "selected.json",
+                 json.dumps(sel, ensure_ascii=False, default=str))
+    tmp = OUT / "detail.csv.tmp"
+    pd.DataFrame(rows).to_csv(tmp, index=False, encoding="utf-8-sig")
+    os.replace(tmp, OUT / "detail.csv")
     write_prompt(sel, today, late=late)
     log.info("入选 %d 只，等待 Claude 分析", len(sel))
     return 0
@@ -296,10 +331,23 @@ def stage_enrich(c: dict) -> int:
             raise ValueError("格式错误")
     except Exception as e:  # noqa: BLE001
         log.warning("Claude 输出不可用: %s", e)
+    # 候选池里没拿到日线、形态字段用了默认值的票太多时，位置/连板/突破三个
+    # 维度整体失真，邮件里要说；以前只在盘前日志里一行 warning（教训 16）
+    try:
+        um = json.loads((ROOT / "cache" / "universe_meta.json")
+                        .read_text(encoding="utf-8"))
+        miss, cnt = int(um.get("missing_hist", 0)), int(um.get("count", 0) or 0)
+        if cnt and miss / cnt > 0.05:
+            m = f"候选池 {miss}/{cnt} 只没拿到日线，位置/连板/突破维度用了默认值"
+            notice = f"{notice} · {m}" if notice else m
+    except Exception:  # noqa: BLE001
+        pass
     if not texts:
-        notice = ("本次无 LLM 分析（模型调用失败或额度耗尽），"
-                  "以下为纯量化结果")
-        log.warning(notice)
+        llm_notice = ("本次无 LLM 分析（模型调用失败或额度耗尽），"
+                      "以下为纯量化结果")
+        log.warning(llm_notice)
+        # 追加而不是覆盖：抢救日恰好没有 LLM 时，「抢救结果」那句不能被吃掉
+        notice = f"{notice} · {llm_notice}" if notice else llm_notice
 
     o = c["output"]
     if not sel and not o.get("send_when_empty", True):
@@ -377,6 +425,12 @@ def stage_enrich(c: dict) -> int:
     send_report(today, {"A": sel, "B": []}, texts, c,
                 attachments=att, stage="清单", notice=notice, page_url=page,
                 shadow_rows=shadow_rows)
+    # 真发出去了才落这个戳。enrich 有四条「退出码 0 但没发信」的分支
+    # （非交易日、run_meta 不是今天、空榜不发、SKIP_MAIL），local_run 以前
+    # 只看退出码就推 sent 标记，云端据此让位，结果谁都没发。
+    _atomic_text(OUT / "mail_sent.json", json.dumps(
+        {"date": today, "n": len(sel),
+         "at": now_bj().isoformat(timespec="seconds")}, ensure_ascii=False))
     return 0
 
 

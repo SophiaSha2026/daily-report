@@ -65,7 +65,7 @@ def build_cache() -> tuple[pd.DataFrame, float]:
                      if V.TRAIN_END <= d < V.VALID_END})
     keep = []
     for m in months:
-        tr = df[df["date"] < m + "-01"]
+        tr = df[df["date"] < V.purge_cut(df, m)]   # 20 日净化，见 validate.purge_cut
         te = df[df["date"].str[:7] == m].copy()
         tr = tr[np.isfinite(tr["y_up"])]
         te = te[np.isfinite(te["y_up"])]

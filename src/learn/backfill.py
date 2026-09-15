@@ -240,8 +240,19 @@ def add_sector_stats(d: pd.DataFrame, c: dict) -> pd.DataFrame:
     几百只成分的巨型板块，白送满分（CLAUDE.md 历史教训第 9 条）。
     """
     real = d["sector"].ne("未分类")
-    d["sector_members"] = np.where(
-        real, d.groupby(["date", "sector"])["code"].transform("size"), 0)
+    # 口径必须和线上一样：run_auction.build_features 数的是**过了初筛**
+    # （涨幅区间、量能区间、成交额下限）的同板块只数，不是整个候选池。
+    # 以前这里数整个池子：回填里 94.6% 的行 f_sector 直接饱和到 1.0，
+    # 线上只有 26.9%，优化器看到的板块维度几乎是常数，学出来的权重对
+    # 生产打分器没有意义（2026-09-15 审计）。
+    sc = c["screen"]
+    prelim = (real
+              & d["gap_pct"].between(sc["gap_pct_min"], sc["gap_pct_max"])
+              & d["auc_ratio"].between(sc["auc_ratio_min"], sc["auc_ratio_max"])
+              & (d["auc_amount"] >= sc["min_auc_amount_wan"] * 1e4))
+    cnt = (d.assign(_p=prelim.astype(int))
+            .groupby(["date", "sector"])["_p"].transform("sum"))
+    d["sector_members"] = np.where(real, cnt, 0)
     lu = d.groupby(["date", "sector"])["prev_limit_up"].transform("sum")
     d["sector_prev_limitups"] = np.where(real, lu, 0)
     return d

@@ -45,6 +45,10 @@ def mk(**kw) -> AuctionFeature:
 # --- 覆盖每一条硬性排除规则 + 正常样本 -------------------------------
 CASES = [
     ("正常A组强势",   mk(code="600111", name="强势A"),                       None),
+    # 绝对流动性下限：比例指标在小盘票上失真，300 万以下买不进去。
+    # 2026-09-15 前这条只用来数板块成员，从不剔除，竞价额 127 万的票进过前 10
+    ("竞价额不足",    mk(code="600112", name="小票", auc_amount=1.27e6,
+                        prev_amount=8.0e7, auc_ratio=0.0159),     "竞价额"),
     ("正常B组低位",   mk(code="000222", name="低位B", prev_limit_up=False,
                         board_height=0, breakout=False, pos_pct_60d=0.25),  None),
     ("创业板20cm",    mk(code="300333", name="创业板", limit_pct=20.0,
@@ -163,6 +167,42 @@ def check_rules(c: dict) -> int:
     return bad
 
 
+def check_misc(c: dict) -> int:
+    """零散但都真出过事的规则。"""
+    from datasource import limit_pct
+    from score import f_volume, rank
+    bad = 0
+
+    def ck(ok: bool, msg: str) -> None:
+        nonlocal bad
+        print(f"  {'✓' if ok else '✗'} {msg}")
+        if not ok:
+            bad += 1
+
+    print("\n[零散规则]")
+    # 北交所三个代码段都是 30%。920 段以前落到 10%，假涨停判据、斜率归一全错
+    ck(limit_pct("920159", "农大科技") == 30.0, "北交所 920 段涨停幅度 30%")
+    ck(limit_pct("832735", "x") == 30.0 and limit_pct("430139", "x") == 30.0,
+       "北交所 8/4 老段 30%")
+    ck(limit_pct("688655", "迅捷兴") == 20.0 and limit_pct("300017", "x") == 20.0,
+       "科创/创业 20%")
+    ck(limit_pct("600000", "*ST 浦发") == 5.0, "ST 5%")
+    # 抢救模式把量能下限放到 0：以前 log(ratio/0) 直接 ZeroDivisionError
+    try:
+        v = f_volume(0.02, 0.0, 1e9, 0.03)
+        ck(v == 0.0, "量能下限为 0（维度停用）时 f_volume 返回 0 不抛异常")
+    except ZeroDivisionError:
+        ck(False, "量能下限为 0 时 f_volume 抛了 ZeroDivisionError")
+    # 排序用未取整的分数，取整并列的票不再按候选池顺序定先后
+    a = score_one(mk(code="600901", name="a"), c)
+    b = score_one(mk(code="600902", name="b"), c)
+    a["score"], b["score"] = 70.0, 70.0
+    a["score_raw"], b["score_raw"] = 69.96, 70.04
+    top = rank([a, b], c)["all"]
+    ck(top[0]["code"] == "600902", "同分（取整后）按未取整分数排，b 在前")
+    return bad
+
+
 def main() -> int:
     c = cfg()
     t0 = time.time()
@@ -183,6 +223,7 @@ def main() -> int:
 
     bad += check_curves(c)
     bad += check_rules(c)
+    bad += check_misc(c)
 
     # 压力：1000 只随机票，确认打分不发散、不抛异常、不卡住
     random.seed(7)

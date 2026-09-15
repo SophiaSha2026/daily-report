@@ -194,6 +194,11 @@ ACTIONS: dict[str, dict] = {
 }
 
 
+# 按钮 -> 它会和哪条线抢文件。流程在跑时这些按钮被拒。
+CONFLICTS = {"premarket": "morning", "bk_backfill": "breakout",
+             "bk_build": "breakout", "bk_refit": "breakout"}
+FLOW_NAMES = {"morning": "早盘选股", "breakout": "起涨预测", "learn": "参数自学"}
+
 _seq = itertools.count(1)
 
 
@@ -286,6 +291,21 @@ class Registry:
     def start(self, key: str) -> tuple[Job | None, str]:
         if key not in ACTIONS:
             return None, f"未知动作 {key}"
+        # 会和正在跑的流程抢同一批文件的按钮，流程在跑时不让点。
+        # 「候选池」直接起 premarket.py，不走 local_run 的锁，早盘流程正在建池
+        # 时再点一下，两个进程同时写 cache/universe.parquet。
+        clash = CONFLICTS.get(key)
+        if clash:
+            try:
+                import sys
+                sys.path.insert(0, str(ROOT / "src"))
+                import local_run
+                other = local_run.running_instance(clash)
+            except Exception:  # noqa: BLE001
+                other = None
+            if other:
+                return None, (f"{FLOW_NAMES.get(clash, clash)}正在跑"
+                              f"（pid {other.get('pid')}），它会自己做这一步，先别点")
         with self._lock:
             for j in self._jobs.values():
                 if j.key == key and j.running:

@@ -10,12 +10,12 @@
 from __future__ import annotations
 
 import sys
+import os
 import time
 import logging
 import datetime as dt
 from pathlib import Path
 
-import yaml
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -32,7 +32,9 @@ log = logging.getLogger("premarket")
 
 
 def cfg() -> dict:
-    return yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
+    """合并 config.yaml + state/learned.yaml，和竞价主流程同一份配置。"""
+    import cfg as _cfg
+    return _cfg.load()
 
 
 # ---------------------------------------------------------------------
@@ -49,7 +51,8 @@ def stage1(spot: pd.DataFrame, c: dict) -> pd.DataFrame:
     df = df[~df["name"].astype(str).str.match(r"^[NC] ", na=False)]   # 次新
     df = df[df["成交额"].fillna(0) > 0]                                # 停牌
     if u["exclude_bj"]:
-        df = df[~df["code"].astype(str).str[0].isin(["8", "4"])]
+        # 北交所三个代码段：8/4 开头的老段和 920xxx 新段
+        df = df[~df["code"].astype(str).str[0].isin(["8", "4", "9"])]
 
     if u["max_mktcap_yi"]:
         df = df[df["总市值"] <= u["max_mktcap_yi"] * 1e8]
@@ -134,6 +137,7 @@ def stage2(df: pd.DataFrame, c: dict) -> pd.DataFrame:
                 d["prev_broken_board"] = True
         rec.append(d)
 
+    df.attrs["missing_hist"] = int(empty)
     if empty:
         log.warning("阶段2: %d/%d 只没拿到日线，形态字段用默认值",
                     empty, len(df))
@@ -162,15 +166,31 @@ def attach_blacklist(df: pd.DataFrame, c: dict) -> pd.DataFrame:
     kws = c["announcement_blacklist"]
     try:
         import akshare as ak
-        d = dt.datetime.now(TZ).strftime("%Y-%m-%d")
-        nt = ak.stock_notice_report(symbol="全部", date=d)
-        if nt is not None and len(nt):
+        # 接口要 YYYYMMDD：它按 date[:4]/date[4:6]/date[6:] 切。以前传的是
+        # 带横杠的 2026-09-15，切出 "2026--0-9-15"，服务端忽略过滤返回全库
+        # 500 页，每天白跑 6~15 分钟，然后匹配的列还是「名称」不是「公告标题」，
+        # 从上线起一次都没命中过。
+        # 隔夜公告多数带的是当天日期，也有前一晚就挂出来的，两天都查。
+        now = dt.datetime.now(TZ)
+        frames = []
+        for day in (now, now - dt.timedelta(days=1)):
+            try:
+                x = ak.stock_notice_report(symbol="全部",
+                                           date=day.strftime("%Y%m%d"))
+                if x is not None and len(x):
+                    frames.append(x)
+            except Exception as e:  # noqa: BLE001
+                log.warning("公告接口 %s 失败: %s", day.strftime("%m-%d"), e)
+        if frames:
+            nt = pd.concat(frames, ignore_index=True)
             col_c = next(x for x in nt.columns if "代码" in x)
-            col_t = next(x for x in nt.columns if "标题" in x or "名称" in x)
+            col_t = ("公告标题" if "公告标题" in nt.columns
+                     else next(x for x in nt.columns if "标题" in x))
             hit = {str(r[col_c]).zfill(6) for _, r in nt.iterrows()
                    if any(k in str(r[col_t]) for k in kws)}
             df["blacklisted"] = df["code"].isin(hit)
-            log.info("公告黑名单命中 %d 只", int(df["blacklisted"].sum()))
+            log.info("公告黑名单：%d 条公告，命中 %d 只",
+                     len(nt), int(df["blacklisted"].sum()))
     except Exception as e:  # noqa: BLE001
         log.warning("公告接口不可用(%s)，本次不做公告过滤", e)
     return df
@@ -189,6 +209,7 @@ def main() -> int:
 
     df = stage1(ds.spot_all(), c)
     df = stage2(df, c)
+    missing_hist = int(df.attrs.get("missing_hist", 0))   # 后面的 merge 可能丢 attrs
     df = attach_sector(df)
     df = attach_blacklist(df, c)
 
@@ -198,11 +219,15 @@ def main() -> int:
             "sector_prev_limitups", "blacklisted"]
     out = ROOT / "cache"
     out.mkdir(exist_ok=True)
-    df[cols].to_parquet(out / "universe.parquet", index=False)
-    # 给竞价任务判新鲜度用：cron 是尽力而为，盘前那班可能整个被丢掉，
-    # 竞价 job 看到日期对不上就自己现建一份，不至于当天空跑。
+    # 先写临时文件再改名：控制台「候选池」按钮和竞价流程可能同时写这个文件
+    tmp = out / "universe.parquet.tmp"
+    df[cols].to_parquet(tmp, index=False)
+    os.replace(tmp, out / "universe.parquet")
+    # 给竞价任务判新鲜度用：日期对不上就视同缺失（不发脏清单）。
+    # missing_hist 是阶段 2 没拿到日线、形态字段用了默认值的只数。
     (out / "universe_meta.json").write_text(
-        __import__("json").dumps({"date": today, "count": int(len(df))},
+        __import__("json").dumps({"date": today, "count": int(len(df)),
+                                  "missing_hist": missing_hist},
                                  ensure_ascii=False),
         encoding="utf-8")
     log.info("候选池已写入 %d 只", len(df))

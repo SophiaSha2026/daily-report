@@ -64,7 +64,7 @@ def stage_label(c: dict, date: str, backfill: bool) -> int:
             return 1
         raw = L.from_hist(date, pd.read_parquet(hp))
     else:
-        raw = L.from_quotes(list(snap["code"]))
+        raw = L.from_quotes(list(snap["code"]), date)
 
     if raw.empty:
         log.error("%s 取不到开收盘", date)
@@ -356,6 +356,7 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
         held = STATE / "held_change.json"
         held.write_text(json.dumps({
             "date": date, "theta": theta_new, "verdict": v.to_dict(),
+            "metrics": m_new,
             "review": review}, ensure_ascii=False, indent=2, default=str),
             encoding="utf-8")
         log.warning("变更被 Opus 审稿搁置：%s。人工确认：--stage apply-held",
@@ -440,7 +441,7 @@ def main() -> int:
     ap.add_argument("--stage", required=True,
                     choices=["label", "brief", "learn", "race", "rollback",
                              "status", "backfill", "intraday", "exits",
-                             "llm", "all", "apply-held"])
+                             "llm", "all", "apply-held", "build-train"])
     ap.add_argument("--date", default=None)
     ap.add_argument("--backfill", action="store_true",
                     help="label 阶段从 cache/hist_daily.parquet 取，而不是联网")
@@ -461,6 +462,13 @@ def main() -> int:
             return 0
         j = json.loads(held.read_text(encoding="utf-8"))
         A.write(j["theta"], j["verdict"]["evidence"], j["date"])
+        # 和闸门直接接受的路径一样记一行：冷却期、accepted_total、审计都读它。
+        # 以前这里不记，人工落地的变更在系统眼里等于「从未接受过」。
+        vd = j["verdict"]
+        v = gate.Verdict(accepted=True, checks=vd.get("checks", []),
+                         moved={k: tuple(x) for k, x in vd.get("moved", {}).items()},
+                         evidence=vd.get("evidence", {}))
+        gate.record(j["date"], j["theta"], v, j.get("metrics", {}))
         held.unlink()
         print(f"已落地 {j['date']} 被搁置的变更：{list(j['verdict']['moved'])}")
         return 0
@@ -472,6 +480,13 @@ def main() -> int:
         print("\n".join(lines) if lines else "还没有学习状态")
         for path, old, new in C.diff():
             print(f"  {path}: {old} -> {new}")
+        return 0
+    if a.stage == "build-train":
+        # 用已缓存的回填源重建训练表。以前 learn.backfill.build 没有任何入口，
+        # 表一旦落盘就再也生不出来（改了口径也换不掉）。
+        from learn import backfill as BF
+        out = BF.build(c)
+        print(f"训练表 -> {out}")
         return 0
     if a.stage == "backfill":
         import pandas as pd
@@ -539,6 +554,12 @@ def main() -> int:
         # 每一步失败都不阻断后面（归因尤其：它是研究性的，不是关键路径）。
         from learn import llm_local
         rc = stage_label(c, date, a.backfill)
+        if rc != 0:
+            # 标签没拿到（网络不通、快照时间戳不是当天）就别往下走：往下走
+            # 会写 learning_status，计划任务据此判「今天跑完了」不再重试，
+            # 这一天的真值就永久丢了。退出非零，下一次敲门再抓一次（很快）。
+            log.error("%s 标签没拿到，本轮不拟合、不写状态，等下一次重试", date)
+            return rc
         stage_brief(c, date)
         lc = c["learning"]["llm"]
         bp = OUT / "eval_brief.json"

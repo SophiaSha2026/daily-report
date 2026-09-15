@@ -491,9 +491,10 @@ def flow_morning(dry: bool) -> int:
     bj = now_bj()
     if need and (bj.hour, bj.minute) < (9, 8):
         log.info("候选池不是今天的，现在建（3-5 分钟）")
-        py("src/premarket.py")
+        if py("src/premarket.py") != 0:
+            log.error("候选池构建失败，quick 阶段会因候选池不是今天的而放弃，远端兜底")
     elif need:
-        log.warning("候选池不是今天的且时间太晚，quick 阶段会走缺失分支")
+        log.warning("候选池不是今天的且时间太晚，quick 阶段会放弃（不拿旧池子发脏清单），远端兜底")
     else:
         log.info("候选池已是今天的")
 
@@ -521,10 +522,22 @@ def flow_morning(dry: bool) -> int:
         os.environ["SKIP_MAIL"] = "1"
         log.info("[dry] 发信被跳过")
     rc = py("src/run_auction.py", "--stage", "enrich")
-    if rc == 0:
+    # 退出码 0 不等于发了信：enrich 有四条不发信的分支也返回 0。
+    # 只认 run_auction 真发出去之后落的 out/mail_sent.json。
+    sent_ok = False
+    try:
+        ms = json.loads((ROOT / "out" / "mail_sent.json").read_text(encoding="utf-8"))
+        sent_ok = ms.get("date") == d
+    except Exception:  # noqa: BLE001
+        pass
+    if rc == 0 and (sent_ok or dry):
         push_marker("sent", "auction", {"ok": True}, dry)
         push_all(f"out: {d} [local]", ["out"], dry)
         log.info("完成。远端看到 sent 标记后只发布面板不发邮件。")
+    elif rc == 0:
+        log.error("enrich 退出码 0 但没有发信记录，不推 sent 标记，远端将兜底发信")
+        push_all(f"out: {d} [local]", ["out"], dry)
+        rc = 1
     else:
         log.error("enrich 失败（退出码 %d），远端将在 09:28:20 兜底发信", rc)
     return rc
@@ -652,8 +665,11 @@ def already_done(flow: str) -> bool:
     """
     rel = FLOWS[flow][0]
     try:
-        got = json.loads((ROOT / rel).read_text(encoding="utf-8"))["date"]
-        return got == target_date(flow)
+        meta = json.loads((ROOT / rel).read_text(encoding="utf-8"))
+        # 试跑（--dry）也会写 run_meta，不能算「跑完了」，否则计划任务整天跳过
+        if meta.get("dry"):
+            return False
+        return meta["date"] == target_date(flow)
     except Exception:  # noqa: BLE001
         return False
 
@@ -766,6 +782,8 @@ def main() -> int:
         return 0
     try:
         load_env()
+        if a.dry:
+            os.environ["DRY_RUN"] = "1"      # 子阶段据此在 run_meta 里标 dry
         t0 = now_bj()
         log.info("本地全流程 %s 启动 @ %s%s", a.flow,
                  t0.strftime("%H:%M:%S"), "（dry-run）" if a.dry else "")

@@ -56,6 +56,21 @@ def last_accept_date() -> str | None:
 
 
 def _trading_days_between(a: str, b: str, all_days: list[str]) -> int:
+    """(a, b] 之间的交易日数。优先用真实交易日历（state/trade_dates.json，
+    由 datasource.trade_dates 维护）；拿不到才退回训练表的日期。
+
+    训练表的日期是回填表的日期，止于回填截止日：一旦在那之后接受过变更，
+    按它数 gap 永远是 0，冷却期闸门就再也过不了。
+    """
+    try:
+        import json
+        from pathlib import Path
+        f = Path(__file__).resolve().parent.parent.parent / "state" / "trade_dates.json"
+        cal = json.loads(f.read_text(encoding="utf-8"))
+        if cal:
+            return len([d for d in cal if a < d <= b])
+    except Exception:  # noqa: BLE001
+        pass
     return len([d for d in all_days if a < d <= b])
 
 

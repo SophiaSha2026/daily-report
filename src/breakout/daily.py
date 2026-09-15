@@ -119,6 +119,15 @@ def model_path() -> Path:
     return STATE / "model.txt"
 
 
+def feature_fingerprint(df: pd.DataFrame) -> str:
+    """训练表特征列的指纹（列名集合 + 筹码算法版本）。"""
+    import hashlib
+    import chips as CH
+    cols = sorted(c for c in df.columns if "__" in c)
+    key = "|".join(cols) + f"|chips={CH.N_BINS}"
+    return hashlib.md5(key.encode("utf-8")).hexdigest()
+
+
 def load_or_fit(df: pd.DataFrame, force: bool = False):
     """加载模型；没有或太旧就重训。
 
@@ -127,13 +136,19 @@ def load_or_fit(df: pd.DataFrame, force: bool = False):
     """
     p = model_path()
     meta_p = p.with_suffix(".json")
+    fp = feature_fingerprint(df)
     if p.exists() and meta_p.exists() and not force:
         try:
             import lightgbm as lgb
             meta = json.loads(meta_p.read_text(encoding="utf-8"))
             age = (now_bj().date()
                    - dt.date.fromisoformat(meta["fit_date"])).days
-            if age <= MODEL_MAX_AGE:
+            if meta.get("fingerprint") not in (None, fp):
+                # 特征表的列变了（加了特征、改了定义）而模型没重训：
+                # 旧模型在新语义的列上打分，列被删还会 KeyError。自动重训。
+                log.info("特征表指纹变了（%s -> %s），重训",
+                         str(meta.get("fingerprint"))[:8], fp[:8])
+            elif age <= MODEL_MAX_AGE:
                 log.info("用已有模型（%s 训练，%d 天前，%d 个特征）",
                          meta["fit_date"], age, len(meta["feats"]))
                 return {"booster": lgb.Booster(model_file=str(p)),
@@ -162,7 +177,8 @@ def load_or_fit(df: pd.DataFrame, force: bool = False):
     mdl.m.booster_.save_model(str(p))
     meta_p.write_text(json.dumps(
         {"feats": feats, "quantiles": [float(x) for x in q],
-         "fit_date": now_bj().strftime("%Y-%m-%d"), "train_cut": cut},
+         "fit_date": now_bj().strftime("%Y-%m-%d"), "train_cut": cut,
+         "fingerprint": fp},
         ensure_ascii=False), encoding="utf-8")
     log.info("模型已保存：%d 个特征 -> %s", len(feats), p)
     return {"booster": mdl.m.booster_, "feats": feats, "quantiles": q,
@@ -322,7 +338,8 @@ def build_list_b(df: pd.DataFrame, pool: dict,
         g = df[df["code"] == c].sort_values("date")
         first = info.get("first", "")
         after = g[g["date"] >= first]
-        if len(after) < MIN_HOLD_DAYS:
+        # after 含进池当天那一行，「进池后满 MIN_HOLD_DAYS 个交易日」要 +1
+        if len(after) < MIN_HOLD_DAYS + 1:
             continue
         px = after["close"].to_numpy(float)
         if len(px) < 3 or not np.isfinite(px).all() or px[0] <= 0:
@@ -347,6 +364,33 @@ def build_list_b(df: pd.DataFrame, pool: dict,
     return pd.DataFrame(bl)
 
 
+_CAL: dict = {}
+
+
+def prev_trade_days(date: str, k: int) -> list[str]:
+    """date 之前的 k 个交易日，由近到远。
+
+    以前按自然日回退、只跳周末：每个法定假日（中秋、国庆）都让连续计数
+    整榜归零，清单顺序、准确率那一列、A 池的 streak 全错一天以上。
+    日历来自 datasource.trade_dates（接口 -> state/trade_dates.json 缓存）；
+    两边都拿不到才退化成跳周末。
+    """
+    try:
+        if "tds" not in _CAL:                 # 一次扫描里每只票都要查，缓存
+            import datasource as ds
+            _CAL["tds"] = sorted(ds.trade_dates())
+        tds = [d for d in _CAL["tds"] if d < date]
+        return list(reversed(tds[-k:]))
+    except Exception as e:  # noqa: BLE001
+        log.warning("交易日历拿不到（%s），连续天数按跳周末算", e)
+        out, cur = [], dt.date.fromisoformat(date)
+        while len(out) < k:
+            cur -= dt.timedelta(days=1)
+            if cur.weekday() < 5:
+                out.append(cur.isoformat())
+        return out
+
+
 def count_streak(code: str, date: str) -> int:
     """这只票在 date **之前**已经连续够格几天。
 
@@ -354,13 +398,8 @@ def count_streak(code: str, date: str) -> int:
     「持续符合条件」指的是没断过，不是「最近几天里有几天符合」。
     """
     n = 0
-    cur = dt.date.fromisoformat(date)
-    for _ in range(12):                       # 最多往回数 12 个交易日
-        cur -= dt.timedelta(days=1)
-        # 跳过周末；节假日会让这里提前断掉，宁可少算不多算
-        while cur.weekday() >= 5:
-            cur -= dt.timedelta(days=1)
-        f = DATA / cur.strftime("%Y-%m") / f"breakout_{cur}.parquet"
+    for prev in prev_trade_days(date, 12):     # 最多往回数 12 个交易日
+        f = DATA / prev[:7] / f"breakout_{prev}.parquet"
         if not f.exists():
             break
         try:
@@ -443,12 +482,16 @@ def stage_scan(asof: str = "", force_fit: bool = False) -> int:
                         force_ascii=False, indent=2)
     blist.to_json(OUT / "list_b.json", orient="records",
                   force_ascii=False, indent=2)
+    import os
     (OUT / "run_meta.json").write_text(json.dumps(
         {"date": date, "n_a": len(picks), "n_b": len(blist),
          "score_min": SCORE_MIN,
          "n_streak3": int((picks["streak"] >= 3).sum()) if len(picks) else 0,
          "pool": len(pool), "model_date": obj["fit_date"],
-         "rejected": len(bad)}, ensure_ascii=False), encoding="utf-8")
+         "rejected": len(bad),
+         # 试跑也走到这里；不标 dry 的话计划任务会把试跑当「今天跑完了」
+         "dry": bool(os.environ.get("DRY_RUN"))},
+        ensure_ascii=False), encoding="utf-8")
     (DATA / date[:7]).mkdir(parents=True, exist_ok=True)
     picks.to_parquet(DATA / date[:7] / f"breakout_{date}.parquet", index=False)
     log.info("完成，用时 %.1f 分钟", (time.time() - t0) / 60)
@@ -479,8 +522,13 @@ def stage_send(asof: str = "") -> int:
     import export as E
     meta = json.loads((OUT / "run_meta.json").read_text(encoding="utf-8"))
     date = asof or meta["date"]
-    a = pd.read_json(OUT / "list_a.json")
-    b = pd.read_json(OUT / "list_b.json")
+    # dtype 必须给：read_json 把 "002652" 推断成 int64 = 2652，邮件里就丢了
+    # 前导零。至今没暴露只是因为两次真实运行恰好全是 688/920/600 段的票。
+    a = pd.read_json(OUT / "list_a.json", dtype={"code": str})
+    b = pd.read_json(OUT / "list_b.json", dtype={"code": str})
+    for x in (a, b):
+        if "code" in x.columns:
+            x["code"] = x["code"].astype(str).str.zfill(6)
     E.write_panel(a, b, meta, OUT, date)
     import os
     if os.environ.get("SKIP_MAIL"):

@@ -179,6 +179,103 @@ def check_holder_alignment() -> None:
        "没有公告日期的按报告期 + 120 天（10-28）兜底，9 月底仍不可用")
 
 
+
+def check_chip_causal() -> None:
+    """筹码特征只能用过去：截到 t 算和用全序列算，前 t 行必须逐位相同。
+
+    第一版用整段序列的 min/max 定价格网格，未来的最高价决定格宽，
+    之前每一天的特征都被它扰动过（2026-09-15 审计）。
+    """
+    print("\n[筹码·只用过去]")
+    from chips import chip_features
+    d = synth(700, seed=9)
+    # 后 200 天人为拉一波 60% 的行情，让「全序列的最高价」明显高于前段
+    d.loc[d.index[-200:], ["high", "low", "close"]] *= 1.6
+    h, l, c, t = (d[k].to_numpy() for k in ("high", "low", "close", "turnover"))
+    k = 500
+    full = chip_features(h, l, c, t).iloc[:k].to_numpy()
+    part = chip_features(h[:k], l[:k], c[:k], t[:k]).to_numpy()
+    diff = float(np.nanmax(np.abs(full - part)))
+    ck(diff < 1e-12, f"截到 t 与全序列算出的前 t 行逐位相同（最大差 {diff:.2e}）")
+
+
+def check_send_roundtrip() -> None:
+    """清单经 to_json -> read_json 往返，代码不能丢前导零。"""
+    print("\n[清单往返·代码前导零]")
+    import tempfile
+    a = pd.DataFrame({"code": ["002652", "000523", "688655"],
+                      "name": ["扬子新材", "红棉股份", "迅捷兴"],
+                      "score": [99.0, 98.0, 97.0], "streak": [3, 1, 5],
+                      "close": [4.94, 4.36, 60.12], "board": ["main", "main", "star"]})
+    tmp = Path(tempfile.mkdtemp(prefix="bk_")) / "list_a.json"
+    a.to_json(tmp, orient="records", force_ascii=False, indent=2)
+    naive = pd.read_json(tmp)
+    ck(str(naive["code"].iloc[0]) != "002652",
+       "不给 dtype 的 read_json 确实会把 002652 读成 2652（这条钉住的是坑本身）")
+    b = pd.read_json(tmp, dtype={"code": str})
+    b["code"] = b["code"].astype(str).str.zfill(6)
+    ck(b["code"].tolist() == ["002652", "000523", "688655"],
+       "daily.stage_send 的读法保住前导零")
+
+
+def check_streak_calendar() -> None:
+    """连续天数按交易日回数：跨过法定假日不归零。"""
+    print("\n[连续天数·跨假日]")
+    import tempfile
+    import daily as D
+    import datasource as ds
+    cal = {"2026-09-22", "2026-09-23", "2026-09-24", "2026-09-28", "2026-09-29"}  # 25 日休市
+    orig_td, orig_data = ds.trade_dates, D.DATA
+    D.DATA = Path(tempfile.mkdtemp(prefix="streak_"))
+    ds.trade_dates = lambda: cal
+    D._CAL.clear()                       # 进程内缓存，别让别的用例的日历漏进来
+    try:
+        for day in ("2026-09-23", "2026-09-24"):
+            (D.DATA / day[:7]).mkdir(parents=True, exist_ok=True)
+            pd.DataFrame({"code": ["600000"]}).to_parquet(
+                D.DATA / day[:7] / f"breakout_{day}.parquet", index=False)
+        ck(D.prev_trade_days("2026-09-28", 3) == ["2026-09-24", "2026-09-23", "2026-09-22"],
+           "09-28 往回数三个交易日跳过休市的 09-25")
+        ck(D.count_streak("600000", "2026-09-28") == 2,
+           "09-23、09-24 连续上榜，隔着 09-25 假日，09-28 的连续天数是 2（不归零）")
+        ck(D.count_streak("600000", "2026-09-24") == 1, "09-24 往前只有 09-23 一天")
+    finally:
+        ds.trade_dates, D.DATA = orig_td, orig_data
+        D._CAL.clear()
+
+
+def check_merge_authority() -> None:
+    """重拉分片对它的代码整段权威：旧分片里该票的更早行也要丢掉。"""
+    print("\n[分片合并·重拉整段替换]")
+    import tempfile
+    import backfill as B
+    raw, out = B.RAW, B.OUT
+    tmp = Path(tempfile.mkdtemp(prefix="merge_"))
+    B.RAW, B.OUT = tmp / "raw", tmp
+    B.RAW.mkdir()
+    try:
+        base = pd.DataFrame({"code": ["600000"] * 3 + ["600001"] * 3,
+                             "date": ["2026-01-01", "2026-01-02", "2026-01-03"] * 2,
+                             "close": [10.0, 10.0, 10.0, 5.0, 5.0, 5.0]})
+        base.to_parquet(B.RAW / "sina_0000.parquet", index=False)
+        upd = pd.DataFrame({"code": ["600000", "600001"], "date": ["2026-01-04"] * 2,
+                            "close": [11.0, 6.0]})
+        upd.to_parquet(B.RAW / "sina_9_20260104000000_upd.parquet", index=False)
+        # 600000 除权重拉：整段只有后两天，价格减半
+        ref = pd.DataFrame({"code": ["600000"] * 2, "date": ["2026-01-03", "2026-01-04"],
+                            "close": [5.0, 5.5]})
+        ref.to_parquet(B.RAW / "sina_9_20260105000000_ref.parquet", index=False)
+        ck(B.merge_daily(pattern="sina_*.parquet") == 0, "合并成功")
+        m = pd.read_parquet(B.OUT / "daily.parquet")
+        a = m[m.code == "600000"].sort_values("date")
+        ck(a["date"].tolist() == ["2026-01-03", "2026-01-04"]
+           and a["close"].tolist() == [5.0, 5.5],
+           "重拉的票只剩重拉分片的行（旧的 01-01/01-02 没有残留）")
+        b = m[m.code == "600001"].sort_values("date")
+        ck(len(b) == 4 and b["close"].iloc[-1] == 6.0, "没重拉的票旧行 + 增量行都在")
+    finally:
+        B.RAW, B.OUT = raw, out
+
 def check_cross_section() -> None:
     """横截面百分位化必须抹掉「今天大盘好」这个信息。"""
     print("\n[横截面百分位·对抗时间聚集的主力]")
@@ -339,6 +436,10 @@ def check_table_shape() -> None:
 def main() -> int:
     t0 = time.time()
     check_chips()
+    check_chip_causal()
+    check_send_roundtrip()
+    check_streak_calendar()
+    check_merge_authority()
     check_labels()
     check_lookahead()
     check_holder_alignment()

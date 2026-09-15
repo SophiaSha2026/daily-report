@@ -180,8 +180,11 @@ def holder_features(panel: pd.DataFrame,
     h["avail"] = ann.dt.strftime("%Y-%m-%d")
     h["chg"] = pd.to_numeric(h["股东户数-增减比例"], errors="coerce") / 100.0
     h["cnt"] = pd.to_numeric(h.get("股东户数-本次"), errors="coerce")
-    h = (h[["code", "avail", "chg", "cnt"]].dropna(subset=["chg"])
-          .sort_values(["code", "avail"]))
+    # 年报和一季报常同一天公告：同一 (code, avail) 两行，按报告期排在后面的
+    # 才是新的一期。不加第二键的话，merge_asof 取到哪一行取决于排序算法
+    # 碰巧稳不稳定。
+    h = (h[["code", "avail", "period", "chg", "cnt"]].dropna(subset=["chg"])
+          .sort_values(["code", "avail", "period"]))
     h["chg3"] = h.groupby("code")["chg"].transform(
         lambda s: s.rolling(3, min_periods=1).sum())
     down = (h["chg"] < 0).astype(int)

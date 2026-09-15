@@ -37,7 +37,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-N_BINS = 160        # 价格网格档数。太少精度不够，太多没有额外信息且变慢
+N_BINS = 360        # 对数网格档数：覆盖 1/10~10 倍，每格约 1.3%（2026-09-15 起）
 DECAY = 1.0
 
 
@@ -63,21 +63,32 @@ def chip_features(high: np.ndarray, low: np.ndarray, close: np.ndarray,
         f"换手率最大 {np.nanmax(turnover):.2f}，看着像百分数。"
         "这里要小数形式（0.03 = 3%）")
 
-    lo, hi = float(np.nanmin(low)) * 0.98, float(np.nanmax(high)) * 1.02
-    if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+    # 网格只能由**过去**决定。第一版用整段序列的 min/max 定网格：格宽 w 取决于
+    # 未来的最高价，一只票未来涨 50% 创新高（正是标签为 1 的情形），它之前每一天
+    # 的筹码特征都被这个 w 系统性地扰动过，是一种隐蔽的前视偏差（2026-09-15
+    # 审计实测：随机 40 只票，只用 [..t] 和用全序列算出的 chip_conc90 差最大
+    # 0.022，差值与「未来最高/过去最高」相关 0.79）。
+    # 现在按**对数价格**建网格，锚在第一根有效收盘价上，覆盖 1/10 ~ 10 倍
+    # （三年内涨跌超过十倍的票极少，超出的那天成交落在网格外，被丢弃）。
+    # 对数网格下格宽是恒定的比例，三角核也在对数空间撒。
+    ok = np.isfinite(high) & np.isfinite(low) & np.isfinite(close) \
+        & (low > 0) & (high > 0) & (close > 0)
+    if not ok.any():
         return pd.DataFrame(np.nan, index=range(n),
                             columns=["chip_avg", "chip_win", "chip_conc90",
                                      "chip_dev", "chip_peak"])
-    grid = np.linspace(lo, hi, n_bins)
+    c0 = float(close[np.argmax(ok)])
+    grid = np.linspace(np.log(c0 / 10.0), np.log(c0 * 10.0), n_bins)
+    price = np.exp(grid)
     w = grid[1] - grid[0]
 
     chip = np.zeros(n_bins)
     out = np.full((n, 5), np.nan)
 
     for i in range(n):
-        h, l, c, t = high[i], low[i], close[i], turnover[i]
-        if not np.isfinite(h + l + c):
+        if not ok[i]:
             continue
+        h, l, c, t = np.log(high[i]), np.log(low[i]), np.log(close[i]), turnover[i]
         # 当日成交按三角分布撒开。半宽至少一个格，否则一字板那天
         # （h == l）会得到全零分布。
         peak = (h + l + c) / 3.0
@@ -97,14 +108,15 @@ def chip_features(high: np.ndarray, low: np.ndarray, close: np.ndarray,
         p = chip / tot
         cum = np.cumsum(p)
 
-        avg = float(grid @ p)
+        cp = float(close[i])
+        avg = float(price @ p)
         win = float(p[grid <= c].sum())
         i5 = int(np.searchsorted(cum, 0.05))
         i95 = int(min(np.searchsorted(cum, 0.95), n_bins - 1))
-        conc = (grid[i95] - grid[i5]) / max(avg, 1e-9)
-        dev = c / max(avg, 1e-9) - 1.0
-        pk = grid[int(np.argmax(p))]
-        out[i] = (avg, win, conc, dev, pk / max(c, 1e-9) - 1.0)
+        conc = (price[i95] - price[i5]) / max(avg, 1e-9)
+        dev = cp / max(avg, 1e-9) - 1.0
+        pk = price[int(np.argmax(p))]
+        out[i] = (avg, win, conc, dev, pk / max(cp, 1e-9) - 1.0)
 
     return pd.DataFrame(out, columns=["chip_avg", "chip_win", "chip_conc90",
                                       "chip_dev", "chip_peak"])

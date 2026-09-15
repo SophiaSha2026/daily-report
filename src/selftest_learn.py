@@ -52,8 +52,13 @@ def rnd_frame(n: int, seed: int = 11) -> pd.DataFrame:
         "prev_close": g.choice([0.0, 5.0, 10.0, 88.0], n, p=[.02, .32, .33, .33]),
         "auc_price": g.choice([0.0, 6.0, 11.0, 90.0], n, p=[.02, .32, .33, .33]),
         "gap_pct": gap, "gap_norm": gap / lp,
-        "auc_amount": g.uniform(0, 5e8, n), "prev_amount": g.uniform(1e7, 5e9, n),
-        "auc_ratio": g.choice([0.0, 1e-4], n, p=[.02, .98]) + g.uniform(0, .3, n),
+        # 成交额覆盖 300 万下限两侧；量能里混 2% 的 NaN（回填表里真有 6950 行
+        # NaN，score.py 剔除而向量化版曾经放行，见 2026-09-15 审计）
+        "auc_amount": g.uniform(0, 5e8, n) * g.choice([0.002, 1.0], n, p=[.1, .9]),
+        "prev_amount": g.uniform(1e7, 5e9, n),
+        "auc_ratio": np.where(g.random(n) < .02, np.nan,
+                              g.choice([0.0, 1e-4], n, p=[.02, .98])
+                              + g.uniform(0, .3, n)),
         "t1_chg": g.uniform(-11, 12, n), "t2_chg": g.uniform(-11, 12, n),
         "t3_chg": gap, "slope": g.uniform(-5, 5, n),
         "monotonic": g.random(n) > .5, "dive": g.uniform(-3, 5, n),
@@ -218,6 +223,18 @@ def check_neutralize() -> None:
 
 def check_gate(c: dict) -> None:
     print("\n接受门")
+    # 自测不许依赖 state/：冷却期读 state/theta_history.jsonl，真机上一旦
+    # 接受过变更，「全部条件满足时接受」就会因冷却期变红。指到临时目录。
+    import tempfile
+    orig_hist = gate.HISTORY
+    gate.HISTORY = Path(tempfile.mkdtemp(prefix="gate_")) / "theta_history.jsonl"
+    try:
+        _check_gate(c)
+    finally:
+        gate.HISTORY = orig_hist
+
+
+def _check_gate(c: dict) -> None:
     box, g = c["learning"]["box"], dict(c["learning"]["gate"])
     t0 = C.theta0(box)
     t1 = dict(t0); t1["screen.gap_pct_peak"] = t0["screen.gap_pct_peak"] + 0.1

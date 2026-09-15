@@ -48,10 +48,12 @@ def write_ths_blocks(rows: list[dict], out_dir: Path,
 
     paths = []
     for name, codes in buckets.items():
-        if not codes:
-            continue
+        # 空层也写（空文件）：以前空层不写，上一个有「强」的交易日留下的
+        # 竞价_强.txt 一直躺在 out/ 里，被 build_site 发布到 Pages、
+        # 被人当成今天的导入同花顺。
         p = out_dir / f"竞价_{name}.txt"
-        p.write_bytes(("\r\n".join(codes) + "\r\n").encode("gbk"))
+        p.write_bytes(("\r\n".join(codes) + ("\r\n" if codes else ""))
+                      .encode("gbk"))
         paths.append(p)
 
     p = out_dir / "竞价_全部.txt"
@@ -101,8 +103,10 @@ REFRESH_JS = """/* -------------------------------------------------------------
    --------------------------------------------------------------------- */
 const STAMP='__STAMP__', PDATE='__DATE__';
 function bjToday(){
-  const d=new Date(Date.now()+(new Date().getTimezoneOffset()*6e4)+8*36e5);
-  return d.toISOString().slice(0,10);
+  // Date.now() 已经是 UTC 毫秒，加 8 小时再按 UTC 取日期就是北京日期。
+  // 以前还加了一次 getTimezoneOffset，美东浏览器算成北京 +4 小时，
+  // 每天 20:00 之后横幅误报「数据过期」。
+  return new Date(Date.now()+8*36e5).toISOString().slice(0,10);
 }
 function banner(msg){
   const e=document.getElementById('stale');

@@ -67,6 +67,22 @@ def summarize(picks: pd.DataFrame, y: str = "y_up") -> dict:
     return {"n": int(len(picks)), "hit": float(picks[y].mean())}
 
 
+PURGE_DAYS = 20     # = label 的 horizon：这之内的行标签要看测试月才定得下来
+
+
+def purge_cut(df: pd.DataFrame, month: str, gap: int = PURGE_DAYS) -> str:
+    """训练集截止日：测试月首个交易日往前数 gap 个交易日。
+
+    紧挨测试月前 20 天的行，y_up 是用测试月里的最高价算出来的：把它们放进
+    训练集，模型就带着「测试月初谁会涨」的信息进测试月。生产的 load_or_fit
+    用 TRAIN_END_GAP=25 截断是净化过的，走向前以前没做，成绩偏乐观
+    （2026-09-15 审计，实验 10 重算）。
+    """
+    dates = sorted(df["date"].unique())
+    first = next((i for i, d in enumerate(dates) if d >= month + "-01"), len(dates))
+    return dates[max(first - gap, 0)]
+
+
 def walk_forward(df: pd.DataFrame, feats: list[str], make_model,
                  y_train: str = "y_up", y_eval: str = "y_up",
                  start: str = TRAIN_END, end: str = VALID_END,
@@ -80,7 +96,7 @@ def walk_forward(df: pd.DataFrame, feats: list[str], make_model,
     months = sorted({d[:7] for d in df["date"] if start <= d < end})
     rows, all_picks = [], []
     for m in months:
-        tr = df[df["date"] < m + "-01"]
+        tr = df[df["date"] < purge_cut(df, m)]
         te = df[df["date"].str[:7] == m]
         tr = tr[np.isfinite(tr[y_train])]
         if len(tr) < 5000 or not len(te):
