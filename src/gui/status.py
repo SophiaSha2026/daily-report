@@ -269,7 +269,8 @@ def morning_perf() -> dict:
 # tools/evening_check.py（云端）里，这里只是把它们用人话写出来。
 RULES = {
     "morning": {
-        "local_when": "美东周日~周四 18:00 起每 15 分钟，共 3h15m；开机登录时也触发一次",
+        "local_when": "手动：美东 18:00~20:30（冬令时 17:00~19:30）随时点。"
+                      "自动：计划任务美东周日~周四 18:00 起每 15 分钟敲，北京 08:30 起没手点就跑",
         "target_rule": "今天（09:16 之后新起进程来不及赶上 09:25 采样）",
         "steps": "同步仓库 -> 推 claim -> 候选池 -> 09:14 预热、09:19/09:23/09:25 采样 -> "
                  "推数据快照 -> Claude 文案 -> 09:27:30 发信 -> 推 sent + 面板",
@@ -279,7 +280,9 @@ RULES = {
                  "不发信、不提交数据；没 claim 或没 sent -> 云端 09:27:30 发信、提交数据。",
     },
     "breakout": {
-        "local_when": "美东周一~周五 04:30 起每 30 分钟，共 16h（到 20:30）；开机登录时也触发一次",
+        "local_when": "手动：北京 16:00 起到次日 08:30 随时点。"
+                      "自动：计划任务美东周一~周五 04:30 起每 30 分钟敲，北京 16:30 起没手点就跑；"
+                      "机器睡着就等醒了补，登录时也敲一次",
         "target_rule": "最近一个已收盘（15:05 后）的交易日。北京 09-15 早上补跑出的是 09-14 的清单",
         "steps": "同步仓库 -> 推 claim -> 腾讯快照追加目标日日线（追加不到就不出清单）-> "
                  "重算特征（约 13 分钟）-> 打分、风险剔除 -> 面板 + 发信 -> 推 sent + 产物",
@@ -288,7 +291,7 @@ RULES = {
                  "没有就发一封「本机没跑」提醒，同一天只发一次。",
     },
     "learn": {
-        "local_when": "美东周一~周五 04:40 起每 30 分钟，共 16h（到 20:40）；开机登录时也触发一次",
+        "local_when": "自动：计划任务美东周一~周五 04:40 起每 30 分钟敲，北京 16:40 起跑；手动随时",
         "target_rule": "同起涨预测：最近一个已收盘的交易日",
         "steps": "同步仓库 -> 标签 -> 归因 -> 拟合与闸门 -> 推学习产物",
         "cloud": "无。learn.yml 只留手动入口。",
@@ -301,17 +304,25 @@ RULES = {
     },
 }
 
-# --if-needed 的四道检查，顺序就是 local_run.main 里的顺序
+# --if-needed 的五道检查，顺序就是 local_run.main 里的顺序
 IF_NEEDED = [
     "北京时间周末：跳过",
-    "这条线正在跑（state/lock）：跳过",
+    "这条线正在跑（state/lock 或进程表）：跳过",
     "目标日已经跑完（run_meta 日期 == 目标日）：跳过",
     "不在开跑窗口：只拉一次远端，不跑",
+    "还没到自动开跑时刻：只拉一次远端，等手动",
     "都通过：先拉远端再核对一次（云端可能已经代跑），然后开跑",
 ]
 
-MANUAL_RULE = ("控制台按钮和计划任务走同一个入口。手点不看窗口、不看跑没跑过，"
-               "但看锁：已经在跑就直接退出。带「会发邮件」的按钮点了就真的发，点前会弹确认。")
+PRIORITY = [
+    "1. 手动：控制台点按钮，开跑窗口内随时。",
+    "2. 本机自动：到了自动开跑时刻还没手点，计划任务自己跑（每 15~30 分钟敲一次，机器睡着就等醒了补）。",
+    "3. 云端：本机根本没跑（没开机），GitHub cron + Cloudflare Worker 叫起云端兜底："
+    "早盘由云端代发；起涨预测云端算不了，只发提醒。",
+]
+
+MANUAL_RULE = ("控制台按钮和计划任务走同一个入口、同一把锁，谁先起谁跑。手点不看跑没跑过、"
+               "不看自动时刻，只看锁：已经在跑就直接退出。带「会发邮件」的按钮点了就真的发，点前会弹确认。")
 
 
 def _local_run():
@@ -346,21 +357,33 @@ def verdict(key: str, done: bool, target: str) -> str:
     if L:
         try:
             if not L.in_window(key):
-                lo, hi = L.FLOWS[key][2:]
+                lo, hi = L.FLOWS[key][2:4]
                 return (f"不在开跑窗口 {lo[0]:02d}:{lo[1]:02d}-{hi[0]:02d}:{hi[1]:02d}（北京），"
-                        f"触发了只拉远端不跑")
+                        f"计划任务只拉远端不跑；手动也不建议")
+            if not L.auto_due(key):
+                auto = L.FLOWS[key][4]
+                return (f"手动窗口内：等你在控制台点；{auto[0]:02d}:{auto[1]:02d}（北京）"
+                        f"还没点，计划任务就自动跑")
         except Exception:  # noqa: BLE001
             pass
-    return "在窗口内、目标日还没跑：下一次触发就开跑"
+    return "过了自动开跑时刻、目标日还没跑：计划任务下一次敲就开跑（手动也可以）"
 
 
 def window_text(key: str) -> str:
     L = _local_run()
     if not L or key not in L.FLOWS:
         return "?"
-    lo, hi = L.FLOWS[key][2:]
+    lo, hi = L.FLOWS[key][2:4]
     s = f"北京 {lo[0]:02d}:{lo[1]:02d}-{hi[0]:02d}:{hi[1]:02d}"
     return s + ("（跨午夜到次日）" if hi < lo else "")
+
+
+def auto_text(key: str) -> str:
+    L = _local_run()
+    if not L or key not in L.FLOWS or len(L.FLOWS[key]) < 5:
+        return "?"
+    a = L.FLOWS[key][4]
+    return f"北京 {a[0]:02d}:{a[1]:02d}"
 
 
 def rules_status(lines: list[dict]) -> dict:
@@ -373,6 +396,7 @@ def rules_status(lines: list[dict]) -> dict:
             "key": ln["key"], "name": ln["name"], "task": ln["task"],
             "local_when": r.get("local_when", ""),
             "window": window_text(ln["key"]),
+            "auto_from": auto_text(ln["key"]),
             "target_rule": r.get("target_rule", ""),
             "target": ln.get("target", ""),
             "done": ln.get("done"),
@@ -384,6 +408,7 @@ def rules_status(lines: list[dict]) -> dict:
         "now": f"北京 {now.strftime('%m-%d %H:%M')}（本机 {edt.strftime('%m-%d %H:%M')}）",
         "lines": out,
         "if_needed": IF_NEEDED,
+        "priority": PRIORITY,
         "manual": MANUAL_RULE,
         "worker": "Cloudflare Worker daily-report-trigger：每天 07:30 北京派发 auction.yml，"
                   "20:45 北京派发 evening_check.yml。第三层触发，改它要重新 deploy。",

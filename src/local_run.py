@@ -7,8 +7,15 @@
 
 本地为主、云端托底（2026-09-15 起）
 ----------------------------------
-这台机器是首选执行方，跑完把产物 commit + push。云端 workflow 只在本地
-没跑的时候补位（协议见下），Pages 面板由云端发布。
+三档优先级，用户 2026-09-15 定的：
+
+    1. 手动     控制台点按钮，随时（在开跑窗口内）
+    2. 本机自动  到了「自动开跑时刻」还没手点，计划任务自己跑
+    3. 云端     本机根本没跑（没开机），GitHub cron + Cloudflare Worker 叫起云端兜底
+
+计划任务从窗口一开就每 15~30 分钟敲一次，但自动开跑时刻之前只拉远端、
+不开跑，把时间留给手动。手动和自动是同一个入口、同一把锁，谁先起谁跑。
+跑完把产物 commit + push，云端看到 sent 标记就让位；Pages 面板由云端发布。
 
     --flow morning   竞价线：候选池 -> 采样 -> LLM -> 09:27:30 发信
     --flow breakout  晚间系统：补当天日线 -> 特征 -> 打分 -> 17:00 后发信
@@ -584,11 +591,18 @@ def flow_learn(dry: bool, base: int = 0, total: int = 3) -> int:
 #            再晚就撞上竞价线的采样（09:14 起），不抢那几分钟。
 #   learn    同上，跨午夜到 08:30
 #   evening  形态线的 hard_deadline 是 22:00（已停用自动，手动不受限）
+# 第五项是「自动开跑时刻」（北京）：计划任务在这之前只等手动，到点没手点
+# 才自己跑。手动不受它限制，只受窗口限制。
+#   morning  08:30。手动窗口 06:00~08:30（美东晚 18:00~20:30，冬令时 17:00~19:30）。
+#            08:30 起跑，候选池 10 分钟，09:14 预热前有余量；再晚候选池来不及。
+#   breakout 16:30。收盘后半小时数据定型，17:00 前后出清单是这条线的约定；
+#            美东凌晨没人手点，实际上就是自动跑，机器没醒就等醒了补。
+#   learn    16:40，同上
 FLOWS = {
-    "morning": ("out/run_meta.json", "竞价线", (6, 0), (9, 16)),
-    "evening": ("out_pullback/run_meta.json", "形态线", (16, 0), (22, 0)),
-    "learn": ("state/learning_status.json", "学习线", (16, 0), (8, 30)),
-    "breakout": ("out_breakout/run_meta.json", "起涨预测", (16, 0), (8, 30)),
+    "morning": ("out/run_meta.json", "竞价线", (6, 0), (9, 16), (8, 30)),
+    "evening": ("out_pullback/run_meta.json", "形态线", (16, 0), (22, 0), (16, 30)),
+    "learn": ("state/learning_status.json", "学习线", (16, 0), (8, 30), (16, 40)),
+    "breakout": ("out_breakout/run_meta.json", "起涨预测", (16, 0), (8, 30), (16, 30)),
 }
 
 # 一次最多跑多久（小时）。锁比这个老就当死锁，防 PID 重用误判
@@ -596,11 +610,26 @@ MAX_RUN = {"morning": 4, "breakout": 3, "learn": 3, "evening": 3}
 
 
 def in_window(flow: str) -> bool:
-    _, _, lo, hi = FLOWS[flow]
+    lo, hi = FLOWS[flow][2:4]
     hm = (now_bj().hour, now_bj().minute)
     if lo <= hi:
         return lo <= hm <= hi
     return hm >= lo or hm <= hi          # 跨午夜
+
+
+def auto_due(flow: str) -> bool:
+    """到没到自动开跑时刻。窗口内且过了 FLOWS 第五项。
+
+    跨午夜的窗口（16:00~次日 08:30）里，自动时刻在午夜前那一段：
+    16:30 之后算到点，午夜后到 08:30 也算到点（那是补跑）。
+    """
+    if not in_window(flow):
+        return False
+    lo, hi, auto = FLOWS[flow][2:5]
+    hm = (now_bj().hour, now_bj().minute)
+    if lo <= hi:
+        return hm >= auto
+    return hm >= auto or hm <= hi
 
 
 def already_done(flow: str) -> bool:
@@ -704,10 +733,16 @@ def main() -> int:
             log.info("%s 目标日 %s 已经跑完，跳过", name, target_date(a.flow))
             return 0
         if not in_window(a.flow):
-            lo, hi = FLOWS[a.flow][2:]
+            lo, hi = FLOWS[a.flow][2:4]
             log.info("%s 现在 %s 不在开跑窗口 %02d:%02d-%02d:%02d（北京），跳过",
                      name, now_bj().strftime("%H:%M"), *lo, *hi)
             # 窗口外也顺手拉一次远端：云端替本地跑过的产物落到本地面板
+            sync_repo()
+            return 0
+        if not auto_due(a.flow):
+            auto = FLOWS[a.flow][4]
+            log.info("%s 现在 %s 还没到自动开跑时刻 %02d:%02d（北京），先等手动；"
+                     "到点没手点就自动跑", name, now_bj().strftime("%H:%M"), *auto)
             sync_repo()
             return 0
         # 开跑前先拉远端再核对一次：云端可能已经替本地跑完了

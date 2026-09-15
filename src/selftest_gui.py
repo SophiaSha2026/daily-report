@@ -94,11 +94,26 @@ def check_windows() -> None:
         ("breakout", 12, 0, False),
         ("evening", 22, 0, True), ("evening", 22, 1, False),
     ]
+    # 自动开跑时刻：在这之前计划任务只等手动。跨午夜的线午夜后也算到点（补跑）。
+    auto_cases = [
+        ("morning", 8, 29, False), ("morning", 8, 30, True), ("morning", 9, 16, True),
+        ("morning", 9, 17, False),
+        ("breakout", 16, 29, False), ("breakout", 16, 30, True),
+        ("breakout", 2, 0, True), ("breakout", 8, 30, True), ("breakout", 8, 31, False),
+        ("learn", 16, 39, False), ("learn", 16, 40, True),
+    ]
     try:
         for flow, h, m, want in cases:
             local_run.now_bj = lambda h=h, m=m: dt.datetime(2026, 9, 14, h, m)
             got = local_run.in_window(flow)
             ck(got == want, f"{flow} {h:02d}:{m:02d} -> {'可跑' if want else '跳过'}")
+        for flow, h, m, want in auto_cases:
+            local_run.now_bj = lambda h=h, m=m: dt.datetime(2026, 9, 14, h, m)
+            got = local_run.auto_due(flow)
+            ck(got == want, f"{flow} {h:02d}:{m:02d} 自动 -> {'到点' if want else '等手动'}")
+        for flow, v in local_run.FLOWS.items():
+            ck(len(v) == 5 and local_run.in_window.__code__ is not None,
+               f"{flow} 的 FLOWS 有五项（含自动开跑时刻）")
     finally:
         local_run.now_bj = orig
 

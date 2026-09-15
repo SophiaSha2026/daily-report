@@ -549,8 +549,8 @@ function renderRules(box, r) {
   box.appendChild(h);
 
   const t = el("table");
-  t.innerHTML = "<tr><th>线</th><th>本机什么时候触发</th><th>开跑窗口</th>" +
-    "<th>目标日</th><th>现在触发会怎样</th><th>云端规则</th></tr>";
+  t.innerHTML = "<tr><th>线</th><th>本机什么时候触发</th><th>开跑窗口</th><th>自动开跑</th>" +
+    "<th>目标日</th><th>现在会怎样</th><th>云端规则</th></tr>";
   (r.lines || []).forEach(x => {
     const tr = el("tr");
     const vcls = x.done ? "ok" : (/开跑/.test(x.verdict) ? "warn" : "idle");
@@ -558,6 +558,7 @@ function renderRules(box, r) {
       `<td><b>${esc(x.name)}</b><div class="muted mono" style="font-size:11px">${esc(x.task || "手动")}</div></td>` +
       `<td style="font-size:12px">${esc(x.local_when)}<div class="muted" style="font-size:11px;margin-top:4px">步骤：${esc(x.steps)}</div></td>` +
       `<td class="mono" style="font-size:12px">${esc(x.window)}</td>` +
+      `<td class="mono" style="font-size:12px">${esc(x.auto_from || "")}</td>` +
       `<td style="font-size:12px"><span class="mono">${esc(x.target)}</span><div class="muted" style="font-size:11px">${esc(x.target_rule)}</div></td>` +
       `<td style="font-size:12px"><span class="dot ${vcls}"></span>${esc(x.verdict)}</td>` +
       `<td style="font-size:12px">${esc(x.cloud)}</td>`;
@@ -567,7 +568,8 @@ function renderRules(box, r) {
 
   const cond = el("div", "muted");
   cond.style.cssText = "font-size:12px;margin-top:10px;line-height:1.8";
-  cond.innerHTML = "<b>计划任务每次触发，按顺序过四道检查（--if-needed）：</b><br>" +
+  cond.innerHTML = "<b>优先级：</b><br>" + (r.priority || []).map(esc).join("<br>") +
+    "<br><b>计划任务每次敲门，按顺序过五道检查（--if-needed）：</b><br>" +
     (r.if_needed || []).map((x, i) => (i + 1) + ". " + esc(x)).join("<br>") +
     "<br><b>手动：</b>" + esc(r.manual || "") +
     "<br><b>第三层触发：</b>" + esc(r.worker || "");
@@ -631,7 +633,7 @@ function renderSched(s) {
   tip.innerHTML =
     "早盘选股 <b>DailyReport-Local-Morning</b>：美东周日到周四 18:00 起每 15 分钟，" +
     "持续 3 小时 15 分。夏令时对应北京 06:00-09:15，冬令时 07:00-10:15，" +
-    "两种时令都盖得住 09:16 这条开跑上界。<br>" +
+    "两种时令都盖得住 09:16 这条开跑上界。北京 08:30 之前只等你手点，08:30 没点才自动跑。<br>" +
     "起涨预测 <b>DailyReport-Local-Evening</b>：美东周一到周五 04:30 起每 30 分钟，持续 16 小时。" +
     "目标日是最近一个已收盘的交易日，北京 16:00 到次日 08:30 都能补跑，结果一样。<br>" +
     "参数自学 <b>DailyReport-Local-Learn</b>：美东周一到周五 04:40 起每 30 分钟，持续 16 小时。<br>" +
