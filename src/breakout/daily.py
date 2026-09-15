@@ -79,6 +79,7 @@ TOP_A = CAP_A       # 兼容旧名字
 SCORE_B = SCORE_MIN  # 进 B 池的门槛。清单 A 本身就是 ≥97 分，两者一致
 POOL_DAYS = 60      # A 池里的股票保留多少个交易日
 MODEL_MAX_AGE = 30  # 模型多少天重训一次
+RELEASE_MIN_SHARE = 0.05   # 解禁市值占流通市值达到这个比例才剔除（设计文档 5.7）
 TRAIN_END_GAP = 25  # 训练只用到 N 个交易日之前（标签要 20 天才能确定）
 MIN_HOLD_DAYS = 5   # 进 A 池后至少过几个交易日才可能进 B
 
@@ -234,14 +235,28 @@ def risk_filter(codes: list[str]) -> dict[str, str]:
     except Exception as e:  # noqa: BLE001
         log.warning("减持检查跳过：%s", e)
 
-    # --- 未来 30 天解禁 ---
+    # --- 未来 30 天解禁：只剔「解禁市值占流通市值 >= RELEASE_MIN_SHARE」的 ---
+    # 设计文档 5.7 定的门槛。以前任何一笔（含股权激励零头）都整只剔除，
+    # 会把够格的票挤出前 10（2026-09-15 用户决定按 5% 门槛）。
     try:
         import akshare as ak
         d = ak.stock_restricted_release_detail_em(
             start_date=today.strftime("%Y%m%d"),
             end_date=(today + dt.timedelta(days=30)).strftime("%Y%m%d"))
         cc = next((c for c in d.columns if "代码" in c), None)
-        if cc:
+        sc_ = next((c for c in d.columns if "占解禁前流通市值比例" in c), None)
+        if cc and sc_:
+            share = pd.to_numeric(d[sc_], errors="coerce")
+            if share.max() > 1.0:          # 万一哪天改成百分数
+                share = share / 100.0
+            # 同一只票 30 天内多笔解禁按票累计
+            tot = (d.assign(_c=d[cc].astype(str).str.zfill(6), _s=share.fillna(0))
+                    .groupby("_c")["_s"].sum())
+            for c, v in tot.items():
+                if c in codes and c not in bad and v >= RELEASE_MIN_SHARE:
+                    bad[c] = f"未来 30 天解禁占流通市值 {100 * v:.1f}%"
+        elif cc:
+            log.warning("解禁表没有占比列，退回「任何解禁都剔」")
             for c in d[cc].astype(str).str.zfill(6):
                 if c in codes and c not in bad:
                     bad[c] = "未来 30 天有解禁"
@@ -412,7 +427,10 @@ def count_streak(code: str, date: str) -> int:
     return n
 
 
-def stage_scan(asof: str = "", force_fit: bool = False) -> int:
+def stage_scan(force_fit: bool = False) -> int:
+    """打分日永远是特征表的最后一天。以前有个 --asof 能指定历史日，但风险
+    剔除用的是今天的 ST/减持/解禁、A 池会被改坏进池日期，补发不安全，
+    2026-09-15 删掉；补发历史清单走 tools/resend_breakout.py。"""
     t0 = time.time()
     tp = DATA / "train.parquet"
     if not tp.exists():
@@ -422,7 +440,7 @@ def stage_scan(asof: str = "", force_fit: bool = False) -> int:
     fc = [c for c in df.columns if "__" in c]
     df[fc] = df[fc].astype("float32")
 
-    date = asof or str(df["date"].max())
+    date = str(df["date"].max())
     today = df[df["date"] == date].copy()
     log.info("打分日 %s，全市场 %d 只", date, len(today))
     if not len(today):
@@ -517,11 +535,11 @@ def load_env() -> None:
         os.environ.setdefault(k.strip(), v.strip())
 
 
-def stage_send(asof: str = "") -> int:
+def stage_send() -> int:
     load_env()
     import export as E
     meta = json.loads((OUT / "run_meta.json").read_text(encoding="utf-8"))
-    date = asof or meta["date"]
+    date = meta["date"]
     # dtype 必须给：read_json 把 "002652" 推断成 int64 = 2652，邮件里就丢了
     # 前导零。至今没暴露只是因为两次真实运行恰好全是 688/920/600 段的票。
     a = pd.read_json(OUT / "list_a.json", dtype={"code": str})
@@ -577,18 +595,17 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage", default="all",
                     choices=["scan", "send", "all", "refit"])
-    ap.add_argument("--asof", default="")
     ap.add_argument("--refit", action="store_true", help="强制重训模型")
     a = ap.parse_args()
     if a.stage == "refit":
         return stage_refit()
     rc = 0
     if a.stage in ("scan", "all"):
-        rc = stage_scan(a.asof, a.refit)
+        rc = stage_scan(a.refit)
         if rc:
             return rc
     if a.stage in ("send", "all"):
-        rc = stage_send(a.asof)
+        rc = stage_send()
     return rc
 
 

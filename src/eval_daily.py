@@ -143,22 +143,42 @@ def load_day_weights(c: dict) -> dict[str, float]:
 #  stage: learn
 # ---------------------------------------------------------------------
 def _load_train(c: dict):
-    """训练表：优先回填（404 天，特征齐但竞价轨迹是代理值），
-    没有才用在线积累。返回 (df, source)。
+    """训练表 = 回填历史 + 在线真值，返回 (df, source)。
 
-    2026-09-03 用户决定不等 60 天在线积累，直接用回填历史点火学习；
-    在线真值快照转为第七道闸（稳健性否决），见 gate.evaluate。
+    2026-09-03 用户决定不等 60 天在线积累，直接用回填历史点火学习。
+    2026-09-15 起在线真值天**并进训练表**（用户决定）：回填表只是先验，
+    每天真采到的快照 + 真值标签才是这套系统真正要学的东西。以前在线天
+    只做第七道闸，训练表冻结在回填截止日，每天在同一份数据上重复拟合，
+    七次裁决的数字逐位相同。
+
+    合并规则：同一天两边都有的（回填截止前的那几个在线日）以在线为准，
+    它的竞价轨迹是真采样，回填的是代理值。`_src` 列标来源，第七道闸和
+    面板只看在线那部分。在线天在时间轴最末端，走向前切分时天然落在
+    样本外那一段，等攒过 oos_frac 的比例才逐步进入拟合。
     """
     lc = c["learning"]
+    nz = lc["neutralize"]
+    parts, srcs = [], []
     bf = sorted((ROOT / "data" / "train").glob("backfill_*.parquet"))
     if bf:
         raw = pd.read_parquet(bf[-1])
         raw["dirty"] = raw["one_word"].astype(bool)
         # 抢救日守卫只认在线快照。回填表的 t1/t2/t3 是代理值，单价竞价
         # 天然三者相等，开着守卫会误伤（2026-09-04 复查丢了 3 天）。
-        df = dataset.neutralize(raw, lc["neutralize"], salvage_guard=False)
-        return df, f"backfill:{bf[-1].name}"
-    return dataset.build(None, lc["neutralize"]), "online"
+        d_bf = dataset.neutralize(raw, nz, salvage_guard=False)
+        parts.append(d_bf.assign(_src="backfill"))
+        srcs.append(f"backfill:{bf[-1].name}")
+    d_on = dataset.build(None, nz)
+    if not d_on.empty:
+        on_days = set(d_on["date"].unique())
+        parts = [x[~x["date"].isin(on_days)] for x in parts]
+        parts.append(d_on.assign(_src="online"))
+        srcs.append(f"online:{len(on_days)}天")
+    if not parts:
+        return pd.DataFrame(), "none"
+    df = pd.concat(parts, ignore_index=True).sort_values(
+        "date", kind="mergesort").reset_index(drop=True)
+    return df, "+".join(srcs)
 
 
 def _regime_of(date: str) -> str | None:
@@ -239,18 +259,20 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
     # 第七道闸：在线真值快照上的稳健性。训练是回填（轨迹为代理值），
     # 这里用真采样的那几天做否决检验。抢救日已被 dataset 守卫剔除。
     online_p, online_days = None, 0
-    if source.startswith("backfill"):
-        dfo = dataset.build(None, lc["neutralize"])
-        if not dfo.empty:
-            p_on = OPT.Problem(dfo, c, box, theta0, theta_prev, dayw,
-                               lc["objective"]["top_k"],
-                               lc["objective"]["huber_c"],
-                               lc["objective"]["tau_perplexity_tol"])
-            online_days = dfo["date"].nunique()
-            online_p = OPT.bootstrap_better(p_on, theta_new, theta_prev,
-                                            g["bootstrap_n"])
-            log.info("在线稳健性：%d 天真值快照，P(新参数更好)=%.2f",
-                     online_days, online_p)
+    # 在线天现在也在训练表里（时间轴末端，走向前切分时落在样本外段）；
+    # 这里单独再看一眼它们，作为否决项保留。
+    dfo = (df[df["_src"] == "online"] if "_src" in df.columns
+           else df.iloc[0:0])
+    if not dfo.empty:
+        p_on = OPT.Problem(dfo, c, box, theta0, theta_prev, dayw,
+                           lc["objective"]["top_k"],
+                           lc["objective"]["huber_c"],
+                           lc["objective"]["tau_perplexity_tol"])
+        online_days = dfo["date"].nunique()
+        online_p = OPT.bootstrap_better(p_on, theta_new, theta_prev,
+                                        g["bootstrap_n"])
+        log.info("在线稳健性：%d 天真值快照，P(新参数更好)=%.2f",
+                 online_days, online_p)
 
     # 统计量一律关键字传入（闸门 3 曾因位置错位拿到阈值本身，见 gate.evaluate）
     v = gate.evaluate(theta_new, theta_prev, box, g, n, days, date,
@@ -274,7 +296,7 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
     try:
         from learn.model_select import spearman
         from learn import vscore, panel as LP
-        dfo2 = dfo if source.startswith("backfill") else df
+        dfo2 = dfo
         daily = []
         if not dfo2.empty:
             s_, rej = vscore.score_df(dfo2, c)
