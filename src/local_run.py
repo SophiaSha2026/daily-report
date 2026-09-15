@@ -91,12 +91,23 @@ def trade_dates() -> set[str]:
     """交易日历，进程内缓存。拿不到就退化成「周一到周五」（fail-open：
     宁可节假日多跑一次空流程，也不能因为日历接口挂了整条线不跑）。"""
     if "s" not in _TD:
+        cache = ROOT / "state" / "trade_dates.json"
         try:
             import datasource as ds
             _TD["s"] = set(ds.trade_dates())
+            # 落盘给控制台用：它不能 import akshare（历史教训 19，见 gui/status.py）
+            try:
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                cache.write_text(json.dumps(sorted(_TD["s"])), encoding="utf-8")
+            except Exception:  # noqa: BLE001
+                pass
         except Exception as e:  # noqa: BLE001
-            log.warning("交易日历拿不到（%s），按周一到周五算", e)
-            _TD["s"] = set()
+            try:
+                _TD["s"] = set(json.loads(cache.read_text(encoding="utf-8")))
+                log.warning("交易日历接口拿不到（%s），用本地缓存", e)
+            except Exception:  # noqa: BLE001
+                log.warning("交易日历拿不到（%s），按周一到周五算", e)
+                _TD["s"] = set()
     return _TD["s"]
 
 

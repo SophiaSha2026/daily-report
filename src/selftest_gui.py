@@ -118,6 +118,28 @@ def check_windows() -> None:
         local_run.now_bj = orig
 
 
+def check_no_akshare_in_gui() -> None:
+    """控制台进程里不许出现 akshare / datasource / py_mini_racer。
+
+    2026-09-15 实测：/api/status 两个线程同时 import akshare，V8 进程级
+    FATAL，整个控制台没了（历史教训 19）。这里用 AST 钉住 import 语句，
+    连函数体内的延迟 import 也算。
+    """
+    print("\n[控制台不碰 akshare]")
+    import ast
+    banned = {"akshare", "datasource", "py_mini_racer"}
+    for rel in ("src/gui/status.py", "src/gui/server.py", "src/gui/jobs.py"):
+        tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+        hits = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                hits += [a.name for a in node.names if a.name.split(".")[0] in banned]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                if node.module.split(".")[0] in banned:
+                    hits.append(node.module)
+        ck(not hits, f"{rel} 不 import {sorted(banned)}" + (f"，发现 {hits}" if hits else ""))
+
+
 def check_target_and_lock() -> None:
     """目标日：竞价线是今天，其余是最近一个已收盘交易日。进程锁：活的挡、死的不挡。"""
     print("\n[目标日 / 进程锁]")
@@ -270,6 +292,7 @@ def main() -> int:
     check_actions()
     check_flow_tables()
     check_windows()
+    check_no_akshare_in_gui()
     check_target_and_lock()
     check_panels()
     check_http()

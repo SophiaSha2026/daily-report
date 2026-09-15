@@ -168,21 +168,27 @@ def sync_status() -> dict:
     }
 
 
-# 交易日历一小时刷一次。总览页 5 秒刷一次，不能每次都打网络。
+# 交易日历：只读 local_run 落盘的缓存 state/trade_dates.json，**绝不在
+# 控制台进程里 import akshare**。2026-09-15 实测：/api/status 被两个线程
+# 同时打，两边同时 import akshare -> py_mini_racer 的 V8 进程级 FATAL
+# （Check failed: !IsConfigurablePoolInitialized()），整个控制台直接没了，
+# 历史教训 19 的翻版。缓存没有就按周一到周五（fail-open）。
 _td_cache: dict = {"at": 0.0, "s": set()}
+_td_lock = threading.Lock()
 
 
 def _trade_dates() -> set:
-    if time.time() - _td_cache["at"] > 3600:
-        try:
-            import sys
-            sys.path.insert(0, str(ROOT / "src"))
-            import datasource as ds
-            _td_cache["s"] = set(ds.trade_dates())
-        except Exception:  # noqa: BLE001
-            pass                      # 拿不到就按周一到周五（fail-open）
-        _td_cache["at"] = time.time()
-    return _td_cache["s"]
+    with _td_lock:
+        if time.time() - _td_cache["at"] > 600:
+            s: set = set()
+            try:
+                f = ROOT / "state" / "trade_dates.json"
+                if f.exists() and time.time() - f.stat().st_mtime < 14 * 86400:
+                    s = set(json.loads(f.read_text(encoding="utf-8")))
+            except Exception:  # noqa: BLE001
+                s = set()
+            _td_cache.update(at=time.time(), s=s)
+        return _td_cache["s"]
 
 
 def target_date(key: str) -> str:
