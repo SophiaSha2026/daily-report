@@ -1,82 +1,82 @@
 [
   {
-    "code":"688655",
-    "name":"迅捷兴",
-    "score":99.0,
+    "code":"688137",
+    "name":"近岸蛋白",
+    "score":97.0,
     "streak":6,
-    "close":61.91,
+    "close":77.1,
     "board":"star"
   },
   {
-    "code":"688205",
-    "name":"德科立",
-    "score":99.0,
+    "code":"688152",
+    "name":"麒麟信安",
+    "score":97.0,
     "streak":3,
-    "close":216.1,
+    "close":35.13,
     "board":"star"
   },
   {
-    "code":"688260",
-    "name":"昀冢科技",
-    "score":99.0,
+    "code":"920028",
+    "name":"新恒泰",
+    "score":97.0,
     "streak":2,
-    "close":119.47,
-    "board":"star"
+    "close":15.43,
+    "board":"bj"
   },
   {
     "code":"920119",
     "name":"美德乐",
-    "score":99.0,
+    "score":97.0,
     "streak":2,
-    "close":55.0,
+    "close":57.77,
     "board":"bj"
   },
   {
-    "code":"688485",
-    "name":"九州一轨",
-    "score":98.0,
+    "code":"688432",
+    "name":"有研硅",
+    "score":97.0,
     "streak":2,
-    "close":98.39,
+    "close":45.05,
     "board":"star"
   },
   {
-    "code":"688137",
-    "name":"近岸蛋白",
-    "score":99.0,
-    "streak":1,
-    "close":76.8,
+    "code":"688209",
+    "name":"英集芯",
+    "score":97.0,
+    "streak":2,
+    "close":35.58,
     "board":"star"
   },
   {
-    "code":"688195",
-    "name":"腾景科技",
-    "score":99.0,
+    "code":"688004",
+    "name":"博汇科技",
+    "score":98.0,
     "streak":1,
-    "close":181.34,
+    "close":27.38,
     "board":"star"
   },
   {
-    "code":"688530",
-    "name":"欧莱新材",
-    "score":99.0,
+    "code":"688046",
+    "name":"药康生物",
+    "score":97.0,
     "streak":1,
-    "close":62.31,
+    "close":32.37,
     "board":"star"
   },
   {
-    "code":"688519",
-    "name":"南亚新材",
-    "score":99.0,
+    "code":"603657",
+    "name":"春光科技",
+    "score":97.0,
     "streak":1,
-    "close":329.33,
-    "board":"star"
+    "close":32.59,
+    "board":"main"
   },
   {
-    "code":"688296",
-    "name":"和达科技",
-    "score":99.0,
+    "code":"002652",
+    "name":"扬子新材",
+    "score":97.0,
     "streak":1,
-    "close":24.85,
-    "board":"star"
+    "close":4.56,
+    "board":"main"
   }
 ]
