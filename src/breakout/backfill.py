@@ -80,6 +80,7 @@ FAIL_STREAK = 8
 COOLDOWN = 150.0
 
 BARS = 800             # 腾讯一次最多给这么多，约 3.28 年
+HIST_START = "2023-01-01"   # 日线表只保留这之后的（特征最长窗口 250 天，三年够用）
 
 
 def prefix(code: str) -> str:
@@ -234,6 +235,7 @@ def merge_daily(pattern: str = "daily_*.parquet") -> int:
             parts = [x[~x["code"].isin(codes_new)] for x in parts]
         parts.append(d)
     df = pd.concat(parts, ignore_index=True)
+    df = df[df["date"].astype(str) >= HIST_START]
     df = (df.drop_duplicates(["code", "date"], keep="last")
             .sort_values(["code", "date"]))
     OUT.mkdir(parents=True, exist_ok=True)
@@ -275,11 +277,18 @@ def _sina_one(code: str):
             d = ak.stock_zh_a_daily(symbol=sym, adjust="qfq")
             if d is None or len(d) < 60:
                 return code, None
-            d = d.copy()        # 不截尾：重拉分片要整段替换旧历史
+            d = d.copy()
+            d["date"] = d["date"].astype(str).str[:10]
+            # 只保留 HIST_START 之后：重拉分片要整段替换旧历史，但新浪会把
+            # 上市以来全部给回来（老票到 1994 年），特征只用三年，多出来的
+            # 只会拖慢筹码计算、还让对数网格锚在几十年前的价格上（2026-09-16
+            # 实测 33 只新补的票把 daily.parquet 拉到 1994 年）。
+            d = d[d["date"] >= HIST_START]
             d = d[["date", "open", "high", "low", "close", "volume",
                    "amount", "outstanding_share", "turnover"]]
             d["code"] = code
-            d["date"] = d["date"].astype(str).str[:10]
+            if len(d) < 60:
+                return code, None
             return code, d
         except Exception:
             time.sleep(1.5 * (attempt + 1))
