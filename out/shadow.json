@@ -1,83 +1,88 @@
 {
- "date": "2026-09-11",
+ "date": "2026-09-15",
  "rows": [
   {
-   "code": "600121",
-   "name": "郑州煤电",
-   "gap_pct": 2.51,
-   "liangbi": 3.4,
-   "sscore": 0.384
+   "code": "300311",
+   "name": "任子行",
+   "gap_pct": 2.85,
+   "liangbi": 6.3,
+   "sscore": 0.339
   },
   {
-   "code": "001299",
-   "name": "美能能源",
-   "gap_pct": 2.03,
-   "liangbi": 9.8,
-   "sscore": 0.236
+   "code": "002855",
+   "name": "捷荣技术",
+   "gap_pct": 3.15,
+   "liangbi": 4.6,
+   "sscore": 0.304
   },
   {
-   "code": "601872",
-   "name": "招商轮船",
-   "gap_pct": 4.28,
-   "liangbi": 4.4,
-   "sscore": 0.183
+   "code": "603232",
+   "name": "格尔软件",
+   "gap_pct": 4.34,
+   "liangbi": 4.8,
+   "sscore": 0.27
   },
   {
-   "code": "300483",
-   "name": "首华燃气",
-   "gap_pct": 2.58,
-   "liangbi": 2.8,
-   "sscore": 0.149
+   "code": "600397",
+   "name": "江钨装备",
+   "gap_pct": 2.91,
+   "liangbi": 5.0,
+   "sscore": 0.268
   },
   {
-   "code": "603353",
-   "name": "和顺石油",
-   "gap_pct": 2.5,
-   "liangbi": 4.9,
-   "sscore": 0.138
+   "code": "300499",
+   "name": "高澜股份",
+   "gap_pct": 2.62,
+   "liangbi": 2.6,
+   "sscore": 0.253
   },
   {
-   "code": "600026",
-   "name": "中远海能",
-   "gap_pct": 2.44,
-   "liangbi": 5.2,
-   "sscore": 0.126
+   "code": "300568",
+   "name": "星源材质",
+   "gap_pct": 4.37,
+   "liangbi": 3.9,
+   "sscore": 0.243
   },
   {
-   "code": "300164",
-   "name": "通源石油",
-   "gap_pct": 4.98,
-   "liangbi": 7.4,
-   "sscore": 0.064
-  },
-  {
-   "code": "300369",
-   "name": "绿盟科技",
-   "gap_pct": 3.83,
-   "liangbi": 7.5,
-   "sscore": 0.054
-  },
-  {
-   "code": "603619",
-   "name": "中曼石油",
-   "gap_pct": 3.56,
-   "liangbi": 4.7,
-   "sscore": -0.081
-  },
-  {
-   "code": "300191",
-   "name": "潜能恒信",
+   "code": "600549",
+   "name": "厦门钨业",
    "gap_pct": 2.0,
-   "liangbi": 3.7,
-   "sscore": -0.211
+   "liangbi": 4.1,
+   "sscore": 0.239
+  },
+  {
+   "code": "000657",
+   "name": "中钨高新",
+   "gap_pct": 2.38,
+   "liangbi": 5.0,
+   "sscore": 0.218
+  },
+  {
+   "code": "002487",
+   "name": "大金重工",
+   "gap_pct": 2.65,
+   "liangbi": 3.1,
+   "sscore": 0.214
+  },
+  {
+   "code": "688030",
+   "name": "山石网科",
+   "gap_pct": 2.64,
+   "liangbi": 4.3,
+   "sscore": 0.208
   }
  ],
- "overlap": 5,
+ "overlap": 4,
  "base_top": [
-  "300369",
-  "601872",
-  "603619",
-  "300164",
-  "600026"
+  "688225",
+  "300311",
+  "002439",
+  "688651",
+  "600228",
+  "001896",
+  "603232",
+  "600397",
+  "688030",
+  "300017"
  ]
 }
