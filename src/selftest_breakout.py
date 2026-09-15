@@ -147,6 +147,38 @@ def check_lookahead() -> None:
        f"特征与标签无关时 AUC={auc:.3f} 应接近 0.5（偏离说明管线漏了信息）")
 
 
+def check_holder_alignment() -> None:
+    """股东人数必须按公告日期可用，不能按报告期。
+
+    2026-09-15 发现：第一版按「报告期 + 15 天」对齐，而 99.7% 的公告晚于
+    这个日子（中位 50 天）。模型提前一个多月看到户数变化，是前视偏差。
+    """
+    print("\n[股东人数·按公告日对齐]")
+    import features as F
+    dates = pd.date_range("2025-07-01", "2025-09-30", freq="B").strftime("%Y-%m-%d")
+    panel = pd.DataFrame({"date": list(dates) * 2,
+                          "code": ["000001"] * len(dates) + ["000002"] * len(dates),
+                          "outstanding_share": 1e9})
+    holders = pd.DataFrame({
+        "代码": ["000001", "000002"], "报告期": ["20250630", "20250630"],
+        "公告日期": ["2025-08-25", None],       # 第二只没有公告日：兜底 +120 天
+        "股东户数-增减比例": [-5.0, 3.0], "股东户数-本次": [50000, 80000]})
+    out = F.holder_features(panel, holders)
+    a = out[out.code == "000001"].set_index("date")
+    ck(np.isnan(a.loc["2025-08-22", "gdhs_chg1"]),
+       "公告前一交易日（08-22）户数变化还看不到")
+    ck(np.isnan(a.loc["2025-07-15", "gdhs_chg1"]),
+       "报告期 + 15 天（07-15）也看不到 —— 那是旧口径的偷看点")
+    ck(abs(a.loc["2025-08-25", "gdhs_chg1"] - (-0.05)) < 1e-9,
+       "公告当天（08-25）起可用，值是 -5%")
+    ck(abs(a.loc["2025-08-25", "gdhs_level"] - 5e-5) < 1e-12,
+       "散户密度 = 户数 / 流通股本")
+    ck(a.loc["2025-08-29", "gdhs_stale_days"] == 4, "数据年龄从公告日起算")
+    b = out[out.code == "000002"].set_index("date")
+    ck(np.isnan(b.loc["2025-09-30", "gdhs_chg1"]),
+       "没有公告日期的按报告期 + 120 天（10-28）兜底，9 月底仍不可用")
+
+
 def check_cross_section() -> None:
     """横截面百分位化必须抹掉「今天大盘好」这个信息。"""
     print("\n[横截面百分位·对抗时间聚集的主力]")
@@ -276,8 +308,32 @@ def check_table_shape() -> None:
         head = tables[0 if lbl == "清单 A" else 1].count("<th>")
         ck(m is not None and int(m.group(1)) == head,
            f"{lbl} 空表的 colspan 等于表头数（{head}）")
-    ck("18.0%" in html and "31.3%" in html,
-       "邮件里印的是生产口径的准确率（整体 18.0% / 连续 3 天 31.3%）")
+    # 邮件里的成绩必须和实验产物一致：STREAK_PERF 对 window_grid.json 的
+    # W5（生产口径）行，SCORE_TABLE 的基准对 score_calibration.json。
+    # 改了规则或模型只重跑实验不改常量，这里会红。
+    import json
+    import re
+    wg = ROOT / "out_breakout" / "window_grid.json"
+    sc = ROOT / "out_breakout" / "score_calibration.json"
+    if wg.exists() and sc.exists():
+        grid = json.loads(wg.read_text(encoding="utf-8"))["grid"]
+        w5 = {int(re.search(r"连续≥(\d)天", r["label"]).group(1)): r
+              for r in grid if r["kind"] == "W5"}
+        base = 100 * json.loads(sc.read_text(encoding="utf-8"))["base"]
+        bad = []
+        for need, hit, lift, n in E.STREAK_PERF:
+            r = w5.get(need)
+            if not r or abs(100 * r["hit"] - hit) > 0.06 or int(r["n"]) != n:
+                bad.append(f"连续≥{need}天 常量 {hit}%/{n} vs 实验 "
+                           f"{100 * r['hit']:.1f}%/{r['n']}" if r else f"连续≥{need}天 实验里没有")
+        ck(not bad, "STREAK_PERF 和 window_grid.json 生产口径行一致"
+           + ("：" + "；".join(bad) if bad else ""))
+        ck(abs(E.BASE - base) < 0.06,
+           f"BASE {E.BASE} 和 score_calibration 的验证集基准 {base:.2f} 一致")
+    else:
+        ck(True, "没有实验产物，跳过成绩核对")
+    ck(f"{E.STREAK_PERF[4][1]}%" in html and f"{E.STREAK_PERF[2][1]}%" in html,
+       "邮件里印的是 STREAK_PERF 里的数（首日 / 连续 3 天）")
 
 
 def main() -> int:
@@ -285,6 +341,7 @@ def main() -> int:
     check_chips()
     check_labels()
     check_lookahead()
+    check_holder_alignment()
     check_cross_section()
     check_wiring()
     check_quote_wiring()

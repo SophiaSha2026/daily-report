@@ -40,8 +40,19 @@ GROUPS: dict[str, list[str]] = {
                     "boll_width"],
     "structure": ["chip_conc90", "chip_conc_chg20", "chip_win", "chip_dev",
                   "chip_peak", "turn_pct", "vol_ratio5", "turn_std20"],
+    # 成交量组（2026-09-15 用户要求加成交量）。此前成交量只以 vol_compress /
+    # vol_ratio5 两个「相对自己」的比值出现，没有量的**方向**和**水平**：
+    #   vol_ratio20     今天 / 20 日均量，放量是否超出近一个月的常态
+    #   up_vol_share20  20 日内上涨日成交量占比，量价配合 —— 资金流入的代理
+    #                   （东财资金流只有 120 天，够不着三年训练集）
+    #   obv_slope20     20 日净签名成交量 / 20 日总量，吸筹还是派发
+    #   amt_ma20        20 日均成交额（对数），流动性水平；横截面分位后就是
+    #                   「今天全市场里它排多活跃」
+    "volume": ["vol_ratio20", "up_vol_share20", "obv_slope20", "amt_ma20"],
+    # 股东人数组。gdhs_level 是 2026-09-15 加的：户数 / 流通股本，散户密度，
+    # 静态水平；原来四个都是变化量。
     "holders": ["gdhs_chg1", "gdhs_chg3", "gdhs_down_streak",
-                "gdhs_stale_days"],
+                "gdhs_stale_days", "gdhs_level"],
     "regime": ["rs20", "rs60", "rs_accel", "mkt_breadth", "mkt_ret5"],
 }
 # 全市场共同变量：当天所有股票同值，做横截面排名会退化成常数，
@@ -107,6 +118,17 @@ def per_stock(df: pd.DataFrame) -> pd.DataFrame:
     d["turn_std20"] = (d["turnover"].rolling(20).std()
                        / d["turnover"].rolling(20).mean())
 
+    # --- 成交量组 ---
+    v20 = v.rolling(20).mean()
+    d["vol_ratio20"] = v / v20.replace(0, np.nan)
+    up = (c > c.shift()).astype(float)
+    vsum20 = v.rolling(20).sum().replace(0, np.nan)
+    d["up_vol_share20"] = (v * up).rolling(20).sum() / vsum20
+    sign = np.sign(c.diff()).fillna(0.0)
+    d["obv_slope20"] = (v * sign).rolling(20).sum() / vsum20
+    amt = d["amount"] if "amount" in d.columns else v * c
+    d["amt_ma20"] = np.log1p(amt.rolling(20).mean())
+
     # --- Q5 相对强度（个股部分，全市场部分在 add_market 里） ---
     d["ret20"] = c / c.shift(20) - 1
     d["ret60"] = c / c.shift(60) - 1
@@ -136,11 +158,15 @@ def holder_features(panel: pd.DataFrame,
     公告，按报告期对齐的话模型在 7 月 1 日就用上了 —— 那是标准的前视偏差，
     而且极其隐蔽，因为数据本身没错，错的是时间。
 
-    这里用「报告期 + 15 个自然日」作为可用日（法定披露期限的保守估计），
-    再前向填充。宁可晚用几天，不可早用一天。
+    可用日 = 东财表里的**公告日期**（2026-09-15 起）。第一版用「报告期 + 15
+    个自然日」，实测 68208 条里 99.7% 的公告晚于这个日子：中位滞后 50 天，
+    九成分位 115 天（年报里的户数要到次年四月底才公开）。也就是说模型
+    平均提前一个多月「知道」了户数变化，而这一组特征的重要性排第二 ——
+    之前验证集上的成绩里有一部分是这个偷看给的，见 breakout_log 实验 9。
+    公告日期缺失的那行按报告期 + 120 天兜底，宁可晚用，不可早用。
     """
     for c in ("gdhs_chg1", "gdhs_chg3", "gdhs_down_streak",
-              "gdhs_stale_days"):
+              "gdhs_stale_days", "gdhs_level"):
         panel[c] = np.nan
     if holders is None or not len(holders):
         return panel
@@ -148,9 +174,14 @@ def holder_features(panel: pd.DataFrame,
     h = holders.copy()
     h["code"] = h["代码"].astype(str).str.zfill(6)
     h["period"] = pd.to_datetime(h["报告期"], format="%Y%m%d")
-    h["avail"] = (h["period"] + pd.Timedelta(days=15)).dt.strftime("%Y-%m-%d")
+    ann = pd.to_datetime(h.get("公告日期"), errors="coerce")
+    late = h["period"] + pd.Timedelta(days=120)
+    ann = ann.where(ann.notna() & (ann > h["period"]), late)
+    h["avail"] = ann.dt.strftime("%Y-%m-%d")
     h["chg"] = pd.to_numeric(h["股东户数-增减比例"], errors="coerce") / 100.0
-    h = h[["code", "avail", "chg"]].dropna().sort_values(["code", "avail"])
+    h["cnt"] = pd.to_numeric(h.get("股东户数-本次"), errors="coerce")
+    h = (h[["code", "avail", "chg", "cnt"]].dropna(subset=["chg"])
+          .sort_values(["code", "avail"]))
     h["chg3"] = h.groupby("code")["chg"].transform(
         lambda s: s.rolling(3, min_periods=1).sum())
     down = (h["chg"] < 0).astype(int)
@@ -166,18 +197,28 @@ def holder_features(panel: pd.DataFrame,
             out.append(g)
             continue
         g = g.sort_values("date")
+        # 右表的可用日单独留一列 ann_d：merge_asof 之后 _d 是左表的日期，
+        # 拿它减自己永远是 0 —— 第一版的 gdhs_stale_days 就是这么变成常数的
+        # （常数特征被筛掉，模型从没用上「数据有多旧」这个信息）。
         m = pd.merge_asof(
             g[["date"]].assign(_d=pd.to_datetime(g["date"])).sort_values("_d"),
-            hh.assign(_d=pd.to_datetime(hh["avail"])).sort_values("_d"),
+            hh.assign(_d=pd.to_datetime(hh["avail"]),
+                      ann_d=pd.to_datetime(hh["avail"])).sort_values("_d"),
             on="_d", direction="backward")
         g = g.copy()
         g["gdhs_chg1"] = m["chg"].to_numpy()
         g["gdhs_chg3"] = m["chg3"].to_numpy()
         g["gdhs_down_streak"] = m["streak"].to_numpy()
+        # 散户密度：户数 / 流通股本。没有流通股本（腾讯兜底源）就 NaN
+        os_ = (g["outstanding_share"].to_numpy(float)
+               if "outstanding_share" in g.columns else np.full(len(g), np.nan))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            g["gdhs_level"] = np.where(os_ > 0, m["cnt"].to_numpy(float) / os_,
+                                       np.nan)
         # 数据有多旧。不给这个特征，模型会把 5 天前刚披露的户数骤降
         # 和 80 天前的旧数据同等对待。
         g["gdhs_stale_days"] = (
-            pd.to_datetime(g["date"]) - m["_d"].to_numpy()).dt.days.to_numpy()
+            pd.to_datetime(g["date"]) - m["ann_d"].to_numpy()).dt.days.to_numpy()
         out.append(g)
     return pd.concat(out, ignore_index=True)
 

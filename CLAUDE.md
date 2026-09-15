@@ -101,7 +101,7 @@ src/
                          --stage update 每日增量（腾讯快照，秒级），refresh 全量重拉
   breakout/chips.py      筹码分布**自算**，六项一致性检验钉住
   breakout/label.py      起涨/见顶标注。和 features 物理隔离，防前视偏差
-  breakout/features.py   三层变换（横截面百分位->中性化->正交）+ 五组特征
+  breakout/features.py   三层变换（横截面百分位->中性化->正交）+ 六组特征（成交量组 2026-09-15 加）
   breakout/fselect.py    四道筛。**别改回 select.py**，和标准库冲突
   breakout/build.py      组装训练表
   breakout/model.py      L0 逻辑回归 / L1 LightGBM / L2 GRU / L3 集成
@@ -569,6 +569,18 @@ AUC_RATIO 本身。
     形态扫描，09-14 还发了一封形态邮件。控制台以前只查 workflow 文件里有没有
     cron，看不见 Worker。凡是「从外面戳 workflow_dispatch」的东西，都记在
     OPERATIONS.md 第五节，停线时对着那张表逐个关。
+
+25. **低频数据按报告期对齐就是偷看**（2026-09-15）— 股东户数的可用日写成
+    「报告期 + 15 天」，实测 68208 条公告里 99.7% 晚于这个日子：中位滞后
+    50 天，年报里的户数要到次年四月底才公开。模型平均提前一个多月「知道」
+    户数变化，而这一组特征重要性排第二。数据本身没错，错的是**时间**，
+    所以 check_lookahead 那种「纯噪音标签学不会」的测试抓不住它。
+    东财的表里本来就有「公告日期」列，现在按它对齐；selftest_breakout
+    用一条假公告钉住「公告前看不到、公告当天起可用」。
+    同一处还有个更隐蔽的：`gdhs_stale_days` 拿 merge_asof 之后左表的日期
+    减自己，**永远是 0**，一个常数特征在筛选那一步被静默丢掉，没人发现
+    「数据有多旧」这个信息从来没进过模型。凡是 merge_asof，右表的键要另存
+    一列再用。
 
 ### 本地为主、云端托底（2026-09-15 起）
 

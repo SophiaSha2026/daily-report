@@ -50,6 +50,14 @@ RANK_KEEP = 100     # 每天落盘前多少名。>=95 分的都在这里面，�
 def build_cache() -> tuple[pd.DataFrame, float]:
     df = A.load(False)
     feats_all = [c for c in df.columns if "__" in c]
+    # 消融：WF_DROP=vol_ratio20,amt_ma20 这样列出要排除的特征名（不带 __ 后缀），
+    # 配合 WF_CACHE 指到另一个缓存文件，就能在同一份训练表上比「有没有这几个
+    # 特征」的差别。实验 9 用它把「公告日对齐」和「加成交量组」的影响拆开。
+    drop = [x.strip() for x in os.environ.get("WF_DROP", "").split(",") if x.strip()]
+    if drop:
+        feats_all = [c for c in feats_all
+                     if c.rsplit("__", 1)[0] not in set(drop)]
+        print("消融：排除 %s，剩 %d 列" % (drop, len(feats_all)), flush=True)
     feats = FS.run(df[df["date"] < V.TRAIN_END], feats_all, y="y_up")["keep"]
     import daily as D
 
@@ -76,7 +84,11 @@ def build_cache() -> tuple[pd.DataFrame, float]:
         print("  " + m + " 完成", flush=True)
 
     d = pd.concat(keep, ignore_index=True)
-    base = float(df["y_up"].mean(skipna=True))
+    # 基准只算验证集那十个月：成绩是在这段上测的，基准混进 2023~2024 的
+    # 训练月份（3.56%）就和成绩不是同一段时间，倍数被压低。
+    # export.BASE / score_calibration 用的都是这个口径（2.93%）。
+    vm = df[(df["date"] >= V.TRAIN_END) & (df["date"] < V.VALID_END)]
+    base = float(vm["y_up"].mean(skipna=True))
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     d.to_parquet(CACHE, index=False)
     (CACHE.parent / "wf_base.json").write_text(
@@ -154,6 +166,27 @@ def main() -> int:
             rec("≥%d分 且 近%d日内恰好%d次" % (thr, W, k),
                 sub[sub["cnt"] == k], "W1x")
 
+    # ---- W5：生产口径。daily.py 的清单 A 是「≥97 分且当天按预测值前 10 名」，
+    # 连续天数按**上榜**天数算（中间一天没上榜就归零）。邮件里印的
+    # STREAK_PERF 就取这组，selftest_breakout 钉住两边一致。 ----
+    for thr in (97,):
+        ok = d[(d["score"] >= thr) & (d["rank"] <= 10)].copy()
+        by_code = {c: np.sort(g["_i"].to_numpy())
+                   for c, g in ok.groupby("code")}
+        codes = ok["code"].to_numpy()
+        idx = ok["_i"].to_numpy()
+        streak = np.zeros(len(ok), dtype=int)
+        for j in range(len(ok)):
+            aset = set(int(x) for x in by_code[codes[j]])
+            i, s_ = int(idx[j]), 1
+            while (i - s_) in aset:
+                s_ += 1
+            streak[j] = s_
+        ok["streak"] = streak
+        for k in range(1, 6):
+            rec("生产口径 ≥%d分且前10名 连续≥%d天" % (thr, k),
+                ok[ok["streak"] >= k], "W5")
+
     # ---- W3：不要求当天够格，窗口内 >= k 次就上 ----
     for thr in (97,):
         ok = d[d["score"] >= thr]
@@ -186,7 +219,7 @@ def main() -> int:
     for n in (1, 3, 5, 10):
         rec("近%d日均值 前%d名" % (W, n), dd[dd["mrank"] <= n], "W4")
 
-    order = {"W1": 0, "W1x": 1, "W2": 2, "W3": 3, "W4": 4}
+    order = {"W5": 0, "W1": 1, "W1x": 2, "W2": 3, "W3": 4, "W4": 5}
     rows.sort(key=lambda r: (order[r["kind"]], -r["hit"]))
     print("%-34s%6s%6s%7s%10s%7s%7s%9s"
           % ("规则", "样本", "每天", "空仓天", "准确率", "±", "倍数", "每月命中"))
