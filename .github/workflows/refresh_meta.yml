@@ -26,9 +26,37 @@ jobs:
       - run: python src/refresh_meta.py
       - name: 提交缓存
         run: |
+          # 推送模板和 auction.yml 的「提交数据」同款：`pull --rebase
+          # --autostash || true` 吞掉冲突之后仓库停在 rebase-merge 中间态、
+          # HEAD 落在 origin/main 上，push 输出 "Everything up-to-date" 并
+          # rc=0，于是 `|| echo ::warning` 也不打印，刷出来的表静默丢失
+          # （教训 15 / 16）。现在先清残留再 rebase -X theirs，最后按 origin
+          # 上的 blob 核对，对不上就让 job 红。
           git config user.name auction-bot
           git config user.email bot@users.noreply.github.com
           git add cache/
           git diff --staged --quiet || git commit -m "chore: 刷新板块缓存"
-          git pull --rebase --autostash || true
-          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref_name }}             || echo "::warning::push 失败"
+          F="cache/codes.csv"
+          # WANT 取**工作区那份文件**的 blob，不是 HEAD 里的：被 .gitignore 挡住、
+          # 或者 add 失败时，HEAD 里那份还是 checkout 带下来的旧内容，
+          # 拿它和 origin 比会一路相等，这一步就成了永远通过的摆设。
+          WANT=$(git hash-object "$F" 2>/dev/null || echo none)
+          URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          ok=""
+          for i in 1 2 3; do
+            git rebase --abort 2>/dev/null || true
+            git fetch -q origin "${{ github.ref_name }}"
+            if ! git rebase --autostash -X theirs "origin/${{ github.ref_name }}"; then
+              git rebase --abort 2>/dev/null || true
+              sleep 5
+              continue
+            fi
+            if git push "$URL" HEAD:${{ github.ref_name }}; then ok=1; break; fi
+            sleep 5
+          done
+          git fetch -q origin "${{ github.ref_name }}" || true
+          GOT=$(git rev-parse "origin/${{ github.ref_name }}:$F" 2>/dev/null || echo missing)
+          if [ -z "$ok" ] || { [ "$WANT" != none ] && [ "$GOT" != "$WANT" ]; }; then
+            echo "::error::代码表/板块表没推上 origin（$F want=$WANT got=$GOT）"
+            exit 1
+          fi

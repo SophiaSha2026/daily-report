@@ -88,12 +88,14 @@ src/
   learn/vscore.py        score.py 的**向量化孪生体**，被等价性断言钉住
   learn/objective.py     损失函数：软TopK + Huber + 锚定 + L1
   learn/optimize.py      拟合 + 走向前 + 按天自助
-  learn/gate.py          六道闸，全过才改参数
+  learn/gate.py          七道闸 + 「权重和为 1」守卫（八条 Check），全过才改参数
   learn/backfill.py      历史日线+竞价 -> 训练表
   learn/sources.py       回填源适配器（免费 / Tushare 运行时探测）
   learn/intraday.py      盘中五时点采样，卖点研究
   learn/model_select.py  模型擂台（传统 ML 横评，选出的模型不当排序器）
   learn/shadow.py        影子排序器（RankHuber 线性，试运行；转正证据与提案）
+  learn/brief.py         归因输入「最差 / 最好」两组的唯一挑法（互斥 + 收益符号）
+  learn/online_eval.py   在线真值天：真发出去的榜 vs 按当前参数回放的榜，两个数
   learn/panel.py         学习面板 learn.html（阶段进度、双榜对比、裁决时间线）
   learn/report.py        学习邮件（变更 / 提案）+ state/learning_status.json
   learn/council/         学习会诊（2026-09-16）：每次学习更新末尾，六个视角各起一个
@@ -101,6 +103,7 @@ src/
                          过闸的等控制台批准。schemas / evidence / agents / experiments /
                          run / panel。设计 docs/council.md
   selftest_learn.py      学习线离线自测（含会诊 18 条）
+  selftest_train.py      训练表口径自测：回填的量必须等于生产的量（2026-09-16）
   ── 爆发线（收盘后，2026-09-12 起）──
   breakout/backfill.py   回填三年日线。主源新浪（多进程），腾讯兜底。
                          --stage update 每日增量（腾讯快照，秒级），refresh 全量重拉
@@ -115,6 +118,10 @@ src/
   breakout/daily.py      每日流程：打分 -> 风险剔除 -> 清单A/B。晚间系统主脚本
   breakout/export.py     起涨预测的面板 + 邮件
   breakout/truth.py      历史清单的真值（之后 20 根涨没涨）+ 同期全市场基准，会诊读它
+  breakout/regime.py     每日市场环境指标 state/regime_daily.jsonl，含滚动 20 根的
+                         全市场 50% 基准率（清单命中率只有和它比才有意义）
+  breakout/exp_*.py      一次性实验脚本（window 逐月滚动 / calib 分档 / rank / …），
+                         成绩表 STREAK_PERF 来自 exp_window.py 的 window_grid.json
   ── 控制台（GUI，2026-09-12）──
   gui/server.py          HTTP 服务。标准库 ThreadingHTTPServer，零第三方依赖
   gui/ui.py              单页界面（HTML/CSS/JS 都在这个字符串里）
@@ -123,6 +130,9 @@ src/
   ── 共用 ──
   local_run.py           本地一键全流程。--flow morning/evening/learn，
                          --if-needed 幂等（计划任务反复重试要靠它）
+  localenv.py            tools/local.env -> os.environ。本机每个入口（local_run、
+                         breakout/daily、控制台直接跑的脚本）先调一次，
+                         否则 SMTP 凭证和 OAuth token 静默缺失
   collect_llm.py         structured_output -> commentary.json（LLM_OUT_DIR 选目录）
   build_site.py          把两个面板打包成 _site，两条线都调它
   mailer.py              SMTP 发信
@@ -146,15 +156,22 @@ tools/setup_tasks.ps1    本机四个计划任务的唯一定义
 tools/evening_check.py   晚间托底检查（只在云端跑）
 tools/yield_check.py     竞价线让位检查（只在云端跑）
 tools/council_query.py   会诊的只读查询工具，LLM 视角进程通过 Bash 白名单调它
+tools/rebuild_all.py     口径改动之后的重建重训流水：起涨 build -> refit ->
+                         exp_window（成绩常量），早盘 build-train。--only / --dry
 cache/                   codes.csv, sector_map.parquet, universe.parquet
 data/YYYY-MM/            auction_*.parquet 竞价快照 / pullback_*.parquet 形态结果
 out/                     竞价当日产物：panel.html, stamp.txt, 竞价_*.txt, detail.csv,
                          shadow.json（当日影子参考榜，TUI 和学习面板读它）
 out_pullback/            形态当日产物：同上结构
-out_learn/               学习产物：learn.html（唯一入库的，进 Pages）、eval_brief.json、PDF
+out_learn/               学习产物：learn.html 和 council.html（两份都进 Pages，
+                         build_site.py 单独拷）、eval_brief.json、PDF
 state/                   学习系统状态：learning_status.json / verdict_log.jsonl /
                          shadow_model.json / shadow_proposal.json / learned.yaml（接受变更后才有）
                          push_status.json 上次推送成没成，控制台总览读它
+                         council/ 会诊产物 + proposals.jsonl 台账 + decisions.json
+                         breakout/overrides.json 会诊批准过的起涨常量覆盖
+                         breakout/truth.json 历史清单的真值；regime_daily.jsonl 市场环境
+                         lock/<flow>.json 进程锁（教训 23）
 tools/gui.cmd            控制台入口（桌面快捷方式指向它）
 tools/run_local.cmd      计划任务调的本地流程入口，带 --if-needed
 tools/panel.cmd/.ps1     旧的 PowerShell TUI，保留作没有浏览器时的兜底
@@ -163,20 +180,25 @@ tools/panel.cmd/.ps1     旧的 PowerShell TUI，保留作没有浏览器时的�
 ## 改动前必须跑
 
 ```bash
-python src/selftest.py            # 竞价：打分用例（每条准入/剔除规则各一条）+ 曲线形状 + 规则 + 1000 压力样本 + 影子榜渲染
-python src/selftest_train.py      # 训练表口径：回填 vs 生产的字段、候选池、标签（2026-09-16 加）
+python src/selftest.py            # 竞价：18 个打分用例（每条准入/剔除规则各一条）+ 9 条曲线形状 + 9 条规则不变量 + 候选池/次新/日线单位/交易日历/产物渲染 + 1000 压力样本
+python src/selftest_train.py      # 训练表口径：撮合价哨兵、轨迹、候选池、ST、除权、一字板、标签、可学维度（19 组，2026-09-16 加）
 python src/selftest_pullback.py   # 形态：13 条形态判定 + 打分单调性 + 工具函数
-python src/selftest_learn.py      # 学习：90 余条，含向量化打分器等价性、闸门接线 AST、邮件接线、会诊
-python src/selftest_gui.py        # 控制台：按钮接线、流程表一致性、开跑窗口、两道防护
-python src/selftest_breakout.py   # 爆发线：筹码六项一致性、标签、前视偏差、横截面百分位
+python src/selftest_learn.py      # 学习：32 组，含向量化打分器等价性、闸门接线 AST、邮件接线、会诊
+python src/selftest_gui.py        # 控制台：26 组，按钮接线、流程表一致性、开跑窗口、两道防护
+python src/selftest_breakout.py   # 爆发线：43 组，筹码六项一致性、标签、前视偏差、横截面百分位、选票规则
 python -m pyflakes src tools      # 静态检查，必须零输出（pip install pyflakes）
 ```
+
+「N 组」数的是各自 `main()` 里的 `check_*` 函数个数，一组里通常有好几条断言；
+每条自测跑完自己会打印「断言失败 N 个」，**以那一行为准**，别信这里的数。
 
 学习线要额外装 `scikit-learn scipy`，爆发线要 `lightgbm torch`
 （见 `requirements-breakout.txt`）。竞价线和形态线的 `requirements.txt`
 不许动 —— 依赖分线管理。
 
-五条自测都是离线的，加起来不到 7 秒。**改哪条线就跑哪个，改共用代码全跑。**
+六条自测都是离线的（不联网、不碰 `state/` 和生产目录，产物一律写临时目录），
+加起来十秒量级。**改哪条线就跑哪个，改共用代码全跑。**
+跑完 `git status` 必须和跑之前一模一样（历史教训 17）。
 
 `selftest_gui.py` 钉的是**接线**不是界面：`gui/status.py` 的 `LINES` 和
 `local_run.py` 的 `FLOWS` 是同一张表的两份副本，漂了的话总览页会长期显示
@@ -189,7 +211,7 @@ pyflakes 报「赋值了没用」不是风格问题，是**接错线的信号**�
 联网测试在**本机**跑：控制台「运行 -> 自测 -> 体检」就是 `tools/probe.py`，
 逐个探行情源可达性。本机实测可达全部源（连 runner 上不通的新浪 vip 和东财都通）。
 云端的 `0-冒烟测试` 还在，手动 dispatch 才跑。
-写代码的沙箱访问不了国内行情源，那里只能跑上面四条离线自测。
+写代码的沙箱访问不了国内行情源，那里只能跑上面六条离线自测。
 
 ## 硬约束（改代码时不要破坏）
 
@@ -309,7 +331,7 @@ GitHub runner 上用 Playwright 起 chromium 也一样能过，见 `src/refresh_
 `config.yaml` 永远是人工基线 θ⁰，`git diff` 它只会看到人的意图。
 删掉 `state/learned.yaml` 就是一键回到基线。
 
-三条自测线都不许依赖 `state/`，学习系统没跑过也要能全绿。
+六条自测都不许依赖 `state/`，学习系统没跑过也要能全绿。
 
 ### 9. `learn/vscore.py` 和 `score.py` 必须逐位一致
 
@@ -529,7 +551,7 @@ AUC_RATIO 本身。
     `out/*.txt` 还会被 `build_site.py` 发布到 Pages。
     同一个函数里 `panel.html` 一直写在临时目录并注明「那是当天的生产
     产物」，说明作者清楚这条线，只是另外三个文件漏了。
-    **自测的所有产物一律写临时目录。** 验收方法是跑完四条自测后
+    **自测的所有产物一律写临时目录。** 验收方法是跑完六条自测后
     `git status` 必须和跑之前一模一样。
 
 18. **模块名和标准库撞车**（2026-09-12）— `src/breakout/select.py` 和标准库的
@@ -648,6 +670,54 @@ AUC_RATIO 本身。
     证据包里每个切片都带 `se_day_clustered` 和 `n_days`，就是为了不让下一轮
     分析再被这个骗一次。
 
+34. **同一个概念有两份实现，迟早分叉**（2026-09-16 全仓审计，155 条里最密的一类）—
+    教训 30 说的是「口径差一点成绩就不是同一件事」，这一条说的是**为什么会差**：
+    训练侧写一份、生产侧写一份，两边都能跑、都不报错，然后各自演化。
+    这一轮抓到四处，形态一模一样：
+
+    - **撮合价取错列。** 回填拿 `stk_auction_o` 的 `close` 当撮合价，而那根 bar
+      是「09:25 撮合价 -> 09:30 之后」：`open` == 日线开盘 99.4%，`close` 只有 56%
+      （219 万行）；对线上真采样更是只有 42.7% 对得上。按 `close` 算出来的
+      `gap_pct` 混了开盘后的涨跌，和标签 `r = close/open − 1` 直接相关。
+      修法：只 merge `open` 和 `amount`，撮合之后的四列**一列都不进表**
+      （留着就会有人再用），外加 `check_auction_price` 当哨兵（不一致率
+      0.23%，超 1% 就抛）。
+    - **轨迹造代理值。** 回填拿竞价段的 开盘/vwap/收盘 顶替 T1/T2/T3，
+      实测代理值和线上真值没有关系：`corr(slope)` −0.03、`corr(dive)` +0.008、
+      `monotonic` 一致率 50%（抛硬币），尾盘跳水 ≥2pp 线上 4.53% vs 回填 0.126%；
+      而它和当天 open->close 收益相关 **+0.15** —— 因为它算的就是开盘后的涨跌，
+      是标签的一部分。修法：宁可给中性值也不给假信号，`t1=t2=t3=gap_pct`、
+      `slope=dive=0`、`monotonic=False`，和线上 `traj_ok=False` 同一口径；
+      并且 `sources.restrict_box` 把 trend/volume 两维在箱里钉死，
+      优化器一步都迈不出去。
+    - **候选池两套规则。** 生产是「昨日涨停 / 昨涨≥5% / 昨日换手≥5% / 昨日成交额
+      前 600」，回填把「换手≥5%」换成了一条生产根本没有的 `amount_ratio_5d≥1.5`：
+      8 个重叠日两个池子**日均只重合 70%**，回填 24.0% 的行靠那条独有规则进池，
+      而生产每天约 21% 的准入候选靠换手率进池、回填里没有同类样本。
+      优化器的「当天竞争对手集合」和生产不是一个集合，学出来的权重就不是给
+      生产用的。修法：两边共用 `premarket.include_mask`，阈值一律从 config 取。
+    - **「前 10 名」两套定义。** 生产是 `score.py::rank` + `run_auction.select`
+      （未被硬性排除**且** `round(score,1) >= min_score`，再取前 `top_n`），
+      学习线只用 `~rej` 取前 K：404 天里 97 天（23.5%）两张榜不是同一批票，
+      在线 17 天里 4 天不同（09-11 池 10 只 / 实发 5 只，09-14 15/8，09-16 12/6）。
+      起涨预测那条线是同一个病的另一半：验收走 `daily_topn`（每天固定前 10、
+      无 97 分门槛、无板块系数、无风险剔除），生产走 `stage_scan`，同一份逐月
+      滚动打分前者 11.16%（n=2070）、后者 12.64%（n=783），板块最强/最弱从
+      1.63「通过」变成 6.20「重度不通过」——一个假阴一个假阳。
+      修法：`optimize.production_order`（早盘）、`validate.pick`（起涨）
+      各自是唯一的一份实现，生产和验收都调它。
+
+    还有一个更小但更典型的样本：「稳步抬升」。生产写
+    `t1 <= t2 + 0.05 <= t3 + 0.10`，回填写严格 `T1<=T2<=T3`，同一列两种定义
+    拼进一张训练表。那 0.05 还是个**按价格漂**的容差：18 个快照日里 461 行
+    （占 `monotonic=True` 的 5.51%）靠它白拿 +0.15 趋势分，10 元票回落一个 tick
+    就出局、100 元票回落 5 个 tick 仍算「稳步抬升」。现在只有
+    `score.is_monotonic` 一份实现，`MONO_EPS=1e-9` 只吸收浮点噪声。
+
+    **判据很简单：同一个名词在两个文件里各算一遍，就是一个待修的 bug，
+    哪怕今天两边算出来一样。** 修法一律是抽出唯一实现两边共用，再用自测
+    钉住（`selftest_train` 和 `selftest_breakout` 里那几条 AST 断言就是干这个的）。
+
 ### 本地为主、云端托底（2026-09-15 起）
 
 用户方针（2026-09-15 定）：**手动 > 本机自动 > 云端。** 控制台手点随时优先；
@@ -718,7 +788,15 @@ autostash 会把对方没提交的当天面板还原成前一天，而推送只�
 只写日志等于没写。
 
 `SKIP_MAIL=1` 环境变量让 enrich/send 生成全部产物但不发邮件，
-本地 dry-run 和远端让位共用这个开关。
+本地 dry-run 和远端让位共用这个开关。判定只有一份实现
+`mailer.skip_mail()`：**只认 `1` / `true`（不分大小写，两端空白忽略）**，
+`0` / `false` / `yes` / `no` / 空 / 不设 一律照发。
+2026-09-16 前四处各写各的 —— 三条业务线用真值判断（`if os.environ.get(...)`，
+于是 `"0"` 也跳过），`learn/report.py` 用 `== "1"`：往 `tools/local.env` 里写
+一行 `SKIP_MAIL=0` 想「明确开启发信」，早盘/形态/起涨预测三条线会全部静音，
+而学习和会诊邮件照发；写 `true` 想全部静音则正好反过来。
+`selftest.py` 有九个取值的断言，外加 AST 断言「业务线里不许再出现
+`environ.get("SKIP_MAIL")`」。
 
 本地 LLM 走 `learn/llm_local.py`：OAuth 自动识别链是
 环境变量 -> tools/local.env 的 CLAUDE_CODE_OAUTH_TOKEN -> CLI 登录态。

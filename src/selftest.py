@@ -914,6 +914,7 @@ def check_calendar(c: dict) -> int:
     早盘/盘前/形态三条线每天「非交易日」退出 0，云端托底也一起哑。
     """
     import ast
+    import json as _json
     import pandas as pd
     import datasource as D
     ck, get = _counter()
@@ -955,6 +956,65 @@ def check_calendar(c: dict) -> int:
        "trade_dates 走 tmp + os.replace 原子换名")
     ck("_norm_trade_dates(" in src.split("def trade_dates")[1],
        "trade_dates 用 _norm_trade_dates 归一后才写缓存")
+
+    # 上面三条钉的是「写法」，下面这几条跑一遍真的写：读方（控制台、学习闸门）
+    # 在任何一个瞬间看到的都必须是完整文件，或者是上一份完整文件。
+    import os as _os
+    import tempfile
+    import types
+    tmpd = Path(tempfile.mkdtemp(prefix="selftest_cal_"))
+    (tmpd / "state").mkdir()
+    cache = tmpd / "state" / "trade_dates.json"
+    days = [(t - dt.timedelta(days=i)).isoformat() for i in range(40)]
+    fake_ak = types.ModuleType("akshare")
+    fake_ak.tool_trade_date_hist_sina = lambda: pd.DataFrame({"trade_date": days})
+    seen: list = []
+
+    real_replace = _os.replace
+
+    def cap_replace(s, d):
+        # 换名前把临时文件的内容留证：读方看到的要么是这份完整内容，
+        # 要么是上一份完整文件，中间没有第三种状态
+        seen.append((str(s), Path(s).read_text(encoding="utf-8")))
+        return real_replace(s, d)
+
+    o = (D._ROOT, sys.modules.get("akshare"), real_replace)
+    D._ROOT = tmpd
+    sys.modules["akshare"] = fake_ak
+    try:
+        _os.replace = cap_replace
+        got = D.trade_dates()
+        ck(got == set(days), f"日历拿到 {len(got)} 天并归一")
+        ck(set(_json.loads(cache.read_text(encoding="utf-8"))) == set(days),
+           "缓存里是一份完整 JSON")
+        ck(bool(seen) and str(_os.getpid()) in seen[0][0],
+           f"临时文件名带 pid（两个进程同时写不能共用一个 tmp）：{Path(seen[0][0]).name}")
+        ck(bool(seen) and set(_json.loads(seen[0][1])) == set(days),
+           "换名之前临时文件就已经写完整了 —— 读方永远看不到半截")
+        ck(not list((tmpd / "state").glob("*.tmp")), "换名成功后不留 tmp")
+
+        # Windows 上读方正持着句柄时 os.replace 会 PermissionError。
+        # 那一刻旧缓存仍然完整，绝不能留下半截文件或一地 tmp。
+        def boom(s, d):
+            raise PermissionError(32, "另一个进程正在使用此文件")
+
+        _os.replace = boom
+        good = cache.read_text(encoding="utf-8")
+        fake_ak.tool_trade_date_hist_sina = (
+            lambda: pd.DataFrame({"trade_date": days[:35]}))
+        ck(D.trade_dates() == set(days[:35]),
+           "换名失败不影响返回值（调用方照常拿到新日历）")
+        ck(cache.read_text(encoding="utf-8") == good,
+           "换名失败时旧缓存原样保留，不是半截")
+        ck(not list((tmpd / "state").glob("*.tmp")),
+           "换名失败也把 tmp 清掉，不留一地垃圾")
+    finally:
+        _os.replace = o[2]
+        D._ROOT = o[0]
+        if o[1] is None:
+            sys.modules.pop("akshare", None)
+        else:
+            sys.modules["akshare"] = o[1]
     return get()
 
 
@@ -1521,6 +1581,181 @@ def check_salvage_whitelist(c: dict) -> int:
     return get()
 
 
+def check_enrich_resend(c: dict) -> int:
+    """发过的那一天 enrich 不许再发一封；「抢救还是放弃」只留一口钟（F4-13 / M14）。"""
+    import ast
+    import inspect
+    import json as _json
+    import os as _os
+    import tempfile
+    import run_auction as RA
+    ck, get = _counter()
+    print("\n发过就不再发第二封（F4-13）/ 一口钟（M14）")
+
+    today = RA.now_bj().strftime("%Y-%m-%d")
+    tmp = Path(tempfile.mkdtemp(prefix="selftest_enrich_"))
+    sel = [score_one(mk(code="600111", name="甲"), c),
+           score_one(mk(code="300750", name="乙", sector_members=2), c)]
+    sent: list = []
+    o = (RA.OUT, RA.send_report, RA.sleep_until)
+    keep = _os.environ.get("SKIP_MAIL")
+    RA.OUT = tmp
+    RA.send_report = lambda *a, **k: sent.append(a[0])
+    # 真的等到 09:27:30 就没法自测了。返回 False 走的是「时点已过」那条路，
+    # 和发过信之后手点重跑的现实情况一致。
+    RA.sleep_until = lambda *a, **k: False
+    try:
+        _os.environ.pop("SKIP_MAIL", None)
+        (tmp / "selected.json").write_text(
+            _json.dumps(sel, ensure_ascii=False, default=str), encoding="utf-8")
+        (tmp / "run_meta.json").write_text(
+            _json.dumps({"date": today, "n": len(sel)}), encoding="utf-8")
+        ck(RA.mail_sent_at(today) == "", "没有 mail_sent.json -> 今天还没发过")
+        rc = RA.stage_enrich(c)
+        ck(rc == 0 and sent == [today], "第一次：正常发信")
+        panel = tmp / "panel.html"
+        ck(panel.exists(), "面板生成了")
+        first = panel.read_text(encoding="utf-8")
+
+        # 真发出去的那一步在 stage_enrich 末尾写 mail_sent.json；这里 send_report
+        # 被替换掉了，所以手动补一份，模拟「上一次真的发过」
+        (tmp / "mail_sent.json").write_text(
+            _json.dumps({"date": today, "n": len(sel),
+                         "at": "2026-09-16T09:27:32+08:00"}), encoding="utf-8")
+        ck(RA.mail_sent_at(today) == "2026-09-16T09:27:32+08:00",
+           "mail_sent.json 是「发过了」的唯一证据")
+        ck(RA.mail_sent_at("2026-09-15") == "", "昨天那份不算今天发过")
+        sent.clear()
+        panel.unlink()
+        rc = RA.stage_enrich(c)
+        ck(rc == 0 and not sent,
+           "同一天再跑一次 enrich：不发第二封（2026-09-14 用户收到过两封一样的）")
+        ck(panel.exists() and panel.read_text(encoding="utf-8") == first,
+           "但面板照样重建 —— 这道门挡的只是邮件，「重新生成面板」仍然可用")
+
+        (tmp / "mail_sent.json").write_text(
+            _json.dumps({"date": "2026-09-15", "n": 3}), encoding="utf-8")
+        sent.clear()
+        ck(RA.stage_enrich(c) == 0 and sent == [today],
+           "mail_sent.json 是上一个交易日的 -> 今天照发（别把昨天的记录当今天）")
+    finally:
+        RA.OUT, RA.send_report, RA.sleep_until = o
+        if keep is not None:
+            _os.environ["SKIP_MAIL"] = keep
+
+    ck("mail_sent_at" in inspect.getsource(RA.stage_enrich),
+       "stage_enrich 真的接了这道门（接线错了函数再对也没用）")
+
+    # M14：两边只留一口钟。local_run 不许再自己按整分算 late
+    lr = (ROOT / "src" / "local_run.py").read_text(encoding="utf-8")
+    fm = next(n for n in ast.walk(ast.parse(lr))
+              if isinstance(n, ast.FunctionDef) and n.name == "flow_morning")
+    args = [a.value for n in ast.walk(fm) if isinstance(n, ast.Call)
+            for a in n.args if isinstance(a, ast.Constant)]
+    ck("--salvage-if-late" in args,
+       "local_run 把「过线怎么办」交给 run_auction（--salvage-if-late）")
+    ck("--late" not in args,
+       "local_run 不再自己传 --late（它那个时刻是建候选池之前取的，"
+       "premarket 跑满 18 分钟就判反了）")
+    # 按 AST 看，不按文本看：注释里为了说明「以前是怎么错的」会原样写出
+    # (9, 27)，按整段文本找会把注释当成代码（check_task_schedule 同款教训）
+    tuples = {tuple(e.value for e in n.elts)
+              for n in ast.walk(fm) if isinstance(n, ast.Tuple)
+              and n.elts and all(isinstance(e, ast.Constant) for e in n.elts)}
+    ck((9, 27) not in tuples,
+       f"flow_morning 里没有第二口钟（09:27 那个整分判断已删，现有 {sorted(tuples)}）")
+    return get()
+
+
+def check_ops_exit_codes(c: dict) -> int:
+    """三件小事：刷名单失败要红、体检不许被空端口炸掉、成交量口径有哨兵。"""
+    import ast
+    import tempfile
+    import types
+    import pandas as pd
+    ck, get = _counter()
+    print("\n运维脚本的退出码与口径哨兵")
+
+    # 1) refresh_meta：代码表没刷成，控制台以前照样显示绿（教训 16）
+    import refresh_meta as RM
+    tree = ast.parse((ROOT / "src" / "refresh_meta.py").read_text(encoding="utf-8"))
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "main")
+    rets = [n for n in ast.walk(fn) if isinstance(n, ast.Return)]
+    ck(not [r for r in rets if isinstance(r.value, ast.Constant)
+            and r.value.value == 0],
+       "refresh_meta.main 不再有「无条件 return 0」那条路")
+    tmp = Path(tempfile.mkdtemp(prefix="selftest_meta_"))
+    (tmp / "cache").mkdir()
+    o = (RM.ROOT, RM.sectors_em, RM.sectors_ths, RM.sectors_sina,
+         sys.modules.get("datasource"))
+    RM.ROOT = tmp
+    rec = [{"code": f"{600000 + i:06d}", "sector": "自测"} for i in range(2500)]
+    RM.sectors_em = lambda: rec
+    RM.sectors_ths = RM.sectors_sina = lambda: []
+    try:
+        boom = types.SimpleNamespace(
+            refresh_code_list=lambda: (_ for _ in ()).throw(
+                RuntimeError("自测：所有源都不可用")))
+        sys.modules["datasource"] = boom
+        ck(RM.main() == 1,
+           "代码表刷不出来 -> 整个任务退出码 1（板块那半照跑，但不许报绿）")
+        ck((tmp / "cache" / "sector_map.parquet").exists(),
+           "板块表还是写出来了（一半失败不该把另一半也扔掉）")
+        sys.modules["datasource"] = types.SimpleNamespace(
+            refresh_code_list=lambda: ["600000"] * 5000)
+        ck(RM.main() == 0, "两半都成了才退 0")
+    finally:
+        (RM.ROOT, RM.sectors_em, RM.sectors_ths, RM.sectors_sina) = o[:4]
+        if o[4] is None:
+            sys.modules.pop("datasource", None)
+        else:
+            sys.modules["datasource"] = o[4]
+
+    # 2) probe：local.env 里 `SMTP_PORT=` 是常见残留，int("") 会把体检整个炸掉
+    sys.path.insert(0, str(ROOT / "tools"))
+    import probe as PR
+    for cfgd, want, why in (({}, 587, "键不在 -> 默认 587"),
+                            ({"SMTP_PORT": ""}, 587, "空串 -> 默认 587（以前 ValueError）"),
+                            ({"SMTP_PORT": "  "}, 587, "全空格 -> 默认 587"),
+                            ({"SMTP_PORT": " 465 "}, 465, "带空格的真端口照样认")):
+        try:
+            got = PR._port(cfgd)
+        except Exception as e:  # noqa: BLE001
+            got = f"抛了 {type(e).__name__}"
+        ck(got == want, f"probe 端口：{why}，拿到 {got}")
+    ck("int(cfg.get(" not in (ROOT / "tools" / "probe.py").read_text(
+        encoding="utf-8"), "check_smtp 真的走 _port()，不再裸 int()")
+
+    # 3) 成交量口径哨兵。腾讯对 688 段给「股」、其余给「手」，
+    #    少除一次 100 不会报错，只会让 688 的成交额大 100 倍（教训：无声的单位）
+    import smoke_test as SM
+    import datasource as D
+    real = (pd.read_csv(ROOT / "cache" / "codes.csv", dtype=str)["code"]
+            .str.zfill(6).tolist())
+    ck(SM.VOL_CHECK_CODE in real,
+       f"哨兵代码 {SM.VOL_CHECK_CODE} 来自真实代码表（历史教训 2）")
+    ck(SM.VOL_CHECK_CODE.startswith("688"),
+       "哨兵是科创板：口径不一致只发生在 688 段")
+    days = ["2026-09-1%d" % i for i in range(1, 7)]
+    tx = pd.DataFrame({"日期": days, "成交量": [1000.0 + i for i in range(6)]})
+    same = pd.DataFrame({"日期": days, "成交量": [1000.0 + i for i in range(6)]})
+    drift = pd.DataFrame({"日期": days,
+                          "成交量": [(1000.0 + i) / 100 for i in range(6)]})
+    ck(abs(SM.vol_ratio(tx, same) - 1.0) < 1e-9, "两路口径一致 -> 比值 1.0")
+    ck(abs(SM.vol_ratio(tx, drift) - 100.0) < 1e-6,
+       "一路少除了 100 -> 比值 100，体检里一眼看得出来")
+    try:
+        SM.vol_ratio(tx, pd.DataFrame({"日期": ["2026-08-01"], "成交量": [1.0]}))
+        ck(False, "没有共同交易日时必须抛，不能返回 NaN 当通过")
+    except AssertionError:
+        ck(True, "没有共同交易日 -> 抛，不静默通过")
+    ck(D.tx_vol_hand(SM.VOL_CHECK_CODE, 100.0) == 1.0
+       and D.tx_vol_hand("600000", 100.0) == 100.0,
+       "哨兵盯的就是 tx_vol_hand 这条线（688 除 100，其余不除）")
+    return get()
+
+
 def main() -> int:
     c = cfg()
     t0 = time.time()
@@ -1554,6 +1789,8 @@ def main() -> int:
     bad += check_exports(c)
     bad += check_vscore_twin(c)
     bad += check_salvage_whitelist(c)
+    bad += check_enrich_resend(c)
+    bad += check_ops_exit_codes(c)
 
     # 压力：1000 只随机票，确认打分不发散、不抛异常、不卡住
     random.seed(7)

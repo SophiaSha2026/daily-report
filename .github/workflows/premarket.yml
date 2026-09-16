@@ -36,21 +36,42 @@ jobs:
       # run_auction.py 会走「候选池缺失」分支直接告警退出。
       - name: 提交候选池
         run: |
+          # 推送模板和 auction.yml 的「提交数据」同款，坑也是同一个：
+          # `git pull --rebase --autostash || true` 把冲突吞掉之后，仓库停在
+          # rebase-merge 中间态、HEAD 正好落在 origin/main 上，于是下一次
+          # push 输出 "Everything up-to-date"、rc=0、ok=1，::warning 永远不
+          # 打印 —— 这一次的候选池静默丢失，而竞价那边的幂等检查读的就是它
+          # （教训 15 自愈、教训 16 失败要看得见）。
+          # 现在每轮先 rebase --abort 清残留 -> fetch -> rebase -X theirs
+          # （这个 job 的产出为准）-> push，最后不认 push 的退出码，
+          # 认 origin 上那个 blob 是不是这次提交的那个；对不上就让 job 红。
           git config user.name auction-bot
           git config user.email bot@users.noreply.github.com
           git add cache/
           git diff --staged --quiet || git commit -m "data: 候选池 $(TZ=Asia/Shanghai date +%F)"
-          git pull --rebase --autostash || true
-          # 重试三次：盘前和竞价可能同时往 cache/ 推，撞上就 rebase 再来。
-          # push 失败的代价不只是丢数据——幂等检查靠的就是那个数据文件，
-          # 推不上去，后面排队的入口会以为今天还没跑过。
+          F="cache/universe.parquet"
+          # WANT 取**工作区那份文件**的 blob，不是 HEAD 里的：被 .gitignore 挡住、
+          # 或者 add 失败时，HEAD 里那份还是 checkout 带下来的旧内容，
+          # 拿它和 origin 比会一路相等，这一步就成了永远通过的摆设。
+          WANT=$(git hash-object "$F" 2>/dev/null || echo none)
           URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           ok=""
           for i in 1 2 3; do
+            git rebase --abort 2>/dev/null || true
+            git fetch -q origin "${{ github.ref_name }}"
+            if ! git rebase --autostash -X theirs "origin/${{ github.ref_name }}"; then
+              git rebase --abort 2>/dev/null || true
+              sleep 5
+              continue
+            fi
             if git push "$URL" HEAD:${{ github.ref_name }}; then ok=1; break; fi
             sleep 5
-            git pull --rebase --autostash || true
           done
-          [ -n "$ok" ] || echo "::warning::push 失败"
+          git fetch -q origin "${{ github.ref_name }}" || true
+          GOT=$(git rev-parse "origin/${{ github.ref_name }}:$F" 2>/dev/null || echo missing)
+          if [ -z "$ok" ] || { [ "$WANT" != none ] && [ "$GOT" != "$WANT" ]; }; then
+            echo "::error::候选池 $F 没推上 origin（want=$WANT got=$GOT），竞价那边会走「候选池缺失」分支"
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with: { name: universe, path: cache/, retention-days: 3 }

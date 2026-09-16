@@ -61,6 +61,17 @@ LINES = [
      "sent": ("exists", "state/sent/pullback_{d}.json")},
 ]
 
+# 和 local_run.SENT_REQUIRED 是同一张表的两份副本（理由同 LINES：控制台
+# 不该因为 local_run 的依赖起不来）。漂了的话总览页和计划任务对「跑完了」
+# 的判断会分家：一边绿灯一边还在重跑。selftest_gui 钉住两边相等。
+SENT_REQUIRED = {"breakout"}
+
+# 这几个字段是 fail-open 的分支留下的错误对象：学习线的面板/影子段挂掉时
+# eval_daily 把异常写进 learning_status.json 就继续往下走（研究性步骤不该
+# 阻断业务），于是退出码 0、run_meta 日期也对，总览页一路绿灯 —— 而
+# learn.html 其实是上一天的。失败必须有一个能被界面查询的对象（教训 16）。
+ERR_KEYS = ("panel_error", "shadow_error", "error")
+
 
 def now_bj() -> dt.datetime:
     return dt.datetime.utcnow() + dt.timedelta(hours=8)
@@ -207,18 +218,34 @@ _td_lock = threading.Lock()
 
 def _trade_dates() -> set:
     with _td_lock:
-        if time.time() - _td_cache["at"] > 600:
+        if time.time() - _td_cache["at"] <= 600:
+            return _td_cache["s"]
+        prev = _td_cache["s"]
+        f = ROOT / "state" / "trade_dates.json"
+        s: set = set()
+        keep = False
+        try:
+            # 不用 f.exists() 开路：Path.exists() 会把 stat 的 OSError 吞成
+            # False，而写方是 tmp + os.replace（datasource.trade_dates），
+            # Windows 上换名那一瞬间读方拿到的正是 OSError。于是「文件其实在」
+            # 被当成「文件没有」，空集压 10 分钟，这 10 分钟里控制台按
+            # 「周一到周五」算目标日，节假日前后就和调度器对不上。
+            raw = f.read_text(encoding="utf-8")
             try:
-                f = ROOT / "state" / "trade_dates.json"
-                s: set = set()
-                if f.exists() and time.time() - f.stat().st_mtime < 14 * 86400:
-                    s = set(json.loads(f.read_text(encoding="utf-8")))
-                _td_cache.update(at=time.time(), s=s)
-            except Exception:  # noqa: BLE001
-                # 读到半截 JSON（写端是 write_text，截断再写，不原子）。
-                # 以前这里把空集缓存 10 分钟，退化成「周一到周五」，节假日
-                # 前后目标日就和调度器对不上了。留着上一次的集合，30 秒后重读。
-                _td_cache["at"] = time.time() - 570
+                fresh = time.time() - f.stat().st_mtime < 14 * 86400
+            except OSError:
+                fresh = True        # 内容都读出来了，问不出修改时刻就当它新
+            if fresh:
+                s = set(json.loads(raw))
+        except FileNotFoundError:
+            pass                    # 真没有这个文件：合法降级，不是故障
+        except Exception:  # noqa: BLE001
+            keep = True             # 读到半截 JSON / 读不出来：别盖掉好结果
+        if s:
+            _td_cache.update(at=time.time(), s=s)
+        else:
+            # 空集只压 60 秒（读一个 123KB 的文件几乎不要钱），不是 10 分钟。
+            _td_cache.update(at=time.time() - 540, s=prev if keep else set())
         return _td_cache["s"]
 
 
@@ -263,18 +290,23 @@ def line_status(tasks: dict) -> list[dict]:
     for ln in LINES:
         meta = _json(ln["meta"])
         d = target_date(ln["key"])
+        sent = _sent_ok(ln, d)
         # 「跑完了」必须和计划任务用同一个函数判：以前这里只比日期，
         # 真跑完之后再点一次试跑，run_meta 被标成 dry，控制台说「已跑完」
         # 而计划任务下一次敲门就整条重跑重发。目标日由这里算好传进去
         # （local_run.target_date 会 import akshare，教训 19）。
         dry = bool(meta.get("dry")) and meta.get("date") == d
         done = meta.get("date") == d and not meta.get("dry")
+        # local_run 起不来时的兜底也要带上 sent 那道门，否则「送信挂了」
+        # 的那天两条路一条红一条绿，而界面显示的是哪一条全看 import 成没成。
+        if done and ln["key"] in SENT_REQUIRED:
+            done = bool(sent)
         if L:
             try:
                 done = bool(L.done_for(ln["key"], d))
             except Exception:  # noqa: BLE001
                 pass
-        sent = _sent_ok(ln, d)
+        err = next((f"{k}: {meta[k]}"[:160] for k in ERR_KEYS if meta.get(k)), "")
         panel = ROOT / ln["panel"]
         try:
             pdate = _json(ln["meta"]).get("date") or ""
@@ -286,7 +318,7 @@ def line_status(tasks: dict) -> list[dict]:
         out.append({
             "key": ln["key"], "name": ln["name"], "due": ln["due"],
             "system": ln["system"],
-            "done": done, "dry": dry, "sent": sent,
+            "done": done, "dry": dry, "sent": sent, "error": err,
             "date": meta.get("date", ""), "target": d,
             "n": meta.get("n"), "panel_date": pdate, "panel_mtime": pmtime,
             "task": ln["task"], "task_state": t.get("state", ""),

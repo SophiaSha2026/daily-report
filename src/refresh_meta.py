@@ -182,10 +182,15 @@ def sectors_sina() -> list[dict]:
 # ---------------------------------------------------------------------
 def main() -> int:
     import datasource as ds
+    rc = 0
     try:
         ds.refresh_code_list()
     except Exception as e:  # noqa: BLE001
-        log.warning("代码表刷新失败，沿用旧缓存: %s", e)
+        # 沿用旧缓存是对的（残表比旧表坏），但退出码必须带出去：控制台的
+        # 「更新股票名单」只看退出码，以前代码表一只都没刷到它照样显示绿，
+        # 唯一的信号是这行日志（教训 16）。板块那一半照跑，别互相拖累。
+        log.error("代码表刷新失败，沿用旧缓存: %s", e)
+        rc = 1
 
     rec: list[dict] = []
     for tag, fn in (("东财", sectors_em), ("同花顺", sectors_ths),
@@ -220,7 +225,7 @@ def main() -> int:
 
     df.to_parquet(dst, index=False)
     log.info("已写入 %d 只股票的行业归属，%d 个行业", len(df), df.sector.nunique())
-    return 0
+    return rc
 
 
 if __name__ == "__main__":

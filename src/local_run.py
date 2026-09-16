@@ -710,18 +710,79 @@ def daily_coverage(daily, target: str) -> tuple[float, str]:
     return float((last >= target).mean()), str(last.max())
 
 
-def _mail_sent_today(date: str) -> str:
-    """竞价清单今天发出去了没有。发了返回发信时刻，没发返回空串。
+# 目标日的行数至少要有前一个交易日的这么多。和 backfill.stage_update 里
+# 那道闸同一个数：daily.parquet 898 个交易日里相邻日行数比最小 0.9706、
+# 1% 分位 0.9991，0.95 留足余量，停牌（最近两次各 14 只）不会误杀。
+# 编排层还要再核一次，是因为两处看的不是同一张表：stage_update 的核对发生在
+# **合并之前**，而重拉分片对它覆盖的代码是「整段权威」，合并时会把 _upd 里
+# 那一根清掉（腾讯快照兜底只补 pend 里有的那几只）。掉行只有在合并后的
+# daily.parquet 上才看得见。
+DAILY_PREV_MIN = 0.95
 
-    run_auction 真把邮件交给 SMTP 之后才写 out/mail_sent.json，
-    这是「发过了」的唯一证据（enrich 有四条不发信也返回 0 的分支）。
+
+def _daily_covers(daily, target: str) -> tuple[bool, str]:
+    """目标日在日线表里是不是一个**完整**的交易日。返回 (够不够, 人话)。
+
+    抽成纯函数是为了能离线自测：真表 2.5GB 在本机，测不了也不该测。
+    """
+    cnt = daily["date"].astype(str).value_counts().sort_index()
+    days = [d for d in cnt.index if d <= target]
+    if not days or days[-1] != target:
+        return False, f"日线表里没有 {target} 的行"
+    n = int(cnt.loc[target])
+    if len(days) < 2:
+        return True, f"{target} {n} 行（表里没有更早的交易日可比）"
+    pday, pn = days[-2], int(cnt.loc[days[-2]])
+    ok = pn <= 0 or n >= DAILY_PREV_MIN * pn
+    return ok, (f"{target} {n} 行，前一日 {pday} {pn} 行"
+                f"（{n / pn:.1%}，要 ≥{DAILY_PREV_MIN:.0%}）" if pn > 0
+                else f"{target} {n} 行")
+
+
+# 补不上目标日那根 K 线的票超过这个数就不出清单。
+# 少几只是常态（新上市、长期停牌、新浪当天还没生成 K 线）；成片补不上
+# 说明源那边出事了，此时横截面百分位、板块中性化、市场宽度全在残缺的池子里算
+# （教训 30：回测口径和生产口径差一点，成绩就不是同一件事）。
+UPDATE_SHORT_MAX = 50
+
+
+def _update_short(target: str) -> tuple[list[str], str]:
+    """补数据那一步自己记的账：哪些票没拉到目标日。返回 (代码, 说明)。
+
+    退出码 0 不等于做了事（教训 27）：refetch_codes 拉不到目标日的票只在
+    backfill 的日志里留一行，而它写进了 state/breakout/update_status.json，
+    这里把它读出来，让「今天到底缺了谁」变成一个能被判断的对象（教训 16）。
     """
     try:
-        ms = json.loads((ROOT / "out" / "mail_sent.json")
+        st = json.loads((ROOT / "state" / "breakout" / "update_status.json")
                         .read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return [], "没有 update_status.json（补数据那步没写账）"
+    if str(st.get("date") or "") != target:
+        return [], f"update_status.json 是 {st.get('date')} 的，不是 {target}"
+    short = [str(x) for x in (st.get("short") or [])]
+    return short, (f"补数据记账：追加 {st.get('appended')} 只，"
+                   f"整段重拉没拉到目标日 {len(short)} 只，"
+                   f"快照没回 {st.get('missing')} 只")
+
+
+def _mail_sent_date(rel: str, date: str) -> str:
+    """某条线目标日的邮件真发出去了没有。发了返回发信时刻，没发返回空串。
+
+    两条线的写法一样：run_auction / breakout.daily 都在把邮件交给 SMTP
+    **之后**才写这个文件，它是「发过了」的唯一证据（两边各有几条
+    「没发信也 return 0」的分支，教训 27）。
+    """
+    try:
+        ms = json.loads((ROOT / rel).read_text(encoding="utf-8"))
         return str(ms.get("at") or "已发") if ms.get("date") == date else ""
     except Exception:  # noqa: BLE001
         return ""
+
+
+def _mail_sent_today(date: str) -> str:
+    """竞价清单今天发出去了没有。"""
+    return _mail_sent_date("out/mail_sent.json", date)
 
 
 # ---------------------------------------------------------------------
@@ -817,9 +878,13 @@ def flow_morning(dry: bool) -> int:
         log.info("候选池已是今天的")
 
     step(3, n, "采样 + 打分（自动等到 09:14 预热、09:19/09:23/09:25 采样）")
-    late = (bj.hour, bj.minute) >= (9, 27)
-    rc = py("src/run_auction.py", "--stage", "quick",
-            *(["--late"] if late else []))
+    # 「该不该转抢救模式」只留一口钟：run_auction.quick_mode 按秒级的
+    # hard_deadline（09:26:30）判。这里以前自己按 (9, 27) 判一次再传 --late，
+    # 两条线之间有 32 秒的缝（09:26:30~09:26:59 手点会发一封措辞还写着
+    # 「GitHub Actions 排队延迟」的告警邮件，而那一刻本该出抢救榜）；
+    # 而且上面那个 bj 是**建候选池之前**取的，premarket 跑满 18.5 分钟以上时
+    # （2026-09-04 实测 1089 秒）quick 实际起在死线之后，late 仍按 09:07 判 False。
+    rc = py("src/run_auction.py", "--stage", "quick", "--salvage-if-late")
     if rc != 0:
         log.error("quick 阶段失败（退出码 %d），不推 sent 标记，远端会兜底", rc)
         return rc
@@ -993,6 +1058,16 @@ def auto_due(flow: str) -> bool:
 # 哪条线真发信之后写哪个 sent 标记（state/sent/<名字>_<目标日>.json）
 SENT_MARK = {"morning": "auction", "evening": "pullback", "breakout": "breakout"}
 
+# 这几条线的「跑完了」还必须有 sent 标记撑着。
+#
+# 起涨预测的 run_meta 在 scan 阶段就落盘，发信是下一个子进程（daily.py
+# --stage send）。只认 run_meta 的话，send 挂掉的那天控制台是绿的、
+# 计划任务也判「已经跑完」整夜不再补，用户直到第二天才发现没收到清单。
+# 只列它一条：早盘那天云端代跑时只会推 out/（含 mail_sent.json），
+# 不推 state/sent/auction_*，把 morning 列进来会让云端代发的日子
+# 整天误报「没跑」。早盘另有 out/mail_sent.json 这条证据（_sent_ok）。
+SENT_REQUIRED = {"breakout"}
+
 
 def done_for(flow: str, target: str) -> bool:
     """给定目标日，这条线跑完了没有。
@@ -1008,14 +1083,16 @@ def done_for(flow: str, target: str) -> bool:
         return False
     if meta.get("date") != target:
         return False
-    if not meta.get("dry"):
-        return True
     # 试跑（--dry）也写 run_meta。真跑完之后再点一次试跑，run_meta 就被
     # 标成 dry，以前这里直接返回 False，下一次计划任务敲门（起涨预测窗口
     # 16 小时、每 30 分钟一次）就把整条线重跑并再发一封同样的清单。
     # 试跑不写 sent 标记（push_marker 的 dry 分支），所以真跑完的证据只剩它。
     mark = SENT_MARK.get(flow)
-    return bool(mark) and (ROOT / "state" / "sent" / f"{mark}_{target}.json").exists()
+    mark_ok = bool(mark) and (ROOT / "state" / "sent"
+                              / f"{mark}_{target}.json").exists()
+    if flow in SENT_REQUIRED and not mark_ok:
+        return False
+    return True if not meta.get("dry") else mark_ok
 
 
 def already_done(flow: str) -> bool:
@@ -1100,7 +1177,9 @@ def flow_breakout(dry: bool) -> int:
     push_marker("claim", "breakout", {"plan": "本地接管今日起涨预测"}, dry, d)
 
     step(2, n, f"补 {d} 日线 + 重算特征表")
-    rc = py("src/breakout/backfill.py", "--stage", "update")
+    # 目标日由编排层算一次传下去：每个子阶段各判一次，跨午夜补跑那一段
+    # （北京 00:00~08:30）两边早晚会分叉，一边按「今天」一边按「最近已收盘」。
+    rc = py("src/breakout/backfill.py", "--stage", "update", "--target", d)
     if rc != 0:
         log.error("补数据失败（退出码 %d），今天不出清单", rc)
         return rc
@@ -1109,12 +1188,27 @@ def flow_breakout(dry: bool) -> int:
         dd = pd.read_parquet(ROOT / "data" / "breakout" / "daily.parquet",
                              columns=["date", "code"])
         cov, mx = daily_coverage(dd, d)
+        full, why = _daily_covers(dd, d)
     except Exception as e:  # noqa: BLE001
         log.error("读不到日线: %s", e)
         return 1
     if cov < DAILY_COVER_MIN:
         log.error("日线只有 %.1f%% 的票到 %s（全表最新 %s），不出清单",
                   cov * 100, d, mx)
+        return 1
+    if not full:
+        log.error("目标日那一天的行数不够：%s，不出清单", why)
+        return 1
+    log.info("日线覆盖 %.1f%%，%s", cov * 100, why)
+    # 补数据那一步自己记的账。短几只是常态，成片补不上就不该出清单：
+    # 那天的横截面百分位、板块中性化、市场宽度都在残缺的池子里算。
+    short, note = _update_short(d)
+    log.info("%s", note)
+    if short:
+        log.warning("有 %d 只没拉到 %s：%s", len(short), d, ",".join(short[:20]))
+    if len(short) > UPDATE_SHORT_MAX:
+        log.error("补不上目标日的票 %d 只，超过 %d 只的上限，不出清单",
+                  len(short), UPDATE_SHORT_MAX)
         return 1
     rc = py("src/breakout/build.py")
     if rc != 0:
@@ -1130,8 +1224,18 @@ def flow_breakout(dry: bool) -> int:
     if dry:
         os.environ["SKIP_MAIL"] = "1"
     rc = py("src/breakout/daily.py", "--stage", "send")
-    if rc == 0 and not dry:
+    # 退出码 0 不等于发了信（教训 27）：send 阶段的 SKIP_MAIL 分支、
+    # 以及任何「面板建好了但 send_mail 没走到」的路都返回 0。只认
+    # daily.py 在 send_mail 之后落的 out_breakout/mail_sent.json，
+    # 写法照抄 flow_morning。标记不该在没发信的日子推出去：云端 20:30 的
+    # evening_check 看 origin 上有没有清单，推了它就不再提醒。
+    sent_at = _mail_sent_date("out_breakout/mail_sent.json", d)
+    if rc == 0 and (sent_at or dry):
         push_marker("sent", "breakout", {"ok": True}, dry, d)
+    elif rc == 0:
+        log.error("send 退出码 0 但 out_breakout/mail_sent.json 不是 %s 的，"
+                  "不推 sent 标记（云端 20:30 会发「本机没跑」提醒）", d)
+        rc = 1
     push_all(f"起涨预测 {d} [local]",
              [f"data/breakout/{d[:7]}", "out_breakout", "state/breakout"], dry)
     return rc

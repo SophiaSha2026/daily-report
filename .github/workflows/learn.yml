@@ -4,8 +4,11 @@ name: 6-自评估与迭代
 # 这条线崩了不影响任何一封业务邮件（docs/learning.md 第 1 节边界 2）。
 #
 # 16:30 BJT = 08:30 UTC。收盘 15:00，留 90 分钟等数据落定。
-# 迟一两小时无所谓，收盘后数据是定死的；真正要防的是早，
-# stage label 会检查快照存在性，盘中跑不出东西。
+# 迟一两小时无所谓，收盘后数据是定死的；真正要防的是早：stage label 按
+# **北京 15:05 这口钟**退出（eval_daily.stage_label，审计 F3-15），不是查快照
+# 存在性 —— 快照 09:25:45 就落盘了，拿它当闸盘中照样放行，把 10:00 的现价
+# 当收盘价写进标签，而 labels.save 的「可用行更多才覆盖」还会让收盘后正确的
+# 那份被拒，错标签永久留下。下面的交易日闸门用同一口钟算目标日。
 
 on:
   # ===================================================================
@@ -64,22 +67,34 @@ jobs:
       - name: 交易日闸门
         id: gate
         run: |
+          # 目标日 = 最近一个**已收盘**的交易日，和 local_run.last_closed_trade_day
+          # 以及 eval_daily.stage_label 同一口钟（北京 15:05）。
+          # 以前这里只判「今天是不是交易日」，手动派发落在盘中时闸门放行、
+          # 紧接着 stage label 用 15:05 那口钟退出码 1，整条 workflow 红一次，
+          # 而红的原因和「学习线出错」长得一模一样；周末派发则直接没有目标日。
+          # 日历取不到时退化成「周一到周五」（fail-open，同 local_run）。
           python - <<'PY'
           import os, datetime as dt
           bj = dt.datetime.utcnow() + dt.timedelta(hours=8)
-          today = bj.strftime("%Y-%m-%d")
+          closed = (bj.hour, bj.minute) >= (15, 5)
+          days = set()
           try:
               import akshare as ak
               days = {str(d) for d in
                       ak.tool_trade_date_hist_sina()["trade_date"].astype(str)}
-              ok = today in days
           except Exception as e:
-              print(f"交易日历取不到（{e}），按工作日放行")
-              ok = bj.weekday() < 5
+              print(f"交易日历取不到（{e}），按周一到周五算")
+          target = ""
+          for back in range(15):
+              d = bj.date() - dt.timedelta(days=back)
+              ok = (d.isoformat() in days) if days else d.weekday() < 5
+              if ok and (back > 0 or closed):
+                  target = d.isoformat()
+                  break
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"go={'1' if ok else '0'}\n")
-              f.write(f"date={today}\n")
-          print(("交易日 " if ok else "非交易日 ") + today)
+              f.write(f"go={'1' if target else '0'}\n")
+              f.write(f"date={target}\n")
+          print(f"北京 {bj:%Y-%m-%d %H:%M}，目标日 " + (target or "无（15 天内没有已收盘交易日）"))
           PY
 
       - name: 抓标签
@@ -138,11 +153,35 @@ jobs:
           git add -A data/labels state docs out_learn/learn.html 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "无改动"
-          else
-            git commit -m "learn: ${{ steps.gate.outputs.date }}"
-            # 竞价线可能在同时提交数据，rebase 一下再推
-            git pull --rebase -q origin "${{ github.ref_name }}" || true
-            git push origin HEAD:"${{ github.ref_name }}"
+            exit 0
+          fi
+          git commit -m "learn: ${{ steps.gate.outputs.date }}"
+          # 推送模板和 auction.yml 的「提交数据」同款：竞价线可能在同时提交数据，
+          # 而 `pull --rebase || true` 把冲突吞掉之后仓库停在 rebase-merge 中间态、
+          # HEAD 落在 origin/main 上，push 就是 "Everything up-to-date" 的空成功
+          # （教训 15 / 16）。learn.html 丢了 = 当天的裁决上不了 Pages（教训 7）。
+          # 显式带 token：上面的 claude-code-action 跑完会把 checkout 写进
+          # .git/config 的凭证清掉，裸 `git push origin` 会报 Invalid username or token。
+          F="out_learn/learn.html"
+          WANT=$(git hash-object "$F" 2>/dev/null || echo none)
+          URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          ok=""
+          for i in 1 2 3; do
+            git rebase --abort 2>/dev/null || true
+            git fetch -q origin "${{ github.ref_name }}"
+            if ! git rebase --autostash -X theirs "origin/${{ github.ref_name }}"; then
+              git rebase --abort 2>/dev/null || true
+              sleep 5
+              continue
+            fi
+            if git push "$URL" HEAD:${{ github.ref_name }}; then ok=1; break; fi
+            sleep 5
+          done
+          git fetch -q origin "${{ github.ref_name }}" || true
+          GOT=$(git rev-parse "origin/${{ github.ref_name }}:$F" 2>/dev/null || echo missing)
+          if [ -z "$ok" ] || { [ "$WANT" != none ] && [ "$GOT" != "$WANT" ]; }; then
+            echo "::error::学习产物没推上 origin（$F want=$WANT got=$GOT），当天的裁决上不了 Pages"
+            exit 1
           fi
 
       - uses: actions/upload-artifact@v4

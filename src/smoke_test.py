@@ -77,11 +77,33 @@ def t_calendar():
     return f"{len(d)} 个交易日"
 
 
+# 成交量口径的哨兵。腾讯**两个接口**对科创板给的是「股」、其余板块给「手」，
+# 由 datasource.tx_vol_hand 统一成手；新浪那路一律除以 100。两边都归一之后
+# 同一天同一只票的成交量必须相等，2026-09-16 本机实测 688008/688981/688256
+# 腾讯÷新浪恰好 100.000（未归一时），归一后 1.000。
+# 少除一次 100 的后果不会报错：688008 那天的成交额会估成 7009 亿（真值 68.3 亿），
+# 量比、换手、筹码全跟着错一个量级。所以拿一只 688 的票当口径哨兵。
+VOL_CHECK_CODE = "688008"
+
+
+def vol_ratio(a, b) -> float:
+    """两路日线在相同交易日上的成交量之比（中位数）。两路都该是「手」，
+    所以正常是 1.0；口径漂了会是 100 或 0.01，一眼看得出是乘错了 100。"""
+    m = a.merge(b, on="日期", suffixes=("_a", "_b"))
+    m = m[(m["成交量_a"] > 0) & (m["成交量_b"] > 0)]
+    if not len(m):
+        raise AssertionError("两路日线没有共同交易日，比不了口径")
+    return float((m["成交量_a"] / m["成交量_b"]).median())
+
+
 def t_hist():
     """
     日线取数。东财为主，腾讯为辅——只要有一路给出足够长度就算通过，
     因为盘前 stage2 用的就是这条带降级的链路。
     两路都单测一遍，把各自可用性打印出来，便于判断要不要调熔断阈值。
+
+    外加一只科创板（688008）的成交量口径核对：腾讯对 688 段给「股」，
+    这件事没有任何报错会提醒你，只能拿另一路比出来。
     """
     import datasource as ds
     detail = []
@@ -93,6 +115,14 @@ def t_hist():
             detail.append(f"{tag} 不可用({type(e).__name__})")
     h = ds.daily_hist("600000", "20260101", "20260820")
     assert h is not None and len(h) > 50, f"两路都拿不到日线: {' / '.join(detail)}"
+
+    tx = ds.daily_hist_tx(VOL_CHECK_CODE, "20260101", "20260820")
+    sn = ds.daily_hist_sina(VOL_CHECK_CODE, "20260101", "20260820")
+    r = vol_ratio(tx, sn)
+    assert abs(r - 1.0) < 0.02, (
+        f"{VOL_CHECK_CODE} 腾讯/新浪成交量之比 {r:.3f}，不是 1：成交量口径漂了"
+        f"（腾讯对 688 段给「股」，见 datasource.tx_vol_hand）")
+    detail.append(f"{VOL_CHECK_CODE} 腾讯÷新浪 {r:.3f}")
     return f"{len(h)} 根K线 | {' / '.join(detail)}"
 
 

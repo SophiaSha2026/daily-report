@@ -312,6 +312,11 @@ function pickState(l, s) {
   // 子进程。只按 done 上绿灯的话，「采样成功、enrich 挂了没发信」和正常
   // 日子在界面上一模一样（教训 16：失败必须有一个能被界面查询的对象）。
   const n = (l.n === undefined || l.n === null) ? "已完成" : l.n + " 只";
+  // 出错对象最优先：参数自学的面板段/影子段挂掉时 eval_daily 把异常写进
+  // learning_status.json 就继续往下走（研究性步骤不阻断业务），退出码 0、
+  // 日期也是今天，只按 done 上绿灯的话，这一天和正常日子在界面上一模一样，
+  // 而 learn.html 其实还是昨天那份（教训 16）。
+  if (l.error) return ["bad", "有报错", String(l.error).slice(0, 40)];
   if (l.done && l.sent === false)
     return ["bad", n + "，邮件没发出去", "数据 " + (l.date || "-")];
   if (l.done) return ["ok", n, "数据 " + (l.date || "-")];
@@ -725,9 +730,11 @@ async function refresh(force) {
     const bad = !s.sync.ok || (s.cloud_cron_live || []).length;
     // 周末只让早盘系统安静下来。晚间系统/参数自学的目标日是上一个已收盘
     // 交易日，周六没补出来是真没跑，不能被「周末」两个字盖住（教训 16）。
-    // 「跑完了但邮件没发出去」也算没跑完：那一天计划任务反而会跳过
-    // （already_done 只看 run_meta），顶栏再写「一切正常」就没人去补了。
-    const undone = s.lines.filter(l => (!l.done || l.sent === false)
+    // 「跑完了但邮件没发出去」也算没跑完，顶栏写「一切正常」就没人去补了。
+    // 起涨预测那条线计划任务会自己重跑（done_for 对它要求 sent 标记，
+    // 见 local_run.SENT_REQUIRED）；早盘那条不会 —— 09:16 之后窗口就关了，
+    // 只能靠这里报出来。带报错对象的（参数自学的 panel_error）同理。
+    const undone = s.lines.filter(l => (!l.done || l.sent === false || l.error)
       && l.key !== "evening"
       && !(s.weekend && l.key === "morning")).length;
     $("#health").innerHTML = bad

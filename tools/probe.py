@@ -36,6 +36,14 @@ DEPS = ("pandas", "pyarrow", "yaml", "requests", "akshare")
 ENV = pathlib.Path(__file__).resolve().parent / "local.env"
 
 
+def _port(cfg: dict) -> int:
+    """SMTP 端口。local.env 里 `SMTP_PORT=`（键在、值是空串）是常见的手写残留，
+    而 dict.get 的默认值只在**键不存在**时生效，int("") 直接 ValueError：
+    体检在这里整个炸掉，用户看到的是一段 traceback 而不是「SMTP 没配」。
+    """
+    return int((cfg.get("SMTP_PORT") or "").strip() or 587)
+
+
 def check_smtp() -> None:
     """真连一次 SMTP 并登录，不发信。
 
@@ -67,7 +75,7 @@ def check_smtp() -> None:
     import ssl
     t0 = time.time()
     try:
-        s = smtplib.SMTP(cfg["SMTP_HOST"], int(cfg.get("SMTP_PORT", "587")), timeout=15)
+        s = smtplib.SMTP(cfg["SMTP_HOST"], _port(cfg), timeout=15)
         s.starttls(context=ssl.create_default_context())
         s.login(cfg["SMTP_USER"], cfg["SMTP_PASS"].replace(" ", ""))
         s.quit()

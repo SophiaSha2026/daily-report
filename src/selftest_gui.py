@@ -158,10 +158,14 @@ def check_actions() -> None:
     # 和计划任务/起涨预测走的那条对齐：两处漂了，手点和自动补出来的数据就不一样
     import re as _re
     lr_src = (ROOT / "src" / "local_run.py").read_text(encoding="utf-8")
-    m = _re.search(r'py\("src/breakout/backfill\.py",\s*"--stage",\s*"(\w+)"\)',
-                   lr_src)
+    m = _re.search(r'py\("src/breakout/backfill\.py",\s*"--stage",\s*"(\w+)"'
+                   r'(?P<rest>[^)]*)\)', lr_src)
     ck(m is not None and ["--stage", m.group(1)] == bk[1:],
        f"和 local_run 里补数据那一步同一个 stage（local_run={m and m.group(1)}）")
+    # 目标日只该算一次：backfill 自己算的话，跨午夜补跑那一段（北京
+    # 00:00~08:30）它按「今天」、编排层按「最近已收盘」，两边分叉（S20）
+    ck(m is not None and '"--target"' in m.group("rest"),
+       "local_run 把算好的目标日 --target 传给补数据那一步")
     ck(all(CONFLICTS.get(k) == "breakout" for k in ("bk_backfill", "bk_refresh")),
        "两个回填按钮都映射到 breakout 锁（它们和起涨预测抢 daily.parquet）")
     # 同一条线的两个按钮（正式 / 试跑）命令行一样，落到同一把进程锁上。
@@ -191,6 +195,13 @@ def check_flow_tables() -> None:
     for k in sorted(set(gui_meta) & set(run_meta)):
         ck(gui_meta[k] == run_meta[k],
            f"{k} 的完成标记文件一致：{gui_meta[k]}")
+    # 「跑完了要不要连 sent 标记一起看」也是同一张表的两份副本：漂了的话
+    # 控制台绿灯而计划任务还在重跑（或者反过来），两边都不报错
+    ck(status.SENT_REQUIRED == local_run.SENT_REQUIRED,
+       f"SENT_REQUIRED 两边一致（gui={sorted(status.SENT_REQUIRED)} "
+       f"run={sorted(local_run.SENT_REQUIRED)}）")
+    ck(status.SENT_REQUIRED <= set(local_run.SENT_MARK),
+       "SENT_REQUIRED 里的线都有 sent 标记可查（否则它永远「没跑完」）")
 
 
 def check_windows() -> None:
@@ -484,12 +495,20 @@ def check_done_definition() -> None:
         sp.parent.mkdir(parents=True)
         # 试跑也写 run_meta。真跑完之后再点一次试跑，以前 already_done 变回
         # False，下一个 30 分钟整点计划任务就把整条线重跑并再发一封清单。
+        #
+        # 起涨预测在 SENT_REQUIRED 里：它的 run_meta 在 scan 阶段就落盘，
+        # 发信是下一个子进程。只认 run_meta 的话，send 挂掉的那天总览是绿的、
+        # 计划任务也判「已跑完」整夜不补（F5-2）。所以下面每一行的期望值
+        # 都要连 sent 标记一起看。
         cases = [
-            ({"date": d, "dry": False}, False, True, "真跑完"),
+            ({"date": d, "dry": False}, True, True, "真跑完并发了信"),
+            ({"date": d, "dry": False}, False, False,
+             "run_meta 是今天但 send 挂了（以前这里绿灯，整夜没人补）"),
             ({"date": d, "dry": True}, False, False, "只试跑过（计划任务该接管）"),
             ({"date": d, "dry": True}, True, True, "真跑完之后又试跑了一次"),
             ({"date": "2026-09-14", "dry": False}, True, False, "run_meta 是别的日子"),
-            ({"date": d}, False, True, "老格式（没有 dry 字段）"),
+            ({"date": d}, True, True, "老格式（没有 dry 字段）"),
+            ({"date": d}, False, False, "老格式但没发出去"),
         ]
         for meta, sent, want, msg in cases:
             p.write_text(json.dumps(meta), encoding="utf-8")
@@ -501,6 +520,24 @@ def check_done_definition() -> None:
             ck(local_run.already_done("breakout") is want, f"{msg}（already_done）")
             row = {r["key"]: r for r in st.line_status({})}["breakout"]
             ck(row["done"] is want, f"{msg}（控制台总览和计划任务口径一致）")
+
+        # 控制台在 local_run import 不起来时走自己那份兜底判断（L is None），
+        # 它也必须带上 sent 那道门：否则同一天一条路说没跑完、一条路说跑完了，
+        # 界面显示哪一条全看 import 成没成。
+        p.write_text(json.dumps({"date": d, "dry": False}), encoding="utf-8")
+        if sp.exists():
+            sp.unlink()
+        orig_L = st._local_run
+        st._local_run = lambda: None
+        try:
+            row = {r["key"]: r for r in st.line_status({})}["breakout"]
+            ck(row["done"] is False and row["sent"] is False,
+               "local_run 起不来时的兜底也要求 sent 标记")
+            sp.write_text("{}", encoding="utf-8")
+            row = {r["key"]: r for r in st.line_status({})}["breakout"]
+            ck(row["done"] is True, "兜底路径：有 sent 标记才算跑完")
+        finally:
+            st._local_run = orig_L
     finally:
         local_run.ROOT, st.ROOT, st.target_date, local_run.target_date = o
 
@@ -1098,14 +1135,50 @@ def check_trade_dates_cache() -> None:
         st._td_cache["at"] = 0.0
         ck(st._trade_dates() == {"2026-09-14", "2026-09-15"},
            "读到半截 JSON：留着上一次的日历，不退化成「周一到周五」")
-        ck(_t.time() - st._td_cache["at"] >= 540, "半截文件只压 30 秒，不是 10 分钟")
+        ck(_t.time() - st._td_cache["at"] >= 540, "半截文件只压 60 秒，不是 10 分钟")
         f.write_text("", encoding="utf-8")
         st._td_cache["at"] = 0.0
         ck(st._trade_dates() == {"2026-09-14", "2026-09-15"},
            "空文件（刚截断还没写）同样不清空")
+
+        # Windows 上写方是 tmp + os.replace（datasource.trade_dates），换名
+        # 那一瞬间读方拿到 OSError，而 Path.exists() 会把它吞成 False。
+        # 以前的写法用 exists() 开路，于是「文件其实在」被当成「文件没有」，
+        # 空集压 10 分钟，这 10 分钟里控制台按「周一到周五」算目标日。
+        f.write_text(json.dumps(["2026-09-14", "2026-09-15"]), encoding="utf-8")
+        st._td_cache.update(at=0.0, s={"2026-09-14", "2026-09-15"})
+
+        class _Racy:
+            def __init__(self, real: Path) -> None:
+                self._r = real
+
+            def exists(self) -> bool:
+                return False              # OSError 被 pathlib 吞成 False
+
+            def stat(self):
+                raise PermissionError(13, "正在被 os.replace 换名")
+
+            def read_text(self, **kw):
+                return self._r.read_text(**kw)
+
+        class _Dir:
+            def __init__(self, p: Path) -> None:
+                self.p = p
+
+            def __truediv__(self, x):
+                q = self.p / x
+                return _Dir(q) if x == "state" else _Racy(q)
+
+        st.ROOT = _Dir(tmp)
+        st._td_cache["at"] = 0.0
+        ck(st._trade_dates() == {"2026-09-14", "2026-09-15"},
+           "撞上 os.replace 换名那一瞬间：日历照读得出来，不退化成「周一到周五」")
+        st.ROOT = tmp
+
         f.unlink()
         st._td_cache["at"] = 0.0
         ck(st._trade_dates() == set(), "文件真没了才退化（合法降级，不是故障）")
+        ck(_t.time() - st._td_cache["at"] >= 540, "退化成空集也只压 60 秒")
     finally:
         st.ROOT = o[0]
         st._td_cache.clear(); st._td_cache.update(o[1])
@@ -1369,6 +1442,7 @@ def check_done_semantics() -> None:
         # 主断言：两份「跑完了」的定义必须逐条相等。控制台不能调
         # already_done（那条路 import akshare，教训 19），所以它用的是
         # done_for(key, 自己算的目标日) —— 等价性只能靠这条断言钉住。
+        marks: list[Path] = []
         for ln in st.LINES:
             k, mp = ln["key"], tmp / ln["meta"]
             mp.write_text(json.dumps({"date": d, "n": 3, "dry": True}),
@@ -1379,9 +1453,19 @@ def check_done_semantics() -> None:
             ck(r["dry"] is True, f"{k}：试跑这件事在返回里说得出来")
             mp.write_text(json.dumps({"date": d, "n": 3, "dry": False}),
                           encoding="utf-8")
+            if k in local_run.SENT_REQUIRED:
+                # 这几条线「跑完了」还要有 sent 标记撑着（F5-2）。下面
+                # 「没有 sent 标记 -> 没发出去」那几条断言要干净的环境，
+                # 所以先记下来，循环完就删掉。
+                mk = tmp / "state" / "sent" / f"{local_run.SENT_MARK[k]}_{d}.json"
+                mk.parent.mkdir(parents=True, exist_ok=True)
+                mk.write_text("{}", encoding="utf-8")
+                marks.append(mk)
             r = rows()[k]
             ck(r["done"] is True and r["done"] == local_run.done_for(k, d),
                f"{k}：真跑完 -> 两边都说「跑完了」")
+        for mk in marks:
+            mk.unlink()
 
         # 发信记录：竞价线看 out/mail_sent.json，起涨预测看 state/sent/
         ms = tmp / "out" / "mail_sent.json"
@@ -1445,6 +1529,263 @@ def check_daily_coverage() -> None:
     cov2, _ = local_run.daily_coverage(df2, "2026-09-16")
     ck(cov2 >= local_run.DAILY_COVER_MIN,
        "95% 的票补到了 -> 放行（长期停牌的那十几只不该卡住整条线）")
+
+    # 目标日那一天的**行数**还要和前一个交易日比（F7-9）。合并之后才看得见
+    # 的掉行：重拉分片对它覆盖的代码是「整段权威」，会把当日增量那一根清掉，
+    # 而 backfill 自己的核对发生在合并之前。
+    codes = [f"{i:06d}" for i in range(100)]
+    full = pd.DataFrame({"code": codes * 2,
+                         "date": ["2026-09-15"] * 100 + ["2026-09-16"] * 100})
+    ok, why = local_run._daily_covers(full, "2026-09-16")
+    ck(ok and "100.0%" in why, f"两天行数一样 -> 放行（{why}）")
+    # 92 只：覆盖率 92% 过得了 0.90 那道闸，行数比 92% 过不了 0.95 这道
+    thin = pd.DataFrame({"code": codes + codes[:92],
+                         "date": ["2026-09-15"] * 100 + ["2026-09-16"] * 92})
+    cov3, _ = local_run.daily_coverage(thin, "2026-09-16")
+    ok2, why2 = local_run._daily_covers(thin, "2026-09-16")
+    ck(cov3 >= local_run.DAILY_COVER_MIN and not ok2,
+       f"目标日比前一日少 8%：覆盖率那道闸放行，行数这道拦住（{why2}）")
+    ok3, why3 = local_run._daily_covers(full, "2026-09-17")
+    ck(not ok3 and "没有" in why3, f"表里根本没有目标日 -> 不出清单（{why3}）")
+    one = pd.DataFrame({"code": codes, "date": ["2026-09-16"] * 100})
+    ck(local_run._daily_covers(one, "2026-09-16")[0],
+       "表里只有目标日一天（没有更早的可比）-> 放行，不拿空基准卡死")
+
+
+def check_breakout_flow() -> None:
+    """起涨预测的三道门：补到目标日、补不上的票不许成片、真发了信才推标记。
+
+    这一条线上「退出码 0」特别不值钱：backfill 自己记的账在 json 里、
+    send 阶段的 SKIP_MAIL 也返回 0。三道门都只认产物，不认退出码（教训 27）。
+    """
+    print("\n[起涨预测：补到没有 / 发出去没有]")
+    import datetime as dt
+    import tempfile
+    import local_run
+    try:
+        import pandas as pd
+    except Exception:  # noqa: BLE001
+        ck(True, "没有 pandas，起涨预测流程断言跳过")
+        return
+
+    d, prev = "2026-09-16", "2026-09-15"
+    tz = dt.timezone(dt.timedelta(hours=8))
+    tmp = Path(tempfile.mkdtemp(prefix="bkflow_"))
+    o = (local_run.ROOT, local_run.now_bj, local_run.target_date, local_run.py,
+         local_run.sync_repo, local_run.push_marker, local_run.push_all)
+    # 代码必须来自真实代码表（历史教训 2）
+    real = (pd.read_csv(ROOT / "cache" / "codes.csv", dtype=str)["code"]
+            .str.zfill(6).tolist())[:100]
+    ran: list = []
+    local_run.ROOT = tmp
+    local_run.now_bj = lambda: dt.datetime(2026, 9, 16, 18, 0, tzinfo=tz)
+    local_run.target_date = lambda flow: d
+    local_run.sync_repo = lambda: True
+    local_run.push_marker = lambda *a, **k: ran.append(("mark",) + a[:2])
+    local_run.push_all = lambda *a, **k: ran.append(("push_all", a[0]))
+
+    def write_daily(n_target: int) -> None:
+        (tmp / "data" / "breakout").mkdir(parents=True, exist_ok=True)
+        pd.DataFrame({"code": real + real[:n_target],
+                      "date": [prev] * len(real) + [d] * n_target}
+                     ).to_parquet(tmp / "data" / "breakout" / "daily.parquet",
+                                  index=False)
+
+    def write_status(short: list) -> None:
+        (tmp / "state" / "breakout").mkdir(parents=True, exist_ok=True)
+        (tmp / "state" / "breakout" / "update_status.json").write_text(
+            json.dumps({"date": d, "appended": len(real), "missing": 0,
+                        "short": short, "ok": True}), encoding="utf-8")
+
+    def mk_py(send_writes: str):
+        """跑子阶段的假实现。send_writes 决定 send 那一步写哪个日期的
+        mail_sent.json（空串 = 一个字都不写，模拟 SKIP_MAIL / 半路 return 0）。"""
+        def _py(*a):
+            ran.append(a)
+            if a[:3] == ("src/breakout/daily.py", "--stage", "send") \
+                    and send_writes:
+                (tmp / "out_breakout").mkdir(parents=True, exist_ok=True)
+                (tmp / "out_breakout" / "mail_sent.json").write_text(
+                    json.dumps({"date": send_writes, "n_a": 3, "at": "18:02"}),
+                    encoding="utf-8")
+            return 0
+        return _py
+
+    try:
+        write_daily(len(real))
+        write_status([])
+        local_run.py = mk_py(d)
+        rc = local_run.flow_breakout(False)
+        bf = [a for a in ran if a and a[0] == "src/breakout/backfill.py"]
+        ck(rc == 0 and bf and list(bf[0][1:]) == ["--stage", "update",
+                                                  "--target", d],
+           f"正常日：补数据带上目标日 --target {d}（实际 {bf and bf[0][1:]}）")
+        ck(("mark", "sent", "breakout") in [x[:3] for x in ran if x[0] == "mark"],
+           "真发了信（mail_sent.json 是目标日的）-> 推 sent 标记")
+
+        # send 退出码 0 但没写 mail_sent：SKIP_MAIL、或者 send_mail 之前
+        # 就 return 0 的那几条路。以前照推 sent 标记，云端 20:30 据此不提醒。
+        (tmp / "out_breakout" / "mail_sent.json").unlink()
+        ran.clear()
+        local_run.py = mk_py("")
+        rc = local_run.flow_breakout(False)
+        marks = [x for x in ran if x[0] == "mark" and x[1] == "sent"]
+        ck(rc == 1 and not marks,
+           "send 退出码 0 却没有发信记录 -> rc=1，不推 sent 标记")
+        ck(any(x[0] == "push_all" for x in ran),
+           "产物照样提交（清单和面板已经生成了，别连它一起丢）")
+
+        ran.clear()
+        local_run.py = mk_py(prev)
+        ck(local_run.flow_breakout(False) == 1,
+           "mail_sent.json 是上一个交易日的 -> 同样算没发（教训 22 那种「拿旧的当今天」）")
+
+        # 补不上目标日的票成片：那天的横截面百分位和市场宽度都在残缺池子里算
+        ran.clear()
+        write_status(real[:local_run.UPDATE_SHORT_MAX + 1])
+        local_run.py = mk_py(d)
+        rc = local_run.flow_breakout(False)
+        ck(rc == 1 and not [a for a in ran if a and a[0] == "src/breakout/build.py"],
+           f"没拉到目标日的票 {local_run.UPDATE_SHORT_MAX + 1} 只 -> 不建特征、不出清单")
+        ran.clear()
+        write_status(real[:3])
+        ck(local_run.flow_breakout(False) == 0,
+           "只差 3 只（新上市/长期停牌）-> 照常出清单，只留一条 warning")
+
+        # 目标日行数比前一日少 8%：覆盖率那道闸放得过，行数这道放不过
+        ran.clear()
+        write_daily(92)
+        ck(local_run.flow_breakout(False) == 1
+           and not [a for a in ran if a and a[0] == "src/breakout/daily.py"],
+           "目标日行数只有前一日的 92% -> 不打分不发信")
+    finally:
+        (local_run.ROOT, local_run.now_bj, local_run.target_date, local_run.py,
+         local_run.sync_repo, local_run.push_marker, local_run.push_all) = o
+
+
+def check_line_error() -> None:
+    """fail-open 的分支把异常写进了状态文件，界面必须把它显示出来（F3-7）。"""
+    print("\n[学习线出错要看得见]")
+    import datetime as dt
+    import tempfile
+    from gui import status as st
+    from gui.ui import PAGE
+    tmp = Path(tempfile.mkdtemp(prefix="lerr_"))
+    d = "2026-09-16"
+    o = (st.ROOT, st.target_date, st.now_bj, st._trade_dates, st._local_run)
+    st.ROOT = tmp
+    st.target_date = lambda key: d
+    st.now_bj = lambda: dt.datetime(2026, 9, 16, 18, 0)
+    st._trade_dates = lambda: set()
+    st._local_run = lambda: None
+    try:
+        (tmp / "state").mkdir(parents=True, exist_ok=True)
+        f = tmp / "state" / "learning_status.json"
+        rows = lambda: {r["key"]: r for r in st.line_status({})}  # noqa: E731
+        f.write_text(json.dumps({"date": d, "n_days": 3}), encoding="utf-8")
+        r = rows()["learn"]
+        ck(r["done"] is True and r["error"] == "",
+           "学习线正常跑完：done=True，没有报错对象")
+        f.write_text(json.dumps({"date": d, "n_days": 3,
+                                 "panel_error": "RuntimeError: 面板炸了"}),
+                     encoding="utf-8")
+        r = rows()["learn"]
+        ck(r["error"].startswith("panel_error: RuntimeError"),
+           f"panel_error 被带到界面上（实际 {r['error'][:40]}）")
+        ck(r["done"] is True,
+           "它仍然算「跑完了」：参数确实学完了，红的是面板那一段，两件事分开报")
+        f.write_text(json.dumps({"date": d, "shadow_error": "RuntimeError: 影子炸了"}),
+                     encoding="utf-8")
+        ck(rows()["learn"]["error"].startswith("shadow_error"),
+           "shadow_error 同样带出来（影子榜挂了，当天的参考榜是空的）")
+        for k in st.ERR_KEYS:
+            ck(k in ("panel_error", "shadow_error", "error"),
+               f"ERR_KEYS 只收 eval_daily 真会写的那几个键：{k}")
+    finally:
+        (st.ROOT, st.target_date, st.now_bj, st._trade_dates, st._local_run) = o
+    # 前端得真的用它，否则后端算了也白算（教训 11 那种「接了线没接上」）
+    ck("l.error" in PAGE and 'return ["bad", "有报错"' in PAGE,
+       "总览页把带报错的那一行标红")
+    ck("l.sent === false || l.error" in PAGE,
+       "顶栏「今天还没跑」的计数也把带报错的算进去")
+    # eval_daily 那一侧真的会写这两个键（源头改名的话这里立刻红）
+    ev = (ROOT / "src" / "eval_daily.py").read_text(encoding="utf-8")
+    for k in ("panel_error", "shadow_error"):
+        ck(f'"{k}"' in ev, f"eval_daily 确实写 {k}（两边是同一个键名）")
+
+
+def check_learn_gate() -> None:
+    """learn.yml 的交易日闸门和 stage label 必须是同一口钟（F3-15 / F2-6）。"""
+    print("\n[学习线云端闸门]")
+    import datetime as _dt
+    import os
+    import re
+    import tempfile
+    import types
+    raw = (ROOT / ".github" / "workflows" / "learn.yml").read_text(encoding="utf-8")
+    ck("检查快照存在性" not in raw,
+       "learn.yml 顶部注释不再说「stage label 查快照存在性」"
+       "（快照 09:25:45 就落盘了，它拦不住盘中跑）")
+    ck("15:05" in raw, "注释写明真正的闸是北京 15:05 那口钟")
+    ev = (ROOT / "src" / "eval_daily.py").read_text(encoding="utf-8")
+    ck("(15, 5)" in ev.split("def stage_label")[1][:1200],
+       "eval_daily.stage_label 里确实是 (15, 5)（闸门抄的就是它）")
+
+    step = [s for s in _steps(".github/workflows/learn.yml", "learn")
+            if s.get("id") == "gate"]
+    ck(len(step) == 1, "找得到交易日闸门那一步")
+    if not step:
+        return
+    m = re.search(r"python - <<'PY'\n(.*?)\n\s*PY", step[0]["run"], re.S)
+    ck(m is not None, "闸门里那段 python 取得出来")
+    if not m:
+        return
+    import textwrap
+    body = textwrap.dedent(m.group(1))
+
+    def run_gate(utc: _dt.datetime) -> dict:
+        """把闸门那段脚本原样跑一遍。datetime 换成定点的，akshare 装成不可用
+        （日历拿不到时按周一到周五，和 local_run 同口径）。"""
+        fake = types.ModuleType("datetime")
+        fake.timedelta, fake.date = _dt.timedelta, _dt.date
+
+        class _DT(_dt.datetime):
+            @classmethod
+            def utcnow(cls):
+                return utc
+        fake.datetime = _DT
+        out = Path(tempfile.mkdtemp(prefix="gate_")) / "out.txt"
+        out.write_text("", encoding="utf-8")
+        old_dt, old_ak = sys.modules.get("datetime"), sys.modules.get("akshare")
+        boom = types.ModuleType("akshare")
+
+        def _no(*a, **k):
+            raise RuntimeError("自测：不许联网")
+        boom.tool_trade_date_hist_sina = _no
+        sys.modules["datetime"], sys.modules["akshare"] = fake, boom
+        os.environ["GITHUB_OUTPUT"] = str(out)
+        try:
+            exec(compile(body, "<gate>", "exec"), {"__name__": "__main__"})
+        finally:
+            sys.modules["datetime"] = old_dt
+            if old_ak is None:
+                sys.modules.pop("akshare", None)
+            else:
+                sys.modules["akshare"] = old_ak
+            os.environ.pop("GITHUB_OUTPUT", None)
+        return dict(ln.split("=", 1) for ln in
+                    out.read_text(encoding="utf-8").splitlines() if "=" in ln)
+
+    # 北京 = UTC+8。09-16 是周三，09-19 周六。
+    g = run_gate(_dt.datetime(2026, 9, 16, 5, 0))          # 北京 13:00，未收盘
+    ck(g.get("go") == "1" and g.get("date") == "2026-09-15",
+       f"盘中派发：目标日退回上一个交易日（实际 {g.get('date')}）")
+    g = run_gate(_dt.datetime(2026, 9, 16, 8, 0))          # 北京 16:00
+    ck(g.get("go") == "1" and g.get("date") == "2026-09-16",
+       f"收盘后派发：目标日是当天（实际 {g.get('date')}）")
+    g = run_gate(_dt.datetime(2026, 9, 19, 5, 0))          # 北京周六 13:00
+    ck(g.get("go") == "1" and g.get("date") == "2026-09-18",
+       f"周六派发：目标日是周五（实际 {g.get('date')}），不是「非交易日」整段跳过")
 
 
 def check_yield_confirm() -> None:
@@ -1551,8 +1892,16 @@ def check_pages_checkout_guard() -> None:
 def check_workflow_push() -> None:
     """云端提交：rebase 冲突之后 push 会「空成功」，不能认退出码。"""
     print("\n[云端提交的推送]")
+    # 六条 workflow 一个模板。漏掉一条不会报错，只会在某个提交丢掉的那天
+    # 表现成「跑了但仓库里没有」，而那正是最难查的一种。
     for rel, job, nm in ((".github/workflows/auction.yml", "screen", "提交数据"),
-                         (".github/workflows/evening_check.yml", "check", "记下")):
+                         (".github/workflows/evening_check.yml", "check", "记下"),
+                         (".github/workflows/premarket.yml", "build", "提交候选池"),
+                         (".github/workflows/pullback.yml", "pullback", "提交数据"),
+                         (".github/workflows/refresh_meta.yml", "refresh", "提交缓存"),
+                         (".github/workflows/refresh_sector.yml", "sector",
+                          "提交板块表"),
+                         (".github/workflows/learn.yml", "learn", "提交结果")):
         step = [s for s in _steps(rel, job) if nm in str(s.get("name", ""))]
         ck(len(step) == 1, f"{rel}: 找得到「{nm}」那一步")
         if not step:
@@ -1573,6 +1922,15 @@ def check_workflow_push() -> None:
            f"{rel}: 推完按 origin 上的东西核对，不认 push 的退出码")
         ck("::error::" in run and "::warning::push 失败" not in run,
            f"{rel}: 推丢了要 ::error::（这是唯一能被看见的信号）")
+        # ::error:: 只是把日志那一行标红，job 仍然是绿的、状态还是 success。
+        # 提交的是「别人要读的产物」时（候选池、当日快照、代码表、板块表），
+        # 推丢了必须让 job 真的红，或者发一封告警邮件。
+        # evening_check 不在此列：它推的是「今天已提醒」标记，提醒邮件那一步
+        # 已经发出去了，最坏后果是下一个入口重复提醒一次。
+        if "evening_check" not in rel:
+            tail_err = run[run.find("::error::"):]
+            ck("exit 1" in tail_err or "send_alert" in tail_err,
+               f"{rel}: ::error:: 之后要 exit 1 或发告警邮件（光标红没人看得见）")
         if "mailer" in run:
             ck("SMTP_HOST" in str(step[0].get("env", {})),
                f"{rel}: 要发告警邮件的步骤必须带 SMTP 环境变量，"
@@ -1655,6 +2013,9 @@ def main() -> int:
     check_done_definition()
     check_done_semantics()
     check_daily_coverage()
+    check_breakout_flow()
+    check_line_error()
+    check_learn_gate()
     check_resend_guard()
     check_scan_and_lock()
     check_push_wiring()

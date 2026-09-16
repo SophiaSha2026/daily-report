@@ -378,6 +378,19 @@ def stage_quick(c: dict, late: bool = False, auto_salvage: bool = False) -> int:
     return 0
 
 
+def mail_sent_at(date: str) -> str:
+    """今天的清单邮件已经发出去了没有。发了返回发信时刻，没发返回空串。
+
+    out/mail_sent.json 是 send_report 真返回之后才写的（见 stage_enrich
+    末尾），它是「发过了」的唯一证据。
+    """
+    try:
+        ms = json.loads((OUT / "mail_sent.json").read_text(encoding="utf-8"))
+        return str(ms.get("at") or "已发") if ms.get("date") == date else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def stage_enrich(c: dict) -> int:
     today = now_bj().strftime("%Y-%m-%d")
     f = OUT / "selected.json"
@@ -492,6 +505,17 @@ def stage_enrich(c: dict) -> int:
     att = [p for p in blocks if p.stat().st_size > 0]
     if o.get("attach_csv") and (OUT / "detail.csv").exists():
         att.append(OUT / "detail.csv")
+
+    # 今天已经发过一封了：面板、txt、csv 照常重建（上面已经做完），但不再发
+    # 第二封，也不去等发信时点。进程锁只挡得住「同时跑」，挡不住「先后跑」：
+    # 发完信再点一次「早盘选股」，或者云端兜底已经发过之后本机又跑一轮，
+    # enrich 会原样再走一遍这条路。2026-09-14 用户同一秒收到过两封一模一样
+    # 的邮件（教训 23），那次是双实例；这道门管的是先后两次。
+    sent_at = mail_sent_at(today)
+    if sent_at:
+        log.info("out/mail_sent.json 记着 %s 已于 %s 发出，本次只重建面板不再发信。"
+                 "确要重发先删 out/mail_sent.json", today, sent_at)
+        return 0
 
     # 双阈值：软时点到了就发；Claude 拖过软时点也照发，但越过硬上限要留痕。
     rt = c["runtime"]

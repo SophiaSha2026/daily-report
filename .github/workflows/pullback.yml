@@ -169,21 +169,43 @@ jobs:
       - name: 提交数据
         if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
         run: |
+          # 推送模板和 auction.yml 的「提交数据」同款，坑也一样：
+          # `pull --rebase --autostash || true` 吞掉冲突后仓库停在
+          # rebase-merge 中间态、HEAD 落在 origin/main 上，下一轮 push 是
+          # 「Everything up-to-date」的空成功（rc=0），::warning 永不打印，
+          # 当天的 parquet 静默丢失，而**幂等检查读的就是它**：下一个入口
+          # 会以为今天没扫过，再跑一遍再发一封（教训 15 / 16）。
           git config user.name auction-bot
           git config user.email bot@users.noreply.github.com
           git add data/ out_pullback/ || true
           git diff --staged --quiet || \
             git commit -m "data: 形态 ${{ steps.g.outputs.date }}"
+          D="${{ steps.g.outputs.date }}"; F="data/${D:0:7}/pullback_${D}.parquet"
+          # WANT 取**工作区那份文件**的 blob，不是 HEAD 里的：被 .gitignore
+          # 挡住、或者 add 失败时，HEAD 里那份还是 checkout 带下来的旧内容，
+          # 拿它和 origin 比会一路相等，这一步就成了永远通过的摆设。
+          WANT=$(git hash-object "$F" 2>/dev/null || echo none)
           # 显式带 token：claude-code-action 跑完会把 checkout 写进去的凭证清掉，
           # 裸 push 必然 Invalid username or token。竞价那条线踩过。
           URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           ok=""
           for i in 1 2 3; do
+            git rebase --abort 2>/dev/null || true
+            git fetch -q origin "${{ github.ref_name }}"
+            if ! git rebase --autostash -X theirs "origin/${{ github.ref_name }}"; then
+              git rebase --abort 2>/dev/null || true
+              sleep 5
+              continue
+            fi
             if git push "$URL" HEAD:${{ github.ref_name }}; then ok=1; break; fi
             sleep 5
-            git pull --rebase --autostash || true
           done
-          [ -n "$ok" ] || echo "::warning::push 失败"
+          git fetch -q origin "${{ github.ref_name }}" || true
+          GOT=$(git rev-parse "origin/${{ github.ref_name }}:$F" 2>/dev/null || echo missing)
+          if [ -z "$ok" ] || { [ "$WANT" != none ] && [ "$GOT" != "$WANT" ]; }; then
+            echo "::error::今日形态快照 $F 没推上 origin（want=$WANT got=$GOT），幂等检查会失效"
+            exit 1
+          fi
 
       # 一个仓库只有一份 Pages 部署，build_site.py 会把竞价面板和形态面板
       # 一起打包，谁后跑发布的都是完整站点，不会互相冲掉。
