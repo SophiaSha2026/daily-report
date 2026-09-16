@@ -1,0 +1,22 @@
+{
+ "date": "2026-09-16",
+ "ok": false,
+ "started_at": "2026-09-16T13:13:16",
+ "model": "claude-opus-5",
+ "effort": "max",
+ "lenses": {
+  "gap_where": {
+   "ok": false,
+   "seconds": 507.6,
+   "turns": 41,
+   "cost_usd": 5.239122499999999,
+   "n_tool_calls": 40,
+   "error": "退出码 1 "
+  }
+ },
+ "evidence": "C:\\home\\daily-report\\state\\council\\2026-09-16\\evidence.json",
+ "error": "六个视角全部失败，不开主审",
+ "seconds": 514.6,
+ "finished_at": "2026-09-16T13:21:51",
+ "cost_usd": 5.239
+}

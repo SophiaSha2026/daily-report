@@ -70,6 +70,7 @@ config.yaml              所有阈值。竞价看 screen/scoring，形态看 pul
                          learning 段是学习系统自己的超参，不是被学的对象
 prompts/analyst.md       竞价的 LLM 指令
 prompts/pullback_analyst.md  形态的 LLM 指令
+prompts/council/*.md     学习会诊：公共说明 + 六个视角 + 主审的提纲
 src/
   datasource.py          数据源层。腾讯批量行情为主，东财单只日线为辅
   ── 竞价线 ──
@@ -95,7 +96,11 @@ src/
   learn/shadow.py        影子排序器（RankHuber 线性，试运行；转正证据与提案）
   learn/panel.py         学习面板 learn.html（阶段进度、双榜对比、裁决时间线）
   learn/report.py        学习邮件（变更 / 提案）+ state/learning_status.json
-  selftest_learn.py      学习线离线自测
+  learn/council/         学习会诊（2026-09-16）：每次学习更新末尾，六个视角各起一个
+                         Opus 进程并行深挖「预测 vs 实际」，主审汇总，提案自动实验，
+                         过闸的等控制台批准。schemas / evidence / agents / experiments /
+                         run / panel。设计 docs/council.md
+  selftest_learn.py      学习线离线自测（含会诊 18 条）
   ── 爆发线（收盘后，2026-09-12 起）──
   breakout/backfill.py   回填三年日线。主源新浪（多进程），腾讯兜底。
                          --stage update 每日增量（腾讯快照，秒级），refresh 全量重拉
@@ -109,6 +114,7 @@ src/
   breakout/arena.py      模型对比主脚本，封存数据的纪律在这里用代码强制
   breakout/daily.py      每日流程：打分 -> 风险剔除 -> 清单A/B。晚间系统主脚本
   breakout/export.py     起涨预测的面板 + 邮件
+  breakout/truth.py      历史清单的真值（之后 20 根涨没涨）+ 同期全市场基准，会诊读它
   ── 控制台（GUI，2026-09-12）──
   gui/server.py          HTTP 服务。标准库 ThreadingHTTPServer，零第三方依赖
   gui/ui.py              单页界面（HTML/CSS/JS 都在这个字符串里）
@@ -139,6 +145,7 @@ tools/external-trigger/  Cloudflare Worker：07:30 BJT 派发 auction、20:45 �
 tools/setup_tasks.ps1    本机四个计划任务的唯一定义
 tools/evening_check.py   晚间托底检查（只在云端跑）
 tools/yield_check.py     竞价线让位检查（只在云端跑）
+tools/council_query.py   会诊的只读查询工具，LLM 视角进程通过 Bash 白名单调它
 cache/                   codes.csv, sector_map.parquet, universe.parquet
 data/YYYY-MM/            auction_*.parquet 竞价快照 / pullback_*.parquet 形态结果
 out/                     竞价当日产物：panel.html, stamp.txt, 竞价_*.txt, detail.csv,
@@ -158,7 +165,7 @@ tools/panel.cmd/.ps1     旧的 PowerShell TUI，保留作没有浏览器时的�
 ```bash
 python src/selftest.py            # 竞价：17 用例 + 9 条曲线不变量 + 4 条规则不变量 + 1000 压力样本 + 影子榜渲染
 python src/selftest_pullback.py   # 形态：13 条形态判定 + 打分单调性 + 工具函数
-python src/selftest_learn.py      # 学习：70 余条，含向量化打分器等价性、闸门接线 AST、邮件接线
+python src/selftest_learn.py      # 学习：90 余条，含向量化打分器等价性、闸门接线 AST、邮件接线、会诊
 python src/selftest_gui.py        # 控制台：按钮接线、流程表一致性、开跑窗口、两道防护
 python src/selftest_breakout.py   # 爆发线：筹码六项一致性、标签、前视偏差、横截面百分位
 python -m pyflakes src tools      # 静态检查，必须零输出（pip install pyflakes）

@@ -59,10 +59,11 @@ def main() -> int:
 
     # 学习面板：文件名就叫 learn.html，不是 panel.html，单独拷。
     # 它一天最多变一次，CDN 缓存 10 分钟无所谓，不需要 stamp 自刷新。
-    lp = ROOT / "out_learn" / "learn.html"
-    if lp.exists():
-        shutil.copy2(lp, SITE / "learn.html")
-        log.info("已发布 %s -> learn.html", lp)
+    for nm in ("learn.html", "council.html"):
+        lp = ROOT / "out_learn" / nm
+        if lp.exists():
+            shutil.copy2(lp, SITE / nm)
+            log.info("已发布 %s -> %s", lp, nm)
 
     if not got:
         log.error("两个面板都不存在，_site 是空的")

@@ -599,7 +599,8 @@ def flow_learn(dry: bool, base: int = 0, total: int = 3) -> int:
     step(base + 2, total, "推送学习产物")
     # learn.html 也推：它进 Pages 站点，不推就没人看得到今天的裁决
     push_all(f"learn: {d} [local]",
-             ["data/labels", "state", "out_learn/learn.html"], dry)
+             ["data/labels", "state", "out_learn/learn.html",
+              "out_learn/council.html"], dry)
     return rc
 
 

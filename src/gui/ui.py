@@ -193,6 +193,9 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
         <span class="tabgrp">晚间系统</span>
         <button data-p="breakout">起涨预测</button>
         <button data-p="pullback">回调形态</button>
+        <span class="tabsep"></span>
+        <span class="tabgrp">学习</span>
+        <button data-p="council">学习会诊</button>
       </div>
       <div class="body"><iframe id="pframe" src="/panel/auction"></iframe></div>
     </div>
@@ -387,7 +390,11 @@ function renderHome(s) {
   // 三个数和 export.STREAK_PERF 一致：hit2 = 连续 2 天以上，hitAll = 全部上榜。
   // 实验 10（偷看、未净化、筹码网格三处漏洞都修掉之后）连续信号只剩「略高」，
   // 3 天以上样本不到 100 只，不再单独当一档说。
-  const hit2 = 15.7, hitAll = 12.6, base = 2.93;
+  // 2026-09-16 起从服务端读 window_grid.json（和 export.STREAK_PERF 同源），
+  // 读不到才退回下面这组手抄值。
+  const bp = s.breakout_perf || {};
+  const hit2 = bp.exists ? bp.hit2 : 15.7, hitAll = bp.exists ? bp.hit_all : 12.6,
+        base = bp.exists ? bp.base : 2.93;
   c2.appendChild(perfBlock(
     "100 只票里，有多少会在接下来一个月内涨超 50%？（验证集 207 个交易日）", [
     perfRow("连续上榜 2 天以上的", hit2.toFixed(1) + " 只", "", 100, false),
@@ -401,6 +408,25 @@ function renderHome(s) {
    + "不是「选出来的都会涨」。这组数字是把偷看和未净化的回测都修掉之后的，"
    + "比早先发布的低，那才是真的。"));
   box.appendChild(c2);
+
+  // 学习会诊：最近一次的结论 + 等批准的提案
+  const cs = s.council || {};
+  const c3 = el("div", "card");
+  c3.appendChild(el("h2", "", "学习会诊"));
+  if (!cs.exists) {
+    c3.appendChild(el("div", "dim", "还没跑过。学习流程末尾自动跑；也可在「运行 -> 1-3 学习会诊」手动跑。"));
+  } else {
+    const st = cs.ok ? "ok" : "warn";
+    const v = cs.ok ? ((cs.verdict || "") + (cs.p_real != null ? "（差距为真 " + Math.round(cs.p_real * 100) + "%）" : ""))
+                    : ("没跑成：" + (cs.error || ""));
+    c3.appendChild(sysItem("会诊", cs.date || "", "LLM 六个视角并行分析预测 vs 实际", st, v,
+                           cs.ok ? (cs.n_proposals || 0) + " 条提案 · " + Math.round(cs.seconds || 0) + " 秒" : ""));
+    const pend = cs.pending || 0;
+    c3.appendChild(sysItem("待批准", pend + " 条", "过了实验闸门、等你一键批准落地",
+                           pend ? "warn" : "ok", pend ? "去「面板 -> 学习会诊」批准" : "没有待办",
+                           (cs.needs_human || 0) + " 条要人手工做"));
+  }
+  box.appendChild(c3);
 
   return renderSync(box, s);
 }

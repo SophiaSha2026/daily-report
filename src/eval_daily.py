@@ -190,6 +190,94 @@ def _regime_of(date: str) -> str | None:
         return None
 
 
+def _judge(c: dict, df, mk, p_te, theta_new: dict, theta_prev: dict,
+           days: list[str], date: str, *, intents: list[str] | None = None):
+    """算一遍闸门要的全部统计量并裁决。stage_learn 和会诊的参数提案共用这一段，
+    两边评的是同一套闸门（教训 11：统计量一律关键字传入）。
+
+    返回 (Verdict, {"online_days", "online_p", "dfo", "paired", "churn", "boot_p"})。
+    """
+    lc = c["learning"]
+    box, g = lc["box"], lc["gate"]
+    theta0 = C.theta0(box)
+    dayw = load_day_weights(c)
+    n = len(days)
+    oos_new, gd_new = p_te.G(theta_new)
+    oos_old, gd_old = p_te.G(theta_prev)
+    bp = OPT.bootstrap_better(p_te, theta_new, theta_prev, g["bootstrap_n"])
+    # 闸门 3 自助的是逐日配对差的 Huber 位置；把它的点估计也报出来，
+    # 免得「P 高但 ΔĜ 为负」看起来像矛盾（两者量的不是同一件事）。
+    paired = float(O.huber_location(gd_new - gd_old, None,
+                                    lc["objective"]["huber_c"]))
+
+    look = days[-g["churn_lookback"]:]
+    p_look = mk(look)
+    codes = df[df["date"].isin(look)].sort_values(
+        "date", kind="mergesort")["code"].to_numpy()
+    churn = gate.churn_by_day(p_look.top_codes(theta_prev, codes),
+                              p_look.top_codes(theta_new, codes))
+
+    # 第七道闸：在线真值快照上的稳健性。训练是回填（轨迹为代理值），
+    # 这里用真采样的那几天做否决检验。抢救日已被 dataset 守卫剔除。
+    online_p, online_days = None, 0
+    dfo = (df[df["_src"] == "online"] if "_src" in df.columns
+           else df.iloc[0:0])
+    if not dfo.empty:
+        p_on = OPT.Problem(dfo, c, box, theta0, theta_prev, dayw,
+                           lc["objective"]["top_k"],
+                           lc["objective"]["huber_c"],
+                           lc["objective"]["tau_perplexity_tol"])
+        online_days = dfo["date"].nunique()
+        online_p = OPT.bootstrap_better(p_on, theta_new, theta_prev,
+                                        g["bootstrap_n"])
+        log.info("在线稳健性：%d 天真值快照，P(新参数更好)=%.2f",
+                 online_days, online_p)
+
+    # 统计量一律关键字传入（闸门 3 曾因位置错位拿到阈值本身，见 gate.evaluate）
+    v = gate.evaluate(theta_new, theta_prev, box, g, n, days, date,
+                      boot_p=bp, oos_new=oos_new, oos_old=oos_old,
+                      churn=churn, online_p=online_p, online_days=online_days,
+                      intents=list(intents or []), paired_delta=paired)
+    return v, {"online_days": online_days, "online_p": online_p, "dfo": dfo,
+               "paired": paired, "churn": churn, "boot_p": bp,
+               "p_look": p_look, "codes": codes}
+
+
+def evaluate_candidate(c: dict, theta_new: dict, date: str) -> dict | None:
+    """给学习会诊用：一组参数值走和优化器候选同一套七道闸，**不写盘不记裁决**。
+
+    返回 {"verdict": dict, "metrics": {"prev":..., "new":...}}；数据不够返回 None。
+    """
+    lc = c["learning"]
+    box, g = lc["box"], lc["gate"]
+    df, _source = _load_train(c)
+    if df.empty:
+        return None
+    days = sorted(df["date"].unique())
+    if len(days) < g["min_days"]:
+        return None
+    theta0, theta_prev = C.theta0(box), C.theta_now(box)
+    dayw = load_day_weights(c)
+    theta_new = {k: float(theta_new.get(k, theta_prev[k])) for k in box}
+
+    def mk(sub_days):
+        sub = df[df["date"].isin(sub_days)]
+        return OPT.Problem(sub, c, box, theta0, theta_prev, dayw,
+                           lc["objective"]["top_k"], lc["objective"]["huber_c"],
+                           lc["objective"]["tau_perplexity_tol"])
+
+    tr, te = OPT.split_days(days, g["oos_frac"])
+    p_te = mk(te)
+    intents = [k for k in box if abs(theta_new[k] - theta_prev[k]) > 1e-9]
+    v, _ = _judge(c, df, mk, p_te, theta_new, theta_prev, days, date,
+                  intents=intents)
+    full = mk(days)
+    return {"verdict": v.to_dict(),
+            "metrics": {"prev": full.metrics(theta_prev, lc["objective"]["top_k"]),
+                        "new": full.metrics(theta_new, lc["objective"]["top_k"])},
+            "theta": theta_new, "n_days": len(days)}
+
+
 def stage_learn(c: dict, date: str, dry: bool) -> int:
     lc = c["learning"]
     box, g = lc["box"], lc["gate"]
@@ -241,44 +329,9 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
              sum(1 for k in box
                  if abs(theta_fit[k] - theta_prev[k]) > 1e-9), intents)
 
-    oos_new, gd_new = p_te.G(theta_new)
-    oos_old, gd_old = p_te.G(theta_prev)
-    bp = OPT.bootstrap_better(p_te, theta_new, theta_prev, g["bootstrap_n"])
-    # 闸门 3 自助的是逐日配对差的 Huber 位置；把它的点估计也报出来，
-    # 免得「P 高但 ΔĜ 为负」看起来像矛盾（两者量的不是同一件事）。
-    paired = float(O.huber_location(gd_new - gd_old, None,
-                                    lc["objective"]["huber_c"]))
-
-    look = days[-g["churn_lookback"]:]
-    p_look = mk(look)
-    codes = df[df["date"].isin(look)].sort_values(
-        "date", kind="mergesort")["code"].to_numpy()
-    churn = gate.churn_by_day(p_look.top_codes(theta_prev, codes),
-                              p_look.top_codes(theta_new, codes))
-
-    # 第七道闸：在线真值快照上的稳健性。训练是回填（轨迹为代理值），
-    # 这里用真采样的那几天做否决检验。抢救日已被 dataset 守卫剔除。
-    online_p, online_days = None, 0
-    # 在线天现在也在训练表里（时间轴末端，走向前切分时落在样本外段）；
-    # 这里单独再看一眼它们，作为否决项保留。
-    dfo = (df[df["_src"] == "online"] if "_src" in df.columns
-           else df.iloc[0:0])
-    if not dfo.empty:
-        p_on = OPT.Problem(dfo, c, box, theta0, theta_prev, dayw,
-                           lc["objective"]["top_k"],
-                           lc["objective"]["huber_c"],
-                           lc["objective"]["tau_perplexity_tol"])
-        online_days = dfo["date"].nunique()
-        online_p = OPT.bootstrap_better(p_on, theta_new, theta_prev,
-                                        g["bootstrap_n"])
-        log.info("在线稳健性：%d 天真值快照，P(新参数更好)=%.2f",
-                 online_days, online_p)
-
-    # 统计量一律关键字传入（闸门 3 曾因位置错位拿到阈值本身，见 gate.evaluate）
-    v = gate.evaluate(theta_new, theta_prev, box, g, n, days, date,
-                      boot_p=bp, oos_new=oos_new, oos_old=oos_old,
-                      churn=churn, online_p=online_p, online_days=online_days,
-                      intents=intents, paired_delta=paired)
+    v, judged = _judge(c, df, mk, p_te, theta_new, theta_prev, days, date,
+                       intents=intents)
+    dfo, p_look, codes = judged["dfo"], judged["p_look"], judged["codes"]
     status["verdict"] = v.to_dict()
     status["train_source"] = source
     status["intents"] = list(intents)
@@ -463,7 +516,8 @@ def main() -> int:
     ap.add_argument("--stage", required=True,
                     choices=["label", "brief", "learn", "race", "rollback",
                              "status", "backfill", "intraday", "exits",
-                             "llm", "all", "apply-held", "build-train"])
+                             "llm", "all", "apply-held", "build-train",
+                             "council"])
     ap.add_argument("--date", default=None)
     ap.add_argument("--backfill", action="store_true",
                     help="label 阶段从 cache/hist_daily.parquet 取，而不是联网")
@@ -596,10 +650,38 @@ def main() -> int:
             # brief 是别的日子留下的。拿它归因会把昨天的票安到今天头上，
             # 归因文件按日期落盘，错一天就污染那一天的日权重。
             log.info("eval_brief.json 不是 %s 的，跳过归因", date)
-        return rc | stage_learn(c, date, a.dry)
+        rc |= stage_learn(c, date, a.dry)
+        # 学习会诊：研究性组件，任何失败都不影响上面的裁决和退出码
+        if not a.dry:
+            stage_council(c, date)
+        return rc
+    if a.stage == "council":
+        return stage_council(c, date)
     if a.stage == "race":
         return stage_race(c)
     return stage_learn(c, date, a.dry)
+
+
+def stage_council(c: dict, date: str) -> int:
+    """学习会诊（docs/council.md）。fail-open：失败只写 state/council/latest.json。"""
+    lc = (c.get("learning") or {}).get("council") or {}
+    if not lc.get("enabled", True):
+        log.info("学习会诊已关闭（learning.council.enabled=false）")
+        return 0
+    try:
+        from learn.council import run as CR
+        s = CR.run(c, date)
+        log.info("学习会诊 %s：%s，%d 条提案，%.0f 秒", date,
+                 "成功" if s.get("ok") else s.get("error", "失败"),
+                 s.get("n_proposals", 0), s.get("seconds", 0))
+    except Exception as e:  # noqa: BLE001
+        log.warning("学习会诊失败（不影响学习流程）: %s", e)
+        try:
+            from learn.council import run as CR
+            CR._write_latest({"date": date, "ok": False, "error": str(e)[:200]})
+        except Exception:  # noqa: BLE001
+            pass
+    return 0
 
 
 if __name__ == "__main__":

@@ -75,6 +75,38 @@ log = logging.getLogger("breakout")
 # 入选规则，连续天数继续只用来排序和展示。
 SCORE_MIN = 97      # 够不到这个分数就不上清单，当天可以为空
 CAP_A = 10          # 上限。防止极端强势日几百只同时够格，清单没法看
+
+
+def load_overrides() -> dict:
+    """学习会诊批准过的常量覆盖（state/breakout/overrides.json）。
+
+    只认 SCORE_MIN / CAP_A / MIN_STREAK / drop_features 四个键，其余忽略。
+    文件由 learn/council/experiments.apply 写，人在控制台批准才会有；
+    删掉文件 = 回到代码里的默认值。读失败按没有处理，不许影响出清单。
+    """
+    p = ROOT / "state" / "breakout" / "overrides.json"
+    try:
+        if not p.exists():
+            return {}
+        o = json.loads(p.read_text(encoding="utf-8"))
+        out = {}
+        for k in ("SCORE_MIN", "CAP_A", "MIN_STREAK"):
+            if k in o:
+                out[k] = int(o[k])
+        if isinstance(o.get("drop_features"), list):
+            out["drop_features"] = sorted(str(x) for x in o["drop_features"])
+        return out
+    except Exception as e:  # noqa: BLE001
+        log.warning("overrides.json 读取失败，按默认值: %s", e)
+        return {}
+
+
+_OVR = load_overrides()
+SCORE_MIN = int(_OVR.get("SCORE_MIN", SCORE_MIN))
+CAP_A = int(_OVR.get("CAP_A", CAP_A))
+DROP_FEATURES = list(_OVR.get("drop_features", []))   # 会诊批准去掉的基础特征名
+if _OVR:
+    log.info("起涨预测常量覆盖生效：%s", _OVR)
 TOP_A = CAP_A       # 兼容旧名字
 SCORE_B = SCORE_MIN  # 进 B 池的门槛。清单 A 本身就是 ≥97 分，两者一致
 POOL_DAYS = 60      # A 池里的股票保留多少个交易日
@@ -124,8 +156,9 @@ def feature_fingerprint(df: pd.DataFrame) -> str:
     """训练表特征列的指纹（列名集合 + 筹码算法版本）。"""
     import hashlib
     import chips as CH
-    cols = sorted(c for c in df.columns if "__" in c)
-    key = "|".join(cols) + f"|chips={CH.N_BINS}"
+    cols = sorted(c for c in df.columns if "__" in c
+                  if c.rsplit("__", 1)[0] not in set(DROP_FEATURES))
+    key = "|".join(cols) + f"|chips={CH.N_BINS}|drop={','.join(DROP_FEATURES)}"
     return hashlib.md5(key.encode("utf-8")).hexdigest()
 
 
@@ -165,7 +198,10 @@ def load_or_fit(df: pd.DataFrame, force: bool = False):
     cut = dates[-TRAIN_END_GAP] if len(dates) > TRAIN_END_GAP else dates[0]
     tr = df[df["date"] < cut]
     log.info("重训模型：用 %s 之前的 %d 行", cut, len(tr))
-    feats_all = [c for c in df.columns if "__" in c]
+    feats_all = [c for c in df.columns if "__" in c
+                 and c.rsplit("__", 1)[0] not in set(DROP_FEATURES)]
+    if DROP_FEATURES:
+        log.info("会诊批准去掉的特征：%s（剩 %d 列）", DROP_FEATURES, len(feats_all))
     rep = FS.run(tr, feats_all, y="y_up")
     feats = rep["keep"]
     trs = M.stratified_sample(tr, "y_up")

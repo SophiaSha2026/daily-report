@@ -1,0 +1,516 @@
+"""
+证据包：两条线「预测 vs 真值」的全部数字，纯代码算，LLM 拿到的是同一份。
+
+早盘（早盘选股 + 参数自学）
+    在线真值日逐日：IC、前 10 超额、命中只数、池大小、当日中位、归因 regime
+    分数分档 / 六个维度高低三分之一 / A-B 组 / 涨幅段 / 量比段 的超额
+    被硬剔除 vs 过准入
+    逐日 worst / best（从标签 + 快照重算）
+    回填 vs 在线的口径差（同名列的均值/中位数、拒绝率）
+    闸门裁决、参数历史、影子对比
+
+起涨预测
+    每份清单的真值（breakout/truth.py）：命中率 vs 邮件期望 vs 同期基准
+    按连续档 / 分数段 / 板块
+    模型：训练日期、重要性、今天清单的特征分位
+    数据健康：每天参与横截面的代码数、NaN 比例
+
+写到 state/council/<date>/evidence.json。数字都带样本数，没有样本数的
+数字 LLM 会当成确定的事实，那是误导。
+"""
+from __future__ import annotations
+
+import datetime as dt
+import glob
+import json
+import logging
+import math
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "src" / "breakout"))
+
+log = logging.getLogger(__name__)
+STATE = ROOT / "state"
+OUT_DIR = STATE / "council"
+
+
+def _f(x, nd: int = 4):
+    """浮点四舍五入，NaN/None -> None（JSON 里不许出现 NaN）。"""
+    try:
+        v = float(x)
+    except Exception:  # noqa: BLE001
+        return None
+    if not math.isfinite(v):
+        return None
+    return round(v, nd)
+
+
+def _jsonl(p: Path) -> list[dict]:
+    if not p.exists():
+        return []
+    out = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        try:
+            out.append(json.loads(line))
+        except Exception:  # noqa: BLE001
+            pass
+    return out
+
+
+def _json(p: Path) -> dict:
+    try:
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+# ---------------------------------------------------------------------
+#  早盘
+# ---------------------------------------------------------------------
+def morning(c: dict, n_days: int = 0) -> dict:
+    """在线真值日的预测 vs 真值。n_days=0 取全部。"""
+    from learn import dataset, vscore
+    from learn.model_select import spearman
+    lc = c["learning"]
+    df = dataset.build(None, lc["neutralize"])
+    out: dict = {"days": 0, "note": ""}
+    if df.empty:
+        out["note"] = "还没有在线真值日"
+        return out
+    days = sorted(df["date"].unique())
+    if n_days:
+        days = days[-n_days:]
+        df = df[df["date"].isin(days)]
+    sc, rej = vscore.score_df(df, c)
+    df = df.assign(sc=sc, rej=rej)
+    top_k = int(lc["objective"]["top_k"])
+    regimes = {p.stem: _json(p).get("day_regime", "")
+               for p in (STATE / "llm_eval").glob("*.json")}
+
+    daily, worst_best = [], {}
+    for d, g in df.groupby("date"):
+        ok = g[~g["rej"]]
+        top = ok.nlargest(top_k, "sc")
+        ic = spearman(ok["sc"].to_numpy(), ok["ytil"].to_numpy()) \
+            if len(ok) > 5 else float("nan")
+        daily.append({
+            "date": d, "pool": int(len(g)), "admitted": int(len(ok)),
+            "market_median_pct": _f(100 * g["day_center"].iloc[0], 2),
+            "top_excess_pct": _f(100 * top["y"].mean(), 3),
+            "top_hits": int((top["y"] > 0).sum()), "top_n": int(len(top)),
+            "top_mean_score": _f(top["sc"].mean(), 1),
+            "admitted_excess_pct": _f(100 * ok["y"].mean(), 3),
+            "ic": _f(ic, 3),
+            "regime": regimes.get(d, ""),
+        })
+        head = ok.head(20) if len(ok) else ok
+        tail = ok.tail(max(len(ok) // 2, 1)) if len(ok) else ok
+
+        def pack(gg):
+            return [{"code": r.code, "name": r.name, "score": _f(r.sc, 1),
+                     "gap_pct": _f(r.gap_pct, 2), "ret_pct": _f(100 * r.r, 2),
+                     "ytil": _f(r.ytil, 2), "sector": r.sector}
+                    for r in gg.itertuples(index=False)]
+        worst_best[d] = {"worst": pack(head.nsmallest(5, "ytil")),
+                         "best": pack(tail.nlargest(5, "ytil"))}
+
+    ok = df[~df["rej"]].copy()
+    ok["y_pct"] = 100 * ok["y"]
+
+    def bucket(series, bins, labels):
+        cut = pd.cut(series, bins, right=False, labels=labels)
+        rows = []
+        for k, g in ok.groupby(cut, observed=True):
+            rows.append({"bucket": str(k), "n": int(len(g)),
+                         "excess_pct": _f(g["y_pct"].mean(), 3),
+                         "hit_rate": _f((g["y"] > 0).mean(), 3)})
+        return rows
+
+    by = {
+        "score": bucket(ok["sc"], [0, 40, 50, 60, 70, 101],
+                        ["<40", "40-50", "50-60", "60-70", "70+"]),
+        "gap_pct": bucket(ok["gap_pct"], [2, 3, 4, 5.01], ["2-3", "3-4", "4-5"]),
+    }
+    lb = ok["liangbi"] if "liangbi" in ok.columns else ok["auc_ratio"] * 240
+    by["liangbi"] = bucket(lb, [2.5, 4, 7, 10.01], ["2.5-4", "4-7", "7-10"])
+
+    # 六个维度：该维度得分最高 1/3 vs 最低 1/3
+    dims = []
+    try:
+        d_ = vscore.prepare(ok)
+        parts = vscore.parts(d_, c)
+        w = c["scoring"]["weights"]
+        for k, v in parts.items():
+            v = np.asarray(v, float)
+            hi, lo = np.nanquantile(v, 2 / 3), np.nanquantile(v, 1 / 3)
+            a, b = ok["y_pct"][v >= hi].mean(), ok["y_pct"][v <= lo].mean()
+            dims.append({"dim": k, "weight": w.get(k),
+                         "high_third_excess_pct": _f(a, 3),
+                         "low_third_excess_pct": _f(b, 3),
+                         "spread_pct": _f(a - b, 3),
+                         "n_high": int((v >= hi).sum()), "n_low": int((v <= lo).sum())})
+        gb = vscore.assign_group_b(d_, c["screen"])
+        groups = {"A": {"n": int((~gb).sum()), "excess_pct": _f(ok["y_pct"][~gb].mean(), 3)},
+                  "B": {"n": int(gb.sum()), "excess_pct": _f(ok["y_pct"][gb].mean(), 3)}}
+    except Exception as e:  # noqa: BLE001
+        log.warning("维度拆解失败: %s", e)
+        groups = {}
+    flags = {}
+    for col, name in (("prev_limit_up", "昨日涨停"), ("breakout", "突破平台"),
+                      ("ma_bull", "均线多头"), ("monotonic", "稳步抬升")):
+        if col in ok.columns:
+            m = ok[col].astype(bool)
+            flags[name] = {"yes_n": int(m.sum()), "yes_excess_pct": _f(ok["y_pct"][m].mean(), 3),
+                           "no_n": int((~m).sum()), "no_excess_pct": _f(ok["y_pct"][~m].mean(), 3)}
+    rj = df[df["rej"]]
+    # 被剔除的按原因拆：「准入差一点」的票到底好不好，只有按原因看才知道
+    by_reason = []
+    if "rejected" in rj.columns:
+        why = (rj["rejected"].astype(str).str.split("(").str[0]
+               .str.replace(r"[-+]?\d+(\.\d+)?%?", "", regex=True)
+               .str.replace(r"\s+", " ", regex=True).str.strip())
+        rr = rj.assign(_why=why)
+        for why, g in rr.groupby("_why"):
+            if not why or why in ("None", "nan"):
+                continue
+            by_reason.append({"reason": why, "n": int(len(g)),
+                              "excess_pct": _f(100 * g["y"].mean(), 3),
+                              "hit_rate": _f((g["y"] > 0).mean(), 3)})
+        by_reason.sort(key=lambda x: -x["n"])
+    by["rejected_by_reason"] = by_reason[:12]
+    dl = [x for x in daily if x["top_excess_pct"] is not None]
+    te = np.array([x["top_excess_pct"] for x in dl], float)
+    out.update({
+        "days": len(daily),
+        "first": days[0], "last": days[-1],
+        "daily": daily,
+        "summary": {
+            "top_excess_mean_pct": _f(te.mean(), 3) if len(te) else None,
+            "top_excess_se_pct": _f(te.std(ddof=1) / math.sqrt(len(te)), 3) if len(te) > 1 else None,
+            "top_win_days": int((te > 0).sum()), "n_days": int(len(te)),
+            "admitted_excess_mean_pct": _f(ok["y_pct"].mean(), 3),
+            "rejected_excess_mean_pct": _f(100 * rj["y"].mean(), 3),
+            "n_admitted": int(len(ok)), "n_rejected": int(len(rj)),
+            "ic_mean": _f(np.nanmean([x["ic"] for x in daily if x["ic"] is not None]), 3),
+        },
+        "by": by, "dims": dims, "groups": groups, "flags": flags,
+        "worst_best": worst_best,
+        "learning": _learning_state(),
+        "backfill_vs_online": _backfill_vs_online(df),
+        "definitions": {
+            "y": "开盘买收盘卖的收益，减去当日全池中位数，按 q1/q99 缩尾（单位：%）",
+            "ytil": "y 再除以当日 MAD，跨天可比",
+            "top_excess_pct": "分数前 10（过准入）的 y 均值",
+            "ic": "当日 Spearman(分数, ytil)，只算过准入的票",
+            "groups": "A 组 = 昨日涨停 / 连板 / 突破平台（接力、强势）；B 组 = 60 日位置 <= "
+                      f"{c['screen'].get('pos_pct_60d_max_for_lowbase')}（低位首板预备）；其余归 A",
+            "rejected_by_reason": "被硬剔除的票按原因分组的 y（只有「涨幅区间外」「量比区间外」"
+                                  "才是准入差一点的近邻，其余是风险剔除）",
+        },
+    })
+    return out
+
+
+def _learning_state() -> dict:
+    st = _json(STATE / "learning_status.json")
+    verdicts = _jsonl(STATE / "verdict_log.jsonl")[-10:]
+    theta = _jsonl(STATE / "theta_history.jsonl")[-5:]
+    return {
+        "status_date": st.get("date"), "n_train_days": st.get("n_days"),
+        "train_source": st.get("train_source"),
+        "theta_version": st.get("theta_version"),
+        "metrics": st.get("metrics"),
+        "last_verdict": st.get("verdict"),
+        "recent_verdicts": [{"date": v.get("date"), "accepted": v.get("accepted"),
+                             "failed": v.get("failed"), "moved": v.get("moved")}
+                            for v in verdicts],
+        "theta_history": theta,
+        "shadow_stat": st.get("shadow_stat"),
+        "shadow_recent": (st.get("shadow") or [])[-10:],
+        "accepted_total": st.get("accepted_total"),
+    }
+
+
+def _backfill_vs_online(online: pd.DataFrame) -> dict:
+    """同名列在回填表和在线快照里的分布差。教训 30：口径不一致不报错。"""
+    files = sorted(glob.glob(str(ROOT / "data" / "train" / "backfill_*.parquet")))
+    if not files:
+        return {"note": "没有回填表"}
+    cols = ["gap_pct", "auc_ratio", "auc_amount", "pos_pct_60d", "slope", "dive",
+            "board_height", "sector_members", "t1_chg", "t3_chg"]
+    flags = ["monotonic", "prev_limit_up", "breakout", "ma_bull", "one_word",
+             "prev_broken_board", "blacklisted"]
+    try:
+        bf = pd.read_parquet(files[-1], columns=cols + flags + ["date"])
+    except Exception as e:  # noqa: BLE001
+        return {"note": f"回填表读取失败 {e}"}
+    rows = []
+    for ccol in cols:
+        if ccol in online.columns and ccol in bf.columns:
+            a, b = pd.to_numeric(online[ccol], errors="coerce"), pd.to_numeric(bf[ccol], errors="coerce")
+            rows.append({"col": ccol, "online_median": _f(a.median()),
+                         "backfill_median": _f(b.median()),
+                         "online_mean": _f(a.mean()), "backfill_mean": _f(b.mean())})
+    for fcol in flags:
+        if fcol in online.columns and fcol in bf.columns:
+            rows.append({"col": fcol,
+                         "online_rate": _f(online[fcol].astype(bool).mean(), 3),
+                         "backfill_rate": _f(bf[fcol].astype(bool).mean(), 3)})
+    # 回填表按量比档的收益（和在线 by.liangbi 对照，看「量能反向」是不是在线才有）
+    bf_by = []
+    try:
+        bfl = pd.read_parquet(files[-1], columns=["auc_ratio", "gap_pct", "r", "date"])
+        bfl = bfl[(bfl["gap_pct"] >= 2) & (bfl["gap_pct"] <= 5)]
+        med = bfl.groupby("date")["r"].transform("median")
+        bfl = bfl.assign(y_pct=100 * (bfl["r"] - med), lb=bfl["auc_ratio"] * 240)
+        cut = pd.cut(bfl["lb"], [2.5, 4, 7, 10.01], right=False, labels=["2.5-4", "4-7", "7-10"])
+        for k, g in bfl.groupby(cut, observed=True):
+            bf_by.append({"bucket": str(k), "n": int(len(g)), "excess_pct": _f(g["y_pct"].mean(), 3),
+                          "hit_rate": _f((g["y_pct"] > 0).mean(), 3)})
+    except Exception as e:  # noqa: BLE001
+        log.warning("回填按量比档失败: %s", e)
+    return {"backfill_file": Path(files[-1]).name,
+            "backfill_days": int(bf["date"].nunique()),
+            "online_days": int(online["date"].nunique()),
+            "rows": rows,
+            "backfill_by_liangbi": bf_by,
+            "backfill_y_note": "回填 y = r 减当日（涨幅 2~5% 池）中位数，未缩尾，口径和在线 y 近似",
+            "known_biases": "回填的 t1/t2/t3 是代理值（竞价段 open/high），生产是 09:19:40/09:22/09:25 三个采样点；"
+                            "回填的 one_word、limit_pct（无 ST）定义与生产不同；回填候选池按 amount_ratio_5d_gte 过滤而生产没有"}
+
+
+# ---------------------------------------------------------------------
+#  起涨预测
+# ---------------------------------------------------------------------
+def breakout() -> dict:
+    import truth as T
+    import export as E
+    res = T.compute()
+    T.save(res)
+    exp = {"streak_perf": [{"streak_ge": k, "hit_pct": h, "lift": l, "n": n}
+                           for k, h, l, n in E.STREAK_PERF],
+           "base_pct": E.BASE, "score_table": E.SCORE_TABLE,
+           "window": E.PERF.get("window")}
+    lists = []
+    for L in res["lists"]:
+        lists.append({k: (_f(v, 4) if isinstance(v, float) else v)
+                      for k, v in L.items()})
+    picks = [{k: (_f(v, 4) if isinstance(v, float) else v) for k, v in p.items()}
+             for p in res["picks"]]
+    by = {}
+    for k, v in res["by"].items():
+        if isinstance(v, list):
+            by[k] = [{kk: (_f(vv, 4) if isinstance(vv, float) else vv)
+                      for kk, vv in r.items()} for r in v]
+        else:
+            by[k] = {kk: (_f(vv, 4) if isinstance(vv, float) else vv)
+                     for kk, vv in v.items()}
+    return {
+        "window": res["window"], "threshold": res["threshold"],
+        "n_lists": len(lists), "n_final_lists": sum(1 for L in lists if L["final"]),
+        "lists": lists, "picks": picks, "by": by,
+        "expected": exp,
+        "model": _breakout_model(),
+        "data_health": _breakout_data_health(),
+        "definitions": {
+            "rise": "上榜日收盘到之后 min(20, 已走) 根 K 线最高价的涨幅",
+            "hit": "rise > 50%（和训练标签 y_up 同口径）",
+            "final": "20 根已走满，命中才算最终",
+            "base_final/base_sofar": "同一天全市场随便买一只、同一窗口的命中比例（分别按已满/到目前为止）",
+            "expected.streak_perf": "邮件里印的验证集成绩（207 个交易日走向前）",
+        },
+    }
+
+
+def _breakout_model() -> dict:
+    mj = _json(STATE / "breakout" / "model.json")
+    out = {"fit_date": mj.get("fit_date"), "train_cut": mj.get("train_cut"),
+           "n_feats": len(mj.get("feats") or []), "fingerprint": mj.get("fingerprint")}
+    mt = STATE / "breakout" / "model.txt"
+    try:
+        if mt.exists() and mj.get("feats"):
+            import lightgbm as lgb
+            b = lgb.Booster(model_file=str(mt))
+            gain = b.feature_importance(importance_type="gain")
+            tot = float(gain.sum()) or 1.0
+            imp = sorted(zip(mj["feats"], gain), key=lambda x: -x[1])
+            out["importance"] = [{"feat": f, "gain_share": _f(g / tot, 4)} for f, g in imp]
+            groups: dict[str, float] = {}
+            try:
+                import features as F
+                g2f = {f: g for g, fs in F.GROUPS.items() for f in fs}
+                for f, g in imp:
+                    base = f.rsplit("__", 1)[0]
+                    groups[g2f.get(base, "other")] = groups.get(g2f.get(base, "other"), 0) + g / tot
+                out["importance_by_group"] = {k: _f(v, 4) for k, v in
+                                              sorted(groups.items(), key=lambda x: -x[1])}
+            except Exception as e:  # noqa: BLE001
+                log.warning("按组重要性失败: %s", e)
+    except Exception as e:  # noqa: BLE001
+        log.warning("读模型重要性失败: %s", e)
+    # 最近一份清单的特征分位（横截面百分位，直接可读）
+    files = sorted((ROOT / "data" / "breakout").glob("*/breakout_*.parquet"))
+    if files and mj.get("feats"):
+        try:
+            d = pd.read_parquet(files[-1])
+            feats = [f for f in mj["feats"] if f in d.columns]
+            rows = []
+            for r in d.itertuples():
+                rows.append({"code": str(r.code).zfill(6), "score": _f(getattr(r, "score", 0), 0),
+                             "feats": {f: _f(getattr(r, f), 3) for f in feats[:20]}})
+            out["latest_list_feats"] = {"date": str(d["date"].iloc[0]), "rows": rows,
+                                        "note": "特征值是当日横截面百分位（0~1），只列重要性前 20 个"}
+        except Exception as e:  # noqa: BLE001
+            log.warning("读清单特征失败: %s", e)
+    fs = _json(ROOT / "out_breakout" / "feature_select.json")
+    if fs:
+        out["feature_select"] = {"start": fs.get("start"), "end": fs.get("end"),
+                                 "dropped": {k: len(v) if isinstance(v, list) else v
+                                             for k, v in (fs.get("dropped") or {}).items()}}
+    wg = _json(ROOT / "out_breakout" / "window_grid.json")
+    if wg:
+        out["walk_forward_w5"] = [r for r in wg.get("grid", []) if r.get("kind") == "W5"]
+    try:
+        out["validation_w5"] = _validation_w5()
+    except Exception as e:  # noqa: BLE001
+        log.warning("验证集 W5 拆解失败: %s", e)
+    return out
+
+
+def _validation_w5() -> dict:
+    """验证集（逐月滚动缓存 wf_scores.parquet）里生产口径名额的两个拆解：
+    按板块的命中率；进度基准 = 最终命中的票在第 k 根时已经涨了多少。
+    进行中的清单只能和后者比，不能和 12.6% 比。"""
+    import daily as D
+    import features as F
+    cache = ROOT / "data" / "breakout" / "raw" / "wf_scores.parquet"
+    if not cache.exists():
+        return {"note": "没有逐月滚动缓存"}
+    d = pd.read_parquet(cache)
+    ok = d[(d["score"] >= D.SCORE_MIN) & (d["rank"] <= D.CAP_A)].copy()
+    ok = ok[np.isfinite(ok["y_up"])]
+    ok["board"] = ok["code"].map(F.board_of)
+    by_board = []
+    for b, g in ok.groupby("board"):
+        h = int(g["y_up"].sum())
+        by_board.append({"board": b, "n": int(len(g)), "hits": h, "hit_rate": _f(h / len(g), 4),
+                         "share_of_picks": _f(len(g) / len(ok), 3)})
+    # 进度基准
+    px = pd.read_parquet(ROOT / "data" / "breakout" / "daily.parquet",
+                         columns=["code", "date", "high", "close"])
+    px["date"] = px["date"].astype(str)
+    px = px[px["code"].isin(set(ok["code"]))].sort_values(["code", "date"])
+    grp = {c: (g["date"].to_numpy(), g["high"].to_numpy(), g["close"].to_numpy())
+           for c, g in px.groupby("code")}
+    ks = (3, 5, 7, 10, 15)
+    rec = []
+    for r in ok.itertuples():
+        g = grp.get(r.code)
+        if g is None:
+            continue
+        dates, high, close = g
+        i = int(np.searchsorted(dates, r.date))
+        if i >= len(dates) or dates[i] != r.date or close[i] <= 0:
+            continue
+        row = {"hit": int(r.y_up)}
+        for k in ks:
+            seg = high[i + 1:i + 1 + k]
+            row[f"r{k}"] = float(seg.max() / close[i] - 1) if len(seg) else np.nan
+        rec.append(row)
+    rf = pd.DataFrame(rec)
+    pace = {}
+    for k in ks:
+        col = f"r{k}"
+        if col not in rf:
+            continue
+        sub = rf[np.isfinite(rf[col])]
+        hit, miss = sub[sub["hit"] == 1], sub[sub["hit"] == 0]
+        p25 = sub[sub[col] >= 0.25]
+        pace[f"bar{k}"] = {
+            "n": int(len(sub)),
+            "mean_rise_all": _f(sub[col].mean(), 4),
+            "mean_rise_hits": _f(hit[col].mean(), 4) if len(hit) else None,
+            "mean_rise_misses": _f(miss[col].mean(), 4) if len(miss) else None,
+            "share_hits_already_ge25": _f((hit[col] >= 0.25).mean(), 3) if len(hit) else None,
+            "p_hit_given_ge25": _f(p25["hit"].mean(), 3) if len(p25) else None,
+            "n_ge25": int(len(p25)),
+            "share_all_ge15": _f((sub[col] >= 0.15).mean(), 3),
+        }
+    return {"n_picks": int(len(ok)), "hit_rate": _f(ok["y_up"].mean(), 4),
+            "by_board": by_board, "pace": pace,
+            "note": "pace.barK：验证集名额在第 K 根时的最高涨幅；进行中的清单拿同一根数对照。"
+                    "p_hit_given_ge25 = 第 K 根已涨 25% 的票最终命中的比例"}
+
+
+def _breakout_data_health() -> dict:
+    dp = ROOT / "data" / "breakout" / "daily.parquet"
+    out: dict = {}
+    try:
+        px = pd.read_parquet(dp, columns=["code", "date"])
+        cnt = px.groupby("date").size()
+        last = cnt.tail(30)
+        out["codes_per_day_recent"] = [{"date": str(k), "n": int(v)} for k, v in last.items()]
+        out["codes_per_day_min_all"] = {"n": int(cnt.min()), "date": str(cnt.idxmin())}
+        out["thin_days"] = int((cnt < 0.8 * cnt.median()).sum())
+        out["date_range"] = [str(px["date"].min()), str(px["date"].max())]
+    except Exception as e:  # noqa: BLE001
+        out["note"] = f"daily.parquet 读取失败 {e}"
+    files = sorted((ROOT / "data" / "breakout").glob("*/breakout_*.parquet"))
+    if files:
+        try:
+            d = pd.read_parquet(files[-1])
+            fc = [c for c in d.columns if "__" in c]
+            nan = d[fc].isna().mean()
+            out["latest_list_nan_feats"] = {k: _f(v, 2) for k, v in nan[nan > 0].items()}
+        except Exception as e:  # noqa: BLE001
+            out["note2"] = str(e)
+    rm = _json(ROOT / "out_breakout" / "run_meta.json")
+    out["run_meta"] = rm
+    return out
+
+
+# ---------------------------------------------------------------------
+def build(c: dict, date: str, n_days: int = 0) -> Path:
+    """两条线的证据包写到 state/council/<date>/evidence.json，返回路径。"""
+    pack = {"date": date, "generated_at": dt.datetime.now().isoformat(timespec="seconds")}
+    try:
+        pack["morning"] = morning(c, n_days)
+    except Exception as e:  # noqa: BLE001
+        log.warning("早盘证据失败: %s", e)
+        pack["morning"] = {"error": str(e)}
+    try:
+        pack["breakout"] = breakout()
+    except Exception as e:  # noqa: BLE001
+        log.warning("起涨预测证据失败: %s", e)
+        pack["breakout"] = {"error": str(e)}
+    d = OUT_DIR / date
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / "evidence.json"
+    p.write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding="utf-8")
+    # 给 LLM 读的紧凑版：去掉逐只明细（它要看可以用查询工具）
+    slim = json.loads(json.dumps(pack))
+    if isinstance(slim.get("breakout"), dict):
+        slim["breakout"].pop("picks", None)
+        m = slim["breakout"].get("model") or {}
+        m.pop("latest_list_feats", None)
+    if isinstance(slim.get("morning"), dict):
+        wb = slim["morning"].get("worst_best") or {}
+        keep = sorted(wb)[-5:]
+        slim["morning"]["worst_best"] = {k: wb[k] for k in keep}
+    (d / "evidence_slim.json").write_text(json.dumps(slim, ensure_ascii=False, indent=1),
+                                          encoding="utf-8")
+    log.info("证据包 -> %s（%d KB）", p, p.stat().st_size // 1024)
+    return p
+
+
+if __name__ == "__main__":
+    import cfg as C
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    d = sys.argv[1] if len(sys.argv) > 1 else dt.date.today().isoformat()
+    print(build(C.load(), d))

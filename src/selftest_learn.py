@@ -20,6 +20,7 @@ import dataclasses
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent / "breakout"))
 
 import numpy as np
 import pandas as pd
@@ -324,11 +325,20 @@ def check_wiring() -> None:
     print("\n闸门接线（AST）")
     src = (ROOT / "src" / "eval_daily.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
-    fn = next((n for n in ast.walk(tree)
-               if isinstance(n, ast.FunctionDef) and n.name == "stage_learn"), None)
-    ck(fn is not None, "找到 stage_learn")
+    # 2026-09-16 起裁决那段抽成 _judge（学习会诊的参数提案和 stage_learn 共用
+    # 同一套闸门），gate.evaluate 只许在 _judge 里出现，两个调用方各调它一次。
+    fns = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+    fn = fns.get("_judge")
+    ck(fn is not None, "找到 _judge（闸门统计量的唯一算法）")
     if fn is None:
         return
+    for caller in ("stage_learn", "evaluate_candidate"):
+        cf = fns.get(caller)
+        n_j = sum(1 for n in ast.walk(cf) if isinstance(n, ast.Call)
+                  and getattr(n.func, "id", "") == "_judge") if cf else 0
+        n_e = sum(1 for n in ast.walk(cf) if isinstance(n, ast.Call)
+                  and getattr(n.func, "attr", "") == "evaluate") if cf else 0
+        ck(n_j == 1 and n_e == 0, f"{caller} 恰好调用一次 _judge，且不自己调 gate.evaluate")
     from_boot = set()
     for n in ast.walk(fn):
         if (isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
@@ -336,7 +346,7 @@ def check_wiring() -> None:
             from_boot |= {t.id for t in n.targets if isinstance(t, ast.Name)}
     calls = [n for n in ast.walk(fn) if isinstance(n, ast.Call)
              and getattr(n.func, "attr", "") == "evaluate"]
-    ck(len(calls) == 1, "stage_learn 恰好调用一次 gate.evaluate")
+    ck(len(calls) == 1, "_judge 恰好调用一次 gate.evaluate")
     kw = {k.arg: k.value for k in calls[0].keywords} if calls else {}
     bp = kw.get("boot_p")
     ck(isinstance(bp, ast.Name) and bp.id in from_boot,
@@ -437,6 +447,133 @@ def check_cfg(c: dict) -> None:
        "人工基线的六个权重和为 1")
 
 
+def check_council() -> None:
+    """学习会诊（docs/council.md）。钉五件事：脏输出改写、台账幂等与状态机、
+    起涨真值的窗口语义、实验过闸判定、fail-open 接线；全部在临时目录里做，不碰 state/。
+    """
+    print("\n学习会诊")
+    import json
+    import tempfile
+    from learn.council import schemas as S, run as CR, experiments as EX, panel as CP
+
+    # 1. 脏输出改写：枚举越界、超长、缺字段都能变成合法对象
+    dirty = {"lens": "gap_where", "summary": "x" * 900,
+             "findings": [{"line": "火星", "claim": "c" * 500, "evidence": "", "magnitude": 1,
+                           "confidence": "极高"}, "不是对象"],
+             "proposals": [{"kind": "改代码", "line": "morning", "target": "t", "change": "c",
+                            "rationale": "r", "expected_effect": "e", "test_plan": "p",
+                            "priority": "P9", "params": {"a": 1}}]}
+    cl = S.sanitize_lens(dirty, "gap_where")
+    ck(len(cl["summary"]) == 600 and cl["findings"][0]["line"] == "both"
+       and cl["findings"][0]["confidence"] == "低" and len(cl["findings"]) == 1,
+       "视角输出：越界枚举改保守值、超长截断、非对象丢弃")
+    ck(cl["proposals"][0]["kind"] == "process" and cl["proposals"][0]["priority"] == "P2"
+       and cl["proposals"][0]["params"] == {"a": 1}, "提案：kind/priority 越界改保守值，params 原样保留")
+    ch = S.sanitize_chair({"gap": [{"line": "breakout", "where": "w", "expected": "12.6",
+                                    "actual": "nan", "unit": "%", "n": "8"}],
+                           "why": [{"cause": "市场环境", "weight": 3, "evidence": ""},
+                                   {"cause": "外星人", "weight": 1, "evidence": ""}],
+                           "noise_or_real": {"verdict": "?", "p_real": 7},
+                           "proposals": [], "narrative": "n"})
+    ck(abs(sum(w["weight"] for w in ch["why"]) - 1) < 1e-9 and ch["why"][1]["cause"] == "未知",
+       "主审：原因权重归一，越界原因改「未知」")
+    ck(ch["noise_or_real"]["verdict"] == "样本不足无法判断" and ch["noise_or_real"]["p_real"] == 1.0
+       and ch["gap"][0]["actual"] == 0.0 and ch["gap"][0]["n"] == 8,
+       "主审：判断枚举越界改保守值，概率裁到 [0,1]，数字字段容错")
+
+    # 2. 台账：同一提案重跑不重复；状态机；needs_human 自动标
+    with tempfile.TemporaryDirectory() as td:
+        old = (CR.STATE, CR.LEDGER, CR.DECISIONS, CR.LATEST)
+        CR.STATE = Path(td); CR.LEDGER = CR.STATE / "p.jsonl"
+        CR.DECISIONS = CR.STATE / "d.json"; CR.LATEST = CR.STATE / "l.json"
+        try:
+            props = [S.sanitize_proposal({"kind": "threshold", "line": "breakout", "target": "SCORE_MIN",
+                                          "change": "97->96", "rationale": "r", "expected_effect": "e",
+                                          "test_plan": "t", "priority": "P1", "params": {"SCORE_MIN": 96}}),
+                     S.sanitize_proposal({"kind": "feature_add", "line": "breakout", "target": "北向",
+                                          "change": "加", "rationale": "r", "expected_effect": "e",
+                                          "test_plan": "t", "priority": "P2"})]
+            a1 = CR.append_proposals("2026-09-16", props)
+            a2 = CR.append_proposals("2026-09-16", props)
+            ck(len(a1) == 2 and len(a2) == 0, "台账：同一天同一提案重跑不重复追加")
+            view = {r["id"]: r for r in CR.ledger_view()}
+            st = sorted(r["status"] for r in view.values())
+            ck(st == ["needs_human", "pending"], f"台账：能自动测的 pending，其它 needs_human（{st}）")
+            pid = a1[0]["id"]
+            CR.write_decision(pid, "passed", result={"detail": "ok"})
+            ck(CR.ledger_view()[-1]["status"] == "passed" if CR.ledger_view()[-1]["id"] == pid
+               else {r["id"]: r for r in CR.ledger_view()}[pid]["status"] == "passed",
+               "台账：状态改写落盘并能读回")
+            ck(a1[0]["id"] == CR._pid("2026-09-16", props[0]) and len(pid) == 15,
+               "提案 id 由日期+内容哈希决定（可复现）")
+        finally:
+            CR.STATE, CR.LEDGER, CR.DECISIONS, CR.LATEST = old
+
+    # 3. 起涨真值：之后 20 根、不含当天、avail 计数
+    import truth as T  # noqa: E402  (src/breakout 在 sys.path 里)
+    n = 30
+    close = np.full(n, 10.0)
+    high = np.full(n, 10.5)
+    high[25] = 16.0            # 第 25 根冲高 60%
+    px = pd.DataFrame({"code": "000001", "date": [f"2026-01-{i + 1:02d}" for i in range(n)],
+                       "high": high, "close": close})
+    fm = T._future_max(px, 20)
+    ck(fm["avail"].iloc[0] == 20 and fm["avail"].iloc[-1] == 0 and fm["avail"].iloc[-3] == 2,
+       "真值：avail = min(20, 之后还有几根)")
+    ck(fm["fut_max"].iloc[5] == 16.0 and fm["fut_max"].iloc[4] == 10.5 and fm["fut_max"].iloc[25] == 10.5,
+       "真值：fut_max 看的是 t+1..t+20，不含当天（第 5 根看得到第 25 根，第 4 根看不到）")
+    lo, hi = T.wilson(1, 10)
+    ck(0.01 < lo < 0.1 < hi < 0.5, f"Wilson 区间 1/10 -> ({lo:.3f}, {hi:.3f})")
+
+    # 4. 实验过闸判定：命中率不掉 + 样本不少 才过；连续≥2天 提升 2SE 也过
+    base = {"ge1": {"n": 800, "hit": 0.126, "se": 0.0117}, "ge2": {"n": 200, "hit": 0.15, "se": 0.025}}
+    ok1, _ = EX._pass_breakout(base, {"ge1": {"n": 700, "hit": 0.12, "se": 0.012},
+                                       "ge2": {"n": 150, "hit": 0.14, "se": 0.028}})
+    ok2, _ = EX._pass_breakout(base, {"ge1": {"n": 500, "hit": 0.13, "se": 0.015},
+                                       "ge2": {"n": 150, "hit": 0.14, "se": 0.028}})
+    ok3, _ = EX._pass_breakout(base, {"ge1": {"n": 500, "hit": 0.09, "se": 0.013},
+                                       "ge2": {"n": 100, "hit": 0.25, "se": 0.043}})
+    ck(ok1 and not ok2 and ok3, "过闸：命中不掉且样本≥80% 过；样本掉太多不过；连续档提升≥2SE 过")
+    d = pd.DataFrame({"date": ["d1"] * 3 + ["d2"] * 3, "code": ["a", "b", "c"] * 2,
+                      "rank": [1, 2, 3] * 2, "score": [99, 98, 90, 99, 97, 80],
+                      "y_up": [1, 0, 1, 0, 1, 0]})
+    w = EX._w5(d, 97, 10)
+    ck(w["ge1"]["n"] == 4 and w["ge2"]["n"] == 2 and w["ge3"]["n"] == 0
+       and abs(w["ge1"]["hit"] - 0.5) < 1e-9,
+       "生产口径重算：≥97 且前 10 -> 4 行；a、b 两天都在榜 -> 连续 2 天 2 行")
+
+    # 5. fail-open 接线 + 提纲齐全 + 面板无状态能出页
+    src = (ROOT / "src" / "eval_daily.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    fn = next((x for x in ast.walk(tree) if isinstance(x, ast.FunctionDef)
+               and x.name == "stage_council"), None)
+    rets = [x for x in ast.walk(fn) if isinstance(x, ast.Return)] if fn else []
+    ck(fn is not None and any(isinstance(x, ast.Try) for x in fn.body)
+       and all(isinstance(r.value, ast.Constant) and r.value.value == 0 for r in rets),
+       "stage_council 整体在 try 里且只会 return 0（会诊挂了不影响学习流程退出码）")
+    from learn.council import agents as AG
+    missing = [ln for ln in list(S.LENSES) + ["chair"] if not (AG.PROMPTS / f"{ln}.md").exists()]
+    ck(not missing and (AG.PROMPTS / "common.md").exists(), f"每个视角都有提纲文件（缺 {missing}）")
+    ck(set(AG.TOOLS) == set(S.LENSES) | {"chair"} and all(
+        "Bash(" not in AG.TOOLS["chair"] and "Write" not in v and "Edit" not in v
+        for v in AG.TOOLS.values()), "视角工具白名单：主审不查数据，谁都不能写文件")
+    with tempfile.TemporaryDirectory() as td:
+        old = (CR.STATE, CR.LEDGER, CR.DECISIONS, CR.LATEST, CP.OUTL)
+        CR.STATE = Path(td) / "s"; CR.LEDGER = CR.STATE / "p.jsonl"
+        CR.DECISIONS = CR.STATE / "d.json"; CR.LATEST = CR.STATE / "l.json"
+        CP.OUTL = Path(td) / "o"
+        try:
+            out = CP.build()
+            html = out.read_text(encoding="utf-8")
+            ck("学习会诊" in html and "还没跑过" in html and "<script>" in html,
+               "会诊面板：没有任何状态也能出页")
+        finally:
+            CR.STATE, CR.LEDGER, CR.DECISIONS, CR.LATEST, CP.OUTL = old
+    js = json.dumps(S.LENS_SCHEMA); js2 = json.dumps(S.CHAIR_SCHEMA)
+    ck('"required"' in js and '"required"' in js2 and "additionalProperties" in js,
+       "两份 schema 能序列化（CLI --json-schema 用）")
+
+
 def main() -> int:
     t0 = time.time()
     c = C.load()
@@ -450,6 +587,7 @@ def main() -> int:
     check_wiring()
     check_shadow_stat()
     check_report_send()
+    check_council()
     print(f"\n耗时 {time.time()-t0:.2f}s | 断言失败 {BAD} 个")
     return 1 if BAD else 0
 

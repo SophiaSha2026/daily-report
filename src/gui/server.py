@@ -49,7 +49,31 @@ PANELS = {
     "pullback": ("out_pullback/panel.html", "回调形态面板"),
     "learn": ("out_learn/learn.html", "参数自学面板"),
     "breakout": ("out_breakout/panel.html", "起涨预测面板"),
+    "council": ("out_learn/council.html", "学习会诊面板"),
 }
+
+
+def _council_decide(body: dict) -> dict:
+    pid = str(body.get("id") or "")
+    action = str(body.get("action") or "")
+    if not pid or action not in ("approve", "reject"):
+        return {"ok": False, "error": "缺 id 或 action"}
+    try:
+        from learn.council import run as CR, experiments as EX
+        if action == "reject":
+            CR.write_decision(pid, "rejected", by="gui")
+            res = {"ok": True, "what": "已驳回"}
+        else:
+            import cfg as C
+            res = EX.apply(pid, C.load(), by="gui")
+        try:
+            from learn.council import panel as CP
+            CP.build()
+        except Exception as e:  # noqa: BLE001
+            res["panel_error"] = str(e)
+        return res
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -204,6 +228,11 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/task":
             return self._task(body)
+
+        if p == "/api/council/decide":
+            # 会诊提案的批准 / 驳回。批准 = 落地（早盘参数写 learned.yaml，
+            # 起涨常量/特征进 overrides）。只认过闸的，其余只能驳回。
+            return self._json(_council_decide(body))
 
         if p == "/api/push":
             # 「重试推送」。09-07 那次失联之后必须有一个不用开终端的出口。

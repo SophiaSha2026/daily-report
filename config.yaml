@@ -339,6 +339,22 @@ learning:
       板块轮动: 1.0
       正常: 1.0
 
+  # ---- 学习会诊（2026-09-16，docs/council.md）----
+  # 每次学习更新末尾，六个视角各起一个 claude 进程并行深挖「预测和实际差在哪」，
+  # 主审汇总。半自动：提案先自动实验，过闸的进台账等控制台一键批准。
+  council:
+    enabled: true
+    model: "claude-opus-5"
+    effort: "max"             # CLI --effort：max 推理
+    timeout_seconds: 900      # 每个视角（看门狗，到点杀）
+    chair_timeout_seconds: 420
+    max_parallel: 6
+    max_turns: 60             # 一次工具调用算一轮。到上限会 resume 一次只许输出结论
+    lenses: [gap_where, noise_or_real, features, regime, data_quality, improve]
+    history_days: 0           # 早盘证据取多少个在线真值日，0 = 全部
+    auto_experiments: true    # 会诊完自动跑 param / threshold / feature_drop 实验
+    mail: true                # 会诊结论发一封邮件（SKIP_MAIL=1 时不发）
+
   # ---- 历史回填（H 层）----
   backfill:
     start: "2025-01-01"

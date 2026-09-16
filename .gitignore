@@ -44,3 +44,10 @@ data/breakout/shares.parquet
 state/lock/
 # 交易日历缓存，local_run 写、控制台读
 state/trade_dates.json
+
+# 学习会诊：CLI 的原始 stream 每份几百 KB，排查用，不进仓库；
+# 过程时间线 <lens>.trace.jsonl、结论 <lens>.json、证据包都进（面板和历史靠它们）
+state/council/*/*.raw.jsonl
+state/council/*/*.raw2.jsonl
+# 起涨清单真值（逐只明细，每天重算，能从 daily.parquet 复原）
+state/breakout/truth.json

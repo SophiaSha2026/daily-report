@@ -254,6 +254,48 @@ def breakout_model() -> dict:
         return {"exists": False}
 
 
+def breakout_perf() -> dict:
+    """起涨预测邮件里印的成绩，读它的来源 out_breakout/window_grid.json（W5 行），
+    和 export.STREAK_PERF 同源，界面上不再手抄数字（2026-09-16 审计 S13）。"""
+    f = ROOT / "out_breakout" / "window_grid.json"
+    try:
+        g = json.loads(f.read_text(encoding="utf-8"))
+        rows = {}
+        for r in g.get("grid", []):
+            if r.get("kind") == "W5" and "连续≥" in r.get("label", ""):
+                k = int(r["label"].split("连续≥")[1][0])
+                rows[k] = r
+        return {"exists": bool(rows), "hit_all": round(100 * rows[1]["hit"], 1),
+                "hit2": round(100 * rows[2]["hit"], 1), "n_all": rows[1]["n"],
+                "n2": rows[2]["n"], "base": round(100 * float(g.get("base", 0)), 2),
+                "days": g.get("days")}
+    except Exception:  # noqa: BLE001
+        return {"exists": False}
+
+
+def council_status() -> dict:
+    """最近一次学习会诊 + 台账里等批准的提案数。读 state/council/，不 import 它。"""
+    d = ROOT / "state" / "council"
+    out = {"exists": False, "pending": 0}
+    try:
+        lp = d / "latest.json"
+        if lp.exists():
+            j = json.loads(lp.read_text(encoding="utf-8"))
+            nr = j.get("verdict") or {}
+            out.update({"exists": True, "date": j.get("date"), "ok": bool(j.get("ok")),
+                        "error": j.get("error", ""), "verdict": nr.get("verdict", ""),
+                        "p_real": nr.get("p_real"), "n_proposals": j.get("n_proposals", 0),
+                        "seconds": j.get("seconds"), "cost_usd": j.get("cost_usd")})
+        dp = d / "decisions.json"
+        if dp.exists():
+            dec = json.loads(dp.read_text(encoding="utf-8"))
+            out["pending"] = sum(1 for v in dec.values() if v.get("status") == "passed")
+            out["needs_human"] = sum(1 for v in dec.values() if v.get("status") == "needs_human")
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
 def morning_perf() -> dict:
     """早盘选股的实测成绩，从参数自学的统计里读。
 
@@ -479,5 +521,7 @@ def overview() -> dict:
         },
         "model": breakout_model(),
         "morning_perf": morning_perf(),
+        "breakout_perf": breakout_perf(),
+        "council": council_status(),
         "generated": dt.datetime.now().strftime("%H:%M:%S"),
     }
