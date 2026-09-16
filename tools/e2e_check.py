@@ -53,6 +53,16 @@ def run(args: list[str], timeout: int = 1800, **envkw) -> tuple[int, str]:
         return 124, f"超时（{timeout}s，已跑 {time.time() - t0:.0f}s）"
 
 
+def blocked(out: str) -> bool:
+    """这次 local_run 是不是被别人的锁挡住、秒退 0 了。
+
+    退出码 0 不等于做了事（教训 27）。另一个入口（多半是计划任务）占着锁时
+    local_run 打一行「已经在跑…本实例退出」然后 return 0，这时候测到的是锁
+    不是流程，必须报「没测到」而不是「通过」——这个测试自己犯过一次。
+    """
+    return ("已经在跑" in out) or ("本实例退出" in out)
+
+
 def tail(s: str, n: int = 6) -> str:
     lines = [x for x in (s or "").splitlines() if x.strip()]
     return " / ".join(lines[-n:])[:600]
@@ -152,20 +162,27 @@ def step_lock() -> tuple[bool, str]:
     所以同进程调两次 acquire_lock 本来就都会成功，那不是 bug。
     """
     import local_run as L
-    flow = "learn"
+    # 挑一条当前空闲的线来测：真有流程在跑（计划任务）时，固定用某一条会把
+    # 「别人正在跑」误报成「锁坏了」。全忙就诚实说没测到，不编一个通过。
+    flow = next((f for f in L.FLOWS if not L.running_instance(f)), "")
+    if not flow:
+        return False, "没测到：四条线此刻都有实例在跑，没有空闲的线可以测锁"
     if not L.acquire_lock(flow):
-        return False, "第一次就没拿到锁（有流程在跑？）"
+        return False, f"第一次就没拿到 {flow} 的锁（刚被别人抢走？）"
     try:
         code = ("import sys; sys.path.insert(0, r'%s'); import local_run as L; "
                 "print('GOT' if L.acquire_lock('%s') else 'BLOCKED')"
                 % (str(ROOT / "src"), flow))
         rc, out = run([PY, "-c", code], timeout=120)
-        blocked = "BLOCKED" in out
+        # 不叫 blocked：模块级有个同名函数（判 local_run 是不是被锁挡住），
+        # 在这里遮住它不会报错，只会在以后有人想调它的时候变成一个怪 bug
+        stopped = "BLOCKED" in out
     finally:
         L.release_lock(flow)
     still = L.lock_path(flow).exists()
-    return (blocked and not still),         (f"另一个进程{'被挡住' if blocked else '也拿到了锁（会重复发信）'}；"
-         f"释放后锁文件{'还在（没清干净）' if still else '已清掉'}")
+    return (stopped and not still), (
+        f"另一个进程{'被挡住' if stopped else '也拿到了锁（会重复发信）'}；"
+        f"释放后锁文件{'还在（没清干净）' if still else '已清掉'}")
 
 
 def step_breakout() -> tuple[bool, str]:
@@ -174,6 +191,10 @@ def step_breakout() -> tuple[bool, str]:
     rc, out = run([PY, "src/local_run.py", "--flow", "breakout", "--dry"],
                   timeout=3600)
     d = meta_date("out_breakout/run_meta.json")
+    if blocked(out):
+        # 被锁挡住时 run_meta 还是上一轮的，日期和 dry 标记都对得上，会假过
+        return False, ("没测到：有另一个实例正占着起涨预测的锁，本次秒退 0 | "
+                       + tail(out, 2))
     import local_run as L
     want = L.target_date("breakout")
     ok = rc == 0 and d == want and meta_dry("out_breakout/run_meta.json")
@@ -197,6 +218,11 @@ def step_learn() -> tuple[bool, str]:
     except Exception:  # noqa: BLE001
         d, stage = "", ""
     spent = "会诊没跑（--dry 跳过）" if "会诊" not in out else "会诊跑了（应该跳过！）"
+    # 退出码 0 不等于做了事（教训 27，这个测试自己犯过一次）：另一个入口
+    # 正占着锁时 local_run 秒退 0，那测到的是锁不是流程。
+    if blocked(out):
+        return False, ("没测到：有另一个实例正占着学习线的锁（多半是计划任务），"
+                       "本次秒退 0。等它跑完再测 | " + tail(out, 2))
     ok = rc == 0 and bool(d) and "会诊跑了" not in spent
     return ok, f"rc={rc}；learning_status {d} / {stage}；{spent} | {tail(out, 3)}"
 
