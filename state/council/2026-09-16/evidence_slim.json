@@ -1,6 +1,6 @@
 {
  "date": "2026-09-16",
- "generated_at": "2026-09-16T15:02:26",
+ "generated_at": "2026-09-16T16:32:23",
  "morning": {
   "days": 17,
   "note": "",
@@ -15,6 +15,7 @@
     "top_excess_pct": 0.883,
     "top_hits": 5,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 59.4,
     "admitted_excess_pct": 0.57,
     "rank_gain_pct": 0.313,
@@ -27,13 +28,14 @@
     "pool": 1140,
     "admitted": 8,
     "market_median_pct": 1.36,
-    "top_excess_pct": 4.014,
-    "top_hits": 7,
-    "top_n": 8,
-    "top_mean_score": 57.1,
+    "top_excess_pct": 4.027,
+    "top_hits": 6,
+    "top_n": 7,
+    "sent_n": 7,
+    "top_mean_score": 60.2,
     "admitted_excess_pct": 4.014,
-    "rank_gain_pct": null,
-    "rank_evaluable": false,
+    "rank_gain_pct": 0.013,
+    "rank_evaluable": true,
     "ic": -0.452,
     "regime": ""
    },
@@ -45,6 +47,7 @@
     "top_excess_pct": -0.961,
     "top_hits": 4,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 63.5,
     "admitted_excess_pct": -0.202,
     "rank_gain_pct": -0.76,
@@ -60,6 +63,7 @@
     "top_excess_pct": 1.19,
     "top_hits": 7,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 69.7,
     "admitted_excess_pct": 1.538,
     "rank_gain_pct": -0.347,
@@ -75,6 +79,7 @@
     "top_excess_pct": -1.935,
     "top_hits": 4,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 63.4,
     "admitted_excess_pct": -1.049,
     "rank_gain_pct": -0.885,
@@ -90,6 +95,7 @@
     "top_excess_pct": -3.25,
     "top_hits": 1,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 69.0,
     "admitted_excess_pct": -2.871,
     "rank_gain_pct": -0.379,
@@ -105,6 +111,7 @@
     "top_excess_pct": -2.61,
     "top_hits": 2,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 61.6,
     "admitted_excess_pct": -2.326,
     "rank_gain_pct": -0.284,
@@ -120,6 +127,7 @@
     "top_excess_pct": -0.329,
     "top_hits": 3,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 69.0,
     "admitted_excess_pct": 0.36,
     "rank_gain_pct": -0.689,
@@ -135,6 +143,7 @@
     "top_excess_pct": 0.37,
     "top_hits": 6,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 65.2,
     "admitted_excess_pct": -0.668,
     "rank_gain_pct": 1.038,
@@ -150,6 +159,7 @@
     "top_excess_pct": 2.456,
     "top_hits": 7,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 73.6,
     "admitted_excess_pct": 2.111,
     "rank_gain_pct": 0.346,
@@ -165,6 +175,7 @@
     "top_excess_pct": 0.343,
     "top_hits": 6,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 65.2,
     "admitted_excess_pct": -0.647,
     "rank_gain_pct": 0.99,
@@ -180,6 +191,7 @@
     "top_excess_pct": -0.752,
     "top_hits": 3,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 68.0,
     "admitted_excess_pct": -0.589,
     "rank_gain_pct": -0.163,
@@ -195,6 +207,7 @@
     "top_excess_pct": -1.722,
     "top_hits": 4,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 56.4,
     "admitted_excess_pct": -2.229,
     "rank_gain_pct": 0.507,
@@ -207,13 +220,14 @@
     "pool": 1012,
     "admitted": 10,
     "market_median_pct": -1.06,
-    "top_excess_pct": -5.826,
-    "top_hits": 1,
-    "top_n": 10,
-    "top_mean_score": 50.0,
+    "top_excess_pct": -5.786,
+    "top_hits": 0,
+    "top_n": 5,
+    "sent_n": 5,
+    "top_mean_score": 62.2,
     "admitted_excess_pct": -5.826,
-    "rank_gain_pct": null,
-    "rank_evaluable": false,
+    "rank_gain_pct": 0.04,
+    "rank_evaluable": true,
     "ic": 0.35,
     "regime": ""
    },
@@ -222,12 +236,13 @@
     "pool": 1120,
     "admitted": 15,
     "market_median_pct": 0.63,
-    "top_excess_pct": -1.422,
-    "top_hits": 2,
-    "top_n": 10,
-    "top_mean_score": 49.3,
+    "top_excess_pct": -2.235,
+    "top_hits": 1,
+    "top_n": 8,
+    "sent_n": 8,
+    "top_mean_score": 52.8,
     "admitted_excess_pct": -0.055,
-    "rank_gain_pct": -1.366,
+    "rank_gain_pct": -2.18,
     "rank_evaluable": true,
     "ic": -0.266,
     "regime": "板块轮动"
@@ -240,6 +255,7 @@
     "top_excess_pct": -1.542,
     "top_hits": 4,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 63.1,
     "admitted_excess_pct": 0.579,
     "rank_gain_pct": -2.121,
@@ -252,27 +268,28 @@
     "pool": 1008,
     "admitted": 12,
     "market_median_pct": 1.75,
-    "top_excess_pct": -0.476,
-    "top_hits": 3,
-    "top_n": 10,
-    "top_mean_score": 51.1,
+    "top_excess_pct": -0.507,
+    "top_hits": 2,
+    "top_n": 6,
+    "sent_n": 6,
+    "top_mean_score": 57.6,
     "admitted_excess_pct": 0.91,
-    "rank_gain_pct": -1.386,
+    "rank_gain_pct": -1.417,
     "rank_evaluable": true,
     "ic": -0.364,
     "regime": "正常"
    }
   ],
   "summary": {
-   "top_excess_mean_pct": -0.681,
-   "top_excess_se_pct": 0.546,
+   "top_excess_mean_pct": -0.727,
+   "top_excess_se_pct": 0.551,
    "top_win_days": 6,
    "n_days": 17,
-   "rank_gain_mean_pct": -0.346,
-   "rank_gain_se_pct": 0.231,
-   "rank_gain_days": 15,
-   "rank_gain_win_days": 5,
-   "days_to_detect_0p5": 26,
+   "rank_gain_mean_pct": -0.352,
+   "rank_gain_se_pct": 0.226,
+   "rank_gain_days": 17,
+   "rank_gain_win_days": 7,
+   "days_to_detect_0p5": 28,
    "admitted_excess_mean_pct": -0.165,
    "rejected_excess_mean_pct": 0.37,
    "n_admitted": 451,
@@ -551,27 +568,30 @@
    "2026-09-10": {
     "worst": [
      {
-      "code": "600722",
-      "name": "金牛化工",
-      "score": 40.6,
-      "gap_pct": 2.9,
-      "ret_pct": -11.03,
-      "ytil": -3.61,
-      "sector": "化学原料"
-     },
-     {
       "code": "300607",
       "name": "拓斯达",
       "score": 61.7,
+      "rank": 1,
       "gap_pct": 4.19,
       "ret_pct": -11.79,
       "ytil": -3.61,
       "sector": "自动化设备"
      },
      {
+      "code": "600722",
+      "name": "金牛化工",
+      "score": 40.6,
+      "rank": 14,
+      "gap_pct": 2.9,
+      "ret_pct": -11.03,
+      "ytil": -3.61,
+      "sector": "化学原料"
+     },
+     {
       "code": "002702",
       "name": "海欣食品",
       "score": 54.4,
+      "rank": 7,
       "gap_pct": 2.33,
       "ret_pct": -8.79,
       "ytil": -3.21,
@@ -581,6 +601,7 @@
       "code": "601579",
       "name": "会稽山",
       "score": 38.3,
+      "rank": 16,
       "gap_pct": 3.79,
       "ret_pct": -7.69,
       "ytil": -2.75,
@@ -590,6 +611,7 @@
       "code": "301322",
       "name": "绿通科技",
       "score": 37.9,
+      "rank": 17,
       "gap_pct": 2.0,
       "ret_pct": -6.99,
       "ytil": -2.45,
@@ -598,49 +620,14 @@
     ],
     "best": [
      {
-      "code": "600712",
-      "name": "南宁百货",
-      "score": 45.3,
-      "gap_pct": 3.38,
-      "ret_pct": 6.39,
-      "ytil": 3.25,
-      "sector": "零售"
-     },
-     {
-      "code": "000430",
-      "name": "张家界",
-      "score": 58.8,
-      "gap_pct": 3.23,
-      "ret_pct": 0.0,
-      "ytil": 0.53,
-      "sector": "旅游及酒店"
-     },
-     {
       "code": "301305",
       "name": "朗坤科技",
       "score": 38.5,
+      "rank": 15,
       "gap_pct": 2.03,
       "ret_pct": -0.37,
       "ytil": 0.37,
       "sector": "环境治理"
-     },
-     {
-      "code": "000428",
-      "name": "华天酒店",
-      "score": 49.3,
-      "gap_pct": 2.14,
-      "ret_pct": -1.71,
-      "ytil": -0.2,
-      "sector": "旅游及酒店"
-     },
-     {
-      "code": "300497",
-      "name": "富祥股份",
-      "score": 57.2,
-      "gap_pct": 3.66,
-      "ret_pct": -3.38,
-      "ytil": -0.91,
-      "sector": "化学制药"
      }
     ]
    },
@@ -650,6 +637,7 @@
       "code": "600121",
       "name": "郑州煤电",
       "score": 43.2,
+      "rank": 7,
       "gap_pct": 2.51,
       "ret_pct": -10.66,
       "ytil": -3.08,
@@ -659,6 +647,7 @@
       "code": "300191",
       "name": "潜能恒信",
       "score": 31.2,
+      "rank": 9,
       "gap_pct": 2.0,
       "ret_pct": -10.39,
       "ytil": -3.08,
@@ -668,6 +657,7 @@
       "code": "001299",
       "name": "美能能源",
       "score": 29.3,
+      "rank": 10,
       "gap_pct": 2.03,
       "ret_pct": -9.69,
       "ytil": -3.08,
@@ -677,6 +667,7 @@
       "code": "300164",
       "name": "通源石油",
       "score": 58.6,
+      "rank": 4,
       "gap_pct": 4.98,
       "ret_pct": -8.86,
       "ytil": -2.85,
@@ -686,6 +677,7 @@
       "code": "300369",
       "name": "绿盟科技",
       "score": 72.6,
+      "rank": 1,
       "gap_pct": 3.83,
       "ret_pct": -7.14,
       "ytil": -2.22,
@@ -697,46 +689,11 @@
       "code": "603353",
       "name": "和顺石油",
       "score": 42.3,
+      "rank": 8,
       "gap_pct": 2.5,
       "ret_pct": 0.64,
       "ytil": 0.62,
       "sector": "石油加工贸易"
-     },
-     {
-      "code": "300483",
-      "name": "首华燃气",
-      "score": 43.5,
-      "gap_pct": 2.58,
-      "ret_pct": -6.86,
-      "ytil": -2.12,
-      "sector": "油气开采及服务"
-     },
-     {
-      "code": "300369",
-      "name": "绿盟科技",
-      "score": 72.6,
-      "gap_pct": 3.83,
-      "ret_pct": -7.14,
-      "ytil": -2.22,
-      "sector": "软件开发"
-     },
-     {
-      "code": "300191",
-      "name": "潜能恒信",
-      "score": 31.2,
-      "gap_pct": 2.0,
-      "ret_pct": -10.39,
-      "ytil": -3.08,
-      "sector": "油气开采及服务"
-     },
-     {
-      "code": "001299",
-      "name": "美能能源",
-      "score": 29.3,
-      "gap_pct": 2.03,
-      "ret_pct": -9.69,
-      "ytil": -3.08,
-      "sector": "燃气"
      }
     ]
    },
@@ -746,6 +703,7 @@
       "code": "603619",
       "name": "中曼石油",
       "score": 54.9,
+      "rank": 3,
       "gap_pct": 3.36,
       "ret_pct": -6.04,
       "ytil": -2.46,
@@ -755,6 +713,7 @@
       "code": "000533",
       "name": "顺钠股份",
       "score": 26.1,
+      "rank": 14,
       "gap_pct": 3.95,
       "ret_pct": -5.12,
       "ytil": -2.12,
@@ -764,6 +723,7 @@
       "code": "300183",
       "name": "东软载波",
       "score": 29.0,
+      "rank": 11,
       "gap_pct": 2.02,
       "ret_pct": -3.53,
       "ytil": -1.53,
@@ -773,6 +733,7 @@
       "code": "600026",
       "name": "中远海能",
       "score": 56.5,
+      "rank": 1,
       "gap_pct": 3.55,
       "ret_pct": -3.24,
       "ytil": -1.43,
@@ -782,6 +743,7 @@
       "code": "601872",
       "name": "招商轮船",
       "score": 51.5,
+      "rank": 6,
       "gap_pct": 2.75,
       "ret_pct": -2.68,
       "ytil": -1.22,
@@ -790,49 +752,34 @@
     ],
     "best": [
      {
-      "code": "301520",
-      "name": "万邦医药",
-      "score": 15.4,
-      "gap_pct": 2.45,
-      "ret_pct": 17.13,
-      "ytil": 4.72,
-      "sector": "医疗服务"
-     },
-     {
       "code": "688137",
       "name": "近岸蛋白",
       "score": 28.2,
+      "rank": 12,
       "gap_pct": 2.08,
       "ret_pct": 17.56,
       "ytil": 4.72,
       "sector": "生物制品"
      },
      {
-      "code": "003029",
-      "name": "吉大正元",
-      "score": 47.8,
-      "gap_pct": 2.64,
-      "ret_pct": 0.11,
-      "ytil": -0.19,
-      "sector": "软件开发"
+      "code": "301520",
+      "name": "万邦医药",
+      "score": 15.4,
+      "rank": 15,
+      "gap_pct": 2.45,
+      "ret_pct": 17.13,
+      "ytil": 4.72,
+      "sector": "医疗服务"
      },
      {
-      "code": "920088",
-      "name": "科力股份",
-      "score": 53.4,
-      "gap_pct": 4.46,
-      "ret_pct": -1.12,
-      "ytil": -0.65,
-      "sector": "油气开采及服务"
-     },
-     {
-      "code": "600892",
-      "name": "大晟文化",
-      "score": 27.5,
-      "gap_pct": 2.49,
-      "ret_pct": -1.7,
-      "ytil": -0.86,
-      "sector": "游戏"
+      "code": "603626",
+      "name": "科森科技",
+      "score": 38.6,
+      "rank": 9,
+      "gap_pct": 2.81,
+      "ret_pct": 6.97,
+      "ytil": 2.33,
+      "sector": "消费电子"
      }
     ]
    },
@@ -842,6 +789,7 @@
       "code": "300311",
       "name": "任子行",
       "score": 71.7,
+      "rank": 2,
       "gap_pct": 2.85,
       "ret_pct": -7.08,
       "ytil": -2.17,
@@ -851,6 +799,7 @@
       "code": "001896",
       "name": "豫能控股",
       "score": 62.3,
+      "rank": 5,
       "gap_pct": 3.54,
       "ret_pct": -7.06,
       "ytil": -2.16,
@@ -860,6 +809,7 @@
       "code": "688225",
       "name": "亚信安全",
       "score": 73.1,
+      "rank": 1,
       "gap_pct": 4.82,
       "ret_pct": -6.97,
       "ytil": -2.13,
@@ -869,6 +819,7 @@
       "code": "688137",
       "name": "近岸蛋白",
       "score": 39.1,
+      "rank": 20,
       "gap_pct": 4.96,
       "ret_pct": -4.35,
       "ytil": -1.2,
@@ -878,6 +829,7 @@
       "code": "002855",
       "name": "捷荣技术",
       "score": 56.0,
+      "rank": 10,
       "gap_pct": 3.15,
       "ret_pct": -4.3,
       "ytil": -1.18,
@@ -886,9 +838,20 @@
     ],
     "best": [
      {
+      "code": "002487",
+      "name": "大金重工",
+      "score": 44.2,
+      "rank": 17,
+      "gap_pct": 2.65,
+      "ret_pct": 7.17,
+      "ytil": 2.88,
+      "sector": "风电设备"
+     },
+     {
       "code": "301373",
       "name": "凌玮科技",
       "score": 39.8,
+      "rank": 19,
       "gap_pct": 4.42,
       "ret_pct": 6.8,
       "ytil": 2.75,
@@ -898,37 +861,31 @@
       "code": "300868",
       "name": "杰美特",
       "score": 47.8,
+      "rank": 14,
       "gap_pct": 2.26,
       "ret_pct": 5.06,
       "ytil": 2.13,
       "sector": "消费电子"
      },
      {
-      "code": "600228",
-      "name": "返利科技",
-      "score": 62.5,
-      "gap_pct": 2.87,
-      "ret_pct": 3.25,
-      "ytil": 1.49,
-      "sector": "文化传媒"
+      "code": "000657",
+      "name": "中钨高新",
+      "score": 52.8,
+      "rank": 12,
+      "gap_pct": 2.38,
+      "ret_pct": 2.72,
+      "ytil": 1.3,
+      "sector": "小金属"
      },
      {
       "code": "301520",
       "name": "万邦医药",
       "score": 48.0,
+      "rank": 13,
       "gap_pct": 4.47,
       "ret_pct": 2.08,
       "ytil": 1.07,
       "sector": "医疗服务"
-     },
-     {
-      "code": "600397",
-      "name": "江钨装备",
-      "score": 60.0,
-      "gap_pct": 2.91,
-      "ret_pct": 0.12,
-      "ytil": 0.38,
-      "sector": "专用设备"
      }
     ]
    },
@@ -938,6 +895,7 @@
       "code": "301520",
       "name": "万邦医药",
       "score": 51.5,
+      "rank": 6,
       "gap_pct": 3.24,
       "ret_pct": -2.58,
       "ytil": -1.67,
@@ -947,6 +905,7 @@
       "code": "300829",
       "name": "金丹科技",
       "score": 55.9,
+      "rank": 3,
       "gap_pct": 2.96,
       "ret_pct": -2.24,
       "ytil": -1.53,
@@ -956,6 +915,7 @@
       "code": "002753",
       "name": "永东股份",
       "score": 55.6,
+      "rank": 4,
       "gap_pct": 4.72,
       "ret_pct": -1.45,
       "ytil": -1.23,
@@ -965,6 +925,7 @@
       "code": "300313",
       "name": "天山生物",
       "score": 41.0,
+      "rank": 9,
       "gap_pct": 2.9,
       "ret_pct": -0.74,
       "ytil": -0.96,
@@ -974,6 +935,7 @@
       "code": "601919",
       "name": "中远海控",
       "score": 40.7,
+      "rank": 10,
       "gap_pct": 2.07,
       "ret_pct": 0.43,
       "ytil": -0.51,
@@ -982,49 +944,34 @@
     ],
     "best": [
      {
-      "code": "003026",
-      "name": "中晶科技",
-      "score": 70.4,
-      "gap_pct": 3.89,
-      "ret_pct": 5.89,
-      "ytil": 1.59,
-      "sector": "半导体"
+      "code": "301373",
+      "name": "凌玮科技",
+      "score": 29.5,
+      "rank": 12,
+      "gap_pct": 2.99,
+      "ret_pct": 13.39,
+      "ytil": 3.89,
+      "sector": "化学制品"
      },
      {
-      "code": "002084",
-      "name": "海鸥住工",
-      "score": 42.5,
-      "gap_pct": 3.31,
-      "ret_pct": 1.7,
-      "ytil": -0.02,
-      "sector": "家居用品"
+      "code": "000993",
+      "name": "闽东电力",
+      "score": 33.7,
+      "rank": 11,
+      "gap_pct": 2.5,
+      "ret_pct": 7.32,
+      "ytil": 2.14,
+      "sector": "电力"
      },
      {
-      "code": "688499",
-      "name": "利元亨",
-      "score": 59.3,
-      "gap_pct": 4.16,
-      "ret_pct": 1.61,
-      "ytil": -0.06,
-      "sector": "电池"
-     },
-     {
-      "code": "300313",
-      "name": "天山生物",
-      "score": 41.0,
-      "gap_pct": 2.9,
-      "ret_pct": -0.74,
-      "ytil": -0.96,
-      "sector": "养殖业"
-     },
-     {
-      "code": "002753",
-      "name": "永东股份",
-      "score": 55.6,
-      "gap_pct": 4.72,
-      "ret_pct": -1.45,
-      "ytil": -1.23,
-      "sector": "橡胶制品"
+      "code": "003006",
+      "name": "百亚股份",
+      "score": 41.5,
+      "rank": 8,
+      "gap_pct": 2.81,
+      "ret_pct": 3.91,
+      "ytil": 0.83,
+      "sector": "美容护理"
      }
     ]
    }
@@ -1623,7 +1570,8 @@
   "definitions": {
    "y": "开盘买收盘卖的收益，减去当日全池中位数，按 q1/q99 缩尾（单位：%）",
    "ytil": "y 再除以当日 MAD，跨天可比",
-   "top_excess_pct": "分数前 10（过准入）的 y 均值",
+   "top_excess_pct": "**当天真发出去的那张榜**（过准入 且 分数 >= output.min_score，再取前 10）的 y 均值。一只都发不出去的天是 null，不是 0",
+   "sent_n": "当天真发出去几只（生产口径），可能少于 10",
    "rank_gain_pct": "前 10 的 y 均值 − 过准入全部的 y 均值。过准入不足 10 只的天为 null（那天前 10 就是全部，排序没起作用）",
    "se_day_clustered": "按天聚类的标准误：先按天求均值再对天求 se。同一天的票不独立，按票数算的 se 会虚高",
    "days_to_detect_0p5": "以 80% 把握分辨 ±0.5 个百分点/天的排序增益，还需要多少个真值日",
@@ -1633,826 +1581,7 @@
   }
  },
  "breakout": {
-  "window": 20,
-  "threshold": 0.5,
-  "n_lists": 8,
-  "n_final_lists": 0,
-  "lists": [
-   {
-    "date": "2026-09-07",
-    "n": 10,
-    "bars": 7,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0016,
-    "max_rise": 0.2971
-   },
-   {
-    "date": "2026-09-08",
-    "n": 10,
-    "bars": 6,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0009,
-    "max_rise": 0.2569
-   },
-   {
-    "date": "2026-09-09",
-    "n": 10,
-    "bars": 5,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0004,
-    "max_rise": 0.2456
-   },
-   {
-    "date": "2026-09-10",
-    "n": 10,
-    "bars": 4,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0002,
-    "max_rise": 0.281
-   },
-   {
-    "date": "2026-09-11",
-    "n": 10,
-    "bars": 3,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0002,
-    "max_rise": 0.3945
-   },
-   {
-    "date": "2026-09-14",
-    "n": 10,
-    "bars": 2,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0,
-    "max_rise": 0.1714
-   },
-   {
-    "date": "2026-09-15",
-    "n": 10,
-    "bars": 1,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0,
-    "max_rise": 0.2001
-   },
-   {
-    "date": "2026-09-16",
-    "n": 10,
-    "bars": 0,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": null,
-    "max_rise": null
-   }
-  ],
-  "by": {
-   "streak": [],
-   "score": [],
-   "board": []
-  },
-  "expected": {
-   "streak_perf": [
-    {
-     "streak_ge": 5,
-     "hit_pct": 6.7,
-     "lift": 2.3,
-     "n": 30
-    },
-    {
-     "streak_ge": 4,
-     "hit_pct": 13.0,
-     "lift": 4.4,
-     "n": 54
-    },
-    {
-     "streak_ge": 3,
-     "hit_pct": 14.3,
-     "lift": 4.9,
-     "n": 98
-    },
-    {
-     "streak_ge": 2,
-     "hit_pct": 15.7,
-     "lift": 5.4,
-     "n": 216
-    },
-    {
-     "streak_ge": 1,
-     "hit_pct": 12.6,
-     "lift": 4.3,
-     "n": 783
-    }
-   ],
-   "base_pct": 2.93,
-   "score_table": [
-    [
-     "95 分以上",
-     8.2,
-     2.8
-    ],
-    [
-     "90~94 分",
-     5.9,
-     2.0
-    ],
-    [
-     "80~89 分",
-     4.6,
-     1.6
-    ],
-    [
-     "70~79 分",
-     3.9,
-     1.3
-    ],
-    [
-     "随便买",
-     2.9,
-     1.0
-    ]
-   ],
-   "window": "验证集 207 个交易日"
-  },
-  "model": {
-   "fit_date": "2026-09-15",
-   "train_cut": "2026-08-11",
-   "n_feats": 45,
-   "fingerprint": "482b519d3a8524399ee8d820ccc7294a",
-   "importance": [
-    {
-     "feat": "mkt_ret5__mean",
-     "gain_share": 0.1647
-    },
-    {
-     "feat": "mkt_ret5__slope",
-     "gain_share": 0.1206
-    },
-    {
-     "feat": "turn_pct__mean",
-     "gain_share": 0.1017
-    },
-    {
-     "feat": "mkt_ret5__last",
-     "gain_share": 0.1008
-    },
-    {
-     "feat": "above_ma60__mean",
-     "gain_share": 0.0808
-    },
-    {
-     "feat": "boll_width__last",
-     "gain_share": 0.0384
-    },
-    {
-     "feat": "amt_ma20__last",
-     "gain_share": 0.0383
-    },
-    {
-     "feat": "gdhs_level__slope",
-     "gain_share": 0.0379
-    },
-    {
-     "feat": "gdhs_chg3__mean",
-     "gain_share": 0.0368
-    },
-    {
-     "feat": "chip_conc90__last",
-     "gain_share": 0.0334
-    },
-    {
-     "feat": "dist_52w_low__last",
-     "gain_share": 0.0332
-    },
-    {
-     "feat": "turn_std20__last",
-     "gain_share": 0.0229
-    },
-    {
-     "feat": "gdhs_level__last",
-     "gain_share": 0.0219
-    },
-    {
-     "feat": "amt_ma20__slope",
-     "gain_share": 0.0214
-    },
-    {
-     "feat": "rs60__last",
-     "gain_share": 0.0184
-    },
-    {
-     "feat": "chip_conc_chg20__last",
-     "gain_share": 0.0164
-    },
-    {
-     "feat": "rs20__last",
-     "gain_share": 0.0108
-    },
-    {
-     "feat": "chip_dev__mean",
-     "gain_share": 0.01
-    },
-    {
-     "feat": "atr_ratio__last",
-     "gain_share": 0.0095
-    },
-    {
-     "feat": "ma_align__mean",
-     "gain_share": 0.008
-    },
-    {
-     "feat": "turn_pct__slope",
-     "gain_share": 0.0071
-    },
-    {
-     "feat": "dist_52w_high__slope",
-     "gain_share": 0.007
-    },
-    {
-     "feat": "up_vol_share20__last",
-     "gain_share": 0.0066
-    },
-    {
-     "feat": "chip_win__last",
-     "gain_share": 0.006
-    },
-    {
-     "feat": "ma20_slope5__mean",
-     "gain_share": 0.0057
-    },
-    {
-     "feat": "vol_compress__last",
-     "gain_share": 0.0048
-    },
-    {
-     "feat": "dist_52w_low__slope",
-     "gain_share": 0.0046
-    },
-    {
-     "feat": "ma_align__slope",
-     "gain_share": 0.0038
-    },
-    {
-     "feat": "chip_peak__last",
-     "gain_share": 0.0033
-    },
-    {
-     "feat": "vol_ratio20__last",
-     "gain_share": 0.0033
-    },
-    {
-     "feat": "range_compress__last",
-     "gain_share": 0.003
-    },
-    {
-     "feat": "vol_compress__mean",
-     "gain_share": 0.0024
-    },
-    {
-     "feat": "boll_width__slope",
-     "gain_share": 0.0022
-    },
-    {
-     "feat": "vol_ratio5__last",
-     "gain_share": 0.0022
-    },
-    {
-     "feat": "chip_dev__slope",
-     "gain_share": 0.0022
-    },
-    {
-     "feat": "rs60__slope",
-     "gain_share": 0.0018
-    },
-    {
-     "feat": "chip_peak__slope",
-     "gain_share": 0.0017
-    },
-    {
-     "feat": "range_compress__mean",
-     "gain_share": 0.0014
-    },
-    {
-     "feat": "ma20_slope5__slope",
-     "gain_share": 0.001
-    },
-    {
-     "feat": "atr_ratio__slope",
-     "gain_share": 0.001
-    },
-    {
-     "feat": "chip_win__slope",
-     "gain_share": 0.0009
-    },
-    {
-     "feat": "rs20__slope",
-     "gain_share": 0.0009
-    },
-    {
-     "feat": "x_squeeze_burst__last",
-     "gain_share": 0.0006
-    },
-    {
-     "feat": "x_squeeze_burst__mean",
-     "gain_share": 0.0006
-    },
-    {
-     "feat": "vol_ratio5__mean",
-     "gain_share": 0.0002
-    }
-   ],
-   "importance_by_group": {
-    "regime": 0.4179,
-    "structure": 0.208,
-    "position": 0.1441,
-    "holders": 0.0966,
-    "volume": 0.0696,
-    "compression": 0.0626,
-    "other": 0.0013
-   },
-   "feature_select": {
-    "start": 87,
-    "end": 34,
-    "dropped": {
-     "ic_too_weak": {
-      "ma20_slope5__slope": 0.0047,
-      "vol_compress__slope": 0.0044,
-      "chip_conc_chg20__slope": -0.0008,
-      "chip_peak__slope": -0.0048,
-      "vol_ratio5__last": 0.0043,
-      "vol_ratio5__slope": 0.0021,
-      "turn_std20__slope": 0.0,
-      "gdhs_stale_days__last": 0.0,
-      "gdhs_stale_days__mean": 0.0,
-      "gdhs_stale_days__slope": 0.0,
-      "rs_accel__last": 0.001,
-      "rs_accel__mean": -0.0002,
-      "rs_accel__slope": 0.0013,
-      "x_holder_chip__slope": -0.0004,
-      "x_squeeze_burst__slope": 0.0016,
-      "x_light_top__slope": 0.0026
-     },
-     "ic_unstable": {
-      "dist_52w_high__last": {
-       "flip": 0.48,
-       "ic": -0.0172
-      },
-      "dist_52w_high__mean": {
-       "flip": 0.48,
-       "ic": -0.0194
-      },
-      "above_ma60__slope": {
-       "flip": 0.48,
-       "ic": 0.0031
-      },
-      "range_compress__slope": {
-       "flip": 0.43,
-       "ic": 0.0041
-      },
-      "atr_ratio__mean": {
-       "flip": 0.43,
-       "ic": 0.0106
-      },
-      "chip_conc90__slope": {
-       "flip": 0.43,
-       "ic": -0.0037
-      },
-      "chip_conc_chg20__mean": {
-       "flip": 0.48,
-       "ic": 0.009
-      },
-      "chip_dev__mean": {
-       "flip": 0.43,
-       "ic": 0.0065
-      },
-      "gdhs_chg1__last": {
-       "flip": 0.48,
-       "ic": 0.0053
-      },
-      "gdhs_chg1__mean": {
-       "flip": 0.43,
-       "ic": 0.0051
-      },
-      "gdhs_chg3__last": {
-       "flip": 0.48,
-       "ic": 0.0084
-      },
-      "gdhs_chg3__mean": {
-       "flip": 0.43,
-       "ic": 0.0082
-      },
-      "gdhs_chg3__slope": {
-       "flip": 0.48,
-       "ic": -0.0053
-      },
-      "gdhs_down_streak__last": {
-       "flip": 0.52,
-       "ic": -0.0008
-      },
-      "gdhs_down_streak__mean": {
-       "flip": 0.52,
-       "ic": -0.0007
-      },
-      "rs60__last": {
-       "flip": 0.43,
-       "ic": 0.0144
-      },
-      "rs60__mean": {
-       "flip": 0.48,
-       "ic": 0.0122
-      },
-      "mkt_breadth__mean": {
-       "flip": 0.43,
-       "ic": -0.0097
-      },
-      "mkt_breadth__slope": {
-       "flip": 0.7,
-       "ic": 0.0013
-      },
-      "mkt_ret5__last": {
-       "flip": 0.43,
-       "ic": -0.0076
-      },
-      "mkt_ret5__mean": {
-       "flip": 0.48,
-       "ic": -0.0121
-      },
-      "x_holder_chip__last": {
-       "flip": 0.52,
-       "ic": -0.0006
-      },
-      "x_holder_chip__mean": {
-       "flip": 0.52,
-       "ic": -0.001
-      },
-      "x_light_top__last": {
-       "flip": 0.57,
-       "ic": -0.0035
-      },
-      "x_light_top__mean": {
-       "flip": 0.48,
-       "ic": -0.0037
-      }
-     },
-     "collinear": {
-      "turn_pct__last": "与 turn_pct__mean 相关 0.93",
-      "boll_width__mean": "与 boll_width__last 相关 0.96",
-      "chip_conc90__mean": "与 chip_conc90__last 相关 0.98",
-      "dist_52w_low__mean": "与 dist_52w_low__last 相关 0.97",
-      "ma_align__mean": "与 ma_align__last 相关 0.86",
-      "above_ma60__last": "与 above_ma60__mean 相关 0.93",
-      "chip_win__mean": "与 chip_win__last 相关 0.89",
-      "turn_std20__last": "与 turn_std20__mean 相关 0.93",
-      "chip_peak__mean": "与 chip_peak__last 相关 0.87",
-      "ma20_slope5__last": "与 rs20__last 相关 0.91",
-      "rs20__mean": "与 rs20__last 相关 0.91",
-      "chip_dev__last": "与 chip_win__last 相关 0.86"
-     }
-    }
-   },
-   "walk_forward_w5": [
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥2天",
-     "n": 216,
-     "empty": 99,
-     "per_day": 1.0434782608695652,
-     "hit": 0.15740740299224854,
-     "se": 0.0247796130805858,
-     "lift": 5.3701752041423845,
-     "per_month": 3.449275265569272
-    },
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥3天",
-     "n": 98,
-     "empty": 142,
-     "per_day": 0.47342995169082125,
-     "hit": 0.1428571492433548,
-     "se": 0.0353479763230783,
-     "lift": 4.873772808759896,
-     "per_month": 1.420289918564368
-    },
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥4天",
-     "n": 54,
-     "empty": 167,
-     "per_day": 0.2608695652173913,
-     "hit": 0.12962962687015533,
-     "se": 0.04570958784010435,
-     "lift": 4.422497256845146,
-     "per_month": 0.7101449124191117
-    },
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥1天",
-     "n": 783,
-     "empty": 31,
-     "per_day": 3.782608695652174,
-     "hit": 0.12643678486347198,
-     "se": 0.011876897538619287,
-     "lift": 4.313568955830743,
-     "per_month": 10.043478519372318
-    },
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥5天",
-     "n": 30,
-     "empty": 182,
-     "per_day": 0.14492753623188406,
-     "hit": 0.06666667014360428,
-     "se": 0.045542004507036556,
-     "lift": 2.274427327700421,
-     "per_month": 0.20289856130662173
-    }
-   ],
-   "validation_w5": {
-    "n_picks": 783,
-    "hit_rate": 0.1264,
-    "by_board": [
-     {
-      "board": "bj",
-      "n": 113,
-      "hits": 9,
-      "hit_rate": 0.0796,
-      "share_of_picks": 0.144
-     },
-     {
-      "board": "main",
-      "n": 520,
-      "hits": 86,
-      "hit_rate": 0.1654,
-      "share_of_picks": 0.664
-     },
-     {
-      "board": "star",
-      "n": 150,
-      "hits": 4,
-      "hit_rate": 0.0267,
-      "share_of_picks": 0.192
-     }
-    ],
-    "pace": {
-     "bar3": {
-      "n": 783,
-      "mean_rise_all": 0.1007,
-      "mean_rise_hits": 0.2433,
-      "mean_rise_misses": 0.08,
-      "share_hits_already_ge25": 0.434,
-      "p_hit_given_ge25": 0.494,
-      "n_ge25": 87,
-      "share_all_ge15": 0.269
-     },
-     "bar5": {
-      "n": 783,
-      "mean_rise_all": 0.1342,
-      "mean_rise_hits": 0.3664,
-      "mean_rise_misses": 0.1006,
-      "share_hits_already_ge25": 0.747,
-      "p_hit_given_ge25": 0.507,
-      "n_ge25": 146,
-      "share_all_ge15": 0.345
-     },
-     "bar7": {
-      "n": 783,
-      "mean_rise_all": 0.1583,
-      "mean_rise_hits": 0.4756,
-      "mean_rise_misses": 0.1124,
-      "share_hits_already_ge25": 0.828,
-      "p_hit_given_ge25": 0.482,
-      "n_ge25": 170,
-      "share_all_ge15": 0.37
-     },
-     "bar10": {
-      "n": 783,
-      "mean_rise_all": 0.195,
-      "mean_rise_hits": 0.6701,
-      "mean_rise_misses": 0.1263,
-      "share_hits_already_ge25": 0.949,
-      "p_hit_given_ge25": 0.463,
-      "n_ge25": 203,
-      "share_all_ge15": 0.413
-     },
-     "bar15": {
-      "n": 783,
-      "mean_rise_all": 0.2413,
-      "mean_rise_hits": 0.9059,
-      "mean_rise_misses": 0.1451,
-      "share_hits_already_ge25": 0.99,
-      "p_hit_given_ge25": 0.4,
-      "n_ge25": 245,
-      "share_all_ge15": 0.471
-     }
-    },
-    "note": "pace.barK：验证集名额在第 K 根时的最高涨幅；进行中的清单拿同一根数对照。p_hit_given_ge25 = 第 K 根已涨 25% 的票最终命中的比例"
-   }
-  },
-  "data_health": {
-   "codes_per_day_recent": [
-    {
-     "date": "2026-08-06",
-     "n": 5511
-    },
-    {
-     "date": "2026-08-07",
-     "n": 5512
-    },
-    {
-     "date": "2026-08-10",
-     "n": 5515
-    },
-    {
-     "date": "2026-08-11",
-     "n": 5513
-    },
-    {
-     "date": "2026-08-12",
-     "n": 5512
-    },
-    {
-     "date": "2026-08-13",
-     "n": 5513
-    },
-    {
-     "date": "2026-08-14",
-     "n": 5513
-    },
-    {
-     "date": "2026-08-17",
-     "n": 5511
-    },
-    {
-     "date": "2026-08-18",
-     "n": 5511
-    },
-    {
-     "date": "2026-08-19",
-     "n": 5510
-    },
-    {
-     "date": "2026-08-20",
-     "n": 5509
-    },
-    {
-     "date": "2026-08-21",
-     "n": 5510
-    },
-    {
-     "date": "2026-08-24",
-     "n": 5512
-    },
-    {
-     "date": "2026-08-25",
-     "n": 5512
-    },
-    {
-     "date": "2026-08-26",
-     "n": 5513
-    },
-    {
-     "date": "2026-08-27",
-     "n": 5513
-    },
-    {
-     "date": "2026-08-28",
-     "n": 5512
-    },
-    {
-     "date": "2026-08-31",
-     "n": 5510
-    },
-    {
-     "date": "2026-09-01",
-     "n": 5509
-    },
-    {
-     "date": "2026-09-02",
-     "n": 5509
-    },
-    {
-     "date": "2026-09-03",
-     "n": 5510
-    },
-    {
-     "date": "2026-09-04",
-     "n": 5508
-    },
-    {
-     "date": "2026-09-07",
-     "n": 5507
-    },
-    {
-     "date": "2026-09-08",
-     "n": 5507
-    },
-    {
-     "date": "2026-09-09",
-     "n": 5506
-    },
-    {
-     "date": "2026-09-10",
-     "n": 5504
-    },
-    {
-     "date": "2026-09-11",
-     "n": 5504
-    },
-    {
-     "date": "2026-09-14",
-     "n": 5504
-    },
-    {
-     "date": "2026-09-15",
-     "n": 5502
-    },
-    {
-     "date": "2026-09-16",
-     "n": 5502
-    }
-   ],
-   "codes_per_day_min_all": {
-    "n": 37,
-    "date": "2023-01-03"
-   },
-   "thin_days": 96,
-   "date_range": [
-    "2023-01-03",
-    "2026-09-16"
-   ],
-   "latest_list_nan_feats": {},
-   "run_meta": {
-    "date": "2026-09-16",
-    "n_a": 10,
-    "n_b": 0,
-    "score_min": 97,
-    "n_streak3": 2,
-    "pool": 41,
-    "model_date": "2026-09-15",
-    "rejected": 3,
-    "dry": false
-   }
-  },
-  "definitions": {
-   "rise": "上榜日收盘到之后 min(20, 已走) 根 K 线最高价的涨幅",
-   "hit": "rise > 50%（和训练标签 y_up 同口径）",
-   "final": "20 根已走满，命中才算最终",
-   "base_final/base_sofar": "同一天全市场随便买一只、同一窗口的命中比例（分别按已满/到目前为止）",
-   "expected.streak_perf": "邮件里印的验证集成绩（207 个交易日走向前）"
-  }
+  "error": "module 'export' has no attribute 'SCORE_TABLE'"
  },
  "regime": {
   "recent": [

@@ -77,6 +77,7 @@ def morning(c: dict, n_days: int = 0) -> dict:
     """在线真值日的预测 vs 真值。n_days=0 取全部。"""
     from learn import dataset, vscore
     from learn.model_select import spearman
+    from learn.optimize import production_order
     lc = c["learning"]
     df = dataset.build(None, lc["neutralize"])
     out: dict = {"days": 0, "note": ""}
@@ -95,37 +96,45 @@ def morning(c: dict, n_days: int = 0) -> dict:
 
     daily, worst_best = [], {}
     for d, g in df.groupby("date"):
-        ok = g[~g["rej"]]
-        top = ok.nlargest(top_k, "sc")
+        ok = g[~g["rej"]].sort_values("sc", ascending=False, kind="mergesort")
+        # 「前 10」要按生产那张榜数：过准入 且 round(分,1) >= min_score，再取前 10。
+        # 只按 ~rej 取前 K 会把从没发过信的低分票算进成绩（学习线那批修的 F1-1，
+        # 在线 17 天里有 4 天两张榜不是同一批票）。
+        sel = production_order(g["sc"].to_numpy(), g["rej"].to_numpy(), c, top_k)
+        top = g.iloc[sel]
         ic = spearman(ok["sc"].to_numpy(), ok["ytil"].to_numpy()) \
             if len(ok) > 5 else float("nan")
         # 排序增益 = 前 10 的超额 − 过准入全部的超额。它把「准入选得好不好」和
         # 「排序排得好不好」分开：过准入的票不够 top_k 只时，前 10 就是全部，
         # 排序根本没起作用，那天的排序增益恒为 0，必须排除而不是当成 0 参与平均。
-        rank_ok = len(ok) > top_k
+        rank_ok = len(ok) > len(top) > 0
         gain = (100 * (top["y"].mean() - ok["y"].mean())) if rank_ok else None
         daily.append({
             "date": d, "pool": int(len(g)), "admitted": int(len(ok)),
             "market_median_pct": _f(100 * g["day_center"].iloc[0], 2),
-            "top_excess_pct": _f(100 * top["y"].mean(), 3),
+            "top_excess_pct": _f(100 * top["y"].mean(), 3) if len(top) else None,
             "top_hits": int((top["y"] > 0).sum()), "top_n": int(len(top)),
-            "top_mean_score": _f(top["sc"].mean(), 1),
+            "sent_n": int(len(top)),
+            "top_mean_score": _f(top["sc"].mean(), 1) if len(top) else None,
             "admitted_excess_pct": _f(100 * ok["y"].mean(), 3),
             "rank_gain_pct": _f(gain, 3),
             "rank_evaluable": bool(rank_ok),
             "ic": _f(ic, 3),
             "regime": regimes.get(d, ""),
         })
-        head = ok.head(20) if len(ok) else ok
-        tail = ok.tail(max(len(ok) // 2, 1)) if len(ok) else ok
-
         def pack(gg):
             return [{"code": r.code, "name": r.name, "score": _f(r.sc, 1),
+                     "rank": int(getattr(r, "rank", 0) or 0),
                      "gap_pct": _f(r.gap_pct, 2), "ret_pct": _f(100 * r.r, 2),
                      "ytil": _f(r.ytil, 2), "sector": r.sector}
                     for r in gg.itertuples(index=False)]
-        worst_best[d] = {"worst": pack(head.nsmallest(5, "ytil")),
-                         "best": pack(tail.nlargest(5, "ytil"))}
+        try:
+            from learn import brief as BR
+            _all, w_, b_ = BR.pick_worst_best(ok.rename(columns={"sc": "sc"}), 5, 5)
+            worst_best[d] = {"worst": pack(w_), "best": pack(b_)}
+        except Exception as e:  # noqa: BLE001
+            log.warning("%s worst/best 挑选失败: %s", d, e)
+            worst_best[d] = {"worst": [], "best": []}
 
     ok = df[~df["rej"]].copy()
     ok["y_pct"] = 100 * ok["y"]
@@ -255,7 +264,9 @@ def morning(c: dict, n_days: int = 0) -> dict:
         "definitions": {
             "y": "开盘买收盘卖的收益，减去当日全池中位数，按 q1/q99 缩尾（单位：%）",
             "ytil": "y 再除以当日 MAD，跨天可比",
-            "top_excess_pct": "分数前 10（过准入）的 y 均值",
+            "top_excess_pct": "**当天真发出去的那张榜**（过准入 且 分数 >= output.min_score，"
+                              "再取前 10）的 y 均值。一只都发不出去的天是 null，不是 0",
+            "sent_n": "当天真发出去几只（生产口径），可能少于 10",
             "rank_gain_pct": "前 10 的 y 均值 − 过准入全部的 y 均值。过准入不足 10 只的天为 null"
                              "（那天前 10 就是全部，排序没起作用）",
             "se_day_clustered": "按天聚类的标准误：先按天求均值再对天求 se。同一天的票不独立，"

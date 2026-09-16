@@ -296,38 +296,52 @@ def _known_features() -> set[str]:
 # ---------------------------------------------------------------------
 #  早盘：参数类
 # ---------------------------------------------------------------------
-def exp_param(p: dict, c: dict) -> dict:
+def exp_param(p: dict, c: dict, date: str = "") -> dict:
+    """一组参数值走和优化器候选同一套七道闸。
+
+    两个坑（2026-09-16 学习线那批修完后暴露的）：
+    1. 以前返回的是这里自己夹箱得到的 theta，而 evaluate_candidate 内部还会
+       再走一次 sparsify（权重要再归一到和为 1），过闸的和落地的不是同一份。
+       现在一律返回 res["theta"]，也就是真正被判过的那份。
+    2. 冷却期按「今天」算会差一个交易日：提案是那天的会诊出的，闸门要按
+       提案日判，否则跨午夜重跑结果会变。
+    """
     params = p.get("params") or {}
     box = c["learning"]["box"]
     import cfg as C
-    theta = C.theta_now(box)
-    moved = {}
+    prev = C.theta_now(box)          # 循环前的基准，下面 theta 会被原地改
+    theta = dict(prev)
+    asked = {}
     for k, v in params.items():
         if k in box:
             try:
                 lo, hi = box[k]
                 nv = float(np.clip(float(v), lo, hi))
-                moved[k] = (theta[k], nv)
+                asked[k] = nv
                 theta[k] = nv
             except Exception:  # noqa: BLE001
                 pass
-    if not moved:
+    if not asked:
         return {"status": "needs_human",
                 "detail": f"参数不在可学白名单里（{sorted(box)}），或没给 params"}
     import eval_daily as ED
-    date = dt.date.today().isoformat()
+    date = date or p.get("date") or dt.date.today().isoformat()
     res = ED.evaluate_candidate(c, theta, date)
     if not res:
         return {"status": "failed", "detail": "评估失败（数据不够或异常）"}
+    final = res.get("theta") or theta
     v = res["verdict"]
+    moved = {k: [prev[k], final[k]] for k in box
+             if abs(float(final[k]) - float(prev[k])) > 1e-9}
     return {"status": "passed" if v.get("accepted") else "failed",
             "detail": "；".join(f"{ck['name']}{'过' if ck['passed'] else '不过'}" for ck in v.get("checks", [])),
-            "moved": {k: list(vv) for k, vv in moved.items()},
-            "verdict": v, "metrics": res.get("metrics"), "theta": theta}
+            "moved": moved, "asked": asked,
+            "verdict": v, "metrics": res.get("metrics"), "theta": final}
 
 
 # ---------------------------------------------------------------------
-def run_pending(c: dict, max_drop: int = MAX_DROP_PER_RUN) -> list[dict]:
+def run_pending(c: dict, max_drop: int = MAX_DROP_PER_RUN,
+                date: str = "") -> list[dict]:
     """把台账里 pending 的自动实验跑掉，结果写 decisions.json。"""
     done = []
     n_drop = 0
@@ -354,7 +368,7 @@ def run_pending(c: dict, max_drop: int = MAX_DROP_PER_RUN) -> list[dict]:
                 n_drop += 1
                 res = exp_feature_drop(p)
             elif p["kind"] == "param":
-                res = exp_param(p, c)
+                res = exp_param(p, c, date or p.get("date", ""))
             else:
                 res = {"status": "needs_human", "detail": "不能自动做"}
         except Exception as e:  # noqa: BLE001

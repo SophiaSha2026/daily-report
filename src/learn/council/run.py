@@ -258,7 +258,7 @@ def run(c: dict, date: str, lenses: list[str] | None = None, skip_llm: bool = Fa
     if not skip_experiments and k.get("auto_experiments", True):
         try:
             from learn.council import experiments as EX
-            EX.run_pending(c)
+            EX.run_pending(c, date=date)
         except Exception as e:  # noqa: BLE001
             log.warning("自动实验失败（不影响会诊）: %s", e)
     _panel()
@@ -369,7 +369,7 @@ def main() -> int:
         return 0
     if a.experiments:
         from learn.council import experiments as EX
-        EX.run_pending(c)
+        EX.run_pending(c, date=a.date or dt.date.today().isoformat())
         _panel()
         return 0
     date = a.date or dt.date.today().isoformat()

@@ -1,6 +1,6 @@
 {
  "date": "2026-09-16",
- "generated_at": "2026-09-16T15:02:26",
+ "generated_at": "2026-09-16T16:32:23",
  "morning": {
   "days": 17,
   "note": "",
@@ -15,6 +15,7 @@
     "top_excess_pct": 0.883,
     "top_hits": 5,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 59.4,
     "admitted_excess_pct": 0.57,
     "rank_gain_pct": 0.313,
@@ -27,13 +28,14 @@
     "pool": 1140,
     "admitted": 8,
     "market_median_pct": 1.36,
-    "top_excess_pct": 4.014,
-    "top_hits": 7,
-    "top_n": 8,
-    "top_mean_score": 57.1,
+    "top_excess_pct": 4.027,
+    "top_hits": 6,
+    "top_n": 7,
+    "sent_n": 7,
+    "top_mean_score": 60.2,
     "admitted_excess_pct": 4.014,
-    "rank_gain_pct": null,
-    "rank_evaluable": false,
+    "rank_gain_pct": 0.013,
+    "rank_evaluable": true,
     "ic": -0.452,
     "regime": ""
    },
@@ -45,6 +47,7 @@
     "top_excess_pct": -0.961,
     "top_hits": 4,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 63.5,
     "admitted_excess_pct": -0.202,
     "rank_gain_pct": -0.76,
@@ -60,6 +63,7 @@
     "top_excess_pct": 1.19,
     "top_hits": 7,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 69.7,
     "admitted_excess_pct": 1.538,
     "rank_gain_pct": -0.347,
@@ -75,6 +79,7 @@
     "top_excess_pct": -1.935,
     "top_hits": 4,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 63.4,
     "admitted_excess_pct": -1.049,
     "rank_gain_pct": -0.885,
@@ -90,6 +95,7 @@
     "top_excess_pct": -3.25,
     "top_hits": 1,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 69.0,
     "admitted_excess_pct": -2.871,
     "rank_gain_pct": -0.379,
@@ -105,6 +111,7 @@
     "top_excess_pct": -2.61,
     "top_hits": 2,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 61.6,
     "admitted_excess_pct": -2.326,
     "rank_gain_pct": -0.284,
@@ -120,6 +127,7 @@
     "top_excess_pct": -0.329,
     "top_hits": 3,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 69.0,
     "admitted_excess_pct": 0.36,
     "rank_gain_pct": -0.689,
@@ -135,6 +143,7 @@
     "top_excess_pct": 0.37,
     "top_hits": 6,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 65.2,
     "admitted_excess_pct": -0.668,
     "rank_gain_pct": 1.038,
@@ -150,6 +159,7 @@
     "top_excess_pct": 2.456,
     "top_hits": 7,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 73.6,
     "admitted_excess_pct": 2.111,
     "rank_gain_pct": 0.346,
@@ -165,6 +175,7 @@
     "top_excess_pct": 0.343,
     "top_hits": 6,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 65.2,
     "admitted_excess_pct": -0.647,
     "rank_gain_pct": 0.99,
@@ -180,6 +191,7 @@
     "top_excess_pct": -0.752,
     "top_hits": 3,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 68.0,
     "admitted_excess_pct": -0.589,
     "rank_gain_pct": -0.163,
@@ -195,6 +207,7 @@
     "top_excess_pct": -1.722,
     "top_hits": 4,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 56.4,
     "admitted_excess_pct": -2.229,
     "rank_gain_pct": 0.507,
@@ -207,13 +220,14 @@
     "pool": 1012,
     "admitted": 10,
     "market_median_pct": -1.06,
-    "top_excess_pct": -5.826,
-    "top_hits": 1,
-    "top_n": 10,
-    "top_mean_score": 50.0,
+    "top_excess_pct": -5.786,
+    "top_hits": 0,
+    "top_n": 5,
+    "sent_n": 5,
+    "top_mean_score": 62.2,
     "admitted_excess_pct": -5.826,
-    "rank_gain_pct": null,
-    "rank_evaluable": false,
+    "rank_gain_pct": 0.04,
+    "rank_evaluable": true,
     "ic": 0.35,
     "regime": ""
    },
@@ -222,12 +236,13 @@
     "pool": 1120,
     "admitted": 15,
     "market_median_pct": 0.63,
-    "top_excess_pct": -1.422,
-    "top_hits": 2,
-    "top_n": 10,
-    "top_mean_score": 49.3,
+    "top_excess_pct": -2.235,
+    "top_hits": 1,
+    "top_n": 8,
+    "sent_n": 8,
+    "top_mean_score": 52.8,
     "admitted_excess_pct": -0.055,
-    "rank_gain_pct": -1.366,
+    "rank_gain_pct": -2.18,
     "rank_evaluable": true,
     "ic": -0.266,
     "regime": "板块轮动"
@@ -240,6 +255,7 @@
     "top_excess_pct": -1.542,
     "top_hits": 4,
     "top_n": 10,
+    "sent_n": 10,
     "top_mean_score": 63.1,
     "admitted_excess_pct": 0.579,
     "rank_gain_pct": -2.121,
@@ -252,27 +268,28 @@
     "pool": 1008,
     "admitted": 12,
     "market_median_pct": 1.75,
-    "top_excess_pct": -0.476,
-    "top_hits": 3,
-    "top_n": 10,
-    "top_mean_score": 51.1,
+    "top_excess_pct": -0.507,
+    "top_hits": 2,
+    "top_n": 6,
+    "sent_n": 6,
+    "top_mean_score": 57.6,
     "admitted_excess_pct": 0.91,
-    "rank_gain_pct": -1.386,
+    "rank_gain_pct": -1.417,
     "rank_evaluable": true,
     "ic": -0.364,
     "regime": "正常"
    }
   ],
   "summary": {
-   "top_excess_mean_pct": -0.681,
-   "top_excess_se_pct": 0.546,
+   "top_excess_mean_pct": -0.727,
+   "top_excess_se_pct": 0.551,
    "top_win_days": 6,
    "n_days": 17,
-   "rank_gain_mean_pct": -0.346,
-   "rank_gain_se_pct": 0.231,
-   "rank_gain_days": 15,
-   "rank_gain_win_days": 5,
-   "days_to_detect_0p5": 26,
+   "rank_gain_mean_pct": -0.352,
+   "rank_gain_se_pct": 0.226,
+   "rank_gain_days": 17,
+   "rank_gain_win_days": 7,
+   "days_to_detect_0p5": 28,
    "admitted_excess_mean_pct": -0.165,
    "rejected_excess_mean_pct": 0.37,
    "n_admitted": 451,
@@ -554,92 +571,102 @@
       "code": "002655",
       "name": "共达电声",
       "score": 55.4,
+      "rank": 7,
       "gap_pct": 4.61,
       "ret_pct": -10.45,
       "ytil": -2.65,
       "sector": "未分类"
      },
      {
-      "code": "002980",
-      "name": "华盛昌",
-      "score": 29.2,
-      "gap_pct": 4.65,
-      "ret_pct": -8.77,
-      "ytil": -2.35,
+      "code": "301379",
+      "name": "天山电子",
+      "score": 41.6,
+      "rank": 16,
+      "gap_pct": 4.31,
+      "ret_pct": -6.48,
+      "ytil": -1.52,
       "sector": "未分类"
      },
      {
-      "code": "600176",
-      "name": "中国巨石",
-      "score": 29.5,
-      "gap_pct": 2.16,
-      "ret_pct": -7.17,
-      "ytil": -1.77,
-      "sector": "未分类"
-     },
-     {
-      "code": "002384",
-      "name": "东山精密",
-      "score": 31.2,
-      "gap_pct": 2.01,
-      "ret_pct": -5.62,
-      "ytil": -1.2,
+      "code": "301235",
+      "name": "华康洁净",
+      "score": 51.6,
+      "rank": 9,
+      "gap_pct": 3.53,
+      "ret_pct": -5.48,
+      "ytil": -1.15,
       "sector": "未分类"
      },
      {
       "code": "002491",
       "name": "通鼎互联",
       "score": 60.5,
+      "rank": 4,
       "gap_pct": 3.77,
       "ret_pct": -5.41,
       "ytil": -1.13,
+      "sector": "未分类"
+     },
+     {
+      "code": "301358",
+      "name": "湖南裕能",
+      "score": 43.0,
+      "rank": 13,
+      "gap_pct": 3.54,
+      "ret_pct": -5.25,
+      "ytil": -1.07,
       "sector": "未分类"
      }
     ],
     "best": [
      {
+      "code": "000620",
+      "name": "盈新发展",
+      "score": 32.3,
+      "rank": 27,
+      "gap_pct": 2.54,
+      "ret_pct": 7.43,
+      "ytil": 3.54,
+      "sector": "未分类"
+     },
+     {
       "code": "603065",
       "name": "宿迁联盛",
       "score": 35.3,
+      "rank": 25,
       "gap_pct": 2.02,
       "ret_pct": 6.39,
       "ytil": 3.16,
       "sector": "未分类"
      },
      {
-      "code": "300192",
-      "name": "科德教育",
-      "score": 54.0,
-      "gap_pct": 2.94,
-      "ret_pct": 5.84,
-      "ytil": 2.96,
-      "sector": "未分类"
-     },
-     {
-      "code": "603221",
-      "name": "爱丽家居",
-      "score": 48.3,
-      "gap_pct": 2.09,
-      "ret_pct": 3.13,
-      "ytil": 1.98,
+      "code": "601869",
+      "name": "长飞光纤",
+      "score": 30.6,
+      "rank": 31,
+      "gap_pct": 2.01,
+      "ret_pct": 2.23,
+      "ytil": 1.65,
       "sector": "未分类"
      },
      {
       "code": "301218",
       "name": "华是科技",
       "score": 33.2,
+      "rank": 26,
       "gap_pct": 4.68,
       "ret_pct": 2.03,
       "ytil": 1.58,
       "sector": "未分类"
      },
      {
-      "code": "000628",
-      "name": "高新发展",
-      "score": 64.7,
-      "gap_pct": 3.29,
-      "ret_pct": 1.96,
-      "ytil": 1.55,
+      "code": "002552",
+      "name": "宝鼎科技",
+      "score": 29.3,
+      "rank": 33,
+      "gap_pct": 4.88,
+      "ret_pct": 0.03,
+      "ytil": 0.85,
       "sector": "未分类"
      }
     ]
@@ -650,84 +677,53 @@
       "code": "603900",
       "name": "莱绅通灵",
       "score": 72.0,
+      "rank": 3,
       "gap_pct": 3.79,
       "ret_pct": -0.3,
       "ytil": -0.54,
       "sector": "服装家纺"
-     },
-     {
-      "code": "002173",
-      "name": "创新医疗",
-      "score": 59.0,
-      "gap_pct": 3.06,
-      "ret_pct": 2.2,
-      "ytil": 0.27,
-      "sector": "医疗服务"
-     },
-     {
-      "code": "300124",
-      "name": "汇川技术",
-      "score": 72.3,
-      "gap_pct": 2.92,
-      "ret_pct": 2.32,
-      "ytil": 0.31,
-      "sector": "自动化设备"
-     },
-     {
-      "code": "300943",
-      "name": "春晖智控",
-      "score": 35.1,
-      "gap_pct": 4.5,
-      "ret_pct": 5.29,
-      "ytil": 1.28,
-      "sector": "通用设备"
-     },
-     {
-      "code": "300607",
-      "name": "拓斯达",
-      "score": 74.2,
-      "gap_pct": 3.72,
-      "ret_pct": 6.28,
-      "ytil": 1.61,
-      "sector": "自动化设备"
      }
     ],
     "best": [
      {
+      "code": "300049",
+      "name": "福瑞医科",
+      "score": 45.1,
+      "rank": 7,
+      "gap_pct": 4.74,
+      "ret_pct": 10.54,
+      "ytil": 3.0,
+      "sector": "医疗器械"
+     },
+     {
       "code": "301211",
       "name": "亨迪药业",
       "score": 51.5,
+      "rank": 5,
       "gap_pct": 3.06,
       "ret_pct": 10.16,
       "ytil": 2.88,
       "sector": "化学制药"
      },
      {
+      "code": "688239",
+      "name": "航宇科技",
+      "score": 47.6,
+      "rank": 6,
+      "gap_pct": 2.55,
+      "ret_pct": 6.53,
+      "ytil": 1.69,
+      "sector": "军工装备"
+     },
+     {
       "code": "300943",
       "name": "春晖智控",
       "score": 35.1,
+      "rank": 8,
       "gap_pct": 4.5,
       "ret_pct": 5.29,
       "ytil": 1.28,
       "sector": "通用设备"
-     },
-     {
-      "code": "002173",
-      "name": "创新医疗",
-      "score": 59.0,
-      "gap_pct": 3.06,
-      "ret_pct": 2.2,
-      "ytil": 0.27,
-      "sector": "医疗服务"
-     },
-     {
-      "code": "603900",
-      "name": "莱绅通灵",
-      "score": 72.0,
-      "gap_pct": 3.79,
-      "ret_pct": -0.3,
-      "ytil": -0.54,
-      "sector": "服装家纺"
      }
     ]
    },
@@ -737,6 +733,7 @@
       "code": "000710",
       "name": "贝瑞基因",
       "score": 63.2,
+      "rank": 5,
       "gap_pct": 4.42,
       "ret_pct": -5.74,
       "ytil": -2.24,
@@ -746,6 +743,7 @@
       "code": "920344",
       "name": "三元基因",
       "score": 55.5,
+      "rank": 10,
       "gap_pct": 2.88,
       "ret_pct": -5.72,
       "ytil": -2.23,
@@ -755,6 +753,7 @@
       "code": "300932",
       "name": "三友联众",
       "score": 51.4,
+      "rank": 13,
       "gap_pct": 3.29,
       "ret_pct": -5.55,
       "ytil": -2.16,
@@ -764,6 +763,7 @@
       "code": "300990",
       "name": "同飞股份",
       "score": 62.6,
+      "rank": 6,
       "gap_pct": 4.34,
       "ret_pct": -5.5,
       "ytil": -2.14,
@@ -773,6 +773,7 @@
       "code": "600259",
       "name": "中稀有色",
       "score": 39.9,
+      "rank": 15,
       "gap_pct": 2.12,
       "ret_pct": -3.18,
       "ytil": -1.22,
@@ -784,46 +785,51 @@
       "code": "600371",
       "name": "万向德农",
       "score": 50.9,
+      "rank": 14,
       "gap_pct": 3.81,
       "ret_pct": 6.0,
       "ytil": 2.43,
       "sector": "种植业与林业"
      },
      {
-      "code": "300006",
-      "name": "莱美药业",
-      "score": 56.8,
-      "gap_pct": 3.04,
-      "ret_pct": 1.56,
-      "ytil": 0.66,
-      "sector": "化学制药"
+      "code": "603958",
+      "name": "哈森股份",
+      "score": 29.2,
+      "rank": 20,
+      "gap_pct": 2.52,
+      "ret_pct": 3.72,
+      "ytil": 1.52,
+      "sector": "服装家纺"
      },
      {
-      "code": "603087",
-      "name": "甘李药业",
-      "score": 70.3,
-      "gap_pct": 2.95,
-      "ret_pct": 0.69,
-      "ytil": 0.32,
-      "sector": "生物制品"
+      "code": "002716",
+      "name": "湖南白银",
+      "score": 52.5,
+      "rank": 12,
+      "gap_pct": 2.04,
+      "ret_pct": 3.0,
+      "ytil": 1.24,
+      "sector": "贵金属"
      },
      {
-      "code": "300720",
-      "name": "海川智能",
-      "score": 33.4,
-      "gap_pct": 2.24,
-      "ret_pct": 0.68,
-      "ytil": 0.31,
-      "sector": "通用设备"
+      "code": "300757",
+      "name": "罗博特科",
+      "score": 32.1,
+      "rank": 19,
+      "gap_pct": 4.65,
+      "ret_pct": 2.7,
+      "ytil": 1.12,
+      "sector": "自动化设备"
      },
      {
-      "code": "603217",
-      "name": "元利科技",
-      "score": 70.1,
-      "gap_pct": 3.38,
-      "ret_pct": -1.16,
-      "ytil": -0.42,
-      "sector": "化学制品"
+      "code": "603738",
+      "name": "泰晶科技",
+      "score": 36.1,
+      "rank": 16,
+      "gap_pct": 2.15,
+      "ret_pct": 0.78,
+      "ytil": 0.35,
+      "sector": "元件"
      }
     ]
    },
@@ -833,6 +839,7 @@
       "code": "300308",
       "name": "中际旭创",
       "score": 79.5,
+      "rank": 2,
       "gap_pct": 3.07,
       "ret_pct": -1.24,
       "ytil": -1.45,
@@ -842,24 +849,17 @@
       "code": "688702",
       "name": "盛科通信-U",
       "score": 64.8,
+      "rank": 7,
       "gap_pct": 3.48,
       "ret_pct": -0.42,
       "ytil": -1.1,
       "sector": "半导体"
      },
      {
-      "code": "002463",
-      "name": "沪电股份",
-      "score": 36.9,
-      "gap_pct": 2.33,
-      "ret_pct": 0.02,
-      "ytil": -0.91,
-      "sector": "元件"
-     },
-     {
       "code": "688256",
       "name": "寒武纪",
       "score": 50.5,
+      "rank": 18,
       "gap_pct": 2.5,
       "ret_pct": 0.24,
       "ytil": -0.82,
@@ -869,10 +869,21 @@
       "code": "002384",
       "name": "东山精密",
       "score": 50.3,
+      "rank": 19,
       "gap_pct": 2.94,
       "ret_pct": 0.26,
       "ytil": -0.81,
       "sector": "元件"
+     },
+     {
+      "code": "301165",
+      "name": "锐捷网络",
+      "score": 71.3,
+      "rank": 3,
+      "gap_pct": 3.43,
+      "ret_pct": 1.04,
+      "ytil": -0.48,
+      "sector": "通信设备"
      }
     ],
     "best": [
@@ -880,46 +891,51 @@
       "code": "301373",
       "name": "凌玮科技",
       "score": 49.3,
+      "rank": 21,
       "gap_pct": 4.2,
       "ret_pct": 13.05,
       "ytil": 4.04,
       "sector": "化学制品"
      },
      {
-      "code": "301591",
-      "name": "肯特股份",
-      "score": 62.8,
-      "gap_pct": 4.5,
-      "ret_pct": 14.83,
-      "ytil": 4.04,
-      "sector": "塑料制品"
-     },
-     {
       "code": "920087",
       "name": "秋乐种业",
       "score": 48.6,
+      "rank": 22,
       "gap_pct": 3.03,
       "ret_pct": 11.32,
       "ytil": 3.86,
       "sector": "种植业与林业"
      },
      {
+      "code": "688167",
+      "name": "炬光科技",
+      "score": 50.2,
+      "rank": 20,
+      "gap_pct": 3.05,
+      "ret_pct": 7.78,
+      "ytil": 2.36,
+      "sector": "半导体"
+     },
+     {
       "code": "002980",
       "name": "华盛昌",
       "score": 43.2,
+      "rank": 27,
       "gap_pct": 2.19,
       "ret_pct": 7.65,
       "ytil": 2.31,
       "sector": "电网设备"
      },
      {
-      "code": "600378",
-      "name": "昊华科技",
-      "score": 61.3,
-      "gap_pct": 2.61,
-      "ret_pct": 7.21,
-      "ytil": 2.12,
-      "sector": "化学制品"
+      "code": "002636",
+      "name": "金安国纪",
+      "score": 41.3,
+      "rank": 28,
+      "gap_pct": 2.28,
+      "ret_pct": 7.55,
+      "ytil": 2.26,
+      "sector": "元件"
      }
     ]
    },
@@ -929,6 +945,7 @@
       "code": "001979",
       "name": "招商蛇口",
       "score": 62.6,
+      "rank": 6,
       "gap_pct": 3.07,
       "ret_pct": -11.52,
       "ytil": -2.67,
@@ -938,6 +955,7 @@
       "code": "300313",
       "name": "天山生物",
       "score": 47.3,
+      "rank": 16,
       "gap_pct": 2.61,
       "ret_pct": -8.13,
       "ytil": -2.67,
@@ -947,6 +965,7 @@
       "code": "600313",
       "name": "农发种业",
       "score": 63.9,
+      "rank": 4,
       "gap_pct": 2.4,
       "ret_pct": -6.51,
       "ytil": -2.48,
@@ -956,6 +975,7 @@
       "code": "002041",
       "name": "登海种业",
       "score": 51.4,
+      "rank": 12,
       "gap_pct": 2.68,
       "ret_pct": -6.09,
       "ytil": -2.36,
@@ -965,6 +985,7 @@
       "code": "300970",
       "name": "华绿生物",
       "score": 38.0,
+      "rank": 20,
       "gap_pct": 2.07,
       "ret_pct": -5.88,
       "ytil": -2.3,
@@ -973,58 +994,74 @@
     ],
     "best": [
      {
-      "code": "000892",
-      "name": "欢瑞世纪",
-      "score": 63.1,
-      "gap_pct": 3.32,
-      "ret_pct": 6.44,
-      "ytil": 1.23,
-      "sector": "影视院线"
+      "code": "301218",
+      "name": "华是科技",
+      "score": 27.6,
+      "rank": 25,
+      "gap_pct": 2.17,
+      "ret_pct": 17.45,
+      "ytil": 3.48,
+      "sector": "IT服务"
+     },
+     {
+      "code": "600227",
+      "name": "赤天化",
+      "score": 42.3,
+      "rank": 18,
+      "gap_pct": 2.4,
+      "ret_pct": 7.46,
+      "ytil": 1.52,
+      "sector": "农化制品"
+     },
+     {
+      "code": "002081",
+      "name": "金 螳 螂",
+      "score": 46.5,
+      "rank": 17,
+      "gap_pct": 4.46,
+      "ret_pct": 5.3,
+      "ytil": 0.9,
+      "sector": "建筑装饰"
+     },
+     {
+      "code": "600403",
+      "name": "大有能源",
+      "score": 32.5,
+      "rank": 22,
+      "gap_pct": 2.24,
+      "ret_pct": 4.79,
+      "ytil": 0.76,
+      "sector": "煤炭开采加工"
      },
      {
       "code": "603402",
       "name": "陕西旅游",
       "score": 17.3,
+      "rank": 26,
       "gap_pct": 2.02,
       "ret_pct": 4.52,
       "ytil": 0.68,
       "sector": "旅游及酒店"
-     },
-     {
-      "code": "001277",
-      "name": "速达股份",
-      "score": 51.1,
-      "gap_pct": 2.06,
-      "ret_pct": 4.01,
-      "ytil": 0.53,
-      "sector": "专用设备"
-     },
-     {
-      "code": "920088",
-      "name": "科力股份",
-      "score": 54.6,
-      "gap_pct": 4.64,
-      "ret_pct": 2.16,
-      "ytil": 0.0,
-      "sector": "油气开采及服务"
-     },
-     {
-      "code": "300798",
-      "name": "锦鸡股份",
-      "score": 50.4,
-      "gap_pct": 2.11,
-      "ret_pct": 1.83,
-      "ytil": -0.09,
-      "sector": "化学制品"
      }
     ]
    },
    "2026-09-01": {
     "worst": [
      {
+      "code": "300876",
+      "name": "蒙泰高新",
+      "score": 68.1,
+      "rank": 6,
+      "gap_pct": 4.32,
+      "ret_pct": -8.33,
+      "ytil": -2.14,
+      "sector": "化学纤维"
+     },
+     {
       "code": "301526",
       "name": "国际复材",
       "score": 54.2,
+      "rank": 11,
       "gap_pct": 2.65,
       "ret_pct": -11.53,
       "ytil": -2.14,
@@ -1034,6 +1071,7 @@
       "code": "300870",
       "name": "欧陆通",
       "score": 40.4,
+      "rank": 18,
       "gap_pct": 4.95,
       "ret_pct": -14.25,
       "ytil": -2.14,
@@ -1043,24 +1081,17 @@
       "code": "603989",
       "name": "艾华集团",
       "score": 57.6,
+      "rank": 9,
       "gap_pct": 2.7,
       "ret_pct": -7.61,
       "ytil": -1.95,
       "sector": "元件"
      },
      {
-      "code": "603058",
-      "name": "永吉股份",
-      "score": 18.6,
-      "gap_pct": 4.17,
-      "ret_pct": -7.16,
-      "ytil": -1.82,
-      "sector": "包装印刷"
-     },
-     {
       "code": "605006",
       "name": "山东玻纤",
       "score": 57.6,
+      "rank": 10,
       "gap_pct": 3.04,
       "ret_pct": -6.93,
       "ytil": -1.76,
@@ -1072,6 +1103,7 @@
       "code": "300071",
       "name": "福石控股",
       "score": 35.1,
+      "rank": 22,
       "gap_pct": 2.14,
       "ret_pct": 5.13,
       "ytil": 1.63,
@@ -1081,6 +1113,7 @@
       "code": "002045",
       "name": "国光电器",
       "score": 36.3,
+      "rank": 21,
       "gap_pct": 2.16,
       "ret_pct": 0.85,
       "ytil": 0.43,
@@ -1090,24 +1123,27 @@
       "code": "002457",
       "name": "青龙管业",
       "score": 50.8,
+      "rank": 13,
       "gap_pct": 2.21,
       "ret_pct": 0.69,
       "ytil": 0.39,
       "sector": "建筑材料"
      },
      {
-      "code": "603068",
-      "name": "博通集成",
-      "score": 66.2,
-      "gap_pct": 2.8,
-      "ret_pct": 0.15,
-      "ytil": 0.23,
-      "sector": "半导体"
+      "code": "300378",
+      "name": "鼎捷数智",
+      "score": 45.0,
+      "rank": 16,
+      "gap_pct": 2.0,
+      "ret_pct": 0.64,
+      "ytil": 0.37,
+      "sector": "软件开发"
      },
      {
       "code": "603319",
       "name": "美湖股份",
       "score": 49.2,
+      "rank": 14,
       "gap_pct": 2.36,
       "ret_pct": -0.55,
       "ytil": 0.04,
@@ -1121,6 +1157,7 @@
       "code": "688356",
       "name": "键凯科技",
       "score": 68.7,
+      "rank": 2,
       "gap_pct": 3.04,
       "ret_pct": -7.8,
       "ytil": -3.19,
@@ -1130,6 +1167,7 @@
       "code": "688185",
       "name": "康希诺",
       "score": 65.2,
+      "rank": 6,
       "gap_pct": 2.9,
       "ret_pct": -7.37,
       "ytil": -3.0,
@@ -1139,6 +1177,7 @@
       "code": "600188",
       "name": "兖矿能源",
       "score": 50.5,
+      "rank": 10,
       "gap_pct": 3.34,
       "ret_pct": -5.51,
       "ytil": -2.21,
@@ -1148,6 +1187,7 @@
       "code": "000059",
       "name": "华锦股份",
       "score": 69.3,
+      "rank": 1,
       "gap_pct": 3.16,
       "ret_pct": -5.16,
       "ytil": -2.06,
@@ -1157,6 +1197,7 @@
       "code": "000759",
       "name": "中百集团",
       "score": 35.7,
+      "rank": 13,
       "gap_pct": 2.04,
       "ret_pct": -4.76,
       "ytil": -1.88,
@@ -1165,98 +1206,68 @@
     ],
     "best": [
      {
-      "code": "600903",
-      "name": "贵州燃气",
-      "score": 65.9,
-      "gap_pct": 4.35,
-      "ret_pct": 5.37,
-      "ytil": 2.46,
-      "sector": "燃气"
-     },
-     {
       "code": "301234",
       "name": "五洲医疗",
       "score": 44.0,
+      "rank": 11,
       "gap_pct": 2.32,
       "ret_pct": 1.87,
       "ytil": 0.96,
       "sector": "医疗器械"
-     },
-     {
-      "code": "688137",
-      "name": "近岸蛋白",
-      "score": 39.1,
-      "gap_pct": 2.73,
-      "ret_pct": -2.35,
-      "ytil": -0.85,
-      "sector": "生物制品"
-     },
-     {
-      "code": "920571",
-      "name": "国航远洋",
-      "score": 50.9,
-      "gap_pct": 4.51,
-      "ret_pct": -4.42,
-      "ytil": -1.74,
-      "sector": "港口航运"
-     },
-     {
-      "code": "000759",
-      "name": "中百集团",
-      "score": 35.7,
-      "gap_pct": 2.04,
-      "ret_pct": -4.76,
-      "ytil": -1.88,
-      "sector": "零售"
      }
     ]
    },
    "2026-09-03": {
     "worst": [
      {
+      "code": "000796",
+      "name": "凯撒旅业",
+      "score": 83.1,
+      "rank": 1,
+      "gap_pct": 4.1,
+      "ret_pct": -6.78,
+      "ytil": -2.37,
+      "sector": "旅游及酒店"
+     },
+     {
+      "code": "300859",
+      "name": "西域旅游",
+      "score": 83.1,
+      "rank": 2,
+      "gap_pct": 2.96,
+      "ret_pct": -5.85,
+      "ytil": -1.96,
+      "sector": "旅游及酒店"
+     },
+     {
       "code": "301536",
       "name": "星宸科技",
       "score": 56.3,
+      "rank": 14,
       "gap_pct": 3.07,
       "ret_pct": -5.77,
       "ytil": -1.92,
       "sector": "半导体"
      },
      {
-      "code": "300319",
-      "name": "麦捷科技",
-      "score": 48.9,
-      "gap_pct": 4.83,
-      "ret_pct": -5.35,
-      "ytil": -1.74,
-      "sector": "元件"
+      "code": "600250",
+      "name": "南京商旅",
+      "score": 57.0,
+      "rank": 12,
+      "gap_pct": 2.68,
+      "ret_pct": -5.22,
+      "ytil": -1.69,
+      "sector": "旅游及酒店"
      },
      {
-      "code": "688403",
-      "name": "汇成股份",
-      "score": 41.7,
-      "gap_pct": 2.63,
-      "ret_pct": -5.28,
-      "ytil": -1.71,
-      "sector": "半导体"
-     },
-     {
-      "code": "002721",
-      "name": "金一文化",
-      "score": 58.4,
-      "gap_pct": 3.27,
-      "ret_pct": -4.75,
-      "ytil": -1.48,
-      "sector": "服装家纺"
-     },
-     {
-      "code": "300252",
-      "name": "金信诺",
-      "score": 63.9,
-      "gap_pct": 3.72,
-      "ret_pct": -4.19,
-      "ytil": -1.24,
-      "sector": "军工电子"
+      "code": "300615",
+      "name": "欣天科技",
+      "score": 60.0,
+      "rank": 9,
+      "gap_pct": 3.59,
+      "ret_pct": -4.99,
+      "ytil": -1.59,
+      "sector": "通信设备"
      }
     ],
     "best": [
@@ -1264,45 +1275,50 @@
       "code": "301282",
       "name": "金禄电子",
       "score": 41.6,
+      "rank": 28,
       "gap_pct": 4.23,
       "ret_pct": 7.75,
       "ytil": 3.97,
       "sector": "元件"
      },
      {
-      "code": "002980",
-      "name": "华盛昌",
-      "score": 64.8,
-      "gap_pct": 3.14,
-      "ret_pct": 6.66,
-      "ytil": 3.49,
-      "sector": "电网设备"
-     },
-     {
-      "code": "688655",
-      "name": "迅捷兴",
-      "score": 69.6,
-      "gap_pct": 3.49,
-      "ret_pct": 5.73,
-      "ytil": 3.09,
-      "sector": "元件"
+      "code": "600172",
+      "name": "黄河旋风",
+      "score": 38.6,
+      "rank": 29,
+      "gap_pct": 2.37,
+      "ret_pct": 5.43,
+      "ytil": 2.96,
+      "sector": "通用设备"
      },
      {
       "code": "301085",
       "name": "亚康股份",
       "score": 48.7,
+      "rank": 23,
       "gap_pct": 2.24,
       "ret_pct": 5.38,
       "ytil": 2.93,
       "sector": "IT服务"
      },
      {
-      "code": "002824",
-      "name": "和胜股份",
-      "score": 54.8,
-      "gap_pct": 3.35,
-      "ret_pct": 2.37,
-      "ytil": 1.63,
+      "code": "002716",
+      "name": "湖南白银",
+      "score": 45.0,
+      "rank": 25,
+      "gap_pct": 2.33,
+      "ret_pct": 5.36,
+      "ytil": 2.93,
+      "sector": "贵金属"
+     },
+     {
+      "code": "000603",
+      "name": "盛达资源",
+      "score": 28.6,
+      "rank": 34,
+      "gap_pct": 2.01,
+      "ret_pct": 1.04,
+      "ytil": 1.04,
       "sector": "工业金属"
      }
     ]
@@ -1313,6 +1329,7 @@
       "code": "688627",
       "name": "精智达",
       "score": 51.8,
+      "rank": 20,
       "gap_pct": 2.36,
       "ret_pct": -10.25,
       "ytil": -2.26,
@@ -1322,176 +1339,185 @@
       "code": "002636",
       "name": "金安国纪",
       "score": 57.0,
+      "rank": 14,
       "gap_pct": 2.81,
       "ret_pct": -8.35,
       "ytil": -1.8,
       "sector": "元件"
      },
      {
-      "code": "002436",
-      "name": "兴森科技",
-      "score": 50.0,
-      "gap_pct": 3.04,
-      "ret_pct": -7.86,
-      "ytil": -1.66,
-      "sector": "元件"
+      "code": "301119",
+      "name": "正强股份",
+      "score": 62.1,
+      "rank": 6,
+      "gap_pct": 4.85,
+      "ret_pct": -7.74,
+      "ytil": -1.63,
+      "sector": "汽车零部件"
      },
      {
-      "code": "301396",
-      "name": "宏景科技",
-      "score": 42.5,
-      "gap_pct": 2.21,
-      "ret_pct": -6.7,
-      "ytil": -1.33,
-      "sector": "IT服务"
+      "code": "688031",
+      "name": "星环科技-U",
+      "score": 64.4,
+      "rank": 5,
+      "gap_pct": 2.45,
+      "ret_pct": -6.48,
+      "ytil": -1.27,
+      "sector": "软件开发"
      },
      {
-      "code": "688195",
-      "name": "腾景科技",
-      "score": 46.2,
-      "gap_pct": 2.32,
-      "ret_pct": -6.69,
-      "ytil": -1.33,
-      "sector": "光学光电子"
+      "code": "300499",
+      "name": "高澜股份",
+      "score": 66.9,
+      "rank": 4,
+      "gap_pct": 2.93,
+      "ret_pct": -5.25,
+      "ytil": -0.93,
+      "sector": "专用设备"
      }
     ],
     "best": [
      {
-      "code": "002124",
-      "name": "天邦食品",
-      "score": 55.6,
-      "gap_pct": 2.73,
-      "ret_pct": 7.08,
-      "ytil": 2.53,
-      "sector": "养殖业"
-     },
-     {
       "code": "601579",
       "name": "会稽山",
       "score": 23.4,
+      "rank": 46,
       "gap_pct": 2.83,
       "ret_pct": 6.98,
       "ytil": 2.5,
       "sector": "饮料制造"
      },
      {
-      "code": "688600",
-      "name": "皖仪科技",
-      "score": 70.0,
-      "gap_pct": 3.15,
-      "ret_pct": 3.02,
-      "ytil": 1.39,
-      "sector": "通用设备"
+      "code": "688205",
+      "name": "德科立",
+      "score": 46.8,
+      "rank": 29,
+      "gap_pct": 3.14,
+      "ret_pct": 3.13,
+      "ytil": 1.42,
+      "sector": "通信设备"
      },
      {
-      "code": "300945",
-      "name": "曼卡龙",
-      "score": 51.4,
-      "gap_pct": 3.38,
-      "ret_pct": 0.15,
-      "ytil": 0.59,
-      "sector": "服装家纺"
+      "code": "688167",
+      "name": "炬光科技",
+      "score": 45.3,
+      "rank": 33,
+      "gap_pct": 3.81,
+      "ret_pct": 1.53,
+      "ytil": 0.97,
+      "sector": "半导体"
      },
      {
-      "code": "300333",
-      "name": "兆日科技",
-      "score": 54.5,
-      "gap_pct": 3.27,
-      "ret_pct": -0.49,
-      "ytil": 0.41,
-      "sector": "计算机设备"
+      "code": "300170",
+      "name": "汉得信息",
+      "score": 33.3,
+      "rank": 40,
+      "gap_pct": 2.37,
+      "ret_pct": -1.42,
+      "ytil": 0.14,
+      "sector": "IT服务"
      }
     ]
    },
    "2026-09-07": {
     "worst": [
      {
+      "code": "301666",
+      "name": "大普微-UW",
+      "score": 78.3,
+      "rank": 3,
+      "gap_pct": 3.8,
+      "ret_pct": -0.01,
+      "ytil": -0.34,
+      "sector": "半导体"
+     },
+     {
+      "code": "688110",
+      "name": "东芯股份",
+      "score": 53.6,
+      "rank": 20,
+      "gap_pct": 2.71,
+      "ret_pct": 0.05,
+      "ytil": -0.32,
+      "sector": "半导体"
+     },
+     {
       "code": "688525",
       "name": "佰维存储",
       "score": 74.4,
+      "rank": 5,
       "gap_pct": 3.15,
       "ret_pct": 0.52,
       "ytil": -0.14,
       "sector": "半导体"
      },
      {
+      "code": "603150",
+      "name": "万朗磁塑",
+      "score": 59.9,
+      "rank": 14,
+      "gap_pct": 3.89,
+      "ret_pct": 0.56,
+      "ytil": -0.13,
+      "sector": "白色家电"
+     },
+     {
       "code": "603986",
       "name": "兆易创新",
       "score": 70.4,
+      "rank": 8,
       "gap_pct": 2.94,
       "ret_pct": 0.69,
       "ytil": -0.08,
       "sector": "半导体"
-     },
-     {
-      "code": "001309",
-      "name": "德明利",
-      "score": 59.7,
-      "gap_pct": 2.51,
-      "ret_pct": 0.71,
-      "ytil": -0.07,
-      "sector": "半导体"
-     },
-     {
-      "code": "301308",
-      "name": "江波龙",
-      "score": 58.1,
-      "gap_pct": 2.36,
-      "ret_pct": 0.85,
-      "ytil": -0.02,
-      "sector": "半导体"
-     },
-     {
-      "code": "300364",
-      "name": "中文在线",
-      "score": 32.4,
-      "gap_pct": 2.53,
-      "ret_pct": 0.95,
-      "ytil": 0.02,
-      "sector": "文化传媒"
      }
     ],
     "best": [
      {
-      "code": "688655",
-      "name": "迅捷兴",
-      "score": 48.5,
-      "gap_pct": 4.28,
-      "ret_pct": 15.08,
-      "ytil": 4.32,
-      "sector": "元件"
-     },
-     {
-      "code": "301486",
-      "name": "致尚科技",
-      "score": 63.0,
-      "gap_pct": 3.68,
-      "ret_pct": 10.67,
-      "ytil": 3.65,
-      "sector": "通信设备"
-     },
-     {
       "code": "601086",
       "name": "国芳集团",
       "score": 21.5,
+      "rank": 47,
       "gap_pct": 2.21,
       "ret_pct": 7.66,
       "ytil": 2.52,
       "sector": "零售"
      },
      {
-      "code": "600371",
-      "name": "万向德农",
-      "score": 79.6,
-      "gap_pct": 3.87,
-      "ret_pct": 5.9,
-      "ytil": 1.87,
-      "sector": "种植业与林业"
+      "code": "300757",
+      "name": "罗博特科",
+      "score": 37.6,
+      "rank": 33,
+      "gap_pct": 2.44,
+      "ret_pct": 7.47,
+      "ytil": 2.45,
+      "sector": "自动化设备"
+     },
+     {
+      "code": "002980",
+      "name": "华盛昌",
+      "score": 22.7,
+      "rank": 45,
+      "gap_pct": 2.5,
+      "ret_pct": 7.32,
+      "ytil": 2.4,
+      "sector": "电网设备"
+     },
+     {
+      "code": "603228",
+      "name": "景旺电子",
+      "score": 27.5,
+      "rank": 44,
+      "gap_pct": 2.74,
+      "ret_pct": 7.06,
+      "ytil": 2.3,
+      "sector": "元件"
      },
      {
       "code": "300862",
       "name": "蓝盾光电",
       "score": 33.2,
+      "rank": 38,
       "gap_pct": 2.69,
       "ret_pct": 5.64,
       "ytil": 1.77,
@@ -1505,80 +1531,79 @@
       "code": "002484",
       "name": "江海股份",
       "score": 75.6,
+      "rank": 2,
       "gap_pct": 3.5,
       "ret_pct": -7.05,
       "ytil": -2.42,
       "sector": "元件"
      },
      {
-      "code": "002281",
-      "name": "光迅科技",
-      "score": 25.3,
-      "gap_pct": 2.61,
-      "ret_pct": -4.95,
-      "ytil": -1.77,
-      "sector": "通信设备"
-     },
-     {
-      "code": "002851",
-      "name": "麦格米特",
-      "score": 30.8,
-      "gap_pct": 2.25,
-      "ret_pct": -4.74,
-      "ytil": -1.68,
+      "code": "301516",
+      "name": "中远通",
+      "score": 49.1,
+      "rank": 17,
+      "gap_pct": 4.2,
+      "ret_pct": -6.58,
+      "ytil": -2.41,
       "sector": "其他电源设备"
      },
      {
-      "code": "000506",
-      "name": "招金黄金",
-      "score": 28.5,
-      "gap_pct": 2.27,
-      "ret_pct": -4.73,
-      "ytil": -1.68,
-      "sector": "贵金属"
+      "code": "301595",
+      "name": "太力科技",
+      "score": 45.7,
+      "rank": 19,
+      "gap_pct": 3.52,
+      "ret_pct": -6.24,
+      "ytil": -2.28,
+      "sector": "家居用品"
      },
      {
-      "code": "003005",
-      "name": "竞业达",
-      "score": 38.2,
-      "gap_pct": 2.09,
-      "ret_pct": -4.39,
-      "ytil": -1.55,
-      "sector": "IT服务"
+      "code": "688813",
+      "name": "泰金新能",
+      "score": 55.5,
+      "rank": 13,
+      "gap_pct": 3.27,
+      "ret_pct": -4.2,
+      "ytil": -1.47,
+      "sector": "专用设备"
+     },
+     {
+      "code": "002011",
+      "name": "盾安环境",
+      "score": 44.9,
+      "rank": 20,
+      "gap_pct": 3.02,
+      "ret_pct": -2.85,
+      "ytil": -0.94,
+      "sector": "白色家电"
      }
     ],
     "best": [
      {
-      "code": "000833",
-      "name": "粤桂股份",
-      "score": 58.5,
-      "gap_pct": 3.52,
-      "ret_pct": 6.28,
-      "ytil": 2.67,
-      "sector": "非金属材料"
+      "code": "601118",
+      "name": "海南橡胶",
+      "score": 20.1,
+      "rank": 33,
+      "gap_pct": 2.36,
+      "ret_pct": 6.78,
+      "ytil": 2.87,
+      "sector": "种植业与林业"
      },
      {
       "code": "002483",
       "name": "润邦股份",
       "score": 20.5,
+      "rank": 32,
       "gap_pct": 2.66,
       "ret_pct": 3.72,
       "ytil": 1.66,
       "sector": "专用设备"
      },
      {
-      "code": "002457",
-      "name": "青龙管业",
-      "score": 58.2,
-      "gap_pct": 3.14,
-      "ret_pct": 3.04,
-      "ytil": 1.39,
-      "sector": "建筑材料"
-     },
-     {
       "code": "605168",
       "name": "三人行",
       "score": 39.9,
+      "rank": 22,
       "gap_pct": 2.76,
       "ret_pct": 2.24,
       "ytil": 1.07,
@@ -1588,59 +1613,75 @@
       "code": "601975",
       "name": "招商南油",
       "score": 34.4,
+      "rank": 25,
       "gap_pct": 2.47,
       "ret_pct": 2.19,
       "ytil": 1.06,
       "sector": "港口航运"
+     },
+     {
+      "code": "603186",
+      "name": "华正新材",
+      "score": 30.2,
+      "rank": 29,
+      "gap_pct": 2.64,
+      "ret_pct": 0.93,
+      "ytil": 0.56,
+      "sector": "元件"
      }
     ]
    },
    "2026-09-09": {
     "worst": [
      {
-      "code": "300857",
-      "name": "协创数据",
-      "score": 26.4,
-      "gap_pct": 2.39,
-      "ret_pct": -4.88,
-      "ytil": -1.59,
-      "sector": "计算机设备"
+      "code": "920045",
+      "name": "蘅东光",
+      "score": 70.5,
+      "rank": 3,
+      "gap_pct": 4.8,
+      "ret_pct": -9.55,
+      "ytil": -2.91,
+      "sector": "通信设备"
      },
      {
       "code": "300502",
       "name": "新易盛",
       "score": 56.3,
+      "rank": 19,
       "gap_pct": 4.47,
       "ret_pct": -4.64,
       "ytil": -1.5,
       "sector": "通信设备"
      },
      {
-      "code": "300394",
-      "name": "天孚通信",
-      "score": 55.0,
-      "gap_pct": 4.45,
-      "ret_pct": -4.43,
-      "ytil": -1.42,
-      "sector": "通信设备"
+      "code": "002909",
+      "name": "集泰股份",
+      "score": 75.3,
+      "rank": 1,
+      "gap_pct": 3.1,
+      "ret_pct": -4.23,
+      "ytil": -1.34,
+      "sector": "化学制品"
      },
      {
-      "code": "688048",
-      "name": "长光华芯",
-      "score": 40.4,
-      "gap_pct": 3.01,
-      "ret_pct": -4.4,
-      "ytil": -1.4,
-      "sector": "半导体"
+      "code": "300489",
+      "name": "光智科技",
+      "score": 59.1,
+      "rank": 14,
+      "gap_pct": 4.09,
+      "ret_pct": -3.59,
+      "ytil": -1.09,
+      "sector": "光学光电子"
      },
      {
-      "code": "688167",
-      "name": "炬光科技",
-      "score": 52.3,
-      "gap_pct": 4.29,
-      "ret_pct": -3.98,
-      "ytil": -1.24,
-      "sector": "半导体"
+      "code": "000066",
+      "name": "中国长城",
+      "score": 64.6,
+      "rank": 8,
+      "gap_pct": 2.74,
+      "ret_pct": -2.94,
+      "ytil": -0.83,
+      "sector": "计算机设备"
      }
     ],
     "best": [
@@ -1648,6 +1689,7 @@
       "code": "601579",
       "name": "会稽山",
       "score": 32.0,
+      "rank": 42,
       "gap_pct": 2.04,
       "ret_pct": 7.8,
       "ytil": 3.35,
@@ -1657,6 +1699,7 @@
       "code": "688028",
       "name": "沃尔德",
       "score": 31.0,
+      "rank": 43,
       "gap_pct": 2.75,
       "ret_pct": 7.2,
       "ytil": 3.12,
@@ -1666,55 +1709,61 @@
       "code": "301189",
       "name": "奥尼电子",
       "score": 36.8,
+      "rank": 39,
       "gap_pct": 2.33,
       "ret_pct": 4.9,
       "ytil": 2.22,
       "sector": "消费电子"
      },
      {
-      "code": "002532",
-      "name": "天山铝业",
-      "score": 64.5,
-      "gap_pct": 2.04,
-      "ret_pct": 3.92,
-      "ytil": 1.84,
+      "code": "000737",
+      "name": "北方铜业",
+      "score": 51.8,
+      "rank": 27,
+      "gap_pct": 3.18,
+      "ret_pct": 1.6,
+      "ytil": 0.94,
       "sector": "工业金属"
      },
      {
-      "code": "002886",
-      "name": "沃特股份",
-      "score": 43.7,
-      "gap_pct": 2.76,
-      "ret_pct": 1.25,
-      "ytil": 0.8,
-      "sector": "塑料制品"
+      "code": "002491",
+      "name": "通鼎互联",
+      "score": 34.6,
+      "rank": 40,
+      "gap_pct": 2.28,
+      "ret_pct": 1.28,
+      "ytil": 0.81,
+      "sector": "通信设备"
      }
     ]
    },
    "2026-09-10": {
     "worst": [
      {
-      "code": "600722",
-      "name": "金牛化工",
-      "score": 40.6,
-      "gap_pct": 2.9,
-      "ret_pct": -11.03,
-      "ytil": -3.61,
-      "sector": "化学原料"
-     },
-     {
       "code": "300607",
       "name": "拓斯达",
       "score": 61.7,
+      "rank": 1,
       "gap_pct": 4.19,
       "ret_pct": -11.79,
       "ytil": -3.61,
       "sector": "自动化设备"
      },
      {
+      "code": "600722",
+      "name": "金牛化工",
+      "score": 40.6,
+      "rank": 14,
+      "gap_pct": 2.9,
+      "ret_pct": -11.03,
+      "ytil": -3.61,
+      "sector": "化学原料"
+     },
+     {
       "code": "002702",
       "name": "海欣食品",
       "score": 54.4,
+      "rank": 7,
       "gap_pct": 2.33,
       "ret_pct": -8.79,
       "ytil": -3.21,
@@ -1724,6 +1773,7 @@
       "code": "601579",
       "name": "会稽山",
       "score": 38.3,
+      "rank": 16,
       "gap_pct": 3.79,
       "ret_pct": -7.69,
       "ytil": -2.75,
@@ -1733,6 +1783,7 @@
       "code": "301322",
       "name": "绿通科技",
       "score": 37.9,
+      "rank": 17,
       "gap_pct": 2.0,
       "ret_pct": -6.99,
       "ytil": -2.45,
@@ -1741,49 +1792,14 @@
     ],
     "best": [
      {
-      "code": "600712",
-      "name": "南宁百货",
-      "score": 45.3,
-      "gap_pct": 3.38,
-      "ret_pct": 6.39,
-      "ytil": 3.25,
-      "sector": "零售"
-     },
-     {
-      "code": "000430",
-      "name": "张家界",
-      "score": 58.8,
-      "gap_pct": 3.23,
-      "ret_pct": 0.0,
-      "ytil": 0.53,
-      "sector": "旅游及酒店"
-     },
-     {
       "code": "301305",
       "name": "朗坤科技",
       "score": 38.5,
+      "rank": 15,
       "gap_pct": 2.03,
       "ret_pct": -0.37,
       "ytil": 0.37,
       "sector": "环境治理"
-     },
-     {
-      "code": "000428",
-      "name": "华天酒店",
-      "score": 49.3,
-      "gap_pct": 2.14,
-      "ret_pct": -1.71,
-      "ytil": -0.2,
-      "sector": "旅游及酒店"
-     },
-     {
-      "code": "300497",
-      "name": "富祥股份",
-      "score": 57.2,
-      "gap_pct": 3.66,
-      "ret_pct": -3.38,
-      "ytil": -0.91,
-      "sector": "化学制药"
      }
     ]
    },
@@ -1793,6 +1809,7 @@
       "code": "600121",
       "name": "郑州煤电",
       "score": 43.2,
+      "rank": 7,
       "gap_pct": 2.51,
       "ret_pct": -10.66,
       "ytil": -3.08,
@@ -1802,6 +1819,7 @@
       "code": "300191",
       "name": "潜能恒信",
       "score": 31.2,
+      "rank": 9,
       "gap_pct": 2.0,
       "ret_pct": -10.39,
       "ytil": -3.08,
@@ -1811,6 +1829,7 @@
       "code": "001299",
       "name": "美能能源",
       "score": 29.3,
+      "rank": 10,
       "gap_pct": 2.03,
       "ret_pct": -9.69,
       "ytil": -3.08,
@@ -1820,6 +1839,7 @@
       "code": "300164",
       "name": "通源石油",
       "score": 58.6,
+      "rank": 4,
       "gap_pct": 4.98,
       "ret_pct": -8.86,
       "ytil": -2.85,
@@ -1829,6 +1849,7 @@
       "code": "300369",
       "name": "绿盟科技",
       "score": 72.6,
+      "rank": 1,
       "gap_pct": 3.83,
       "ret_pct": -7.14,
       "ytil": -2.22,
@@ -1840,46 +1861,11 @@
       "code": "603353",
       "name": "和顺石油",
       "score": 42.3,
+      "rank": 8,
       "gap_pct": 2.5,
       "ret_pct": 0.64,
       "ytil": 0.62,
       "sector": "石油加工贸易"
-     },
-     {
-      "code": "300483",
-      "name": "首华燃气",
-      "score": 43.5,
-      "gap_pct": 2.58,
-      "ret_pct": -6.86,
-      "ytil": -2.12,
-      "sector": "油气开采及服务"
-     },
-     {
-      "code": "300369",
-      "name": "绿盟科技",
-      "score": 72.6,
-      "gap_pct": 3.83,
-      "ret_pct": -7.14,
-      "ytil": -2.22,
-      "sector": "软件开发"
-     },
-     {
-      "code": "300191",
-      "name": "潜能恒信",
-      "score": 31.2,
-      "gap_pct": 2.0,
-      "ret_pct": -10.39,
-      "ytil": -3.08,
-      "sector": "油气开采及服务"
-     },
-     {
-      "code": "001299",
-      "name": "美能能源",
-      "score": 29.3,
-      "gap_pct": 2.03,
-      "ret_pct": -9.69,
-      "ytil": -3.08,
-      "sector": "燃气"
      }
     ]
    },
@@ -1889,6 +1875,7 @@
       "code": "603619",
       "name": "中曼石油",
       "score": 54.9,
+      "rank": 3,
       "gap_pct": 3.36,
       "ret_pct": -6.04,
       "ytil": -2.46,
@@ -1898,6 +1885,7 @@
       "code": "000533",
       "name": "顺钠股份",
       "score": 26.1,
+      "rank": 14,
       "gap_pct": 3.95,
       "ret_pct": -5.12,
       "ytil": -2.12,
@@ -1907,6 +1895,7 @@
       "code": "300183",
       "name": "东软载波",
       "score": 29.0,
+      "rank": 11,
       "gap_pct": 2.02,
       "ret_pct": -3.53,
       "ytil": -1.53,
@@ -1916,6 +1905,7 @@
       "code": "600026",
       "name": "中远海能",
       "score": 56.5,
+      "rank": 1,
       "gap_pct": 3.55,
       "ret_pct": -3.24,
       "ytil": -1.43,
@@ -1925,6 +1915,7 @@
       "code": "601872",
       "name": "招商轮船",
       "score": 51.5,
+      "rank": 6,
       "gap_pct": 2.75,
       "ret_pct": -2.68,
       "ytil": -1.22,
@@ -1933,49 +1924,34 @@
     ],
     "best": [
      {
-      "code": "301520",
-      "name": "万邦医药",
-      "score": 15.4,
-      "gap_pct": 2.45,
-      "ret_pct": 17.13,
-      "ytil": 4.72,
-      "sector": "医疗服务"
-     },
-     {
       "code": "688137",
       "name": "近岸蛋白",
       "score": 28.2,
+      "rank": 12,
       "gap_pct": 2.08,
       "ret_pct": 17.56,
       "ytil": 4.72,
       "sector": "生物制品"
      },
      {
-      "code": "003029",
-      "name": "吉大正元",
-      "score": 47.8,
-      "gap_pct": 2.64,
-      "ret_pct": 0.11,
-      "ytil": -0.19,
-      "sector": "软件开发"
+      "code": "301520",
+      "name": "万邦医药",
+      "score": 15.4,
+      "rank": 15,
+      "gap_pct": 2.45,
+      "ret_pct": 17.13,
+      "ytil": 4.72,
+      "sector": "医疗服务"
      },
      {
-      "code": "920088",
-      "name": "科力股份",
-      "score": 53.4,
-      "gap_pct": 4.46,
-      "ret_pct": -1.12,
-      "ytil": -0.65,
-      "sector": "油气开采及服务"
-     },
-     {
-      "code": "600892",
-      "name": "大晟文化",
-      "score": 27.5,
-      "gap_pct": 2.49,
-      "ret_pct": -1.7,
-      "ytil": -0.86,
-      "sector": "游戏"
+      "code": "603626",
+      "name": "科森科技",
+      "score": 38.6,
+      "rank": 9,
+      "gap_pct": 2.81,
+      "ret_pct": 6.97,
+      "ytil": 2.33,
+      "sector": "消费电子"
      }
     ]
    },
@@ -1985,6 +1961,7 @@
       "code": "300311",
       "name": "任子行",
       "score": 71.7,
+      "rank": 2,
       "gap_pct": 2.85,
       "ret_pct": -7.08,
       "ytil": -2.17,
@@ -1994,6 +1971,7 @@
       "code": "001896",
       "name": "豫能控股",
       "score": 62.3,
+      "rank": 5,
       "gap_pct": 3.54,
       "ret_pct": -7.06,
       "ytil": -2.16,
@@ -2003,6 +1981,7 @@
       "code": "688225",
       "name": "亚信安全",
       "score": 73.1,
+      "rank": 1,
       "gap_pct": 4.82,
       "ret_pct": -6.97,
       "ytil": -2.13,
@@ -2012,6 +1991,7 @@
       "code": "688137",
       "name": "近岸蛋白",
       "score": 39.1,
+      "rank": 20,
       "gap_pct": 4.96,
       "ret_pct": -4.35,
       "ytil": -1.2,
@@ -2021,6 +2001,7 @@
       "code": "002855",
       "name": "捷荣技术",
       "score": 56.0,
+      "rank": 10,
       "gap_pct": 3.15,
       "ret_pct": -4.3,
       "ytil": -1.18,
@@ -2029,9 +2010,20 @@
     ],
     "best": [
      {
+      "code": "002487",
+      "name": "大金重工",
+      "score": 44.2,
+      "rank": 17,
+      "gap_pct": 2.65,
+      "ret_pct": 7.17,
+      "ytil": 2.88,
+      "sector": "风电设备"
+     },
+     {
       "code": "301373",
       "name": "凌玮科技",
       "score": 39.8,
+      "rank": 19,
       "gap_pct": 4.42,
       "ret_pct": 6.8,
       "ytil": 2.75,
@@ -2041,37 +2033,31 @@
       "code": "300868",
       "name": "杰美特",
       "score": 47.8,
+      "rank": 14,
       "gap_pct": 2.26,
       "ret_pct": 5.06,
       "ytil": 2.13,
       "sector": "消费电子"
      },
      {
-      "code": "600228",
-      "name": "返利科技",
-      "score": 62.5,
-      "gap_pct": 2.87,
-      "ret_pct": 3.25,
-      "ytil": 1.49,
-      "sector": "文化传媒"
+      "code": "000657",
+      "name": "中钨高新",
+      "score": 52.8,
+      "rank": 12,
+      "gap_pct": 2.38,
+      "ret_pct": 2.72,
+      "ytil": 1.3,
+      "sector": "小金属"
      },
      {
       "code": "301520",
       "name": "万邦医药",
       "score": 48.0,
+      "rank": 13,
       "gap_pct": 4.47,
       "ret_pct": 2.08,
       "ytil": 1.07,
       "sector": "医疗服务"
-     },
-     {
-      "code": "600397",
-      "name": "江钨装备",
-      "score": 60.0,
-      "gap_pct": 2.91,
-      "ret_pct": 0.12,
-      "ytil": 0.38,
-      "sector": "专用设备"
      }
     ]
    },
@@ -2081,6 +2067,7 @@
       "code": "301520",
       "name": "万邦医药",
       "score": 51.5,
+      "rank": 6,
       "gap_pct": 3.24,
       "ret_pct": -2.58,
       "ytil": -1.67,
@@ -2090,6 +2077,7 @@
       "code": "300829",
       "name": "金丹科技",
       "score": 55.9,
+      "rank": 3,
       "gap_pct": 2.96,
       "ret_pct": -2.24,
       "ytil": -1.53,
@@ -2099,6 +2087,7 @@
       "code": "002753",
       "name": "永东股份",
       "score": 55.6,
+      "rank": 4,
       "gap_pct": 4.72,
       "ret_pct": -1.45,
       "ytil": -1.23,
@@ -2108,6 +2097,7 @@
       "code": "300313",
       "name": "天山生物",
       "score": 41.0,
+      "rank": 9,
       "gap_pct": 2.9,
       "ret_pct": -0.74,
       "ytil": -0.96,
@@ -2117,6 +2107,7 @@
       "code": "601919",
       "name": "中远海控",
       "score": 40.7,
+      "rank": 10,
       "gap_pct": 2.07,
       "ret_pct": 0.43,
       "ytil": -0.51,
@@ -2125,49 +2116,34 @@
     ],
     "best": [
      {
-      "code": "003026",
-      "name": "中晶科技",
-      "score": 70.4,
-      "gap_pct": 3.89,
-      "ret_pct": 5.89,
-      "ytil": 1.59,
-      "sector": "半导体"
+      "code": "301373",
+      "name": "凌玮科技",
+      "score": 29.5,
+      "rank": 12,
+      "gap_pct": 2.99,
+      "ret_pct": 13.39,
+      "ytil": 3.89,
+      "sector": "化学制品"
      },
      {
-      "code": "002084",
-      "name": "海鸥住工",
-      "score": 42.5,
-      "gap_pct": 3.31,
-      "ret_pct": 1.7,
-      "ytil": -0.02,
-      "sector": "家居用品"
+      "code": "000993",
+      "name": "闽东电力",
+      "score": 33.7,
+      "rank": 11,
+      "gap_pct": 2.5,
+      "ret_pct": 7.32,
+      "ytil": 2.14,
+      "sector": "电力"
      },
      {
-      "code": "688499",
-      "name": "利元亨",
-      "score": 59.3,
-      "gap_pct": 4.16,
-      "ret_pct": 1.61,
-      "ytil": -0.06,
-      "sector": "电池"
-     },
-     {
-      "code": "300313",
-      "name": "天山生物",
-      "score": 41.0,
-      "gap_pct": 2.9,
-      "ret_pct": -0.74,
-      "ytil": -0.96,
-      "sector": "养殖业"
-     },
-     {
-      "code": "002753",
-      "name": "永东股份",
-      "score": 55.6,
-      "gap_pct": 4.72,
-      "ret_pct": -1.45,
-      "ytil": -1.23,
-      "sector": "橡胶制品"
+      "code": "003006",
+      "name": "百亚股份",
+      "score": 41.5,
+      "rank": 8,
+      "gap_pct": 2.81,
+      "ret_pct": 3.91,
+      "ytil": 0.83,
+      "sector": "美容护理"
      }
     ]
    }
@@ -2766,7 +2742,8 @@
   "definitions": {
    "y": "开盘买收盘卖的收益，减去当日全池中位数，按 q1/q99 缩尾（单位：%）",
    "ytil": "y 再除以当日 MAD，跨天可比",
-   "top_excess_pct": "分数前 10（过准入）的 y 均值",
+   "top_excess_pct": "**当天真发出去的那张榜**（过准入 且 分数 >= output.min_score，再取前 10）的 y 均值。一只都发不出去的天是 null，不是 0",
+   "sent_n": "当天真发出去几只（生产口径），可能少于 10",
    "rank_gain_pct": "前 10 的 y 均值 − 过准入全部的 y 均值。过准入不足 10 只的天为 null（那天前 10 就是全部，排序没起作用）",
    "se_day_clustered": "按天聚类的标准误：先按天求均值再对天求 se。同一天的票不独立，按票数算的 se 会虚高",
    "days_to_detect_0p5": "以 80% 把握分辨 ±0.5 个百分点/天的排序增益，还需要多少个真值日",
@@ -2776,2134 +2753,7 @@
   }
  },
  "breakout": {
-  "window": 20,
-  "threshold": 0.5,
-  "n_lists": 8,
-  "n_final_lists": 0,
-  "lists": [
-   {
-    "date": "2026-09-07",
-    "n": 10,
-    "bars": 7,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0016,
-    "max_rise": 0.2971
-   },
-   {
-    "date": "2026-09-08",
-    "n": 10,
-    "bars": 6,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0009,
-    "max_rise": 0.2569
-   },
-   {
-    "date": "2026-09-09",
-    "n": 10,
-    "bars": 5,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0004,
-    "max_rise": 0.2456
-   },
-   {
-    "date": "2026-09-10",
-    "n": 10,
-    "bars": 4,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0002,
-    "max_rise": 0.281
-   },
-   {
-    "date": "2026-09-11",
-    "n": 10,
-    "bars": 3,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0002,
-    "max_rise": 0.3945
-   },
-   {
-    "date": "2026-09-14",
-    "n": 10,
-    "bars": 2,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0,
-    "max_rise": 0.1714
-   },
-   {
-    "date": "2026-09-15",
-    "n": 10,
-    "bars": 1,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": 0.0,
-    "max_rise": 0.2001
-   },
-   {
-    "date": "2026-09-16",
-    "n": 10,
-    "bars": 0,
-    "final": false,
-    "n_final": 0,
-    "hits_final": 0,
-    "hit_rate": null,
-    "ci_lo": null,
-    "ci_hi": null,
-    "hits_sofar": 0,
-    "base_final": null,
-    "base_sofar": null,
-    "max_rise": null
-   }
-  ],
-  "picks": [
-   {
-    "date": "2026-09-07",
-    "code": "600108",
-    "name": "亚盛集团",
-    "score": 100.0,
-    "streak": 1,
-    "board": "main",
-    "close": 4.8,
-    "avail": 7,
-    "final": false,
-    "rise": 0.25,
-    "hit": false
-   },
-   {
-    "date": "2026-09-07",
-    "code": "002652",
-    "name": "扬子新材",
-    "score": 99.0,
-    "streak": 1,
-    "board": "main",
-    "close": 4.41,
-    "avail": 7,
-    "final": false,
-    "rise": 0.1542,
-    "hit": false
-   },
-   {
-    "date": "2026-09-07",
-    "code": "688209",
-    "name": "英集芯",
-    "score": 99.0,
-    "streak": 1,
-    "board": "star",
-    "close": 33.61,
-    "avail": 7,
-    "final": false,
-    "rise": 0.1327,
-    "hit": false
-   },
-   {
-    "date": "2026-09-07",
-    "code": "920036",
-    "name": "觅睿科技",
-    "score": 98.0,
-    "streak": 1,
-    "board": "bj",
-    "close": 32.45,
-    "avail": 7,
-    "final": false,
-    "rise": 0.0567,
-    "hit": false
-   },
-   {
-    "date": "2026-09-07",
-    "code": "688655",
-    "name": "迅捷兴",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 50.52,
-    "avail": 7,
-    "final": false,
-    "rise": 0.2971,
-    "hit": false
-   },
-   {
-    "date": "2026-09-07",
-    "code": "688026",
-    "name": "洁特生物",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 21.7,
-    "avail": 7,
-    "final": false,
-    "rise": 0.0452,
-    "hit": false
-   },
-   {
-    "date": "2026-09-07",
-    "code": "688600",
-    "name": "皖仪科技",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 33.89,
-    "avail": 7,
-    "final": false,
-    "rise": 0.0472,
-    "hit": false
-   },
-   {
-    "date": "2026-09-07",
-    "code": "688485",
-    "name": "九州一轨",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 101.45,
-    "avail": 7,
-    "final": false,
-    "rise": 0.1008,
-    "hit": false
-   },
-   {
-    "date": "2026-09-07",
-    "code": "920159",
-    "name": "农大科技",
-    "score": 97.0,
-    "streak": 1,
-    "board": "bj",
-    "close": 36.25,
-    "avail": 7,
-    "final": false,
-    "rise": 0.077,
-    "hit": false
-   },
-   {
-    "date": "2026-09-07",
-    "code": "600722",
-    "name": "金牛化工",
-    "score": 97.0,
-    "streak": 1,
-    "board": "main",
-    "close": 17.97,
-    "avail": 7,
-    "final": false,
-    "rise": 0.1803,
-    "hit": false
-   },
-   {
-    "date": "2026-09-08",
-    "code": "600108",
-    "name": "亚盛集团",
-    "score": 100.0,
-    "streak": 2,
-    "board": "main",
-    "close": 5.28,
-    "avail": 6,
-    "final": false,
-    "rise": 0.1364,
-    "hit": false
-   },
-   {
-    "date": "2026-09-08",
-    "code": "002652",
-    "name": "扬子新材",
-    "score": 99.0,
-    "streak": 2,
-    "board": "main",
-    "close": 4.59,
-    "avail": 6,
-    "final": false,
-    "rise": 0.1089,
-    "hit": false
-   },
-   {
-    "date": "2026-09-08",
-    "code": "688655",
-    "name": "迅捷兴",
-    "score": 99.0,
-    "streak": 2,
-    "board": "star",
-    "close": 54.86,
-    "avail": 6,
-    "final": false,
-    "rise": 0.1945,
-    "hit": false
-   },
-   {
-    "date": "2026-09-08",
-    "code": "688209",
-    "name": "英集芯",
-    "score": 98.0,
-    "streak": 2,
-    "board": "star",
-    "close": 33.29,
-    "avail": 6,
-    "final": false,
-    "rise": 0.1436,
-    "hit": false
-   },
-   {
-    "date": "2026-09-08",
-    "code": "688485",
-    "name": "九州一轨",
-    "score": 98.0,
-    "streak": 2,
-    "board": "star",
-    "close": 97.0,
-    "avail": 6,
-    "final": false,
-    "rise": 0.1513,
-    "hit": false
-   },
-   {
-    "date": "2026-09-08",
-    "code": "600865",
-    "name": "百大集团",
-    "score": 100.0,
-    "streak": 1,
-    "board": "main",
-    "close": 13.74,
-    "avail": 6,
-    "final": false,
-    "rise": 0.1965,
-    "hit": false
-   },
-   {
-    "date": "2026-09-08",
-    "code": "688137",
-    "name": "近岸蛋白",
-    "score": 99.0,
-    "streak": 1,
-    "board": "star",
-    "close": 71.01,
-    "avail": 6,
-    "final": false,
-    "rise": 0.2569,
-    "hit": false
-   },
-   {
-    "date": "2026-09-08",
-    "code": "688293",
-    "name": "奥浦迈",
-    "score": 98.0,
-    "streak": 1,
-    "board": "star",
-    "close": 68.29,
-    "avail": 6,
-    "final": false,
-    "rise": 0.0712,
-    "hit": false
-   },
-   {
-    "date": "2026-09-08",
-    "code": "688656",
-    "name": "浩欧博",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 118.3,
-    "avail": 6,
-    "final": false,
-    "rise": 0.0839,
-    "hit": false
-   },
-   {
-    "date": "2026-09-08",
-    "code": "600354",
-    "name": "敦煌种业",
-    "score": 97.0,
-    "streak": 1,
-    "board": "main",
-    "close": 10.48,
-    "avail": 6,
-    "final": false,
-    "rise": 0.1756,
-    "hit": false
-   },
-   {
-    "date": "2026-09-09",
-    "code": "688209",
-    "name": "英集芯",
-    "score": 99.0,
-    "streak": 3,
-    "board": "star",
-    "close": 33.92,
-    "avail": 5,
-    "final": false,
-    "rise": 0.1223,
-    "hit": false
-   },
-   {
-    "date": "2026-09-09",
-    "code": "002652",
-    "name": "扬子新材",
-    "score": 98.0,
-    "streak": 3,
-    "board": "main",
-    "close": 4.94,
-    "avail": 5,
-    "final": false,
-    "rise": 0.0304,
-    "hit": false
-   },
-   {
-    "date": "2026-09-09",
-    "code": "688655",
-    "name": "迅捷兴",
-    "score": 98.0,
-    "streak": 3,
-    "board": "star",
-    "close": 56.52,
-    "avail": 5,
-    "final": false,
-    "rise": 0.1594,
-    "hit": false
-   },
-   {
-    "date": "2026-09-09",
-    "code": "688485",
-    "name": "九州一轨",
-    "score": 97.0,
-    "streak": 3,
-    "board": "star",
-    "close": 97.31,
-    "avail": 5,
-    "final": false,
-    "rise": 0.1477,
-    "hit": false
-   },
-   {
-    "date": "2026-09-09",
-    "code": "688137",
-    "name": "近岸蛋白",
-    "score": 98.0,
-    "streak": 2,
-    "board": "star",
-    "close": 71.65,
-    "avail": 5,
-    "final": false,
-    "rise": 0.2456,
-    "hit": false
-   },
-   {
-    "date": "2026-09-09",
-    "code": "688293",
-    "name": "奥浦迈",
-    "score": 98.0,
-    "streak": 2,
-    "board": "star",
-    "close": 70.98,
-    "avail": 5,
-    "final": false,
-    "rise": 0.0049,
-    "hit": false
-   },
-   {
-    "date": "2026-09-09",
-    "code": "000523",
-    "name": "红棉股份",
-    "score": 99.0,
-    "streak": 1,
-    "board": "main",
-    "close": 4.36,
-    "avail": 5,
-    "final": false,
-    "rise": 0.1009,
-    "hit": false
-   },
-   {
-    "date": "2026-09-09",
-    "code": "002470",
-    "name": "金正大",
-    "score": 99.0,
-    "streak": 1,
-    "board": "main",
-    "close": 2.78,
-    "avail": 5,
-    "final": false,
-    "rise": 0.0072,
-    "hit": false
-   },
-   {
-    "date": "2026-09-09",
-    "code": "688028",
-    "name": "沃尔德",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 124.35,
-    "avail": 5,
-    "final": false,
-    "rise": 0.0229,
-    "hit": false
-   },
-   {
-    "date": "2026-09-09",
-    "code": "920036",
-    "name": "觅睿科技",
-    "score": 97.0,
-    "streak": 1,
-    "board": "bj",
-    "close": 31.64,
-    "avail": 5,
-    "final": false,
-    "rise": 0.0253,
-    "hit": false
-   },
-   {
-    "date": "2026-09-10",
-    "code": "688655",
-    "name": "迅捷兴",
-    "score": 98.0,
-    "streak": 4,
-    "board": "star",
-    "close": 56.32,
-    "avail": 4,
-    "final": false,
-    "rise": 0.1635,
-    "hit": false
-   },
-   {
-    "date": "2026-09-10",
-    "code": "688209",
-    "name": "英集芯",
-    "score": 98.0,
-    "streak": 4,
-    "board": "star",
-    "close": 32.88,
-    "avail": 4,
-    "final": false,
-    "rise": 0.1578,
-    "hit": false
-   },
-   {
-    "date": "2026-09-10",
-    "code": "688137",
-    "name": "近岸蛋白",
-    "score": 97.0,
-    "streak": 3,
-    "board": "star",
-    "close": 69.67,
-    "avail": 4,
-    "final": false,
-    "rise": 0.281,
-    "hit": false
-   },
-   {
-    "date": "2026-09-10",
-    "code": "688293",
-    "name": "奥浦迈",
-    "score": 97.0,
-    "streak": 3,
-    "board": "star",
-    "close": 66.86,
-    "avail": 4,
-    "final": false,
-    "rise": 0.0299,
-    "hit": false
-   },
-   {
-    "date": "2026-09-10",
-    "code": "688028",
-    "name": "沃尔德",
-    "score": 97.0,
-    "streak": 2,
-    "board": "star",
-    "close": 120.0,
-    "avail": 4,
-    "final": false,
-    "rise": 0.0551,
-    "hit": false
-   },
-   {
-    "date": "2026-09-10",
-    "code": "688135",
-    "name": "利扬芯片",
-    "score": 98.0,
-    "streak": 1,
-    "board": "star",
-    "close": 36.5,
-    "avail": 4,
-    "final": false,
-    "rise": 0.086,
-    "hit": false
-   },
-   {
-    "date": "2026-09-10",
-    "code": "600313",
-    "name": "农发种业",
-    "score": 97.0,
-    "streak": 1,
-    "board": "main",
-    "close": 7.61,
-    "avail": 4,
-    "final": false,
-    "rise": 0.0447,
-    "hit": false
-   },
-   {
-    "date": "2026-09-10",
-    "code": "688656",
-    "name": "浩欧博",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 121.95,
-    "avail": 4,
-    "final": false,
-    "rise": 0.0043,
-    "hit": false
-   },
-   {
-    "date": "2026-09-10",
-    "code": "688203",
-    "name": "海正生材",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 14.63,
-    "avail": 4,
-    "final": false,
-    "rise": 0.041,
-    "hit": false
-   },
-   {
-    "date": "2026-09-10",
-    "code": "600403",
-    "name": "大有能源",
-    "score": 97.0,
-    "streak": 1,
-    "board": "main",
-    "close": 7.78,
-    "avail": 4,
-    "final": false,
-    "rise": 0.0193,
-    "hit": false
-   },
-   {
-    "date": "2026-09-11",
-    "code": "688655",
-    "name": "迅捷兴",
-    "score": 97.0,
-    "streak": 5,
-    "board": "star",
-    "close": 60.12,
-    "avail": 3,
-    "final": false,
-    "rise": 0.09,
-    "hit": false
-   },
-   {
-    "date": "2026-09-11",
-    "code": "688293",
-    "name": "奥浦迈",
-    "score": 97.0,
-    "streak": 4,
-    "board": "star",
-    "close": 65.1,
-    "avail": 3,
-    "final": false,
-    "rise": 0.0578,
-    "hit": false
-   },
-   {
-    "date": "2026-09-11",
-    "code": "688137",
-    "name": "近岸蛋白",
-    "score": 97.0,
-    "streak": 4,
-    "board": "star",
-    "close": 64.0,
-    "avail": 3,
-    "final": false,
-    "rise": 0.3945,
-    "hit": false
-   },
-   {
-    "date": "2026-09-11",
-    "code": "600403",
-    "name": "大有能源",
-    "score": 98.0,
-    "streak": 2,
-    "board": "main",
-    "close": 7.17,
-    "avail": 3,
-    "final": false,
-    "rise": 0.0153,
-    "hit": false
-   },
-   {
-    "date": "2026-09-11",
-    "code": "688260",
-    "name": "昀冢科技",
-    "score": 98.0,
-    "streak": 1,
-    "board": "star",
-    "close": 109.9,
-    "avail": 3,
-    "final": false,
-    "rise": 0.1272,
-    "hit": false
-   },
-   {
-    "date": "2026-09-11",
-    "code": "688700",
-    "name": "东威科技",
-    "score": 98.0,
-    "streak": 1,
-    "board": "star",
-    "close": 63.06,
-    "avail": 3,
-    "final": false,
-    "rise": 0.0812,
-    "hit": false
-   },
-   {
-    "date": "2026-09-11",
-    "code": "688143",
-    "name": "长盈通",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 195.0,
-    "avail": 3,
-    "final": false,
-    "rise": 0.0368,
-    "hit": false
-   },
-   {
-    "date": "2026-09-11",
-    "code": "688152",
-    "name": "麒麟信安",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 35.44,
-    "avail": 3,
-    "final": false,
-    "rise": 0.1287,
-    "hit": false
-   },
-   {
-    "date": "2026-09-11",
-    "code": "688775",
-    "name": "影石创新",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 94.47,
-    "avail": 3,
-    "final": false,
-    "rise": 0.0189,
-    "hit": false
-   },
-   {
-    "date": "2026-09-11",
-    "code": "688521",
-    "name": "芯原股份",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 185.22,
-    "avail": 3,
-    "final": false,
-    "rise": 0.0438,
-    "hit": false
-   },
-   {
-    "date": "2026-09-14",
-    "code": "688137",
-    "name": "近岸蛋白",
-    "score": 98.0,
-    "streak": 5,
-    "board": "star",
-    "close": 76.8,
-    "avail": 2,
-    "final": false,
-    "rise": 0.1621,
-    "hit": false
-   },
-   {
-    "date": "2026-09-14",
-    "code": "688152",
-    "name": "麒麟信安",
-    "score": 98.0,
-    "streak": 2,
-    "board": "star",
-    "close": 37.44,
-    "avail": 2,
-    "final": false,
-    "rise": 0.028,
-    "hit": false
-   },
-   {
-    "date": "2026-09-14",
-    "code": "688700",
-    "name": "东威科技",
-    "score": 98.0,
-    "streak": 2,
-    "board": "star",
-    "close": 63.31,
-    "avail": 2,
-    "final": false,
-    "rise": 0.0769,
-    "hit": false
-   },
-   {
-    "date": "2026-09-14",
-    "code": "688260",
-    "name": "昀冢科技",
-    "score": 98.0,
-    "streak": 2,
-    "board": "star",
-    "close": 119.47,
-    "avail": 2,
-    "final": false,
-    "rise": 0.0369,
-    "hit": false
-   },
-   {
-    "date": "2026-09-14",
-    "code": "605577",
-    "name": "龙版传媒",
-    "score": 99.0,
-    "streak": 1,
-    "board": "main",
-    "close": 16.8,
-    "avail": 2,
-    "final": false,
-    "rise": -0.0357,
-    "hit": false
-   },
-   {
-    "date": "2026-09-14",
-    "code": "920028",
-    "name": "新恒泰",
-    "score": 98.0,
-    "streak": 1,
-    "board": "bj",
-    "close": 15.29,
-    "avail": 2,
-    "final": false,
-    "rise": 0.0569,
-    "hit": false
-   },
-   {
-    "date": "2026-09-14",
-    "code": "688209",
-    "name": "英集芯",
-    "score": 98.0,
-    "streak": 1,
-    "board": "star",
-    "close": 34.3,
-    "avail": 2,
-    "final": false,
-    "rise": 0.1099,
-    "hit": false
-   },
-   {
-    "date": "2026-09-14",
-    "code": "920119",
-    "name": "美德乐",
-    "score": 98.0,
-    "streak": 1,
-    "board": "bj",
-    "close": 55.0,
-    "avail": 2,
-    "final": false,
-    "rise": 0.0598,
-    "hit": false
-   },
-   {
-    "date": "2026-09-14",
-    "code": "603402",
-    "name": "陕西旅游",
-    "score": 98.0,
-    "streak": 1,
-    "board": "main",
-    "close": 60.68,
-    "avail": 2,
-    "final": false,
-    "rise": 0.0015,
-    "hit": false
-   },
-   {
-    "date": "2026-09-14",
-    "code": "688432",
-    "name": "有研硅",
-    "score": 98.0,
-    "streak": 1,
-    "board": "star",
-    "close": 46.15,
-    "avail": 2,
-    "final": false,
-    "rise": 0.1714,
-    "hit": false
-   },
-   {
-    "date": "2026-09-15",
-    "code": "688137",
-    "name": "近岸蛋白",
-    "score": 97.0,
-    "streak": 6,
-    "board": "star",
-    "close": 77.1,
-    "avail": 1,
-    "final": false,
-    "rise": 0.1576,
-    "hit": false
-   },
-   {
-    "date": "2026-09-15",
-    "code": "688152",
-    "name": "麒麟信安",
-    "score": 97.0,
-    "streak": 3,
-    "board": "star",
-    "close": 35.13,
-    "avail": 1,
-    "final": false,
-    "rise": -0.0051,
-    "hit": false
-   },
-   {
-    "date": "2026-09-15",
-    "code": "920028",
-    "name": "新恒泰",
-    "score": 97.0,
-    "streak": 2,
-    "board": "bj",
-    "close": 15.43,
-    "avail": 1,
-    "final": false,
-    "rise": 0.0473,
-    "hit": false
-   },
-   {
-    "date": "2026-09-15",
-    "code": "920119",
-    "name": "美德乐",
-    "score": 97.0,
-    "streak": 2,
-    "board": "bj",
-    "close": 57.77,
-    "avail": 1,
-    "final": false,
-    "rise": 0.004,
-    "hit": false
-   },
-   {
-    "date": "2026-09-15",
-    "code": "688432",
-    "name": "有研硅",
-    "score": 97.0,
-    "streak": 2,
-    "board": "star",
-    "close": 45.05,
-    "avail": 1,
-    "final": false,
-    "rise": 0.2,
-    "hit": false
-   },
-   {
-    "date": "2026-09-15",
-    "code": "688209",
-    "name": "英集芯",
-    "score": 97.0,
-    "streak": 2,
-    "board": "star",
-    "close": 35.58,
-    "avail": 1,
-    "final": false,
-    "rise": 0.07,
-    "hit": false
-   },
-   {
-    "date": "2026-09-15",
-    "code": "688004",
-    "name": "博汇科技",
-    "score": 98.0,
-    "streak": 1,
-    "board": "star",
-    "close": 27.38,
-    "avail": 1,
-    "final": false,
-    "rise": 0.2001,
-    "hit": false
-   },
-   {
-    "date": "2026-09-15",
-    "code": "688046",
-    "name": "药康生物",
-    "score": 97.0,
-    "streak": 1,
-    "board": "star",
-    "close": 32.37,
-    "avail": 1,
-    "final": false,
-    "rise": 0.0596,
-    "hit": false
-   },
-   {
-    "date": "2026-09-15",
-    "code": "603657",
-    "name": "春光科技",
-    "score": 97.0,
-    "streak": 1,
-    "board": "main",
-    "close": 32.59,
-    "avail": 1,
-    "final": false,
-    "rise": 0.0549,
-    "hit": false
-   },
-   {
-    "date": "2026-09-15",
-    "code": "002652",
-    "name": "扬子新材",
-    "score": 97.0,
-    "streak": 1,
-    "board": "main",
-    "close": 4.56,
-    "avail": 1,
-    "final": false,
-    "rise": 0.0417,
-    "hit": false
-   },
-   {
-    "date": "2026-09-16",
-    "code": "688137",
-    "name": "近岸蛋白",
-    "score": 98.0,
-    "streak": 7,
-    "board": "star",
-    "close": 84.0,
-    "avail": 0,
-    "final": false,
-    "rise": null,
-    "hit": null
-   },
-   {
-    "date": "2026-09-16",
-    "code": "920028",
-    "name": "新恒泰",
-    "score": 99.0,
-    "streak": 3,
-    "board": "bj",
-    "close": 15.65,
-    "avail": 0,
-    "final": false,
-    "rise": null,
-    "hit": null
-   },
-   {
-    "date": "2026-09-16",
-    "code": "688004",
-    "name": "博汇科技",
-    "score": 99.0,
-    "streak": 2,
-    "board": "star",
-    "close": 32.86,
-    "avail": 0,
-    "final": false,
-    "rise": null,
-    "hit": null
-   },
-   {
-    "date": "2026-09-16",
-    "code": "688046",
-    "name": "药康生物",
-    "score": 98.0,
-    "streak": 2,
-    "board": "star",
-    "close": 34.05,
-    "avail": 0,
-    "final": false,
-    "rise": null,
-    "hit": null
-   },
-   {
-    "date": "2026-09-16",
-    "code": "603879",
-    "name": "永悦科技",
-    "score": 99.0,
-    "streak": 1,
-    "board": "main",
-    "close": 4.96,
-    "avail": 0,
-    "final": false,
-    "rise": null,
-    "hit": null
-   },
-   {
-    "date": "2026-09-16",
-    "code": "002811",
-    "name": "郑中设计",
-    "score": 98.0,
-    "streak": 1,
-    "board": "main",
-    "close": 14.78,
-    "avail": 0,
-    "final": false,
-    "rise": null,
-    "hit": null
-   },
-   {
-    "date": "2026-09-16",
-    "code": "605162",
-    "name": "新中港",
-    "score": 98.0,
-    "streak": 1,
-    "board": "main",
-    "close": 11.09,
-    "avail": 0,
-    "final": false,
-    "rise": null,
-    "hit": null
-   },
-   {
-    "date": "2026-09-16",
-    "code": "603023",
-    "name": "威帝股份",
-    "score": 98.0,
-    "streak": 1,
-    "board": "main",
-    "close": 4.26,
-    "avail": 0,
-    "final": false,
-    "rise": null,
-    "hit": null
-   },
-   {
-    "date": "2026-09-16",
-    "code": "600186",
-    "name": "莲花控股",
-    "score": 98.0,
-    "streak": 1,
-    "board": "main",
-    "close": 12.88,
-    "avail": 0,
-    "final": false,
-    "rise": null,
-    "hit": null
-   },
-   {
-    "date": "2026-09-16",
-    "code": "600722",
-    "name": "金牛化工",
-    "score": 98.0,
-    "streak": 1,
-    "board": "main",
-    "close": 16.03,
-    "avail": 0,
-    "final": false,
-    "rise": null,
-    "hit": null
-   }
-  ],
-  "by": {
-   "streak": [],
-   "score": [],
-   "board": []
-  },
-  "expected": {
-   "streak_perf": [
-    {
-     "streak_ge": 5,
-     "hit_pct": 6.7,
-     "lift": 2.3,
-     "n": 30
-    },
-    {
-     "streak_ge": 4,
-     "hit_pct": 13.0,
-     "lift": 4.4,
-     "n": 54
-    },
-    {
-     "streak_ge": 3,
-     "hit_pct": 14.3,
-     "lift": 4.9,
-     "n": 98
-    },
-    {
-     "streak_ge": 2,
-     "hit_pct": 15.7,
-     "lift": 5.4,
-     "n": 216
-    },
-    {
-     "streak_ge": 1,
-     "hit_pct": 12.6,
-     "lift": 4.3,
-     "n": 783
-    }
-   ],
-   "base_pct": 2.93,
-   "score_table": [
-    [
-     "95 分以上",
-     8.2,
-     2.8
-    ],
-    [
-     "90~94 分",
-     5.9,
-     2.0
-    ],
-    [
-     "80~89 分",
-     4.6,
-     1.6
-    ],
-    [
-     "70~79 分",
-     3.9,
-     1.3
-    ],
-    [
-     "随便买",
-     2.9,
-     1.0
-    ]
-   ],
-   "window": "验证集 207 个交易日"
-  },
-  "model": {
-   "fit_date": "2026-09-15",
-   "train_cut": "2026-08-11",
-   "n_feats": 45,
-   "fingerprint": "482b519d3a8524399ee8d820ccc7294a",
-   "importance": [
-    {
-     "feat": "mkt_ret5__mean",
-     "gain_share": 0.1647
-    },
-    {
-     "feat": "mkt_ret5__slope",
-     "gain_share": 0.1206
-    },
-    {
-     "feat": "turn_pct__mean",
-     "gain_share": 0.1017
-    },
-    {
-     "feat": "mkt_ret5__last",
-     "gain_share": 0.1008
-    },
-    {
-     "feat": "above_ma60__mean",
-     "gain_share": 0.0808
-    },
-    {
-     "feat": "boll_width__last",
-     "gain_share": 0.0384
-    },
-    {
-     "feat": "amt_ma20__last",
-     "gain_share": 0.0383
-    },
-    {
-     "feat": "gdhs_level__slope",
-     "gain_share": 0.0379
-    },
-    {
-     "feat": "gdhs_chg3__mean",
-     "gain_share": 0.0368
-    },
-    {
-     "feat": "chip_conc90__last",
-     "gain_share": 0.0334
-    },
-    {
-     "feat": "dist_52w_low__last",
-     "gain_share": 0.0332
-    },
-    {
-     "feat": "turn_std20__last",
-     "gain_share": 0.0229
-    },
-    {
-     "feat": "gdhs_level__last",
-     "gain_share": 0.0219
-    },
-    {
-     "feat": "amt_ma20__slope",
-     "gain_share": 0.0214
-    },
-    {
-     "feat": "rs60__last",
-     "gain_share": 0.0184
-    },
-    {
-     "feat": "chip_conc_chg20__last",
-     "gain_share": 0.0164
-    },
-    {
-     "feat": "rs20__last",
-     "gain_share": 0.0108
-    },
-    {
-     "feat": "chip_dev__mean",
-     "gain_share": 0.01
-    },
-    {
-     "feat": "atr_ratio__last",
-     "gain_share": 0.0095
-    },
-    {
-     "feat": "ma_align__mean",
-     "gain_share": 0.008
-    },
-    {
-     "feat": "turn_pct__slope",
-     "gain_share": 0.0071
-    },
-    {
-     "feat": "dist_52w_high__slope",
-     "gain_share": 0.007
-    },
-    {
-     "feat": "up_vol_share20__last",
-     "gain_share": 0.0066
-    },
-    {
-     "feat": "chip_win__last",
-     "gain_share": 0.006
-    },
-    {
-     "feat": "ma20_slope5__mean",
-     "gain_share": 0.0057
-    },
-    {
-     "feat": "vol_compress__last",
-     "gain_share": 0.0048
-    },
-    {
-     "feat": "dist_52w_low__slope",
-     "gain_share": 0.0046
-    },
-    {
-     "feat": "ma_align__slope",
-     "gain_share": 0.0038
-    },
-    {
-     "feat": "chip_peak__last",
-     "gain_share": 0.0033
-    },
-    {
-     "feat": "vol_ratio20__last",
-     "gain_share": 0.0033
-    },
-    {
-     "feat": "range_compress__last",
-     "gain_share": 0.003
-    },
-    {
-     "feat": "vol_compress__mean",
-     "gain_share": 0.0024
-    },
-    {
-     "feat": "boll_width__slope",
-     "gain_share": 0.0022
-    },
-    {
-     "feat": "vol_ratio5__last",
-     "gain_share": 0.0022
-    },
-    {
-     "feat": "chip_dev__slope",
-     "gain_share": 0.0022
-    },
-    {
-     "feat": "rs60__slope",
-     "gain_share": 0.0018
-    },
-    {
-     "feat": "chip_peak__slope",
-     "gain_share": 0.0017
-    },
-    {
-     "feat": "range_compress__mean",
-     "gain_share": 0.0014
-    },
-    {
-     "feat": "ma20_slope5__slope",
-     "gain_share": 0.001
-    },
-    {
-     "feat": "atr_ratio__slope",
-     "gain_share": 0.001
-    },
-    {
-     "feat": "chip_win__slope",
-     "gain_share": 0.0009
-    },
-    {
-     "feat": "rs20__slope",
-     "gain_share": 0.0009
-    },
-    {
-     "feat": "x_squeeze_burst__last",
-     "gain_share": 0.0006
-    },
-    {
-     "feat": "x_squeeze_burst__mean",
-     "gain_share": 0.0006
-    },
-    {
-     "feat": "vol_ratio5__mean",
-     "gain_share": 0.0002
-    }
-   ],
-   "importance_by_group": {
-    "regime": 0.4179,
-    "structure": 0.208,
-    "position": 0.1441,
-    "holders": 0.0966,
-    "volume": 0.0696,
-    "compression": 0.0626,
-    "other": 0.0013
-   },
-   "latest_list_feats": {
-    "date": "2026-09-16",
-    "rows": [
-     {
-      "code": "688137",
-      "score": 98.0,
-      "feats": {
-       "turn_pct__mean": 0.476,
-       "boll_width__last": 0.356,
-       "dist_52w_low__last": 0.429,
-       "amt_ma20__last": 0.38,
-       "rs60__last": 0.635,
-       "above_ma60__mean": 0.517,
-       "chip_win__last": 0.448,
-       "ma_align__mean": 0.194,
-       "rs20__last": 0.534,
-       "atr_ratio__last": 0.622,
-       "chip_dev__mean": 0.508,
-       "ma20_slope5__mean": 0.596,
-       "up_vol_share20__last": 0.452,
-       "chip_conc90__last": -0.019,
-       "chip_peak__last": -0.402,
-       "gdhs_level__last": 0.184,
-       "vol_compress__last": 0.361,
-       "dist_52w_low__slope": -0.005,
-       "vol_ratio20__last": 0.31,
-       "vol_compress__mean": 0.341
-      }
-     },
-     {
-      "code": "920028",
-      "score": 99.0,
-      "feats": {
-       "turn_pct__mean": 0.268,
-       "boll_width__last": 0.028,
-       "dist_52w_low__last": 0.236,
-       "amt_ma20__last": -0.03,
-       "rs60__last": -0.089,
-       "above_ma60__mean": 0.089,
-       "chip_win__last": 0.545,
-       "ma_align__mean": -0.018,
-       "rs20__last": 0.45,
-       "atr_ratio__last": 0.249,
-       "chip_dev__mean": 0.325,
-       "ma20_slope5__mean": 0.308,
-       "up_vol_share20__last": 0.425,
-       "chip_conc90__last": -0.026,
-       "chip_peak__last": -0.498,
-       "gdhs_level__last": 0.007,
-       "vol_compress__last": 0.593,
-       "dist_52w_low__slope": 0.093,
-       "vol_ratio20__last": 0.639,
-       "vol_compress__mean": 0.276
-      }
-     },
-     {
-      "code": "688004",
-      "score": 99.0,
-      "feats": {
-       "turn_pct__mean": 0.349,
-       "boll_width__last": 0.49,
-       "dist_52w_low__last": 0.48,
-       "amt_ma20__last": 0.172,
-       "rs60__last": 0.62,
-       "above_ma60__mean": 0.044,
-       "chip_win__last": 0.563,
-       "ma_align__mean": 0.193,
-       "rs20__last": 0.571,
-       "atr_ratio__last": 0.54,
-       "chip_dev__mean": 0.317,
-       "ma20_slope5__mean": -0.155,
-       "up_vol_share20__last": 0.566,
-       "chip_conc90__last": 0.183,
-       "chip_peak__last": -0.563,
-       "gdhs_level__last": 0.065,
-       "vol_compress__last": 0.566,
-       "dist_52w_low__slope": 0.115,
-       "vol_ratio20__last": 0.53,
-       "vol_compress__mean": 0.264
-      }
-     },
-     {
-      "code": "688046",
-      "score": 98.0,
-      "feats": {
-       "turn_pct__mean": 0.109,
-       "boll_width__last": 0.132,
-       "dist_52w_low__last": 0.337,
-       "amt_ma20__last": 0.164,
-       "rs60__last": 0.63,
-       "above_ma60__mean": 0.581,
-       "chip_win__last": 0.286,
-       "ma_align__mean": 0.118,
-       "rs20__last": -0.282,
-       "atr_ratio__last": -0.103,
-       "chip_dev__mean": 0.384,
-       "ma20_slope5__mean": -0.363,
-       "up_vol_share20__last": -0.137,
-       "chip_conc90__last": 0.32,
-       "chip_peak__last": -0.365,
-       "gdhs_level__last": -0.446,
-       "vol_compress__last": -0.057,
-       "dist_52w_low__slope": -0.008,
-       "vol_ratio20__last": 0.163,
-       "vol_compress__mean": -0.176
-      }
-     },
-     {
-      "code": "603879",
-      "score": 99.0,
-      "feats": {
-       "turn_pct__mean": 0.006,
-       "boll_width__last": 0.034,
-       "dist_52w_low__last": 0.197,
-       "amt_ma20__last": -0.048,
-       "rs60__last": 0.216,
-       "above_ma60__mean": 0.103,
-       "chip_win__last": 0.138,
-       "ma_align__mean": -0.236,
-       "rs20__last": -0.312,
-       "atr_ratio__last": -0.201,
-       "chip_dev__mean": 0.212,
-       "ma20_slope5__mean": -0.264,
-       "up_vol_share20__last": 0.057,
-       "chip_conc90__last": -0.133,
-       "chip_peak__last": 0.257,
-       "gdhs_level__last": -0.269,
-       "vol_compress__last": -0.001,
-       "dist_52w_low__slope": -0.007,
-       "vol_ratio20__last": 0.184,
-       "vol_compress__mean": -0.096
-      }
-     },
-     {
-      "code": "002811",
-      "score": 98.0,
-      "feats": {
-       "turn_pct__mean": 0.217,
-       "boll_width__last": 0.308,
-       "dist_52w_low__last": 0.385,
-       "amt_ma20__last": 0.19,
-       "rs60__last": 0.381,
-       "above_ma60__mean": 0.23,
-       "chip_win__last": 0.442,
-       "ma_align__mean": 0.095,
-       "rs20__last": 0.411,
-       "atr_ratio__last": 0.35,
-       "chip_dev__mean": 0.363,
-       "ma20_slope5__mean": 0.374,
-       "up_vol_share20__last": 0.224,
-       "chip_conc90__last": 0.094,
-       "chip_peak__last": -0.346,
-       "gdhs_level__last": -0.092,
-       "vol_compress__last": -0.416,
-       "dist_52w_low__slope": 0.016,
-       "vol_ratio20__last": -0.126,
-       "vol_compress__mean": -0.276
-      }
-     },
-     {
-      "code": "605162",
-      "score": 98.0,
-      "feats": {
-       "turn_pct__mean": 0.473,
-       "boll_width__last": 0.437,
-       "dist_52w_low__last": 0.377,
-       "amt_ma20__last": 0.354,
-       "rs60__last": 0.407,
-       "above_ma60__mean": 0.276,
-       "chip_win__last": 0.445,
-       "ma_align__mean": 0.335,
-       "rs20__last": 0.408,
-       "atr_ratio__last": 0.415,
-       "chip_dev__mean": 0.423,
-       "ma20_slope5__mean": 0.391,
-       "up_vol_share20__last": 0.253,
-       "chip_conc90__last": -0.197,
-       "chip_peak__last": -0.373,
-       "gdhs_level__last": -0.023,
-       "vol_compress__last": 0.368,
-       "dist_52w_low__slope": 0.008,
-       "vol_ratio20__last": 0.432,
-       "vol_compress__mean": 0.299
-      }
-     },
-     {
-      "code": "603023",
-      "score": 98.0,
-      "feats": {
-       "turn_pct__mean": -0.008,
-       "boll_width__last": 0.019,
-       "dist_52w_low__last": 0.219,
-       "amt_ma20__last": -0.042,
-       "rs60__last": 0.197,
-       "above_ma60__mean": 0.232,
-       "chip_win__last": 0.321,
-       "ma_align__mean": -0.011,
-       "rs20__last": 0.27,
-       "atr_ratio__last": 0.125,
-       "chip_dev__mean": 0.11,
-       "ma20_slope5__mean": -0.031,
-       "up_vol_share20__last": -0.04,
-       "chip_conc90__last": 0.138,
-       "chip_peak__last": -0.439,
-       "gdhs_level__last": -0.26,
-       "vol_compress__last": 0.277,
-       "dist_52w_low__slope": 0.031,
-       "vol_ratio20__last": 0.466,
-       "vol_compress__mean": 0.156
-      }
-     },
-     {
-      "code": "600186",
-      "score": 98.0,
-      "feats": {
-       "turn_pct__mean": 0.625,
-       "boll_width__last": 0.313,
-       "dist_52w_low__last": 0.459,
-       "amt_ma20__last": 0.187,
-       "rs60__last": -0.134,
-       "above_ma60__mean": 0.349,
-       "chip_win__last": 0.458,
-       "ma_align__mean": 0.438,
-       "rs20__last": 0.415,
-       "atr_ratio__last": 0.29,
-       "chip_dev__mean": 0.342,
-       "ma20_slope5__mean": 0.317,
-       "up_vol_share20__last": 0.318,
-       "chip_conc90__last": -0.481,
-       "chip_peak__last": -0.215,
-       "gdhs_level__last": 0.308,
-       "vol_compress__last": 0.229,
-       "dist_52w_low__slope": 0.002,
-       "vol_ratio20__last": 0.16,
-       "vol_compress__mean": 0.1
-      }
-     },
-     {
-      "code": "600722",
-      "score": 98.0,
-      "feats": {
-       "turn_pct__mean": 0.53,
-       "boll_width__last": 0.531,
-       "dist_52w_low__last": 0.512,
-       "amt_ma20__last": 0.381,
-       "rs60__last": 0.483,
-       "above_ma60__mean": 0.48,
-       "chip_win__last": -0.044,
-       "ma_align__mean": 0.307,
-       "rs20__last": 0.462,
-       "atr_ratio__last": 0.463,
-       "chip_dev__mean": 0.058,
-       "ma20_slope5__mean": 0.497,
-       "up_vol_share20__last": 0.451,
-       "chip_conc90__last": -0.262,
-       "chip_peak__last": -0.212,
-       "gdhs_level__last": 0.305,
-       "vol_compress__last": -0.033,
-       "dist_52w_low__slope": -0.001,
-       "vol_ratio20__last": -0.284,
-       "vol_compress__mean": 0.093
-      }
-     }
-    ],
-    "note": "特征值 = 当日横截面百分位经板块×市值分箱中性化后的残差（正 = 高于同板块同市值档均值，量级约 ±0.5），__mean/__slope 是 5 日聚合；只列重要性前 20 个"
-   },
-   "feature_select": {
-    "start": 87,
-    "end": 34,
-    "dropped": {
-     "ic_too_weak": {
-      "ma20_slope5__slope": 0.0047,
-      "vol_compress__slope": 0.0044,
-      "chip_conc_chg20__slope": -0.0008,
-      "chip_peak__slope": -0.0048,
-      "vol_ratio5__last": 0.0043,
-      "vol_ratio5__slope": 0.0021,
-      "turn_std20__slope": 0.0,
-      "gdhs_stale_days__last": 0.0,
-      "gdhs_stale_days__mean": 0.0,
-      "gdhs_stale_days__slope": 0.0,
-      "rs_accel__last": 0.001,
-      "rs_accel__mean": -0.0002,
-      "rs_accel__slope": 0.0013,
-      "x_holder_chip__slope": -0.0004,
-      "x_squeeze_burst__slope": 0.0016,
-      "x_light_top__slope": 0.0026
-     },
-     "ic_unstable": {
-      "dist_52w_high__last": {
-       "flip": 0.48,
-       "ic": -0.0172
-      },
-      "dist_52w_high__mean": {
-       "flip": 0.48,
-       "ic": -0.0194
-      },
-      "above_ma60__slope": {
-       "flip": 0.48,
-       "ic": 0.0031
-      },
-      "range_compress__slope": {
-       "flip": 0.43,
-       "ic": 0.0041
-      },
-      "atr_ratio__mean": {
-       "flip": 0.43,
-       "ic": 0.0106
-      },
-      "chip_conc90__slope": {
-       "flip": 0.43,
-       "ic": -0.0037
-      },
-      "chip_conc_chg20__mean": {
-       "flip": 0.48,
-       "ic": 0.009
-      },
-      "chip_dev__mean": {
-       "flip": 0.43,
-       "ic": 0.0065
-      },
-      "gdhs_chg1__last": {
-       "flip": 0.48,
-       "ic": 0.0053
-      },
-      "gdhs_chg1__mean": {
-       "flip": 0.43,
-       "ic": 0.0051
-      },
-      "gdhs_chg3__last": {
-       "flip": 0.48,
-       "ic": 0.0084
-      },
-      "gdhs_chg3__mean": {
-       "flip": 0.43,
-       "ic": 0.0082
-      },
-      "gdhs_chg3__slope": {
-       "flip": 0.48,
-       "ic": -0.0053
-      },
-      "gdhs_down_streak__last": {
-       "flip": 0.52,
-       "ic": -0.0008
-      },
-      "gdhs_down_streak__mean": {
-       "flip": 0.52,
-       "ic": -0.0007
-      },
-      "rs60__last": {
-       "flip": 0.43,
-       "ic": 0.0144
-      },
-      "rs60__mean": {
-       "flip": 0.48,
-       "ic": 0.0122
-      },
-      "mkt_breadth__mean": {
-       "flip": 0.43,
-       "ic": -0.0097
-      },
-      "mkt_breadth__slope": {
-       "flip": 0.7,
-       "ic": 0.0013
-      },
-      "mkt_ret5__last": {
-       "flip": 0.43,
-       "ic": -0.0076
-      },
-      "mkt_ret5__mean": {
-       "flip": 0.48,
-       "ic": -0.0121
-      },
-      "x_holder_chip__last": {
-       "flip": 0.52,
-       "ic": -0.0006
-      },
-      "x_holder_chip__mean": {
-       "flip": 0.52,
-       "ic": -0.001
-      },
-      "x_light_top__last": {
-       "flip": 0.57,
-       "ic": -0.0035
-      },
-      "x_light_top__mean": {
-       "flip": 0.48,
-       "ic": -0.0037
-      }
-     },
-     "collinear": {
-      "turn_pct__last": "与 turn_pct__mean 相关 0.93",
-      "boll_width__mean": "与 boll_width__last 相关 0.96",
-      "chip_conc90__mean": "与 chip_conc90__last 相关 0.98",
-      "dist_52w_low__mean": "与 dist_52w_low__last 相关 0.97",
-      "ma_align__mean": "与 ma_align__last 相关 0.86",
-      "above_ma60__last": "与 above_ma60__mean 相关 0.93",
-      "chip_win__mean": "与 chip_win__last 相关 0.89",
-      "turn_std20__last": "与 turn_std20__mean 相关 0.93",
-      "chip_peak__mean": "与 chip_peak__last 相关 0.87",
-      "ma20_slope5__last": "与 rs20__last 相关 0.91",
-      "rs20__mean": "与 rs20__last 相关 0.91",
-      "chip_dev__last": "与 chip_win__last 相关 0.86"
-     }
-    }
-   },
-   "walk_forward_w5": [
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥2天",
-     "n": 216,
-     "empty": 99,
-     "per_day": 1.0434782608695652,
-     "hit": 0.15740740299224854,
-     "se": 0.0247796130805858,
-     "lift": 5.3701752041423845,
-     "per_month": 3.449275265569272
-    },
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥3天",
-     "n": 98,
-     "empty": 142,
-     "per_day": 0.47342995169082125,
-     "hit": 0.1428571492433548,
-     "se": 0.0353479763230783,
-     "lift": 4.873772808759896,
-     "per_month": 1.420289918564368
-    },
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥4天",
-     "n": 54,
-     "empty": 167,
-     "per_day": 0.2608695652173913,
-     "hit": 0.12962962687015533,
-     "se": 0.04570958784010435,
-     "lift": 4.422497256845146,
-     "per_month": 0.7101449124191117
-    },
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥1天",
-     "n": 783,
-     "empty": 31,
-     "per_day": 3.782608695652174,
-     "hit": 0.12643678486347198,
-     "se": 0.011876897538619287,
-     "lift": 4.313568955830743,
-     "per_month": 10.043478519372318
-    },
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥5天",
-     "n": 30,
-     "empty": 182,
-     "per_day": 0.14492753623188406,
-     "hit": 0.06666667014360428,
-     "se": 0.045542004507036556,
-     "lift": 2.274427327700421,
-     "per_month": 0.20289856130662173
-    }
-   ],
-   "validation_w5": {
-    "n_picks": 783,
-    "hit_rate": 0.1264,
-    "by_board": [
-     {
-      "board": "bj",
-      "n": 113,
-      "hits": 9,
-      "hit_rate": 0.0796,
-      "share_of_picks": 0.144
-     },
-     {
-      "board": "main",
-      "n": 520,
-      "hits": 86,
-      "hit_rate": 0.1654,
-      "share_of_picks": 0.664
-     },
-     {
-      "board": "star",
-      "n": 150,
-      "hits": 4,
-      "hit_rate": 0.0267,
-      "share_of_picks": 0.192
-     }
-    ],
-    "pace": {
-     "bar3": {
-      "n": 783,
-      "mean_rise_all": 0.1007,
-      "mean_rise_hits": 0.2433,
-      "mean_rise_misses": 0.08,
-      "share_hits_already_ge25": 0.434,
-      "p_hit_given_ge25": 0.494,
-      "n_ge25": 87,
-      "share_all_ge15": 0.269
-     },
-     "bar5": {
-      "n": 783,
-      "mean_rise_all": 0.1342,
-      "mean_rise_hits": 0.3664,
-      "mean_rise_misses": 0.1006,
-      "share_hits_already_ge25": 0.747,
-      "p_hit_given_ge25": 0.507,
-      "n_ge25": 146,
-      "share_all_ge15": 0.345
-     },
-     "bar7": {
-      "n": 783,
-      "mean_rise_all": 0.1583,
-      "mean_rise_hits": 0.4756,
-      "mean_rise_misses": 0.1124,
-      "share_hits_already_ge25": 0.828,
-      "p_hit_given_ge25": 0.482,
-      "n_ge25": 170,
-      "share_all_ge15": 0.37
-     },
-     "bar10": {
-      "n": 783,
-      "mean_rise_all": 0.195,
-      "mean_rise_hits": 0.6701,
-      "mean_rise_misses": 0.1263,
-      "share_hits_already_ge25": 0.949,
-      "p_hit_given_ge25": 0.463,
-      "n_ge25": 203,
-      "share_all_ge15": 0.413
-     },
-     "bar15": {
-      "n": 783,
-      "mean_rise_all": 0.2413,
-      "mean_rise_hits": 0.9059,
-      "mean_rise_misses": 0.1451,
-      "share_hits_already_ge25": 0.99,
-      "p_hit_given_ge25": 0.4,
-      "n_ge25": 245,
-      "share_all_ge15": 0.471
-     }
-    },
-    "note": "pace.barK：验证集名额在第 K 根时的最高涨幅；进行中的清单拿同一根数对照。p_hit_given_ge25 = 第 K 根已涨 25% 的票最终命中的比例"
-   }
-  },
-  "data_health": {
-   "codes_per_day_recent": [
-    {
-     "date": "2026-08-06",
-     "n": 5511
-    },
-    {
-     "date": "2026-08-07",
-     "n": 5512
-    },
-    {
-     "date": "2026-08-10",
-     "n": 5515
-    },
-    {
-     "date": "2026-08-11",
-     "n": 5513
-    },
-    {
-     "date": "2026-08-12",
-     "n": 5512
-    },
-    {
-     "date": "2026-08-13",
-     "n": 5513
-    },
-    {
-     "date": "2026-08-14",
-     "n": 5513
-    },
-    {
-     "date": "2026-08-17",
-     "n": 5511
-    },
-    {
-     "date": "2026-08-18",
-     "n": 5511
-    },
-    {
-     "date": "2026-08-19",
-     "n": 5510
-    },
-    {
-     "date": "2026-08-20",
-     "n": 5509
-    },
-    {
-     "date": "2026-08-21",
-     "n": 5510
-    },
-    {
-     "date": "2026-08-24",
-     "n": 5512
-    },
-    {
-     "date": "2026-08-25",
-     "n": 5512
-    },
-    {
-     "date": "2026-08-26",
-     "n": 5513
-    },
-    {
-     "date": "2026-08-27",
-     "n": 5513
-    },
-    {
-     "date": "2026-08-28",
-     "n": 5512
-    },
-    {
-     "date": "2026-08-31",
-     "n": 5510
-    },
-    {
-     "date": "2026-09-01",
-     "n": 5509
-    },
-    {
-     "date": "2026-09-02",
-     "n": 5509
-    },
-    {
-     "date": "2026-09-03",
-     "n": 5510
-    },
-    {
-     "date": "2026-09-04",
-     "n": 5508
-    },
-    {
-     "date": "2026-09-07",
-     "n": 5507
-    },
-    {
-     "date": "2026-09-08",
-     "n": 5507
-    },
-    {
-     "date": "2026-09-09",
-     "n": 5506
-    },
-    {
-     "date": "2026-09-10",
-     "n": 5504
-    },
-    {
-     "date": "2026-09-11",
-     "n": 5504
-    },
-    {
-     "date": "2026-09-14",
-     "n": 5504
-    },
-    {
-     "date": "2026-09-15",
-     "n": 5502
-    },
-    {
-     "date": "2026-09-16",
-     "n": 5502
-    }
-   ],
-   "codes_per_day_min_all": {
-    "n": 37,
-    "date": "2023-01-03"
-   },
-   "thin_days": 96,
-   "date_range": [
-    "2023-01-03",
-    "2026-09-16"
-   ],
-   "latest_list_nan_feats": {},
-   "run_meta": {
-    "date": "2026-09-16",
-    "n_a": 10,
-    "n_b": 0,
-    "score_min": 97,
-    "n_streak3": 2,
-    "pool": 41,
-    "model_date": "2026-09-15",
-    "rejected": 3,
-    "dry": false
-   }
-  },
-  "definitions": {
-   "rise": "上榜日收盘到之后 min(20, 已走) 根 K 线最高价的涨幅",
-   "hit": "rise > 50%（和训练标签 y_up 同口径）",
-   "final": "20 根已走满，命中才算最终",
-   "base_final/base_sofar": "同一天全市场随便买一只、同一窗口的命中比例（分别按已满/到目前为止）",
-   "expected.streak_perf": "邮件里印的验证集成绩（207 个交易日走向前）"
-  }
+  "error": "module 'export' has no attribute 'SCORE_TABLE'"
  },
  "regime": {
   "recent": [
