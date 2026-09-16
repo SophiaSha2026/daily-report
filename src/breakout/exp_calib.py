@@ -27,6 +27,7 @@ import numpy as np      # noqa: E402
 import pandas as pd     # noqa: E402
 
 import arena as A       # noqa: E402
+import build as BD      # noqa: E402
 import fselect as FS    # noqa: E402
 import model as M       # noqa: E402
 import validate as V    # noqa: E402
@@ -38,7 +39,9 @@ OUT = ROOT / "out_breakout"
 def main() -> int:
     df = A.load(False)                       # 封存数据已被切掉，读不到
     feats_all = [c for c in df.columns if "__" in c]
-    tr0 = df[df["date"] < V.TRAIN_END]
+    # 特征选择也要净化：切在 TRAIN_END 上的话，紧挨第一个测试月 2025-03 的
+    # 那 20 个交易日的标签是用 3 月的最高价算的，等于让未来给特征投票（S21）
+    tr0 = V.train_slice(df, V.TRAIN_END[:7])
     feats = FS.run(tr0, feats_all, y="y_up")["keep"]
     print(f"特征 {len(feats)} 个，逐月滚动 {V.TRAIN_END} .. {V.VALID_END}\n")
 
@@ -46,10 +49,16 @@ def main() -> int:
                      if V.TRAIN_END <= d < V.VALID_END})
     rows = []
     for m in months:
-        tr = df[df["date"] < V.purge_cut(df, m)]   # 20 日净化，见 validate.purge_cut
+        tr = V.train_slice(df, m)   # 20 日净化 + 停牌票的标签窗口，见 validate
         te = df[df["date"].str[:7] == m].copy()
         tr = tr[np.isfinite(tr["y_up"])]
         te = te[np.isfinite(te["y_up"])]
+        # 生产的候选池不含 ST（daily.risk_filter），分档表和基准也不能含，
+        # 否则邮件里的「95 分以上 8.2%」描述的不是线上那条规则。次新不用
+        # 在这里剔：build.assemble 建表时已按 MIN_HIST 砍掉了预热行。
+        st = V.st_codes()
+        if st:
+            te = te[~te["code"].astype(str).isin(st)]
         if len(tr) < 5000 or not len(te):
             continue
         trs = M.stratified_sample(tr, "y_up")
@@ -98,7 +107,10 @@ def main() -> int:
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "score_calibration.json").write_text(
-        json.dumps({"base": base, "monotonic": mono, "bins": out},
+        json.dumps({"base": base, "monotonic": mono, "bins": out,
+                    # 产物自己声明口径，见 validate.rule_stamp
+                    "st_excluded": len(V.st_codes()),
+                    "min_hist": BD.MIN_HIST},
                    ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n-> {OUT / 'score_calibration.json'}")
     return 0

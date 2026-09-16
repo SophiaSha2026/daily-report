@@ -12,9 +12,13 @@
 
 定义（2026-09-12 与用户确认）
 -----------------------------
-起涨：t 日收盘买入，未来 20 个交易日内**最高价**涨幅 > 50%
-      窗口 20 个交易日 ≈ 一个自然月；用最高价不用收盘价，
+起涨：t 日收盘买入，未来 20 **根 K 线**内**最高价**涨幅 > 50%
+      窗口 20 根 K 线 ≈ 一个自然月；用最高价不用收盘价，
       因为用户说的是「上涨超过 50%」，触及即算
+      注意「20 根 K 线」不等于「20 个市场交易日」：新浪源的日线表里
+      停牌日**没有行**，停牌票的第 20 根落在更远的日子（2026-09-16 实测
+      4,177,507 个有标签行里 24,722 行跨度 >20 个市场日，最大 68 个）。
+      走向前的净化线因此不能只按全市场日期数，见 validate.train_slice
 
 见顶：一段波段的**最高点当天及其前一天**（用户确认的读法 B）
       而不是「回撤 20% 那天的前两天」—— 那时股价已经跌下来了，
@@ -33,9 +37,13 @@ DRAWDOWN_END = 0.20     # 从最高点回撤多少算波段结束
 def label_up(close: np.ndarray, high: np.ndarray,
              window: int = UP_WINDOW,
              threshold: float = UP_THRESHOLD) -> np.ndarray:
-    """y_up[t] = 未来 window 个交易日内最高价相对 close[t] 涨幅是否超阈值。
+    """y_up[t] = 未来 window **根 K 线**内最高价相对 close[t] 涨幅是否超阈值。
 
-    只接收 close 和 high，**不接收任何特征**。末尾 window 天因为看不到
+    窗口按数组下标数（`high[i+1:i+1+window]`），不是按市场交易日历数。
+    停牌日在新浪的日线表里没有行，所以停牌票的第 window 根 K 线可能落在
+    很远的日子；别在文档或界面上把它说成「20 个交易日」。
+
+    只接收 close 和 high，**不接收任何特征**。末尾 window 根因为看不到
     完整的未来窗口，标为 NaN 而不是 0：把"不知道"当成"没发生"会让模型
     在最近的数据上系统性地学到负样本。
     """
@@ -110,11 +118,20 @@ def label_top(close: np.ndarray, high: np.ndarray,
 
 
 def label_frame(df: pd.DataFrame) -> pd.DataFrame:
-    """给一只票的日线表加三列标签。df 需含 close / high，按日期升序。
+    """给一只票的日线表加三列标签。df **只含** close / high，按日期升序。
+
+    多一列就断言失败。以前 build.assemble 把算完全部特征和筹码的 g（36 列）
+    整个传进来：标签只读 close/high，结果确实逐位相同（2026-09-16 三只票
+    实测，把另外 34 个浮点列换成随机噪音标签不变），但模块开头那句
+    「不共享 DataFrame」当时只是一句注释。哪天 per_stock / add_chips 里
+    有人给 close 做了复权、clip 或 fillna，标签会跟着静默漂移，
+    没有任何断言会红 —— 隔离要靠代码，不靠自觉。
 
     返回的是**只含标签**的新表，不带任何输入列 —— 再次强调隔离：
     调用方必须显式地把标签和特征拼起来，不会"顺手"拿到。
     """
+    extra = sorted(set(df.columns) - {"close", "high"})
+    assert not extra, f"label_frame 只收 close/high，多了 {extra[:5]}"
     c = df["close"].to_numpy(float)
     h = df["high"].to_numpy(float)
     y_up = label_up(c, h)

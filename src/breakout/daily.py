@@ -46,6 +46,7 @@ STATE = ROOT / "state" / "breakout"
 
 import model as M            # noqa: E402
 import fselect as FS         # noqa: E402
+import validate as V         # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
                     datefmt="%H:%M:%S")
@@ -75,6 +76,15 @@ log = logging.getLogger("breakout")
 # 入选规则，连续天数继续只用来排序和展示。
 SCORE_MIN = 97      # 够不到这个分数就不上清单，当天可以为空
 CAP_A = 10          # 上限。防止极端强势日几百只同时够格，清单没法看
+# 训练表里累计不足这么多行的票不打分。注意它和 build.MIN_HIST 不是同一件事：
+# build 砍的是每只票前 120 根**预热**K 线，这里数的是它在训练表里已经有多少
+# 行，即「上市之后还剩多少可用横截面」。2026-09-16 实测：逐月滚动测试的 783
+# 个名额里 61 个（7.8%）在这条线以下，它们的命中率只有 3.28%，和随便买
+# （2.93%）一个水平，而线以上的 722 个是 13.43% —— 模型把次新打高了 8 倍。
+# 以前这个 120 写死在 stage_scan 里，旁边的注释还写着「60 个交易日」。
+MIN_HISTORY_DAYS = 120
+# 以前这里还有个 RISK_SCAN_N = 60「风险剔除只查前 60 名，省接口调用」。
+# 两条都不成立，2026-09-16 删掉，理由见 select_a 的注释。
 
 
 def load_overrides() -> dict:
@@ -107,6 +117,9 @@ def load_overrides() -> dict:
 _OVR = load_overrides()
 SCORE_MIN = int(_OVR.get("SCORE_MIN", SCORE_MIN))
 CAP_A = int(_OVR.get("CAP_A", CAP_A))
+# 连续够格天数的下限。默认 1 = 不过滤（当天够格就能上）。
+# 以前 load_overrides 读了它却没有一处代码用，会诊批准 MIN_STREAK 也不生效。
+MIN_STREAK = int(_OVR.get("MIN_STREAK", 1))
 DROP_FEATURES = list(_OVR.get("drop_features", []))   # 会诊批准去掉的基础特征名
 if _OVR:
     log.info("起涨预测常量覆盖生效：%s", _OVR)
@@ -156,21 +169,52 @@ def model_path() -> Path:
     return STATE / "model.txt"
 
 
-def feature_fingerprint(df: pd.DataFrame) -> str:
-    """训练表特征列的指纹（列名集合 + 筹码算法版本）。"""
+def feature_fingerprint(df: pd.DataFrame,
+                        sources: list[str] | None = None) -> str:
+    """训练表特征的指纹：列名 + 决定特征/标签**数值**的常量 + 特征侧源码摘要。
+
+    第一版只有列名和 chips.N_BINS。2026-09-16 逐个 monkeypatch 实测：改
+    chips.DECAY、build.WIN、label 的三个常量、model.NEG_PER_POS / SEED、
+    TRAIN_END_GAP，指纹**全都不变**，只有 N_BINS 那一个会变（它 09-15 从
+    160 改到 360 时碰巧充当了版本号）。而 local_run 每晚跑 build.py 全量重建
+    train.parquet，改完当晚特征值就换了语义，load_or_fit 看到指纹相同、
+    模型不到 30 天，就用旧模型在新语义的列上打分，最长 30 天不报错。
+
+    features.py 的 rolling(250/60/20/14/5) 和 chips 的网格范围都是字面量，
+    常量列表钉不住，所以再加一层四个特征侧模块的 AST 摘要兜底。
+    ast.dump 不含注释和空白，只改注释不会白白触发一次重训。
+    """
+    import ast
     import hashlib
+    import build as B
     import chips as CH
+    import label as L
     cols = sorted(c for c in df.columns if "__" in c
                   if c.rsplit("__", 1)[0] not in set(DROP_FEATURES))
-    key = "|".join(cols) + f"|chips={CH.N_BINS}|drop={','.join(DROP_FEATURES)}"
+    consts = (f"chips={CH.N_BINS},{CH.DECAY}|win={B.WIN},{B.MIN_HIST}"
+              f"|label={L.UP_WINDOW},{L.UP_THRESHOLD},{L.DRAWDOWN_END}"
+              f"|neg={M.NEG_PER_POS},{M.SEED}|gap={TRAIN_END_GAP}")
+    here = Path(__file__).resolve().parent
+    srcs = (sources if sources is not None
+            else [(here / f).read_text(encoding="utf-8")
+                  for f in ("features.py", "chips.py", "label.py", "build.py")])
+    code = hashlib.md5("".join(ast.dump(ast.parse(s)) for s in srcs)
+                       .encode("utf-8")).hexdigest()
+    key = ("|".join(cols) + f"|{consts}|code={code}"
+           f"|drop={','.join(DROP_FEATURES)}")
     return hashlib.md5(key.encode("utf-8")).hexdigest()
 
 
-def load_or_fit(df: pd.DataFrame, force: bool = False):
+def load_or_fit(df: pd.DataFrame, force: bool = False,
+                gap: int = TRAIN_END_GAP):
     """加载模型；没有或太旧就重训。
 
-    重训只用到 TRAIN_END_GAP 个交易日之前的数据：更近的数据标签还没定
+    重训只用到 gap 个交易日之前的数据：更近的数据标签还没定
     （y_up 要看未来 20 个交易日），拿进去训练等于喂了一堆假的负样本。
+
+    gap 要能调，是给 tools/rerun_breakout.py 用的：它往回重算 N 天，最早那个
+    重算日比生产的打分日早 N-1 天，默认 25 的余量到那天只剩 25-(N-1)-20 天，
+    --days 7 时是 -1，模型的标签会伸进重算窗口（S17）。
     """
     p = model_path()
     meta_p = p.with_suffix(".json")
@@ -194,12 +238,15 @@ def load_or_fit(df: pd.DataFrame, force: bool = False):
                         "quantiles": np.array(meta["quantiles"]),
                         "fit_date": meta["fit_date"],
                         "train_cut": meta["train_cut"]}
-            log.info("模型已 %d 天，超过 %d 天上限，重训", age, MODEL_MAX_AGE)
+            else:
+                # 这行以前在 if/elif 外面，指纹分支会一路落下来一起打印，
+                # 排障时看到「超过 30 天上限」会以为是超龄，掩盖真正的原因
+                log.info("模型已 %d 天，超过 %d 天上限，重训", age, MODEL_MAX_AGE)
         except Exception as e:  # noqa: BLE001
             log.warning("模型读不出来（%s），重训", e)
 
     dates = sorted(df["date"].unique())
-    cut = dates[-TRAIN_END_GAP] if len(dates) > TRAIN_END_GAP else dates[0]
+    cut = dates[-gap] if len(dates) > gap else dates[0]
     tr = df[df["date"] < cut]
     log.info("重训模型：用 %s 之前的 %d 行", cut, len(tr))
     feats_all = [c for c in df.columns if "__" in c
@@ -211,15 +258,45 @@ def load_or_fit(df: pd.DataFrame, force: bool = False):
     trs = M.stratified_sample(tr, "y_up")
     mdl = M.L1Lgbm(n_estimators=400).fit(trs, feats, "y_up")
 
-    # 分数刻度：把预测值映射成 0~100 的排名。用训练集自己的分布定分位点，
-    # 这样「90 分」在任何一天都表示「比训练集里 90% 的样本更像起涨」。
+    # 分数刻度：把预测值映射成 0~100 的排名。分位点取自 **1:12 再平衡后**那份
+    # 训练样本（trs，model.NEG_PER_POS=12，正样本占 1/13 = 7.7%）的**样本内**
+    # 预测值 —— predict 的正是刚 fit 完的那批行。所以「97 分」的准确含义是
+    # 「比这份合成样本里 96% 的行高」（to_score 的 searchsorted 左闭，97 分 =
+    # 落在 (q96, q97]），既不是全市场排名，也不是「比训练集 97% 的样本强」。
+    # exp_window.build_cache（132~134 行）用的是同一套构造，改这里必须同步改
+    # 那边，否则回测的 97 分和生产的 97 分不是同一个刻度（教训 30）。
     q = np.quantile(mdl.predict_proba(trs), np.linspace(0, 1, 101))
     STATE.mkdir(parents=True, exist_ok=True)
     mdl.m.booster_.save_model(str(p))
+    # 这次筛选的记录和模型一起落盘。out_breakout/feature_select.json 是实验
+    # 脚本写的，和生产模型不是同一次：2026-09-16 会诊读它时 start=87，而生产
+    # 模型是 102 列进 45 列出，十个生产特征躺在那份记录的 dropped 里，
+    # 按它做的特征级判断全部无据。带 fingerprint 才能核对是不是同一次。
+    sel_p = STATE / "feature_select.json"
+    try:
+        sel_p.write_text(json.dumps(
+            {"fingerprint": fp, "fit_date": now_bj().strftime("%Y-%m-%d"),
+             "start": int(rep.get("start", len(feats_all))),
+             "end": int(rep.get("end", len(feats))),
+             "keep": list(feats),
+             "dropped": {k: list(v) for k, v in rep.get("dropped", {}).items()},
+             "n_dropped": {k: len(v) for k, v in rep.get("dropped", {}).items()},
+             "l1_zero": list(rep.get("l1_zero", []))},
+            ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        log.warning("特征筛选记录没落盘（不阻断出清单）: %s", e)
+    # gain 重要性也写进 model.json：面板和会诊不装 lightgbm 也能读到它
+    try:
+        gain = mdl.m.booster_.feature_importance(importance_type="gain")
+        imp = {f: float(g) for f, g in zip(feats, gain)}
+    except Exception as e:  # noqa: BLE001
+        log.warning("gain 重要性拿不到: %s", e)
+        imp = {}
     meta_p.write_text(json.dumps(
         {"feats": feats, "quantiles": [float(x) for x in q],
          "fit_date": now_bj().strftime("%Y-%m-%d"), "train_cut": cut,
-         "fingerprint": fp},
+         "fingerprint": fp, "select_file": sel_p.name,
+         "importance_gain": imp},
         ensure_ascii=False), encoding="utf-8")
     log.info("模型已保存：%d 个特征 -> %s", len(feats), p)
     return {"booster": mdl.m.booster_, "feats": feats, "quantiles": q,
@@ -234,12 +311,45 @@ def to_score(proba: np.ndarray, q: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------
 #  风险剔除
 # ---------------------------------------------------------------
+def release_share_by_code(d: pd.DataFrame) -> pd.Series | None:
+    """解禁表 -> {代码: 未来 30 天解禁占流通市值的比例合计}。列不认就返回 None。
+
+    单位是**小数**，比例 >1 合法，不许按 max() 猜单位。东财这一列就是
+    RPT_LIFT_STAGE 的 FREE_RATIO，akshare 只做 to_numeric，不做任何缩放；
+    首发原股东限售、追加承诺限售常常比现在的流通盘还大，所以 >1 是常态而不是
+    「哪天改成了百分数」：2026-09-16 实测生产窗口 167 行里 19 行 >1，
+    用「实际解禁市值 / 比例」反推的流通市值和腾讯快照逐只吻合（沐曦 688802
+    算出 88.485 亿 vs 88.49 亿；巴兰仕 920112 算出 5.078 亿 vs 5.08 亿）。
+    旧代码拿整列的最大值猜单位（大于 1 就整列除以 100），于是只要窗口里有
+    一笔 IPO 解禁，整列缩 100 倍、全部落到 5% 门槛之下，160 只候选一只都
+    剔不掉（正确口径是 65 只）。历史日期查出来的窗口最大值只有 0.69~0.88，
+    所以按历史日期复核一律正常，只有生产查的前向窗口会翻车。
+    """
+    cc = next((c for c in d.columns if "代码" in c), None)
+    sc_ = next((c for c in d.columns if "占解禁前流通市值比例" in c), None)
+    if not (cc and sc_):
+        return None
+    share = pd.to_numeric(d[sc_], errors="coerce").fillna(0)
+    # 只在**中位数** >1 时报警：合法的 >1 是少数离群值（小数口径中位 0.02），
+    # 真换成百分数口径中位会是 2 左右。报警不换算，换算就是上面那个 bug
+    if float(share.median()) > 1.0:
+        log.warning("解禁占比中位数 %.2f > 1，东财单位可能真变了，去核实",
+                    float(share.median()))
+    # 同一只票 30 天内多笔解禁按票累计
+    return (d.assign(_c=d[cc].astype(str).str.zfill(6), _s=share)
+             .groupby("_c")["_s"].sum())
+
+
 def risk_filter(codes: list[str]) -> dict[str, str]:
     """返回 {代码: 剔除原因}。拿不到数据就跳过那一项，不阻断流程。"""
     import warnings
     warnings.filterwarnings("ignore")
     bad: dict[str, str] = {}
     today = now_bj().date()
+    # 下面三张表都是全市场的（减持全库、30 天解禁全表、全市场增发），逐行判
+    # 「这只在不在候选里」。codes 是 list 时每行都要线性扫一遍：够格几百只的
+    # 强势日就是几十万次比较。用 set 判重，顺带保证传进来的是可重复遍历的容器
+    cs = {str(c) for c in codes}
 
     # --- ST：腾讯快照的名称带 ST ---
     try:
@@ -268,7 +378,7 @@ def risk_filter(codes: list[str]) -> dict[str, str]:
             recent = d[d["_d"] >= today - dt.timedelta(days=30)]
             for _, r in recent.iterrows():
                 c = str(r[cc]).zfill(6)
-                if c in codes and c not in bad:
+                if c in cs and c not in bad:
                     why = str(r[rc]) if rc else ""
                     if "减" in why or not why:
                         bad[c] = "近 30 天有减持公告"
@@ -283,23 +393,18 @@ def risk_filter(codes: list[str]) -> dict[str, str]:
         d = ak.stock_restricted_release_detail_em(
             start_date=today.strftime("%Y%m%d"),
             end_date=(today + dt.timedelta(days=30)).strftime("%Y%m%d"))
-        cc = next((c for c in d.columns if "代码" in c), None)
-        sc_ = next((c for c in d.columns if "占解禁前流通市值比例" in c), None)
-        if cc and sc_:
-            share = pd.to_numeric(d[sc_], errors="coerce")
-            if share.max() > 1.0:          # 万一哪天改成百分数
-                share = share / 100.0
-            # 同一只票 30 天内多笔解禁按票累计
-            tot = (d.assign(_c=d[cc].astype(str).str.zfill(6), _s=share.fillna(0))
-                    .groupby("_c")["_s"].sum())
+        tot = release_share_by_code(d)
+        if tot is not None:
             for c, v in tot.items():
-                if c in codes and c not in bad and v >= RELEASE_MIN_SHARE:
+                if c in cs and c not in bad and v >= RELEASE_MIN_SHARE:
                     bad[c] = f"未来 30 天解禁占流通市值 {100 * v:.1f}%"
-        elif cc:
-            log.warning("解禁表没有占比列，退回「任何解禁都剔」")
-            for c in d[cc].astype(str).str.zfill(6):
-                if c in codes and c not in bad:
-                    bad[c] = "未来 30 天有解禁"
+        else:
+            cc = next((c for c in d.columns if "代码" in c), None)
+            if cc:
+                log.warning("解禁表没有占比列，退回「任何解禁都剔」")
+                for c in d[cc].astype(str).str.zfill(6):
+                    if c in cs and c not in bad:
+                        bad[c] = "未来 30 天有解禁"
     except Exception as e:  # noqa: BLE001
         log.warning("解禁检查跳过：%s", e)
 
@@ -314,12 +419,48 @@ def risk_filter(codes: list[str]) -> dict[str, str]:
             d["_d"] = pd.to_datetime(d[dc], errors="coerce").dt.date
             recent = d[d["_d"] >= today - dt.timedelta(days=60)]
             for c in recent[cc].astype(str).str.zfill(6):
-                if c in codes and c not in bad:
+                if c in cs and c not in bad:
                     bad[c] = "近 60 天有增发"
     except Exception as e:  # noqa: BLE001
         log.warning("定增检查跳过：%s", e)
 
     return bad
+
+
+def select_a(today: pd.DataFrame, proba, q, risk_fn=None,
+             eligible: pd.Series | None = None
+             ) -> tuple[pd.DataFrame, dict, int, int]:
+    """当天的清单 A：够格 -> 风险剔除 -> 截 CAP_A。纯函数，只调 risk_fn 联网。
+
+    返回 `(picks, bad, n_qualified, n_ok)`：
+        picks        最终清单（已剔除、已截到 CAP_A）
+        bad          {代码: 剔除原因}，只含**够格**的票
+        n_qualified  当天 ≥ SCORE_MIN 分的总只数（次新已剔）
+        n_ok         够格且没被风险剔除的只数，即「本可以上榜的」
+
+    为什么风险检查要查**全部够格**的，不是以前的前 60 名：
+      · 「没查」和「查过没问题」在 reject 列里不可区分，第 61 名一旦补位
+        上榜就是一只从没查过 ST/减持/解禁的票。60 和 CAP_A 之间没有任何
+        断言绑着，改 CAP_A 不会有人想起改它
+      · len(bad) 是要印进邮件和面板的「风险剔除 N 只」。按名次取会把 97 分
+        以下、本来就上不了榜的票也数进去，数字虚高
+      · 「省接口调用」不成立：减持、解禁、增发三项都是拉全市场表，只数不
+        影响；只有 ST 那步的 fetch_quotes 随只数变，而它 5 路批量 1600 只
+        3.6 秒（硬约束 4 实测）
+    2025 年验证集 207 天里每天够格均值 7.9 只、最多几十只，成本可忽略。
+
+    n_qualified / n_ok 是给监控用的：以前日志把截断后的 10 印成「够格 10 只」，
+    run_meta 和清单 parquet 都不带够格总数，于是「门槛制、清单可以为空」这条
+    设计在生产里有没有生效，从产物上完全看不出来（2026-09 连续 8 天满员）。
+    """
+    risk_fn = risk_filter if risk_fn is None else risk_fn
+    # 够格名单也走 pick：否则「查哪几只」和「最后取哪几只」是两套排序
+    cand = V.pick(today, proba, q, cap=max(len(today), 1),
+                  eligible=eligible, st=set())["code"].astype(str).tolist()
+    bad = dict(risk_fn(cand)) if cand else {}
+    picks = V.pick(today, proba, q, eligible=eligible, st=set(bad)).copy()
+    n_ok = sum(1 for c in cand if c not in bad)
+    return picks, bad, len(cand), n_ok
 
 
 # ---------------------------------------------------------------
@@ -368,10 +509,40 @@ def pool_step(pool: dict, picks: pd.DataFrame, date: str) -> dict:
                           int(r.get("streak", 1) or 1))
         e["name"] = r.get("name", "")
         pool[c] = e
-    # 过期清理：POOL_DAYS 个交易日按 1.47 折算成自然日
-    cut = (dt.date.fromisoformat(date)
-           - dt.timedelta(days=int(POOL_DAYS * 1.47))).isoformat()
+    # 过期清理：按交易日历往回数 POOL_DAYS 个交易日，last 落在这一天上还留着，
+    # 再早一天就清掉。以前写的是「60 个交易日 × 1.47 折算成 88 个自然日」，
+    # 拿 2010-01~2026-08 的 4025 个交易日实算，它给的其实是 51~64 个交易日
+    # （均值 58.2，恰好 60 的只有 9.0%）：春节前上榜的票只留 51~52 天，
+    # 6 月上榜的留 64 天。1.47 本身也低于日历实际的 1.501，系统性偏早。
+    # 这是教训 29（count_streak 按自然日跳周末）的同一个毛病，A 池这处漏了。
+    back = prev_trade_days(date, POOL_DAYS)
+    cut = back[-1] if len(back) >= POOL_DAYS else ""
     return {k: v for k, v in pool.items() if v.get("last", "") >= cut}
+
+
+def replay_pool(before: str = "") -> dict:
+    """把已落盘的 breakout_*.parquet 按日折叠成 A 池（纯函数，不碰 state/）。
+
+    `before` 给了就只折叠 date < before 的那几天。重算/补发工具把 STATE 指到
+    临时目录，A 池从空的 `{}` 起算：窗口之前上过榜的票整条丢掉，窗口内又上榜
+    的票 `first` 被改晚，清单 B 的涨幅起点、MIN_HOLD_DAYS 起算日跟着全错，
+    而 rerun 最后还 copy2 回生产的 a_pool.json（2026-09-16 实测 --days 7
+    会把 41 条池砍成 38 条，7 只的 first/days 被改）。用它做种就没这回事。
+    """
+    pool: dict = {}
+    for f in sorted(DATA.glob("*/breakout_*.parquet")):
+        try:
+            picks = pd.read_parquet(f)
+        except Exception as e:  # noqa: BLE001
+            log.warning("清单读不出来，跳过 %s: %s", f.name, e)
+            continue
+        if not len(picks):
+            continue
+        d = str(picks["date"].iloc[0])
+        if before and d >= before:
+            break
+        pool = pool_step(pool, picks, d)
+    return pool
 
 
 def recent_history(n: int = 30) -> list[dict]:
@@ -396,16 +567,19 @@ def recent_history(n: int = 30) -> list[dict]:
         date = str(picks["date"].iloc[0])
         pool = pool_step(pool, picks, date)
         blist = build_list_b(px, pool, asof=date) if len(px) else pd.DataFrame()
-        # 2026-09-15 之前落盘的清单没有这两列，抬头就不印
+        # 2026-09-15 之前落盘的清单没有这几列，抬头就不印
         first = picks.iloc[0]
         rej = first.get("rejected")
-        out.append({"date": date, "a": picks, "b": blist,
-                    "meta": {"date": date, "n_a": len(picks), "n_b": len(blist),
-                             "n_streak3": int((picks["streak"] >= 3).sum())
-                             if "streak" in picks else 0,
-                             "pool": len(pool),
-                             "model_date": first.get("model_date"),
-                             "rejected": None if pd.isna(rej) else int(rej)}})
+        nq = first.get("n_qualified")       # 2026-09-16 起才有
+        meta = {"date": date, "n_a": len(picks), "n_b": len(blist),
+                "n_streak3": int((picks["streak"] >= 3).sum())
+                if "streak" in picks else 0,
+                "pool": len(pool),
+                "model_date": first.get("model_date"),
+                "rejected": None if pd.isna(rej) else int(rej)}
+        if nq is not None and not pd.isna(nq):
+            meta["n_qualified"] = int(nq)
+        out.append({"date": date, "a": picks, "b": blist, "meta": meta})
     return out[-n:]
 
 
@@ -532,33 +706,35 @@ def stage_scan(force_fit: bool = False) -> int:
     X = np.nan_to_num(today[obj["feats"]].to_numpy(np.float32),
                       nan=0.0, posinf=0.0, neginf=0.0)
     proba = obj["booster"].predict(X)
-    adj = today["board"].map(BOARD_ADJ).fillna(1.0).to_numpy(float)
-    # 排序必须用**连续**的预测值，分数只是给人看的整数刻度。
-    # 2026-09-13 实测：前几名的分数取整后都是 97~99，大量并列，
-    # 按整数排序时排第 1 的往往不是真正得分最高的那只 ——
-    # 「第 1 名」的命中率因此从 25.12% 掉到 21.74%，白丢 3.4 个百分点。
-    today["_p"] = proba * adj
-    today["score"] = to_score(today["_p"].to_numpy(), obj["quantiles"])
-    today = today.sort_values("_p", ascending=False)
-
-    # 次新股：上市不足 60 个交易日的特征算不出来，直接剔除
+    # 排序规则（预测值 × 板块系数 -> 分数刻度 -> 剔除 -> 够格才上 -> 截 cap）
+    # 只有 validate.pick 一份实现，生产和验收共用。以前这里自己乘一遍
+    # BOARD_ADJ、自己 head(CAP_A)，而 walk_forward 走的是另一条路，
+    # 「板块最强/最弱」那道闸看的是一张生产根本不发的清单。
+    # 次新股：在训练表里累计不足 MIN_HISTORY_DAYS 行的票不上榜（见常量注释）
     cnt = df.groupby("code")["date"].size()
-    today = today[today["code"].map(cnt).fillna(0) >= 120]
+    elig = today["code"].map(cnt).fillna(0) >= MIN_HISTORY_DAYS
 
     log.info("风险剔除中（ST / 减持 / 解禁 / 增发）")
-    cand = today.head(60)["code"].tolist()      # 只查前 60 只，省接口调用
-    bad = risk_filter(cand)
-    today["reject"] = today["code"].map(bad).fillna("")
-    ok = today[(today["reject"] == "") & (today["score"] >= SCORE_MIN)]
-    picks = ok.head(CAP_A).copy()
-    log.info("清单 A：%d 只够格（≥%d 分），剔除 %d 只",
-             len(picks), SCORE_MIN, len(bad))
+    # 选票和风险剔除只有 select_a 一份实现，tools/rerun_breakout.py 共用它
+    picks, bad, n_q, n_ok = select_a(today, proba, obj["quantiles"],
+                                     eligible=elig)
+    # 「够格」数的是门槛，「清单 A」数的是截断后的，两个数分开印：
+    # 以前这行拿 len(picks) 冒充够格数，满员日和刚好够 10 只的日子打出来
+    # 一模一样，够格 200 只也看不出来（S7）
+    log.info("≥%d 分 %d 只，剔除 %d 只后 %d 只，取前 %d -> 清单 A %d 只",
+             SCORE_MIN, n_q, len(bad), n_ok, CAP_A, len(picks))
+    if n_q > CAP_A:
+        log.info("够格的比上限多 %d 只，清单按预测值截断", n_q - CAP_A)
     if not len(picks):
         log.info("今天没有够格的股票，清单 A 为空。这是正常的，不是故障。")
 
     # 连续够格天数：清单里最强的信号。从已落盘的历史里数，
     # 相邻交易日才算连续，断一天就重新计数。
     picks["streak"] = [count_streak(c, date) + 1 for c in picks["code"]]
+    if MIN_STREAK > 1:
+        n0 = len(picks)
+        picks = picks[picks["streak"] >= MIN_STREAK]
+        log.info("连续天数下限 %d：%d 只 -> %d 只", MIN_STREAK, n0, len(picks))
     picks = picks.sort_values(["streak", "_p"], ascending=[False, False])
 
     # 名字从腾讯快照拿
@@ -584,16 +760,22 @@ def stage_scan(force_fit: bool = False) -> int:
     import os
     (OUT / "run_meta.json").write_text(json.dumps(
         {"date": date, "n_a": len(picks), "n_b": len(blist),
-         "score_min": SCORE_MIN,
+         # 规则要跟着清单一起落盘：邮件和面板按它印「上榜条件是 ≥N 分前 M 名」，
+         # 会诊批准 overrides.json 之后不写 cap_a 的话，邮件还会说「前 10」
+         "score_min": SCORE_MIN, "cap_a": CAP_A, "min_streak": MIN_STREAK,
          "n_streak3": int((picks["streak"] >= 3).sum()) if len(picks) else 0,
          "pool": len(pool), "model_date": obj["fit_date"],
          "rejected": len(bad),
+         # 够格总数也落盘：清单永远是 10 只，看不出门槛有没有起作用。
+         # n_qualified > cap_a 就说明当天是上限在决定清单，不是门槛
+         "n_qualified": n_q, "n_ok": n_ok,
          # 试跑也走到这里；不标 dry 的话计划任务会把试跑当「今天跑完了」
          "dry": bool(os.environ.get("DRY_RUN"))},
         ensure_ascii=False), encoding="utf-8")
     (DATA / date[:7]).mkdir(parents=True, exist_ok=True)
-    # 模型日期和剔除数也落盘：面板按日期回看时抬头要印这两个数
-    picks = picks.assign(model_date=obj["fit_date"], rejected=len(bad))
+    # 模型日期、剔除数、够格总数也落盘：面板按日期回看时抬头要印这几个数
+    picks = picks.assign(model_date=obj["fit_date"], rejected=len(bad),
+                         n_qualified=n_q)
     picks.to_parquet(DATA / date[:7] / f"breakout_{date}.parquet", index=False)
     log.info("完成，用时 %.1f 分钟", (time.time() - t0) / 60)
     return 0
@@ -628,6 +810,18 @@ def stage_send() -> int:
         log.info("SKIP_MAIL=1，只生成面板不发邮件")
         return 0
     E.send_mail(date, a, b, meta)
+    # 真发出去才落这个标记，教训 27：退出码 0 不等于做了事。
+    # SKIP_MAIL 那条路和这条路退出码都是 0，local_run 只看退出码就推
+    # state/sent/breakout_<date>.json，云端托底看 run_meta 日期也判「跑完了」，
+    # 三层保护（重试、云端提醒、控制台）会在同一天一起报正常。
+    # 竞价线的对应物是 out/mail_sent.json（run_auction.py），这里照抄。
+    p = OUT / "mail_sent.json"
+    tmp = p.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(
+        {"date": date, "n_a": len(a), "n_b": len(b),
+         "at": now_bj().isoformat(timespec="seconds")}, ensure_ascii=False),
+        encoding="utf-8")
+    os.replace(tmp, p)
     return 0
 
 

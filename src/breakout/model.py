@@ -70,7 +70,9 @@ def _xy(df: pd.DataFrame, cols: list[str], y: str):
 
 # ---------------------------------------------------------------
 class L0Logistic:
-    """逻辑回归 + L1。第四道特征筛也在这里：系数为 0 的特征被丢掉。"""
+    """逻辑回归 + L1。第四道特征筛的**记录**来源：fselect.run 调 surviving()
+    把系数为 0 的写进 feature_select.json 的 l1_zero，不剔除（见 fselect
+    模块 docstring：线性 L1 会砍掉 GBDT 要的组合特征）。"""
     name = "L0_logistic"
 
     def __init__(self, C: float = 0.05):
@@ -105,7 +107,7 @@ class L0Logistic:
         return self.m.predict_proba((X - self.mu) / self.sd)[:, 1]
 
     def surviving(self) -> list[str]:
-        """L1 之后系数非零的特征，这是第 4 道筛的结果。"""
+        """L1 之后系数非零的特征。fselect.run 拿它写 l1_zero 记录，不拿它剔除。"""
         return [c for c, w in zip(self.cols, self.m.coef_[0]) if w != 0]
 
 

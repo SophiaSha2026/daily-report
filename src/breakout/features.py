@@ -55,15 +55,28 @@ GROUPS: dict[str, list[str]] = {
                 "gdhs_stale_days", "gdhs_level"],
     "regime": ["rs20", "rs60", "rs_accel", "mkt_breadth", "mkt_ret5"],
 }
+# 上市前的股东名册不是二级市场散户。招股书/新三板阶段的名册最多一千二百户
+# （2026-09 实测 holders.parquet：920175 上次 1214 户、920186 1116 户），
+# 上市后真实户数最少 1598 户（920033），所以 1500 这条线在现有数据上零误杀，
+# 而 500 会漏掉 6 只北交所。低于它的行是发行前数据，整行不要。
+HOLDER_MIN = 1500
 # 全市场共同变量：当天所有股票同值，做横截面排名会退化成常数，
 # 所以刻意排除在 ① 之外。它们的作用正是给模型一个「今天什么天气」的坐标。
 MARKET_WIDE = {"mkt_breadth", "mkt_ret5"}
 
+# (a, sa, b, sb, name)：sa/sb 是假设指向的那一侧，+1 取高位、-1 取低位。
+# chip_conc90 越小越集中，所以「集中」是 -1。
+# 第一版写成 a * b，而 a、b 都是中性化之后**以 0 为中心**的量：(-)(+) 和
+# (+)(-) 同为负、(-)(-) 和 (+)(+) 同为正，假设象限和它的镜像象限拿到同一个值。
+# 2026-09-16 在 428 万行训练表上实测 x_light_top：获利盘高&远前高 y_up 7.91%
+# vs 获利盘低&近前高 2.31%（差 3.4 倍）被合并成同一个负值；pooled Spearman
+# 从方向保持写法的 -0.0217 被乘成 -0.0047，能排进保留特征前 5 的信号被乘成噪音。
 INTERACTIONS = [
-    ("gdhs_chg1", "chip_conc_chg20", "x_holder_chip"),
-    ("range_compress", "vol_ratio5", "x_squeeze_burst"),
-    ("chip_win", "dist_52w_high", "x_light_top"),
+    ("gdhs_chg1", -1, "chip_conc_chg20", -1, "x_holder_chip"),    # 户数减 且 成本区间收窄
+    ("range_compress", -1, "vol_ratio5", +1, "x_squeeze_burst"),  # 区间收敛 且 今天放量
+    ("chip_win", -1, "dist_52w_high", +1, "x_light_top"),         # 获利盘低 且 近前高
 ]
+INTERACTION_VERSION = 2   # 进 daily.feature_fingerprint：改公式就重训
 
 
 def board_of(code: str) -> str:
@@ -85,7 +98,17 @@ def per_stock(df: pd.DataFrame) -> pd.DataFrame:
     这里只算**原始值**，不做任何横截面处理 —— 那是下一层的事。
     """
     d = df.copy()
-    c, h, l, v = d["close"], d["high"], d["low"], d["volume"]
+    c, h, l = d["close"], d["high"], d["low"]
+    # 量能一律用**换手率**，不用成交股数。daily.parquet 的价是前复权
+    # （akshare adjust="qfq" 只除价格四列），volume / amount / outstanding_share
+    # 都是原值：送转日成交股数按股本比例整段跳升而价格被除回去，量价口径不一致。
+    # 实测每年约 290 次送转（集中在 5~7 月），10 送 10 之后 20 天里
+    # vol_ratio20 从 2.0 衰减到 1.05 —— 换手率恒定也能凭空造出一段「放量」。
+    # 换手率 = 成交股数 / 当日流通股本，两边同步更新，是唯一在送转前后可比的量。
+    # 腾讯兜底源没有换手率时 build.attach_turnover 已经合成过一列。
+    vol_raw = d["volume"]
+    v = (d["turnover"] if "turnover" in d.columns and d["turnover"].notna().any()
+         else vol_raw)
 
     # --- Q1 位置 ---
     ma5, ma10 = c.rolling(5).mean(), c.rolling(10).mean()
@@ -94,13 +117,22 @@ def per_stock(df: pd.DataFrame) -> pd.DataFrame:
     d["dist_52w_low"] = c / c.rolling(250, min_periods=60).min() - 1
     # 四个均线乖离 close/maN-1 彼此相关普遍 > 0.9，全部不用。
     # 只保留排列结构（离散）和斜率（方向），见设计文档 4.1。
+    # ma60 没定义的前 59 行必须是 NaN，不能是 0。`x > NaN` 是 False，
+    # astype(float) 落成 0，看着像「均线全空头 / 从没站上 ma60」，而真相是
+    # 「还不知道」。2026-09-16 实测：训练表里 22037 行是上市晚于面板起点的
+    # 短历史票和成熟票同日排名，中性化后 above_ma60 中位 -0.171（95% 以上
+    # 为负，钉在横截面底部），而这些行的 y_up 率 6.06% 是成熟行的 1.7 倍 ——
+    # 模型拿到一条「均线垫底 <-> 次新 <-> 高命中」的假通道，而 above_ma60__mean
+    # 是现役模型分裂次数第 4 的特征。NaN 一路穿过 rank/neutralize，
+    # 到 model._xy 落成 0 = 组均值（中性），和 dist_52w_* 的暖机语义一致。
     d["ma_align"] = ((ma5 > ma10).astype(float) + (ma10 > ma20).astype(float)
-                     + (ma20 > ma60).astype(float))
+                     + (ma20 > ma60).astype(float)).where(ma60.notna())
     d["ma20_slope5"] = (ma20 - ma20.shift(5)) / c.replace(0, np.nan)
     above = (c > ma60).astype(float)
     # 连续站上 ma60 的天数，截断 60
     grp = (above != above.shift()).cumsum()
-    d["above_ma60"] = (above.groupby(grp).cumsum() * above).clip(upper=60)
+    d["above_ma60"] = ((above.groupby(grp).cumsum() * above)
+                       .clip(upper=60).where(ma60.notna()))
 
     # --- Q2 压缩 ---
     rng = (h - l) / c.replace(0, np.nan)
@@ -126,7 +158,7 @@ def per_stock(df: pd.DataFrame) -> pd.DataFrame:
     d["up_vol_share20"] = (v * up).rolling(20).sum() / vsum20
     sign = np.sign(c.diff()).fillna(0.0)
     d["obv_slope20"] = (v * sign).rolling(20).sum() / vsum20
-    amt = d["amount"] if "amount" in d.columns else v * c
+    amt = d["amount"] if "amount" in d.columns else vol_raw * c
     d["amt_ma20"] = np.log1p(amt.rolling(20).mean())
 
     # --- Q5 相对强度（个股部分，全市场部分在 add_market 里） ---
@@ -180,10 +212,25 @@ def holder_features(panel: pd.DataFrame,
     h["avail"] = ann.dt.strftime("%Y-%m-%d")
     h["chg"] = pd.to_numeric(h["股东户数-增减比例"], errors="coerce") / 100.0
     h["cnt"] = pd.to_numeric(h.get("股东户数-本次"), errors="coerce")
+    # 上市前的名册（几十户）整行丢；上市后第一期的「上次」还是招股书户数，
+    # 东财算出来的增减比例是几万倍（实测中位 39220%、最大 1.63e8%，
+    # 而正常行最大约 460%），置 NaN，户数本身保留给 gdhs_level。
+    # 不这么做的话：当日 gdhs_chg3 前 1% 的行里 53.8% 是这种伪迹（y_up 10.49%
+    # vs 同区间非伪迹 4.21%），模型学到的是「股东特征极端 = 次新 = 容易起涨」，
+    # 最近 8 份清单 A 里有 4 份混进这样的票。
+    prev = (pd.to_numeric(h["股东户数-上次"], errors="coerce")
+            if "股东户数-上次" in h.columns
+            else pd.Series(np.nan, index=h.index))
+    h = h[h["cnt"] >= HOLDER_MIN].copy()
+    h.loc[prev.reindex(h.index) < HOLDER_MIN, "chg"] = np.nan
     # 年报和一季报常同一天公告：同一 (code, avail) 两行，按报告期排在后面的
     # 才是新的一期。不加第二键的话，merge_asof 取到哪一行取决于排序算法
     # 碰巧稳不稳定。
-    h = (h[["code", "avail", "period", "chg", "cnt"]].dropna(subset=["chg"])
+    # dropna 按 cnt 不按 chg：上一行刚把上市后第一期的 chg 置成 NaN，
+    # 按 chg 丢会把那一期整行丢掉，gdhs_level 跟着丢三个月。
+    # chg 为 NaN 时 chg3 的 rolling(min_periods=1) 自动跳过、streak 判
+    # chg<0 得 0，都安全。
+    h = (h[["code", "avail", "period", "chg", "cnt"]].dropna(subset=["cnt"])
           .sort_values(["code", "avail", "period"]))
     h["chg3"] = h.groupby("code")["chg"].transform(
         lambda s: s.rolling(3, min_periods=1).sum())
@@ -240,8 +287,14 @@ def add_market(panel: pd.DataFrame) -> pd.DataFrame:
     panel["rs20"] = by_date["ret20"].rank(pct=True)
     panel["rs60"] = by_date["ret60"].rank(pct=True)
     panel["rs_accel"] = panel["rs20"] - panel["rs60"]
-    breadth = by_date["ret1"].transform(lambda s: (s > 0).mean())
-    panel["mkt_breadth"] = breadth
+    # 没有昨收的行（每只票在面板里的第一行）不进分母。`NaN > 0` 是 False，
+    # 原来那句 `(s > 0).mean()` 把它们算成「没涨」：2026-09-16 实测面板首日
+    # 2023-05-30 有 5039 行、其中 4151 行没有昨收，宽度被算成 0.098，
+    # 真值 0.559 —— 凭空造出一个「全市场只有 9.8% 上涨」的假暴跌日，
+    # 还通过 5 日窗口污染随后 5 天。下一行的 mean 本来就跳过 NaN，
+    # 同一个函数里两个市场变量的口径必须一致。整日无有效 ret1 给 NaN。
+    up = (panel["ret1"] > 0).astype(float).where(panel["ret1"].notna())
+    panel["mkt_breadth"] = up.groupby(panel["date"]).transform("mean")
     mkt = panel.groupby("date")["ret1"].mean().rename("m")
     mkt5 = mkt.rolling(5).sum()
     panel["mkt_ret5"] = panel["date"].map(mkt5)
@@ -285,13 +338,18 @@ def add_interactions(panel: pd.DataFrame) -> pd.DataFrame:
     只留有假设的三个。其中第一个是股东人数这个特征的**真正用法**：
     单看户数变化噪音很大（股价跌了散户离场也会让户数减少），
     只有当它和筹码集中度同向时，才构成「有人在收集」的证据。
+
+    用方向保持的模糊 AND（两个指向侧取 min），不用乘法：这两列在这一步
+    已经过 ① 横截面百分位 + ② 中性化，都是以 0 为中心的有符号量，乘法
+    分不出假设象限和它的镜像象限（见 INTERACTIONS 上面那段实测）。
+    min 只在两个条件**同时**成立时为正，镜像象限为负，且对指向侧单调。
     """
-    for a, b, name in INTERACTIONS:
+    for a, sa, b, sb, name in INTERACTIONS:
         if a in panel.columns and b in panel.columns:
-            panel[name] = panel[a] * panel[b]
+            panel[name] = np.minimum(sa * panel[a], sb * panel[b])
     return panel
 
 
 def feature_columns() -> list[str]:
     cols = [c for g in GROUPS.values() for c in g]
-    return cols + [n for _, _, n in INTERACTIONS]
+    return cols + [n for *_, n in INTERACTIONS]

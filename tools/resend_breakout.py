@@ -65,6 +65,14 @@ def main() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="resend_"))
     real_state = D.STATE
     D.STATE = tmp
+    # 但「当天为止」不等于「只有这 5 天」：从空池起算的话，更早上过清单 A 的票
+    # 永远进不了补发的清单 B，first 也会被改晚（S17）。窗口之前的池按已落盘的
+    # 清单折叠出来做种，只有窗口内这几天是现算的
+    first_date = Path(files[0]).stem[-10:]
+    seed = D.replay_pool(before=first_date)
+    (tmp / "a_pool.json").write_text(
+        json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
+    log.info("A 池做种：%s 之前折叠出 %d 条", first_date, len(seed))
     try:
         for f in files:
             picks = pd.read_parquet(f)
@@ -74,11 +82,17 @@ def main() -> int:
             # 落盘的清单只有入选的票，当天剔除了几只已经不可知，
             # 给 None 让邮件头不印这一段，不要印个假的 0。
             meta = {"date": date, "n_a": len(picks), "n_b": len(blist),
-                    "score_min": D.SCORE_MIN,
+                    "score_min": D.SCORE_MIN, "cap_a": D.CAP_A,
                     "n_streak3": int((picks["streak"] >= 3).sum()),
                     "pool": len(pool),
                     "model_date": model_date,
                     "rejected": None}
+            # 够格总数和剔除数不一样：它**落在清单的 parquet 里**（2026-09-16
+            # 起每行都带），有就照印，没有那天就不印
+            if "n_qualified" in picks.columns and len(picks):
+                nq = picks["n_qualified"].iloc[0]
+                if pd.notna(nq):
+                    meta["n_qualified"] = int(nq)
             E.write_panel(picks, blist, meta, tmp / date, date)
             log.info("%s  A %d 只（连续3天以上 %d）  B %d 只  池 %d",
                      date, len(picks), meta["n_streak3"], len(blist),

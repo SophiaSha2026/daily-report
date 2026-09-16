@@ -12,7 +12,14 @@ GBDT 尤其吃这一套——它会认真地在噪音里找分裂点。
     1. 单变量 IC       |Spearman(feat, y)| < 0.01 丢掉
     2. IC 时间稳定性   按月算 IC，符号翻转率 > 40% 丢掉    ← 最重要
     3. 相关剪枝        |r| > 0.85 的一对，留 IC 高的
-    4. L1 正则         逻辑回归 L1 再压一轮，系数为 0 丢掉
+    4. L1 正则         逻辑回归 L1 再压一轮，系数为 0 的**只记录不剔除**，
+                       写进 feature_select.json 的 l1_zero
+
+第 4 道为什么不真剔：线性 L1 看不见「单个 IC 弱但组合起来有用」的特征，
+而那正是第 1 道把 IC_MIN 从 0.010 放到 0.005 换来 +2.85 个百分点的东西
+（见下面 IC_MIN 的注释）。让线性模型给 GBDT 剪枝会把它的口粮砍掉。
+但设计文档要求每道筛都留下记录，所以记录照留，剔除不做
+（2026-09-16 之前是连记录都没有：surviving() 定义了零调用）。
 
 第 2 道是关键。一个特征牛市 IC 为正、熊市为负，全样本平均下来可能还不错，
 但实盘上等于抛硬币。符号翻转率直接把这类特征筛掉，而单看全样本 IC
@@ -84,7 +91,12 @@ def ic_stability(df: pd.DataFrame, cols: list[str], y: str) -> pd.DataFrame:
     rows = {}
     for c in cols:
         v = np.array(rec[c], dtype=float)
-        v = v[np.isfinite(v)]
+        # 0.0 是 single_ic 的「这个月算不出来」哨兵（有效行 <500 或标签是常数），
+        # 不是「这个月 IC 恰好为零」。留着它，`np.sign(0) != sign` 会给这个月
+        # 记一次符号翻转：回填起始段那几个薄月份白给每个特征加 0.11 的翻转率，
+        # 刚好把一批特征推过 FLIP_MAX=0.40 的门槛（2026-09-16 实测
+        # mkt_breadth__last 0.419 丢 / 0.395 留，只差一个伪迹月）。
+        v = v[np.isfinite(v) & (v != 0)]
         if len(v) < 3:
             rows[c] = (0.0, 0.0, 1.0, 0)
             continue
@@ -122,9 +134,9 @@ def corr_prune(df: pd.DataFrame, cols: list[str],
 
 def run(df: pd.DataFrame, cols: list[str], y: str = "y_t0",
         out_dir: Path | None = None) -> dict:
-    """跑完四道筛（前三道；第四道 L1 在 model.py 里跟着训练一起做）。
+    """跑完四道筛。第 1~3 道剔除，第 4 道（L1）只记录（见模块 docstring）。
 
-    返回 {"keep": [...], "log": {...}}。
+    返回 {"keep": [...], "l1_zero": [...], "dropped": {...}}。
     """
     report: dict = {"start": len(cols), "dropped": {}}
     cols = [c for c in cols if c in df.columns]
@@ -151,6 +163,28 @@ def run(df: pd.DataFrame, cols: list[str], y: str = "y_t0",
     keep, dropped = corr_prune(df, cols, ic)
     report["dropped"]["collinear"] = dict(dropped)
     log.info("筛3 相关剪枝: 丢 %d，剩 %d", len(dropped), len(keep))
+
+    # --- 4 L1 正则：只记录不剔除 ---
+    # model.L0Logistic.surviving() 从上线起零调用，feature_select.json 里
+    # 一直没有第 4 道的记录，读产物的人会以为那 45 个生产特征过了 L1 压缩。
+    # 失败不能阻断：这一步只是记录，daily.py 每天重训都会走到这里。
+    report["l1_zero"] = []
+    try:
+        import model as M
+        # 抽样跑，理由和 corr_prune 那 20 万行一样：生产重训的 tr 有 415 万行，
+        # 1:12 分层之后还有 185 万行 × 45 列，liblinear 全量要分钟级。
+        # 这一步只留记录、不参与去留，20 万行足够看出哪些系数是 0。
+        s = M.stratified_sample(df, y)
+        if len(s) > 200_000:
+            s = s.sample(200_000, random_state=7)
+        l0 = M.L0Logistic().fit(s, keep, y)
+        alive = set(l0.surviving())
+        report["l1_zero"] = [c for c in keep if c not in alive]
+        log.info("筛4 L1 记录: 系数为零 %d/%d（只记录不剔除）",
+                 len(report["l1_zero"]), len(keep))
+    except Exception as e:  # noqa: BLE001
+        report["l1_error"] = str(e)
+        log.warning("筛4 L1 记录失败（不影响 keep）：%s", e)
 
     report["keep"] = keep
     report["end"] = len(keep)

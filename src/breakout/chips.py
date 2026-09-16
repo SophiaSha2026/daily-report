@@ -37,8 +37,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-N_BINS = 360        # 对数网格档数：覆盖 1/10~10 倍，每格约 1.3%（2026-09-15 起）
+N_BINS = 360        # 对数网格档数：起始覆盖 1/10~10 倍，每格约 1.3%（2026-09-15 起）
 DECAY = 1.0
+# 筹码算法版本。进 daily.feature_fingerprint：网格口径变了而列名没变，
+# 指纹不带版本号的话旧模型会拿新语义的列继续打分最多 30 天。
+CHIPS_VERSION = 2   # 2026-09-16：网格越界从「丢弃那天」改成按同格宽外接
 
 
 def chip_features(high: np.ndarray, low: np.ndarray, close: np.ndarray,
@@ -68,8 +71,14 @@ def chip_features(high: np.ndarray, low: np.ndarray, close: np.ndarray,
     # 的筹码特征都被这个 w 系统性地扰动过，是一种隐蔽的前视偏差（2026-09-15
     # 审计实测：随机 40 只票，只用 [..t] 和用全序列算出的 chip_conc90 差最大
     # 0.022，差值与「未来最高/过去最高」相关 0.79）。
-    # 现在按**对数价格**建网格，锚在第一根有效收盘价上，覆盖 1/10 ~ 10 倍
-    # （三年内涨跌超过十倍的票极少，超出的那天成交落在网格外，被丢弃）。
+    # 现在按**对数价格**建网格，锚在第一根有效收盘价上，起始覆盖 1/10 ~ 10 倍；
+    # 越界的那天**按同一个格宽往外接**，不丢弃。第一版把越界日整天跳过
+    # （连衰减都不做），2026-09-16 实测：5516 只里 68 只涨过 10 倍、5 只跌破
+    # 1/10，训练表 2739 行筹码全 NaN，而这些行的 y_up 率是全表的 2.6 倍
+    # （8.9% vs 3.4%）—— 正是模型要找的那一撮票。更隐蔽的是没 NaN 但值错的
+    # 1991 行：涨过 10 倍再跌回来的票，10 倍以上的成交从没记进分布，
+    # 「上方套牢峰」不存在、获利盘被算成 100%（603629 生产 1.000 / 真值 0.303）。
+    # 外接只由 [..t] 决定，补零的格不改变 avg/win/conc/peak，因果性不变。
     # 对数网格下格宽是恒定的比例，三角核也在对数空间撒。
     ok = np.isfinite(high) & np.isfinite(low) & np.isfinite(close) \
         & (low > 0) & (high > 0) & (close > 0)
@@ -78,9 +87,10 @@ def chip_features(high: np.ndarray, low: np.ndarray, close: np.ndarray,
                             columns=["chip_avg", "chip_win", "chip_conc90",
                                      "chip_dev", "chip_peak"])
     c0 = float(close[np.argmax(ok)])
-    grid = np.linspace(np.log(c0 / 10.0), np.log(c0 * 10.0), n_bins)
+    lo, hi = np.log(c0 / 10.0), np.log(c0 * 10.0)
+    w = (hi - lo) / (n_bins - 1)
+    grid = lo + w * np.arange(n_bins)      # 起始网格；越界时按同样的 w 往外接
     price = np.exp(grid)
-    w = grid[1] - grid[0]
 
     chip = np.zeros(n_bins)
     out = np.full((n, 5), np.nan)
@@ -89,6 +99,17 @@ def chip_features(high: np.ndarray, low: np.ndarray, close: np.ndarray,
         if not ok[i]:
             continue
         h, l, c, t = np.log(high[i]), np.log(low[i]), np.log(close[i]), turnover[i]
+        # 外接网格。补的是零质量的格，历史分布一格不动
+        if l - w < grid[0]:
+            pad = int(np.ceil((grid[0] - (l - w)) / w))
+            grid = np.concatenate([grid[0] - w * np.arange(pad, 0, -1), grid])
+            chip = np.concatenate([np.zeros(pad), chip])
+            price = np.exp(grid)
+        if h + w > grid[-1]:
+            pad = int(np.ceil((h + w - grid[-1]) / w))
+            grid = np.concatenate([grid, grid[-1] + w * np.arange(1, pad + 1)])
+            chip = np.concatenate([chip, np.zeros(pad)])
+            price = np.exp(grid)
         # 当日成交按三角分布撒开。半宽至少一个格，否则一字板那天
         # （h == l）会得到全零分布。
         peak = (h + l + c) / 3.0
@@ -96,8 +117,10 @@ def chip_features(high: np.ndarray, low: np.ndarray, close: np.ndarray,
         tri = np.maximum(0.0, 1.0 - np.abs(grid - peak) / half)
         tri[(grid < l - w) | (grid > h + w)] = 0.0
         s = tri.sum()
-        if s <= 0:
-            continue
+        # 网格已经外接到 [l-w, h+w]，峰必在网格内，s 不可能再是 0。
+        # 以前这里是 continue：越界那天既不衰减也不写 out[i]，分布冻结、
+        # 特征 NaN，而且一声不吭。静默跳过必须变成炸。
+        assert s > 0, "网格外接后仍无质量（l=%.4f h=%.4f）" % (l, h)
         tri /= s
 
         k = float(np.clip(t * decay, 0.0, 1.0)) if np.isfinite(t) else 0.0
@@ -112,7 +135,7 @@ def chip_features(high: np.ndarray, low: np.ndarray, close: np.ndarray,
         avg = float(price @ p)
         win = float(p[grid <= c].sum())
         i5 = int(np.searchsorted(cum, 0.05))
-        i95 = int(min(np.searchsorted(cum, 0.95), n_bins - 1))
+        i95 = int(min(np.searchsorted(cum, 0.95), len(grid) - 1))
         conc = (price[i95] - price[i5]) / max(avg, 1e-9)
         dev = cp / max(avg, 1e-9) - 1.0
         pk = price[int(np.argmax(p))]
