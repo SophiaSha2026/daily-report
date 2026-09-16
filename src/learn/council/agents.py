@@ -81,14 +81,20 @@ def run_lens(lens: str, prompt: str, out_dir: Path, model: str, effort: str,
     # 到了步数上限没来得及写结论：接着那个会话再给它一次机会，只许输出不许再查。
     # 实测（2026-09-16 冒烟）Opus max 一个视角 40 次工具调用还没停手，$5 的分析
     # 不能因为差一步全丢。
-    if (result_obj or {}).get("subtype") == "error_max_turns" and sid:
-        log.info("视角 %s 到步数上限（%s 轮），resume 逼出结论", lens, max_turns)
+    hit_turns = (result_obj or {}).get("subtype") == "error_max_turns"
+    timed_out = err.startswith("超时")
+    if (hit_turns or timed_out) and sid:
+        # 两种情况都 resume 一次：步数到顶，或看门狗把它杀了（主审 max 推理一次
+        # 能想十分钟，2026-09-16 实测 420s 不够）。会话记录是 CLI 边跑边落盘的，
+        # 杀掉进程再 --resume 上下文还在，这次只许输出不许再查。
+        why = f"到步数上限（{max_turns} 轮）" if hit_turns else f"超时被杀（{timeout}s）"
+        log.info("视角 %s %s，resume 逼出结论", lens, why)
         cmd2 = base[:1] + ["--resume", sid] + base[1:] + [
-            "-p", "已到步数上限。不要再调用任何工具，现在就把你已经得到的分析按 schema 输出。"
-                  "查过的部分写发现，没查到的写进 questions。",
+            "-p", "时间/步数已到上限。不要再调用任何工具，也不要再长时间推理，"
+                  "现在就把你已经得到的分析按 schema 输出。查过的部分写发现，没查到的写进 questions。",
             "--max-turns", "3"]
-        left = max(60, int(timeout - (time.time() - t0)))
-        r2, e2, _ = _stream(cmd2, env, out_dir / f"{lens}.raw2.jsonl", trace, t0, left)
+        r2, e2, _ = _stream(cmd2, env, out_dir / f"{lens}.raw2.jsonl", trace, t0,
+                            max(300, timeout // 2))
         if r2 and not r2.get("is_error"):
             result_obj, err = r2, ""
         else:

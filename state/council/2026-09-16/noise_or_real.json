@@ -1,0 +1,201 @@
+{
+ "lens": "noise_or_real",
+ "summary": "早盘选股：前10超额 −0.68%/天，95% 区间 [−1.75, +0.39]，跑赢 6/17 天，与 0 分不开；一半幅度来自 09-11 一天（10 只过准入全进榜、9 只同一能源主题）。量能维度高分反而差在 6 维度/约 30 切片的多重比较下站不住，回填 404 天同切片是平的。判断：混合偏噪声，p_real≈0.4（前10材料性跑输）、≈0.2（量能）。起涨预测：0 份清单满 20 根，无法判断；进度与验证集节奏一致；科创板占 57.5% 使验证口径期望降到 ~8%。等待：排序增益指标再 6 天可判 ±0.5，前10超额要到 2027-04；起涨首批判定约 10-21。",
+ "findings": [
+  {
+   "line": "morning",
+   "claim": "前10超额为负和 0 分不开，样本不足，不是已证实的真差距",
+   "evidence": "summary: 均值 −0.681，se 0.546，n=17；跑赢 6/17 天；top_hits 合计 69/168=41%，按天聚类 se 0.054",
+   "magnitude": "−0.68 ± 1.07（95%）→ [−1.75, +0.39] %/天，t=−1.25 p≈0.23；跑赢率 Wilson [17%, 59%]；命中率 41% 聚类区间 [30%, 52%]",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "09-11 一天贡献一半幅度，且那天排序没起作用、10 只票有效样本≈1",
+   "evidence": "morning-day 09-11：admitted=10=top_n，油气开采 4/港口航运 2/煤炭 1/石油加工 1/燃气 1/软件 1，y 均值 −5.83%；08-25 也是 8 只全进榜",
+   "magnitude": "09-11 占 −0.34 于 −0.68；去掉后均值 −0.36 ± 0.94（n=16）；去掉两个「全进榜」日均值 −0.65（n=15），两天互相抵消",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "排序增益（前10 − 过准入均值）日间噪声只有前10超额的 38%，是更快能判的指标",
+   "evidence": "daily[] 两列相减：均值 −0.305，日间 sd 0.85，10 负 5 正 2 零；前10超额 sd 2.25",
+   "magnitude": "−0.31 ± 0.40（95%）→ [−0.71, +0.10] %/天，t=−1.49；分辨 ±0.5/天 需 23 天（前10超额需 159 天），±0.3 需 62 天",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "量能维度高分反而差：未聚类 t≈−2.0，过不了 6 维度 Bonferroni，回填 404 天同切片是平的",
+   "evidence": "dims.volume spread −0.922，n=151/151，个股 y sd 按 ≈4% 估；backfill_by_liangbi 0.638/0.693/0.586（n=4916/7277/3811）",
+   "magnitude": "spread −0.92 ± 0.90（95%，se 0.46）；Bonferroni 6 项门槛 |t|>2.64；按天聚类（设计效应≈2）t≈−1.4；回填档间差 0.05 ± 0.17。p_real≈0.2",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "约 30 个切片里只有「突破平台」超过零假设的期望最大值，其余全在噪声内",
+   "evidence": "flags.突破平台 是 −1.582 n=87 / 否 +0.173 n=364；30 个独立零切片的期望最大 |t|≈2.2；09-11 前 10 有 3 只带该标志且全 −3%~−6%",
+   "magnitude": "差 −1.76 ± 0.94（se 0.48，未聚类 t≈−3.7）；87 只集中在少数天，聚类后接近门槛。p_real≈0.4",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "相关性在线和回填都与 0 分不开，且这个指标在此规模上不可检验",
+   "evidence": "在线 ic_mean −0.075，日 sd 0.229（n=17）；回填 ic_mean 0.010、ic_std 0.237、414 天，ICIR 0.042",
+   "magnitude": "在线 [−0.18, +0.03]；回填 t=0.86；两者差 0.085 ± 0.11（t=1.5）；检出 ic=0.05 需 164 天，检出 0.01 需 4000+ 天",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "连续性/位置/板块三个维度的三分之一分组退化，spread 不能读",
+   "evidence": "dims: continuity n_high=451（=全部过准入）n_low=399；position 221+191、sector 169+175 都 >301（451 的 2/3），是 0 值并列",
+   "magnitude": "continuity 两组重合 ≥399/451=88%；三条 spread（−0.11/−0.44/−0.28）无有效样本数",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "0 份清单满 20 根，命中率和相对基准倍数都算不出；0 命中在任何假设下都不奇怪",
+   "evidence": "lists: 8 份 n_final=0，在途 70 只 hits_sofar=0，base_sofar 0.0002~0.0016；验证集 pace 第 7 根命中均值涨幅 0.476",
+   "magnitude": "在途命中率 0/70 Wilson 上界 5.2%（按 ~45 只独立算 7.9%），倍数区间 [0, ~50]；到目前期望命中 1.2~1.8（验证口径，P(0)≈0.16~0.31）或 0.15~0.4（按同期基准缩放，P(0)≈0.7",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "进度指标没有偏离验证集节奏，但每份 n=10 只能说「没偏离」",
+   "evidence": "picks 09-07 第 7 根：均值 13.4%、≥25% 2/10、≥15% 4/10 vs 验证 15.8%/21.7%/37%；09-08 第 6 根 15.2% vs ≈14.6%；09-11 第 3 根 10.0% vs 10.1%",
+   "magnitude": "三份清单均值涨幅偏差 −2.4/+0.6/−0.1 个百分点，各自 se ≥ ±3 个百分点；≥25% 占比 2/10、1/10、1/10 的 Wilson 上界都 >40%",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "清单是股票-天不是独立样本，按名额数会高估把握约 40%",
+   "evidence": "stock-lists 688137：连续 7 天上榜，是 7 份清单里 4 份的 max_rise；抽查 4 份 40 个名额只有 27 个独立进入；验证集 783 名额独立进入 567（=783−216）",
+   "magnitude": "平均 1.38 天/段（验证），抽查期 1.48；有效样本 ≈ 名额数 /1.4",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "科创板占比从验证集 19% 升到 57%，验证口径的期望命中率应是 ~8% 不是 12.6%",
+   "evidence": "picks 09-07/08/11/16 科创 5/6/9/3=23/40（独立进入 14/27）；validation_w5.by_board 科创 4/150、主板 86/520、北交 9/113",
+   "magnitude": "科创 2.7% [1.0%, 6.7%] vs 主板 16.5% [13.6%, 20.0%]，z=6.6（板块差是真的）；占比差 57.5% vs 19.2%，z≈6；构成加权期望 7.9%",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "邮件连续档期望表分不出档，从 15.7% 降到 6.7% 的排序是噪声级别",
+   "evidence": "expected.streak_perf：≥1 99/783、≥2 34/216、≥5 2/30；由此连续=1 为 65/567=11.5%，2~4 天为 32/186=17.2%",
+   "magnitude": "=1 vs ≥2 差 4.2 ± 5.3 个百分点（z=1.6，p≈0.11）；≥5 6.7% [1.8%, 21.3%] vs 2~4 天 17.2%，p≈0.15；且 ≥2 的名额有重叠，实际更弱",
+   "confidence": "高"
+  }
+ ],
+ "proposals": [
+  {
+   "kind": "process",
+   "line": "morning",
+   "target": "证据包 morning.daily / summary 的主指标",
+   "change": "新增逐日「排序增益 = 前10 y 均值 − 过准入 y 均值」及其 se，作为在线评估排序的主指标；过准入 ≤10 的天标「排序未起作用」并从该指标里排除",
+   "rationale": "排序增益日间 sd 0.85，前10超额 sd 2.25；同样分辨 ±0.5/天，前者要 23 天、后者 159 天。两个全进榜日（08-25、09-11）里排序不参与，混进去只加噪声",
+   "expected_effect": "再 6 个交易日（约 09-24）就能判排序增益是否 ≤ −0.5/天；±0.3 到 11 月底可判；前10超额要到 2027-04",
+   "test_plan": "人工实现：用 daily[] 现有两列回放 17 天，se 应≈0.21、均值 −0.31；之后每日累计",
+   "priority": "P0",
+   "params": {
+    "metric": "rank_gain = top_excess_pct - admitted_excess_pct",
+    "exclude_days": "admitted <= top_n"
+   }
+  },
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "breakout/truth 的计数单位与对照",
+   "change": "真值按独立进入段（streak==1 起算的一段）计数而不按股票-天；每份清单同时印验证集同根数的 base_sofar 与「按板块构成加权的期望命中率」；pace 表加上「到第 k 根已 ≥50% 的命中占比」曲线（现只有 ≥25%）",
+   "rationale": "近岸蛋白 7 天占 4 份清单的 max_rise；40 个名额只有 27 个独立段；当前 base_sofar 0.16% 没有验证集同根数的对照；缺 ≥50% 曲线就算不出「到目前应有几个命中」",
+   "expected_effect": "「需要多少份清单」从估计变成精确数字；0 命中的 P 值可以直接算，不再靠猜",
+   "test_plan": "人工实现后用验证集 783 个名额回放，独立段应≈567，≥50% 曲线在第 20 根应到 100%",
+   "priority": "P0",
+   "params": {
+    "unit": "segment",
+    "base_align": "same_bar",
+    "pace_add": "share_hits_already_ge50"
+   }
+  },
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "起涨预测判定规则（预先登记）",
+   "change": "首批约 45 个独立段满 20 根（约 10-21）：≥4 命中判「与验证集一致」，≤1 判「与随机一致」，2~3 继续等到约 130 段（约 11-12）。连续≥2 档：30 段（基准正常）约 10 月底，90 段（基准维持当前 1/5）约 12 月中",
+   "rationale": "n=40~50、H0 2.9% vs H1 12.6% 时阈值 ≥4 的 α≈0.06、功效≈0.89；若同期基准只有 ~0.8%（H1=3.4%），80% 功效需 ~130 段；连续≥2 段每天只新增 ~1.7 个",
+   "expected_effect": "不再每天按 max_rise 下结论；到期一次判定，α/功效已知",
+   "test_plan": "逐月滚动测试：在验证集上按同样规则回放，看 α/功效是否 ≈0.06/0.89",
+   "priority": "P1",
+   "params": {
+    "first_batch_segments": 45,
+    "pass_hits": 4,
+    "fail_hits": 1,
+    "extended_segments": 130
+   }
+  },
+  {
+   "kind": "process",
+   "line": "morning",
+   "target": "证据包 dims / flags / by.* 的统计口径",
+   "change": "每个切片给按天聚类的 se 和 n_days，印总切片数 k 与 Bonferroni 线；三分之一分组改严格分位，0 值并列时标「不可评估」",
+   "rationale": "现在 30 个切片没有一个带 se，任何切片都像发现；continuity n_high=451 是全部过准入，position/sector 两组之和 >2/3，分组退化",
+   "expected_effect": "30 个切片里预计只剩 0~1 个过线，量能/突破平台的判定有明确 p 值",
+   "test_plan": "人工实现，回放 17 天；量能 spread 聚类 t 应落在 −1.3~−1.6",
+   "priority": "P1",
+   "params": {
+    "se": "day_clustered",
+    "multiplicity": "bonferroni",
+    "tie_policy": "mark_unevaluable"
+   }
+  },
+  {
+   "kind": "data_fix",
+   "line": "morning",
+   "target": "在线真值快照存储字段",
+   "change": "每天存过准入池 y 的横截面标准差、MAD 和每只票的行业；worst_best 里的 ytil 已有 MAD，但池级 sd 没落盘",
+   "rationale": "维度 spread 的 se 现在只能按 sd≈4% 假设；09-11 那种 9/10 同主题的日子需要行业字段才能算聚类 se",
+   "expected_effect": "维度 spread 的 se 从假设变实测；能给出主题集中度指标（当日前 10 最大同行业只数）",
+   "test_plan": "人工实现；回放已有 17 天快照",
+   "priority": "P2",
+   "params": {
+    "fields": [
+     "y_sd_admitted",
+     "y_mad_pool",
+     "sector"
+    ]
+   }
+  },
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "起涨预测邮件 streak_perf / score_table",
+   "change": "每档印 Wilson 95% 区间，n<50 的档打灰",
+   "rationale": "≥5 档 2/30 区间 [1.8%, 21.3%]，与 2~4 天 17.2% 的差 p≈0.15；=1 vs ≥2 差 z=1.6；表里的排序读者会当真",
+   "expected_effect": "邮件不再暗示 6.7% < 15.7% 的排序；读者看到 n=30 的档就知道不能用",
+   "test_plan": "人工实现",
+   "priority": "P2",
+   "params": {
+    "ci": "wilson95",
+    "grey_below_n": 50
+   }
+  }
+ ],
+ "questions": [
+  "验证集在第 k 根时的 base_sofar 曲线是多少？现在只有 base_final 2.93%，没法判断当前第 7 根 0.16% 是不是异常低、要不要把 H1 按比例缩到 ~3%",
+  "learning.metrics.top_excess=0.0062 的单位是分数还是百分比、基准是全池中位还是 2~5% 池中位？决定回填先验能否用来压缩在线区间",
+  "「突破平台」的 87 只分布在几天？集中在 3~4 天的话聚类后 t 会掉到 2.3 以下",
+  "8 份清单一共多少个独立进入段、其中长度 ≥2 的有几个？决定连续≥2 档的判定日期",
+  "过准入池每天的 y 横截面标准差是多少？维度 spread 的 se 现在只能按 4% 假设"
+ ],
+ "_meta": {
+  "lens": "noise_or_real",
+  "model": "claude-opus-5",
+  "effort": "max",
+  "seconds": 673.5,
+  "turns": 13,
+  "cost_usd": 2.8694835000000003,
+  "n_tool_calls": 12,
+  "denials": 2,
+  "error": ""
+ }
+}

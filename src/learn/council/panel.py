@@ -32,7 +32,8 @@ body{font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;max-width
 h1{font-size:20px;margin:6px 0}h2{font-size:15px;margin:22px 0 8px;color:#aaa}
 h3{font-size:14px;margin:12px 0 6px;color:#ccc}
 table{border-collapse:collapse;width:100%;font-size:13px}
-th,td{border:1px solid #333;padding:4px 8px;text-align:left;vertical-align:top}
+th,td{border:1px solid #333;padding:4px 8px;text-align:left;vertical-align:top;word-break:break-word}
+table{table-layout:auto;max-width:100%}
 th{background:#1a1a1a;color:#999}
 .ok{color:#4c9}.no{color:#e66}.dim{color:#777;font-size:12px}.warn{color:#e9a23b}
 .card{background:#181818;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;margin:10px 0}

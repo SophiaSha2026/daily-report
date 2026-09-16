@@ -36,6 +36,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "src" / "breakout"))   # daily / features / exp_window 按脚本方式 import
 
 from learn.council import run as R     # noqa: E402
 
@@ -183,6 +184,9 @@ def exp_threshold(p: dict) -> dict:
 #  起涨：消融
 # ---------------------------------------------------------------------
 def _run_wf(drop: list[str], cache: Path, out: Path, timeout: int = 1800) -> dict | None:
+    """跑一次逐月滚动测试。返回 grid，并把 exp_window 打的「剩几列」记进 grid["_kept"]，
+    这样「消融到底有没有真的去掉列」在台账里看得见（2026-09-16 两次消融都是空转，
+    就是因为没人核对这个数）。"""
     env = dict(os.environ, WF_DROP=",".join(drop), WF_CACHE=str(cache), WF_OUT=str(out),
                PYTHONIOENCODING="utf-8")
     cache.parent.mkdir(parents=True, exist_ok=True)
@@ -192,7 +196,14 @@ def _run_wf(drop: list[str], cache: Path, out: Path, timeout: int = 1800) -> dic
     if r.returncode != 0 or not out.exists():
         log.warning("exp_window 失败 rc=%s: %s", r.returncode, (r.stderr or "")[-300:])
         return None
-    return json.loads(out.read_text(encoding="utf-8"))
+    g = json.loads(out.read_text(encoding="utf-8"))
+    m = re.search(r"消融：排除 (.+)，剩 (\d+) 列", r.stdout or "")
+    if m:
+        g["_kept"] = int(m.group(2))
+    m2 = re.search(r"筛3 相关剪枝: 丢 \d+，剩 (\d+)", r.stdout or "")
+    if m2:
+        g["_selected"] = int(m2.group(1))
+    return g
 
 
 def _w5_from_grid(grid: dict) -> dict:
@@ -207,14 +218,26 @@ def _w5_from_grid(grid: dict) -> dict:
     return out
 
 
+def _fresh(out: Path) -> dict | None:
+    """比特征表新的成绩表直接复用（一次逐月滚动要 10 分钟，重复评估没必要再跑）。"""
+    if out.exists() and TRAIN.exists() and out.stat().st_mtime >= TRAIN.stat().st_mtime:
+        try:
+            g = json.loads(out.read_text(encoding="utf-8"))
+            g["_cached"] = True
+            return g
+        except Exception:  # noqa: BLE001
+            return None
+    return None
+
+
 def _baseline_grid() -> dict | None:
     """和当前特征表同步的全特征基线；旧了就重算（约 10 分钟）。"""
     out = BASE_DIR / "window_grid.json"
-    cache = BASE_DIR / "wf_scores.parquet"
-    if out.exists() and TRAIN.exists() and out.stat().st_mtime >= TRAIN.stat().st_mtime:
-        return json.loads(out.read_text(encoding="utf-8"))
+    g = _fresh(out)
+    if g:
+        return g
     log.info("消融基线过期或缺失，重算全特征基线（约 10 分钟）")
-    return _run_wf([], cache, out)
+    return _run_wf([], BASE_DIR / "wf_scores.parquet", out)
 
 
 def exp_feature_drop(p: dict) -> dict:
@@ -223,23 +246,42 @@ def exp_feature_drop(p: dict) -> dict:
     if not feats:
         return {"status": "needs_human", "detail": "提案没给要去掉的特征名（params.features）"}
     known = _known_features()
-    bad = [f for f in feats if known and f not in known]
+    if not known:
+        # 早先这里 import 失败会让 known 变空、校验被跳过，于是拿一个根本不存在的
+        # 特征名跑了十分钟空转（2026-09-16）。拿不到特征表就别跑。
+        return {"status": "failed", "detail": "读不到起涨预测的特征名单（features.GROUPS），不跑消融"}
+    bad = [f for f in feats if f not in known
+           and not (f.rsplit("__", 1)[0] in known and f.rsplit("__", 1)[-1] in ("last", "mean", "slope"))]
     if bad:
-        return {"status": "failed", "detail": f"特征名不存在：{bad}"}
+        return {"status": "failed",
+                "detail": f"特征名不存在：{bad}（起涨预测的基础特征名见 features.GROUPS）"}
     base = _baseline_grid()
     if not base:
         return {"status": "failed", "detail": "基线重算失败"}
     tag = "_".join(feats)[:40]
-    cand = _run_wf(feats, BASE_DIR / f"drop_{tag}" / "wf_scores.parquet",
-                   BASE_DIR / f"drop_{tag}" / "window_grid.json")
+    cout = BASE_DIR / f"drop_{tag}" / "window_grid.json"
+    cand = _fresh(cout) or _run_wf(feats, cout.parent / "wf_scores.parquet", cout)
     if not cand:
         return {"status": "failed", "detail": "消融跑失败"}
     b, c = _w5_from_grid(base), _w5_from_grid(cand)
     if "ge1" not in b or "ge1" not in c:
         return {"status": "failed", "detail": "成绩表里没有 W5 行"}
+    kept_b, kept_c = base.get("_kept"), cand.get("_kept")
+    sel_b, sel_c = base.get("_selected"), cand.get("_selected")
+    same = all(abs(b[k]["hit"] - c[k]["hit"]) < 1e-12 and b[k]["n"] == c[k]["n"]
+               for k in ("ge1", "ge2", "ge3") if k in b and k in c)
+    if same or (sel_b is not None and sel_b == sel_c and same):
+        # 逐位相同 = 这些列本来就没进模型（筛选那一步已经丢了），实验什么也没测
+        return {"status": "failed",
+                "detail": f"空转：去掉 {feats} 前后成绩逐位相同，说明这些列本来就没被选进模型"
+                          f"（入模 {sel_b} -> {sel_c} 列）。要测它们得先确认在 feature_select 的保留集里",
+                "base": b, "cand": c, "dropped": feats, "kept": [kept_b, kept_c],
+                "selected": [sel_b, sel_c]}
     ok, why = _pass_breakout(b, c)
-    return {"status": "passed" if ok else "failed", "detail": why,
-            "base": b, "cand": c, "dropped": feats}
+    return {"status": "passed" if ok else "failed",
+            "detail": why + f"；入模列数 {sel_b} -> {sel_c}",
+            "base": b, "cand": c, "dropped": feats,
+            "kept": [kept_b, kept_c], "selected": [sel_b, sel_c]}
 
 
 def _known_features() -> set[str]:
@@ -302,6 +344,9 @@ def run_pending(c: dict, max_drop: int = MAX_DROP_PER_RUN) -> list[dict]:
         try:
             if p["kind"] == "threshold":
                 res = exp_threshold(p)
+            elif p["kind"] == "feature_drop" and p.get("line") == "morning":
+                res = {"status": "needs_human",
+                       "detail": "早盘的特征在 score.py 里，去掉要改代码（和 vscore 同步），不能自动消融"}
             elif p["kind"] == "feature_drop":
                 if n_drop >= max_drop:
                     R.write_decision(p["id"], "pending", note="本次消融额度用完，下次再跑")

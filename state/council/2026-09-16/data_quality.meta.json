@@ -1,0 +1,11 @@
+{
+ "lens": "data_quality",
+ "model": "claude-opus-5",
+ "effort": "max",
+ "seconds": 783.2,
+ "turns": 21,
+ "cost_usd": 3.577582,
+ "n_tool_calls": 20,
+ "denials": 2,
+ "error": ""
+}

@@ -40,7 +40,7 @@ DECISIONS = STATE / "decisions.json"
 LATEST = STATE / "latest.json"
 
 DEFAULTS = {"enabled": True, "model": "claude-opus-5", "effort": "max",
-            "timeout_seconds": 600, "chair_timeout_seconds": 420,
+            "timeout_seconds": 900, "chair_timeout_seconds": 1200,
             "max_parallel": 6, "lenses": list(S.LENSES),
             "history_days": 0, "auto_experiments": True, "mail": True,
             "max_turns": 60}
@@ -183,44 +183,57 @@ def _write_latest(obj: dict) -> None:
 
 
 def run(c: dict, date: str, lenses: list[str] | None = None, skip_llm: bool = False,
-        skip_experiments: bool = False) -> dict:
-    """全流程。返回 summary（也写到 <date>/summary.json 和 latest.json）。"""
+        skip_experiments: bool = False, chair_only: bool = False) -> dict:
+    """全流程。返回 summary（也写到 <date>/summary.json 和 latest.json）。
+
+    chair_only：视角已经跑过（<date>/<lens>.json 都在），只重开主审和后面的步骤。
+    """
     k = cfg(c)
     t0 = time.time()
     day = STATE / date
     summary: dict = {"date": date, "ok": False, "started_at":
                      dt.datetime.now().isoformat(timespec="seconds"),
                      "model": k["model"], "effort": k["effort"], "lenses": {}}
-    try:
-        from learn.council import evidence as EV
-        EV.build(c, date, int(k.get("history_days") or 0))
-        summary["evidence"] = str(day / "evidence.json")
-    except Exception as e:  # noqa: BLE001
-        summary["error"] = f"证据包失败: {e}"
-        log.warning(summary["error"])
-        _write_latest(summary)
-        return summary
-
-    if skip_llm:
-        summary["ok"] = True
-        summary["note"] = "只组了证据包（--skip-llm）"
-        _finish(summary, day, t0)
-        return summary
-
     from learn.council import agents as AG
-    lenses = [x for x in (lenses or k["lenses"]) if x in S.LENSES]
-    res = AG.run_parallel(lenses, day, date, k["model"], k["effort"],
-                          int(k["timeout_seconds"]), int(k["max_parallel"]),
-                          int(k.get("max_turns", 150)))
-    for ln in lenses:
-        meta = _meta(day, ln)
-        summary["lenses"][ln] = {"ok": res.get(ln) is not None, **meta}
-    n_ok = sum(1 for ln in lenses if res.get(ln) is not None)
-    log.info("视角完成 %d/%d", n_ok, len(lenses))
-    if n_ok == 0:
-        summary["error"] = "六个视角全部失败，不开主审"
-        _finish(summary, day, t0)
-        return summary
+    if chair_only:
+        have = [ln for ln in S.LENSES if (day / f"{ln}.json").exists()]
+        if not have:
+            summary["error"] = "没有任何视角结果，不能只开主审"
+            _write_latest(summary)
+            return summary
+        for ln in have:
+            summary["lenses"][ln] = {"ok": True, **_meta(day, ln)}
+        summary["evidence"] = str(day / "evidence.json")
+    else:
+        try:
+            from learn.council import evidence as EV
+            EV.build(c, date, int(k.get("history_days") or 0))
+            summary["evidence"] = str(day / "evidence.json")
+        except Exception as e:  # noqa: BLE001
+            summary["error"] = f"证据包失败: {e}"
+            log.warning(summary["error"])
+            _write_latest(summary)
+            return summary
+
+        if skip_llm:
+            summary["ok"] = True
+            summary["note"] = "只组了证据包（--skip-llm）"
+            _finish(summary, day, t0)
+            return summary
+
+        lenses = [x for x in (lenses or k["lenses"]) if x in S.LENSES]
+        res = AG.run_parallel(lenses, day, date, k["model"], k["effort"],
+                              int(k["timeout_seconds"]), int(k["max_parallel"]),
+                              int(k.get("max_turns", 150)))
+        for ln in lenses:
+            meta = _meta(day, ln)
+            summary["lenses"][ln] = {"ok": res.get(ln) is not None, **meta}
+        n_ok = sum(1 for ln in lenses if res.get(ln) is not None)
+        log.info("视角完成 %d/%d", n_ok, len(lenses))
+        if n_ok == 0:
+            summary["error"] = "六个视角全部失败，不开主审"
+            _finish(summary, day, t0)
+            return summary
 
     chair = AG.run_lens("chair", AG.build_prompt("chair", day, date), day, k["model"],
                         k["effort"], int(k["chair_timeout_seconds"]), max_turns=30)
@@ -344,6 +357,8 @@ def main() -> int:
     ap.add_argument("--skip-experiments", action="store_true")
     ap.add_argument("--experiments", action="store_true", help="只跑台账里 pending 的实验")
     ap.add_argument("--panel", action="store_true", help="只重画面板")
+    ap.add_argument("--chair-only", action="store_true",
+                    help="视角结果已在，只重开主审 + 实验 + 邮件 + 面板")
     a = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
                         datefmt="%H:%M:%S")
@@ -359,7 +374,7 @@ def main() -> int:
         return 0
     date = a.date or dt.date.today().isoformat()
     lenses = [x.strip() for x in a.lenses.split(",") if x.strip()] or None
-    s = run(c, date, lenses, a.skip_llm, a.skip_experiments)
+    s = run(c, date, lenses, a.skip_llm, a.skip_experiments, a.chair_only)
     print(json.dumps({k: v for k, v in s.items() if k in
                       ("date", "ok", "error", "seconds", "cost_usd", "n_proposals", "verdict")},
                      ensure_ascii=False))

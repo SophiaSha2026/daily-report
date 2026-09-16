@@ -55,8 +55,10 @@ def build_cache() -> tuple[pd.DataFrame, float]:
     # 特征」的差别。实验 9 用它把「公告日对齐」和「加成交量组」的影响拆开。
     drop = [x.strip() for x in os.environ.get("WF_DROP", "").split(",") if x.strip()]
     if drop:
+        # 基础名（vol_ratio20）去掉它的三个变换；带 __ 的（mkt_ret5__mean）只去那一列
+        ds = set(drop)
         feats_all = [c for c in feats_all
-                     if c.rsplit("__", 1)[0] not in set(drop)]
+                     if c not in ds and c.rsplit("__", 1)[0] not in ds]
         print("消融：排除 %s，剩 %d 列" % (drop, len(feats_all)), flush=True)
     feats = FS.run(df[df["date"] < V.TRAIN_END], feats_all, y="y_up")["keep"]
     import daily as D
