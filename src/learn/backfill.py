@@ -371,6 +371,21 @@ def to_features(d: pd.DataFrame, sector: dict[str, str],
     # 算好了，这里不再自己判一次 ST：两份实现会漂。
     d["limit_pct"] = d["lim"].astype(float)
     d["gap_norm"] = d["gap_pct"] / d["limit_pct"]
+
+    # 涨跌停是**取整到分的价格**，不是百分比：涨停价 = round(昨收 × (1+幅度), 2)。
+    # 低价股四舍五入会让实际高开幅度略微超过名义幅度（3.27 -> 3.60 是 +10.09%，
+    # 而它就是涨停价）。2026-09-16 实测：1463 行「超过涨跌停幅度」里 1279 行
+    # 恰好等于涨停价、171 行等于跌停价，只有 13 行是真的除权没判出来
+    # （例 300857 从 304.57 撮合到 219.96，−27.8% 在 20cm 板上不可能）。
+    # 所以：按价格比，落在涨跌停价上的放行；仍然越界的按除权日丢掉。
+    up = np.round(pc * (1 + d["limit_pct"] / 100) + 1e-9, 2)
+    dn = np.round(pc * (1 - d["limit_pct"] / 100) + 1e-9, 2)
+    p = d["auc_price"]
+    over = (pc > 0) & (p > up + 0.005) | (pc > 0) & (p < dn - 0.005)
+    n_over = int(over.sum())
+    if n_over:
+        log.info("撮合价越过涨跌停价 %d 行（除权日没判出来），整行丢掉", n_over)
+        d.loc[over, ["prev_close", "gap_pct", "gap_norm", "auc_ratio"]] = np.nan
     d["auc_ratio"] = np.where(d["prev_amount"] > 0,
                               d["auc_amount"] / d["prev_amount"], np.nan)
 
@@ -512,9 +527,17 @@ def merge_cauc(d: pd.DataFrame, cauc: pd.DataFrame | None) -> pd.DataFrame:
 
 def check_table(res: pd.DataFrame) -> None:
     """落盘前的硬不变量。三条都真的红过，红了宁可不出表（教训 16/26）。"""
-    bad = int((res["gap_pct"].abs() > res["limit_pct"] + 1e-6).sum())
+    # 按**价格**比，不按百分比：涨跌停价是取整到分的，低价股涨停时名义幅度
+    # 会略超（3.27 -> 3.60 = +10.09%，它就是涨停价）。按百分比判会把 1279 行
+    # 正常的涨停撮合当成除权没剔干净（2026-09-16 实测）。
+    pc = res["prev_close"]
+    up = np.round(pc * (1 + res["limit_pct"] / 100) + 1e-9, 2)
+    dn = np.round(pc * (1 - res["limit_pct"] / 100) + 1e-9, 2)
+    ok = pc > 0
+    bad = int((ok & ((res["auc_price"] > up + 0.005)
+                     | (res["auc_price"] < dn - 0.005))).sum())
     if bad:
-        raise ValueError(f"{bad} 行高开幅度超过涨跌停幅度，多半是除权日没剔干净")
+        raise ValueError(f"{bad} 行撮合价越过涨跌停价，除权日没剔干净")
     if not bool((res["slope"] == 0).all()) or bool(res["monotonic"].any()):
         raise ValueError("回填表里出现非零 slope / monotonic=True，"
                          "说明撮合之后的价格又混进了竞价轨迹")

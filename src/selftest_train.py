@@ -689,13 +689,20 @@ def check_dataset_coverage() -> None:
 
 def check_table_guard() -> None:
     print("\n落盘前的硬不变量")
-    base = pd.DataFrame({"gap_pct": [3.0, -2.0], "limit_pct": [10.0, 10.0],
-                         "slope": [0.0, 0.0], "monotonic": [False, False]})
+    # 涨跌停按**价格**判：3.27 的涨停价是 3.60（四舍五入到分），名义幅度
+    # +10.09% 超过 10%，但它就是涨停价，必须放行。2026-09-16 实测全表 1463 行
+    # 「超过涨跌停幅度」里 1450 行是这种，只有 13 行是真除权。
+    base = pd.DataFrame({"gap_pct": [3.0, -2.0, 10.09], "limit_pct": [10.0, 10.0, 10.0],
+                         "prev_close": [10.0, 10.0, 3.27],
+                         "auc_price": [10.3, 9.8, 3.60],
+                         "slope": [0.0, 0.0, 0.0],
+                         "monotonic": [False, False, False]})
     BF.check_table(base)
-    ck(True, "干净的表通过")
-    for name, patch in (("高开超过涨跌停幅度", {"gap_pct": [66.0, -2.0]}),
-                        ("非零 slope", {"slope": [0.3, 0.0]}),
-                        ("monotonic=True", {"monotonic": [True, False]})):
+    ck(True, "干净的表通过（含一行低价股涨停：名义 +10.09% 但正好是涨停价）")
+    for name, patch in (("撮合价越过涨停价", {"auc_price": [12.0, 9.8, 3.60]}),
+                        ("撮合价越过跌停价", {"auc_price": [10.3, 7.0, 3.60]}),
+                        ("非零 slope", {"slope": [0.3, 0.0, 0.0]}),
+                        ("monotonic=True", {"monotonic": [True, False, False]})):
         bad = base.copy()
         for k, v in patch.items():
             bad[k] = v
