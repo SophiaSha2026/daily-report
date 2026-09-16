@@ -173,6 +173,56 @@ def _breakdowns(picks: list[dict]) -> dict:
     return out
 
 
+BOARD_FILE = ROOT / "out_breakout" / "board_hit.json"
+
+
+def validation_by_board(refresh: bool = False) -> dict:
+    """验证集里生产口径名额按板块的命中率。邮件的期望要按本份清单的板块构成加权。
+
+    2026-09-16 会诊查出来的：验证集（逐月滚动 207 个交易日）里科创板名额命中
+    只有 2.7%（n=150，和随便买的 2.93% 一个水平），主板 16.5%（n=520），
+    北交 8.0%（n=113），创业板一个名额都没有。而生产清单里科创占六成，
+    邮件印的 12.6% 是整体平均，对当前这种构成高估了近一倍。
+
+    源数据是逐月滚动测试缓存 data/breakout/raw/wf_scores.parquet，和
+    window_grid.json / export.STREAK_PERF 同一份，所以两边永远对得上。
+    结果缓存到 out_breakout/board_hit.json，没有缓存也没有源数据就返回空表。
+    """
+    import json as _j
+    cache = BOARD_FILE
+    src = ROOT / "data" / "breakout" / "raw" / "wf_scores.parquet"
+    if not refresh and cache.exists():
+        if not src.exists() or cache.stat().st_mtime >= src.stat().st_mtime:
+            try:
+                return _j.loads(cache.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                pass
+    if not src.exists():
+        return {}
+    try:
+        import daily as D
+        import features as F
+        d = pd.read_parquet(src)
+        ok = d[(d["score"] >= D.SCORE_MIN) & (d["rank"] <= D.CAP_A)].copy()
+        ok = ok[np.isfinite(ok["y_up"])]
+        if not len(ok):
+            return {}
+        ok["board"] = ok["code"].map(F.board_of)
+        out = {"overall": {"n": int(len(ok)), "hit": float(ok["y_up"].mean())},
+               "boards": {}}
+        for b, g in ok.groupby("board"):
+            k, n = int(g["y_up"].sum()), int(len(g))
+            lo, hi = wilson(k, n)
+            out["boards"][str(b)] = {"n": n, "hits": k, "hit": k / n,
+                                     "ci_lo": lo, "ci_hi": hi}
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(_j.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+        return out
+    except Exception as e:  # noqa: BLE001
+        log.warning("按板块命中率算不出来: %s", e)
+        return {}
+
+
 def save(res: dict) -> Path:
     STATE.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(res, ensure_ascii=False, indent=1),
