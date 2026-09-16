@@ -99,6 +99,11 @@ def morning(c: dict, n_days: int = 0) -> dict:
         top = ok.nlargest(top_k, "sc")
         ic = spearman(ok["sc"].to_numpy(), ok["ytil"].to_numpy()) \
             if len(ok) > 5 else float("nan")
+        # 排序增益 = 前 10 的超额 − 过准入全部的超额。它把「准入选得好不好」和
+        # 「排序排得好不好」分开：过准入的票不够 top_k 只时，前 10 就是全部，
+        # 排序根本没起作用，那天的排序增益恒为 0，必须排除而不是当成 0 参与平均。
+        rank_ok = len(ok) > top_k
+        gain = (100 * (top["y"].mean() - ok["y"].mean())) if rank_ok else None
         daily.append({
             "date": d, "pool": int(len(g)), "admitted": int(len(ok)),
             "market_median_pct": _f(100 * g["day_center"].iloc[0], 2),
@@ -106,6 +111,8 @@ def morning(c: dict, n_days: int = 0) -> dict:
             "top_hits": int((top["y"] > 0).sum()), "top_n": int(len(top)),
             "top_mean_score": _f(top["sc"].mean(), 1),
             "admitted_excess_pct": _f(100 * ok["y"].mean(), 3),
+            "rank_gain_pct": _f(gain, 3),
+            "rank_evaluable": bool(rank_ok),
             "ic": _f(ic, 3),
             "regime": regimes.get(d, ""),
         })
@@ -123,12 +130,26 @@ def morning(c: dict, n_days: int = 0) -> dict:
     ok = df[~df["rej"]].copy()
     ok["y_pct"] = 100 * ok["y"]
 
+    def _clustered_se(g) -> tuple[float, int]:
+        """按天聚类的标准误：先按天求均值，再对天求标准误。
+
+        同一天的票一起涨一起跌（当天的板块和大盘是共同因子），按票数算 se
+        会把 17 天的数据当成几百个独立观测，什么切片都能「显著」。
+        """
+        per_day = g.groupby("date")["y_pct"].mean()
+        nd = int(per_day.notna().sum())
+        if nd < 2:
+            return float("nan"), nd
+        return float(per_day.std(ddof=1) / math.sqrt(nd)), nd
+
     def bucket(series, bins, labels):
         cut = pd.cut(series, bins, right=False, labels=labels)
         rows = []
         for k, g in ok.groupby(cut, observed=True):
+            se, nd = _clustered_se(g)
             rows.append({"bucket": str(k), "n": int(len(g)),
                          "excess_pct": _f(g["y_pct"].mean(), 3),
+                         "se_day_clustered": _f(se, 3), "n_days": nd,
                          "hit_rate": _f((g["y"] > 0).mean(), 3)})
         return rows
 
@@ -154,10 +175,17 @@ def morning(c: dict, n_days: int = 0) -> dict:
             hi_m, lo_m = (rk > 2 * n_ / 3).to_numpy(), (rk <= n_ / 3).to_numpy()
             tie = float((v.value_counts(normalize=True).iloc[0]) if n_ else 0)
             a, b = ok["y_pct"][hi_m].mean(), ok["y_pct"][lo_m].mean()
+            # 差值的按天聚类标准误：每天算一次「高三分之一 − 低三分之一」，再对天求 se
+            per_day = (ok[hi_m].groupby("date")["y_pct"].mean()
+                       - ok[lo_m].groupby("date")["y_pct"].mean()).dropna()
+            se = (float(per_day.std(ddof=1) / math.sqrt(len(per_day)))
+                  if len(per_day) > 1 else float("nan"))
             dims.append({"dim": k, "weight": w.get(k),
                          "high_third_excess_pct": _f(a, 3),
                          "low_third_excess_pct": _f(b, 3),
                          "spread_pct": _f(a - b, 3),
+                         "spread_se_day_clustered": _f(se, 3),
+                         "spread_n_days": int(len(per_day)),
                          "n_high": int(hi_m.sum()), "n_low": int(lo_m.sum()),
                          "top_value_share": _f(tie, 3),
                          "evaluable": tie < 0.5})
@@ -198,6 +226,8 @@ def morning(c: dict, n_days: int = 0) -> dict:
     by["rejected_by_reason"] = by_reason[:14]
     dl = [x for x in daily if x["top_excess_pct"] is not None]
     te = np.array([x["top_excess_pct"] for x in dl], float)
+    rg = np.array([x["rank_gain_pct"] for x in daily
+                   if x["rank_evaluable"] and x["rank_gain_pct"] is not None], float)
     out.update({
         "days": len(daily),
         "first": days[0], "last": days[-1],
@@ -206,6 +236,13 @@ def morning(c: dict, n_days: int = 0) -> dict:
             "top_excess_mean_pct": _f(te.mean(), 3) if len(te) else None,
             "top_excess_se_pct": _f(te.std(ddof=1) / math.sqrt(len(te)), 3) if len(te) > 1 else None,
             "top_win_days": int((te > 0).sum()), "n_days": int(len(te)),
+            # 排序增益：噪声比前 10 超额小得多，是在线上最快能判出排序好坏的指标
+            "rank_gain_mean_pct": _f(rg.mean(), 3) if len(rg) else None,
+            "rank_gain_se_pct": _f(rg.std(ddof=1) / math.sqrt(len(rg)), 3) if len(rg) > 1 else None,
+            "rank_gain_days": int(len(rg)),
+            "rank_gain_win_days": int((rg > 0).sum()) if len(rg) else 0,
+            "days_to_detect_0p5": (int(np.ceil((2.8 * rg.std(ddof=1) / 0.5) ** 2))
+                                   if len(rg) > 1 and rg.std(ddof=1) > 0 else None),
             "admitted_excess_mean_pct": _f(ok["y_pct"].mean(), 3),
             "rejected_excess_mean_pct": _f(100 * rj["y"].mean(), 3),
             "n_admitted": int(len(ok)), "n_rejected": int(len(rj)),
@@ -219,6 +256,11 @@ def morning(c: dict, n_days: int = 0) -> dict:
             "y": "开盘买收盘卖的收益，减去当日全池中位数，按 q1/q99 缩尾（单位：%）",
             "ytil": "y 再除以当日 MAD，跨天可比",
             "top_excess_pct": "分数前 10（过准入）的 y 均值",
+            "rank_gain_pct": "前 10 的 y 均值 − 过准入全部的 y 均值。过准入不足 10 只的天为 null"
+                             "（那天前 10 就是全部，排序没起作用）",
+            "se_day_clustered": "按天聚类的标准误：先按天求均值再对天求 se。同一天的票不独立，"
+                                "按票数算的 se 会虚高",
+            "days_to_detect_0p5": "以 80% 把握分辨 ±0.5 个百分点/天的排序增益，还需要多少个真值日",
             "ic": "当日 Spearman(分数, ytil)，只算过准入的票",
             "groups": "A 组 = 昨日涨停 / 连板 / 突破平台（接力、强势）；B 组 = 60 日位置 <= "
                       f"{c['screen'].get('pos_pct_60d_max_for_lowbase')}（低位首板预备）；其余归 A",

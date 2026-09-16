@@ -1,6 +1,6 @@
 {
  "date": "2026-09-16",
- "generated_at": "2026-09-16T13:54:10",
+ "generated_at": "2026-09-16T14:58:59",
  "morning": {
   "days": 17,
   "note": "",
@@ -17,6 +17,8 @@
     "top_n": 10,
     "top_mean_score": 59.4,
     "admitted_excess_pct": 0.57,
+    "rank_gain_pct": 0.313,
+    "rank_evaluable": true,
     "ic": 0.025,
     "regime": ""
    },
@@ -30,6 +32,8 @@
     "top_n": 8,
     "top_mean_score": 57.1,
     "admitted_excess_pct": 4.014,
+    "rank_gain_pct": null,
+    "rank_evaluable": false,
     "ic": -0.452,
     "regime": ""
    },
@@ -43,6 +47,8 @@
     "top_n": 10,
     "top_mean_score": 63.5,
     "admitted_excess_pct": -0.202,
+    "rank_gain_pct": -0.76,
+    "rank_evaluable": true,
     "ic": -0.165,
     "regime": ""
    },
@@ -56,6 +62,8 @@
     "top_n": 10,
     "top_mean_score": 69.7,
     "admitted_excess_pct": 1.538,
+    "rank_gain_pct": -0.347,
+    "rank_evaluable": true,
     "ic": -0.0,
     "regime": ""
    },
@@ -69,6 +77,8 @@
     "top_n": 10,
     "top_mean_score": 63.4,
     "admitted_excess_pct": -1.049,
+    "rank_gain_pct": -0.885,
+    "rank_evaluable": true,
     "ic": -0.211,
     "regime": ""
    },
@@ -82,6 +92,8 @@
     "top_n": 10,
     "top_mean_score": 69.0,
     "admitted_excess_pct": -2.871,
+    "rank_gain_pct": -0.379,
+    "rank_evaluable": true,
     "ic": 0.062,
     "regime": ""
    },
@@ -95,6 +107,8 @@
     "top_n": 10,
     "top_mean_score": 61.6,
     "admitted_excess_pct": -2.326,
+    "rank_gain_pct": -0.284,
+    "rank_evaluable": true,
     "ic": -0.121,
     "regime": "板块轮动"
    },
@@ -108,6 +122,8 @@
     "top_n": 10,
     "top_mean_score": 69.0,
     "admitted_excess_pct": 0.36,
+    "rank_gain_pct": -0.689,
+    "rank_evaluable": true,
     "ic": -0.165,
     "regime": ""
    },
@@ -121,6 +137,8 @@
     "top_n": 10,
     "top_mean_score": 65.2,
     "admitted_excess_pct": -0.668,
+    "rank_gain_pct": 1.038,
+    "rank_evaluable": true,
     "ic": 0.189,
     "regime": ""
    },
@@ -134,6 +152,8 @@
     "top_n": 10,
     "top_mean_score": 73.6,
     "admitted_excess_pct": 2.111,
+    "rank_gain_pct": 0.346,
+    "rank_evaluable": true,
     "ic": 0.061,
     "regime": ""
    },
@@ -147,6 +167,8 @@
     "top_n": 10,
     "top_mean_score": 65.2,
     "admitted_excess_pct": -0.647,
+    "rank_gain_pct": 0.99,
+    "rank_evaluable": true,
     "ic": 0.049,
     "regime": ""
    },
@@ -160,6 +182,8 @@
     "top_n": 10,
     "top_mean_score": 68.0,
     "admitted_excess_pct": -0.589,
+    "rank_gain_pct": -0.163,
+    "rank_evaluable": true,
     "ic": 0.093,
     "regime": ""
    },
@@ -173,6 +197,8 @@
     "top_n": 10,
     "top_mean_score": 56.4,
     "admitted_excess_pct": -2.229,
+    "rank_gain_pct": 0.507,
+    "rank_evaluable": true,
     "ic": 0.107,
     "regime": ""
    },
@@ -186,6 +212,8 @@
     "top_n": 10,
     "top_mean_score": 50.0,
     "admitted_excess_pct": -5.826,
+    "rank_gain_pct": null,
+    "rank_evaluable": false,
     "ic": 0.35,
     "regime": ""
    },
@@ -199,6 +227,8 @@
     "top_n": 10,
     "top_mean_score": 49.3,
     "admitted_excess_pct": -0.055,
+    "rank_gain_pct": -1.366,
+    "rank_evaluable": true,
     "ic": -0.266,
     "regime": "板块轮动"
    },
@@ -212,6 +242,8 @@
     "top_n": 10,
     "top_mean_score": 63.1,
     "admitted_excess_pct": 0.579,
+    "rank_gain_pct": -2.121,
+    "rank_evaluable": true,
     "ic": -0.475,
     "regime": "正常"
    },
@@ -225,6 +257,8 @@
     "top_n": 10,
     "top_mean_score": 51.1,
     "admitted_excess_pct": 0.91,
+    "rank_gain_pct": -1.386,
+    "rank_evaluable": true,
     "ic": -0.364,
     "regime": "正常"
    }
@@ -234,6 +268,11 @@
    "top_excess_se_pct": 0.546,
    "top_win_days": 6,
    "n_days": 17,
+   "rank_gain_mean_pct": -0.346,
+   "rank_gain_se_pct": 0.231,
+   "rank_gain_days": 15,
+   "rank_gain_win_days": 5,
+   "days_to_detect_0p5": 26,
    "admitted_excess_mean_pct": -0.165,
    "rejected_excess_mean_pct": 0.37,
    "n_admitted": 451,
@@ -246,30 +285,40 @@
      "bucket": "<40",
      "n": 121,
      "excess_pct": 0.212,
+     "se_day_clustered": 0.84,
+     "n_days": 17,
      "hit_rate": 0.463
     },
     {
      "bucket": "40-50",
      "n": 98,
      "excess_pct": -0.036,
+     "se_day_clustered": 0.779,
+     "n_days": 16,
      "hit_rate": 0.429
     },
     {
      "bucket": "50-60",
      "n": 122,
      "excess_pct": -0.582,
+     "se_day_clustered": 0.575,
+     "n_days": 17,
      "hit_rate": 0.451
     },
     {
      "bucket": "60-70",
      "n": 71,
      "excess_pct": -0.017,
+     "se_day_clustered": 0.81,
+     "n_days": 14,
      "hit_rate": 0.521
     },
     {
      "bucket": "70+",
      "n": 39,
      "excess_pct": -0.626,
+     "se_day_clustered": 1.159,
+     "n_days": 14,
      "hit_rate": 0.385
     }
    ],
@@ -278,18 +327,24 @@
      "bucket": "2-3",
      "n": 242,
      "excess_pct": -0.116,
+     "se_day_clustered": 0.517,
+     "n_days": 17,
      "hit_rate": 0.45
     },
     {
      "bucket": "3-4",
      "n": 134,
      "excess_pct": 0.093,
+     "se_day_clustered": 0.679,
+     "n_days": 17,
      "hit_rate": 0.485
     },
     {
      "bucket": "4-5",
      "n": 75,
      "excess_pct": -0.784,
+     "se_day_clustered": 0.888,
+     "n_days": 17,
      "hit_rate": 0.413
     }
    ],
@@ -298,18 +353,24 @@
      "bucket": "2.5-4",
      "n": 185,
      "excess_pct": 0.189,
+     "se_day_clustered": 0.776,
+     "n_days": 16,
      "hit_rate": 0.492
     },
     {
      "bucket": "4-7",
      "n": 168,
      "excess_pct": -0.505,
+     "se_day_clustered": 0.471,
+     "n_days": 16,
      "hit_rate": 0.399
     },
     {
      "bucket": "7-10",
      "n": 61,
      "excess_pct": -0.75,
+     "se_day_clustered": 0.797,
+     "n_days": 16,
      "hit_rate": 0.443
     }
    ],
@@ -361,6 +422,12 @@
      "n": 2,
      "excess_pct": 0.378,
      "hit_rate": 0.5
+    },
+    {
+     "reason": "其他/无原因",
+     "n": 444,
+     "excess_pct": 0.044,
+     "hit_rate": 0.448
     }
    ]
   },
@@ -368,56 +435,80 @@
    {
     "dim": "gap",
     "weight": 0.2,
-    "high_third_excess_pct": 0.177,
-    "low_third_excess_pct": -0.227,
-    "spread_pct": 0.403,
-    "n_high": 153,
-    "n_low": 151
+    "high_third_excess_pct": 0.138,
+    "low_third_excess_pct": -0.314,
+    "spread_pct": 0.451,
+    "spread_se_day_clustered": 0.716,
+    "spread_n_days": 17,
+    "n_high": 151,
+    "n_low": 150,
+    "top_value_share": 0.02,
+    "evaluable": true
    },
    {
     "dim": "volume",
     "weight": 0.25,
     "high_third_excess_pct": -0.477,
-    "low_third_excess_pct": 0.445,
-    "spread_pct": -0.922,
+    "low_third_excess_pct": 0.436,
+    "spread_pct": -0.913,
+    "spread_se_day_clustered": 0.613,
+    "spread_n_days": 17,
     "n_high": 151,
-    "n_low": 151
+    "n_low": 150,
+    "top_value_share": 0.007,
+    "evaluable": true
    },
    {
     "dim": "trend",
     "weight": 0.2,
     "high_third_excess_pct": 0.282,
-    "low_third_excess_pct": -0.394,
-    "spread_pct": 0.676,
+    "low_third_excess_pct": -0.386,
+    "spread_pct": 0.668,
+    "spread_se_day_clustered": 0.605,
+    "spread_n_days": 17,
     "n_high": 151,
-    "n_low": 152
+    "n_low": 150,
+    "top_value_share": 0.22,
+    "evaluable": true
    },
    {
     "dim": "position",
     "weight": 0.15,
-    "high_third_excess_pct": -0.431,
-    "low_third_excess_pct": 0.013,
-    "spread_pct": -0.444,
-    "n_high": 221,
-    "n_low": 191
+    "high_third_excess_pct": -0.702,
+    "low_third_excess_pct": -0.208,
+    "spread_pct": -0.493,
+    "spread_se_day_clustered": 0.472,
+    "spread_n_days": 16,
+    "n_high": 151,
+    "n_low": 150,
+    "top_value_share": 0.222,
+    "evaluable": true
    },
    {
     "dim": "sector",
     "weight": 0.15,
-    "high_third_excess_pct": -0.281,
-    "low_third_excess_pct": 0.002,
-    "spread_pct": -0.283,
-    "n_high": 169,
-    "n_low": 175
+    "high_third_excess_pct": -0.188,
+    "low_third_excess_pct": -0.232,
+    "spread_pct": 0.044,
+    "spread_se_day_clustered": 1.219,
+    "spread_n_days": 12,
+    "n_high": 151,
+    "n_low": 150,
+    "top_value_share": 0.388,
+    "evaluable": true
    },
    {
     "dim": "continuity",
     "weight": 0.05,
-    "high_third_excess_pct": -0.165,
-    "low_third_excess_pct": -0.054,
-    "spread_pct": -0.111,
-    "n_high": 451,
-    "n_low": 399
+    "high_third_excess_pct": -0.899,
+    "low_third_excess_pct": -0.04,
+    "spread_pct": -0.859,
+    "spread_se_day_clustered": 1.347,
+    "spread_n_days": 6,
+    "n_high": 151,
+    "n_low": 150,
+    "top_value_share": 0.885,
+    "evaluable": false
    }
   ],
   "groups": {
@@ -1533,6 +1624,9 @@
    "y": "开盘买收盘卖的收益，减去当日全池中位数，按 q1/q99 缩尾（单位：%）",
    "ytil": "y 再除以当日 MAD，跨天可比",
    "top_excess_pct": "分数前 10（过准入）的 y 均值",
+   "rank_gain_pct": "前 10 的 y 均值 − 过准入全部的 y 均值。过准入不足 10 只的天为 null（那天前 10 就是全部，排序没起作用）",
+   "se_day_clustered": "按天聚类的标准误：先按天求均值再对天求 se。同一天的票不独立，按票数算的 se 会虚高",
+   "days_to_detect_0p5": "以 80% 把握分辨 ±0.5 个百分点/天的排序增益，还需要多少个真值日",
    "ic": "当日 Spearman(分数, ytil)，只算过准入的票",
    "groups": "A 组 = 昨日涨停 / 连板 / 突破平台（接力、强势）；B 组 = 60 日位置 <= 0.4（低位首板预备）；其余归 A",
    "rejected_by_reason": "被硬剔除的票按原因分组的 y（只有「涨幅区间外」「量比区间外」才是准入差一点的近邻，其余是风险剔除）"
