@@ -1,88 +1,84 @@
 {
- "date": "2026-09-15",
+ "date": "2026-09-16",
  "rows": [
   {
-   "code": "300311",
-   "name": "任子行",
-   "gap_pct": 2.85,
-   "liangbi": 6.3,
-   "sscore": 0.339
+   "code": "003006",
+   "name": "百亚股份",
+   "gap_pct": 2.81,
+   "liangbi": 3.4,
+   "sscore": 0.111
   },
   {
-   "code": "002855",
-   "name": "捷荣技术",
-   "gap_pct": 3.15,
-   "liangbi": 4.6,
-   "sscore": 0.304
+   "code": "601208",
+   "name": "东材科技",
+   "gap_pct": 3.52,
+   "liangbi": 3.7,
+   "sscore": 0.105
   },
   {
-   "code": "603232",
-   "name": "格尔软件",
-   "gap_pct": 4.34,
-   "liangbi": 4.8,
-   "sscore": 0.27
+   "code": "688499",
+   "name": "利元亨",
+   "gap_pct": 4.16,
+   "liangbi": 8.0,
+   "sscore": 0.045
   },
   {
-   "code": "600397",
-   "name": "江钨装备",
-   "gap_pct": 2.91,
-   "liangbi": 5.0,
-   "sscore": 0.268
-  },
-  {
-   "code": "300499",
-   "name": "高澜股份",
-   "gap_pct": 2.62,
-   "liangbi": 2.6,
-   "sscore": 0.253
-  },
-  {
-   "code": "300568",
-   "name": "星源材质",
-   "gap_pct": 4.37,
+   "code": "002084",
+   "name": "海鸥住工",
+   "gap_pct": 3.31,
    "liangbi": 3.9,
-   "sscore": 0.243
+   "sscore": 0.024
   },
   {
-   "code": "600549",
-   "name": "厦门钨业",
-   "gap_pct": 2.0,
-   "liangbi": 4.1,
-   "sscore": 0.239
+   "code": "003026",
+   "name": "中晶科技",
+   "gap_pct": 3.89,
+   "liangbi": 8.0,
+   "sscore": 0.019
   },
   {
-   "code": "000657",
-   "name": "中钨高新",
-   "gap_pct": 2.38,
-   "liangbi": 5.0,
-   "sscore": 0.218
+   "code": "601919",
+   "name": "中远海控",
+   "gap_pct": 2.07,
+   "liangbi": 9.7,
+   "sscore": 0.014
   },
   {
-   "code": "002487",
-   "name": "大金重工",
-   "gap_pct": 2.65,
+   "code": "300829",
+   "name": "金丹科技",
+   "gap_pct": 2.96,
+   "liangbi": 3.8,
+   "sscore": 0.012
+  },
+  {
+   "code": "002753",
+   "name": "永东股份",
+   "gap_pct": 4.72,
+   "liangbi": 8.9,
+   "sscore": 0.002
+  },
+  {
+   "code": "300313",
+   "name": "天山生物",
+   "gap_pct": 2.9,
    "liangbi": 3.1,
-   "sscore": 0.214
+   "sscore": -0.003
   },
   {
-   "code": "688030",
-   "name": "山石网科",
-   "gap_pct": 2.64,
-   "liangbi": 4.3,
-   "sscore": 0.208
+   "code": "301520",
+   "name": "万邦医药",
+   "gap_pct": 3.24,
+   "liangbi": 5.2,
+   "sscore": -0.03
   }
  ],
- "overlap": 4,
+ "overlap": 6,
  "base_top": [
-  "688225",
-  "300311",
-  "002439",
-  "688651",
-  "600228",
-  "001896",
-  "603232",
-  "600397",
-  "688030",
-  "300017"
+  "003026",
+  "688499",
+  "300829",
+  "002753",
+  "601208",
+  "301520"
  ]
 }
