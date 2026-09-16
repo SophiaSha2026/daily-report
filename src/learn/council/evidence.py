@@ -365,7 +365,13 @@ def breakout() -> dict:
     T.save(res)
     exp = {"streak_perf": [{"streak_ge": k, "hit_pct": h, "lift": l, "n": n}
                            for k, h, l, n in E.STREAK_PERF],
-           "base_pct": E.BASE, "score_table": E.SCORE_TABLE,
+           "base_pct": E.BASE,
+           # 分数分档直接读实验产物：export.SCORE_TABLE 这个常量 2026-09-16
+           # 审计时删掉了（定义了从没渲染过，属于死常量），别再从那边拿
+           "score_bins": _json(ROOT / "out_breakout" / "score_calibration.json").get("bins"),
+           "cap_perf": {"full_cap": E.CAP_PERF, "not_full": getattr(E, "NONCAP_PERF", None),
+                        "note": "满员日（够格超过上限、被截断）vs 门槛卡得住的日子，"
+                                "格式 (准确率%, 名额数, 天数)"},
            "window": E.PERF.get("window")}
     lists = []
     for L in res["lists"]:
