@@ -180,12 +180,14 @@ tools/panel.cmd/.ps1     旧的 PowerShell TUI，保留作没有浏览器时的�
 ## 改动前必须跑
 
 ```bash
-python src/selftest.py            # 竞价：18 个打分用例（每条准入/剔除规则各一条）+ 9 条曲线形状 + 9 条规则不变量 + 候选池/次新/日线单位/交易日历/产物渲染 + 1000 压力样本
+python src/selftest.py            # 竞价：18 个打分用例（每条准入/剔除规则各一条）+ 17 组不变量
+                                  #   （曲线形状 9 条、规则 9 条、候选池、次新剔除、日线单位、
+                                  #    交易日历、代码表、产物渲染、孪生体、退出码…）+ 1000 压力样本
 python src/selftest_train.py      # 训练表口径：撮合价哨兵、轨迹、候选池、ST、除权、一字板、标签、可学维度（19 组，2026-09-16 加）
 python src/selftest_pullback.py   # 形态：13 条形态判定 + 打分单调性 + 工具函数
 python src/selftest_learn.py      # 学习：32 组，含向量化打分器等价性、闸门接线 AST、邮件接线、会诊
-python src/selftest_gui.py        # 控制台：26 组，按钮接线、流程表一致性、开跑窗口、两道防护
-python src/selftest_breakout.py   # 爆发线：43 组，筹码六项一致性、标签、前视偏差、横截面百分位、选票规则
+python src/selftest_gui.py        # 控制台：29 组，按钮接线、流程表一致性、开跑窗口、两道防护
+python src/selftest_breakout.py   # 爆发线：53 组，筹码六项一致性、标签、前视偏差、横截面百分位、选票规则
 python -m pyflakes src tools      # 静态检查，必须零输出（pip install pyflakes）
 ```
 
