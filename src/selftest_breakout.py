@@ -1000,7 +1000,18 @@ def check_pick_rule() -> None:
     sel = V.pick(day, p, q, score_min=0, cap=10)
     ck(sel["code"].iloc[0] == "600000",
        "板块系数真的参与排序：创业板原始分最高，校正后主板第一")
-    sel = V.pick(day, p, q)          # 生产门槛
+    # 门槛这条要和板块系数的**具体取值**解耦：以前这里写死 p=0.800 的科创票
+    # 应该上榜，那是 star=1.27 时才成立的（0.8×1.27 过线）；2026-09-16 会诊把
+    # star 改成 1.0 之后，这条断言红了，而规则本身一个字都没变。
+    # 现在按当前系数反推「刚好过线 / 刚好不过线」，测的才是规则。
+    adj = {b: float(D.BOARD_ADJ.get(b, 1.0))
+           for b in ("chinext", "main", "star", "bj")}
+    need = q[D.SCORE_MIN]            # 过线要的最小校正后预测值
+    p2 = np.array([need * 0.5 / adj["chinext"],    # 差得远
+                   need * 1.02 / adj["main"],      # 刚好过
+                   need * 1.01 / adj["star"],      # 刚好过
+                   need * 0.9 / adj["bj"]])        # 差一点
+    sel = V.pick(day, p2, q)         # 生产门槛
     ck(len(sel) == 2 and set(sel["code"]) == {"600000", "688001"},
        f"≥{D.SCORE_MIN} 分才上（选中 {sel['code'].tolist()}）")
     ck(len(V.pick(day, p * 0.01, q)) == 0, "全场不够格时清单为空，不凑数")
@@ -1218,8 +1229,8 @@ def check_risk_scope() -> None:
     html = E._body("2026-09-16", a, b, {}, False)
     ck(f"{E.CAP_PERF[0]:.1f}%" in html and f"{E.CAP_PERF[1]} 个名额" in html,
        f"邮件里印了满员日的准确率 {E.CAP_PERF[0]:.1f}%（{E.CAP_PERF[1]} 个名额）")
-    ck(E.CAP_PERF[0] < E.STREAK_PERF[4][1],
-       f"满员日 {E.CAP_PERF[0]}% 低于全部上榜的 {E.STREAK_PERF[4][1]}%")
+    ck(E.CAP_PERF[0] < E.perf_row(1)[1],
+       f"满员日 {E.CAP_PERF[0]}% 低于全部上榜的 {E.perf_row(1)[1]}%")
     import json
     wg = ROOT / "out_breakout" / "window_grid.json"
     w5c = [r for r in (json.loads(wg.read_text(encoding="utf-8"))["grid"]
@@ -1523,10 +1534,10 @@ def check_table_shape() -> None:
                                        "rise": [1.0], "drop": [-1.0]}))
         ck(re.findall(r"<td>([\d.]+%)</td>", rowb)[0] == cell,
            f"连续 {need} 天：清单 B 行和清单 A 行印同一个字符串")
-    ck(f"{E.STREAK_PERF[4][2]:.1f} 倍" in E.DISCLAIMER
-       and f"{E.STREAK_PERF[4][1]:.1f}%" in E.DISCLAIMER,
+    ck(f"{E.perf_row(1)[2]:.1f} 倍" in E.DISCLAIMER
+       and f"{E.perf_row(1)[1]:.1f}%" in E.DISCLAIMER,
        "DISCLAIMER 的准确率和倍数与对照表同格式（.1f，不是「4 倍」）")
-    ck(f"{E.STREAK_PERF[4][1]}%" in html and f"{E.STREAK_PERF[2][1]}%" in html,
+    ck(f"{E.perf_row(1)[1]}%" in html and f"{E.perf_row(3)[1]}%" in html,
        "邮件里印的是 STREAK_PERF 里的数（首日 / 连续 3 天）")
 
     # 样本少的档次要有 95% 区间、而且灰掉
@@ -2705,10 +2716,10 @@ def check_expected_board() -> None:
         _, _, fb2 = E.expected_for(mk(["chinext"] * 5))
         ck(fb2, "验证集里没样本的板块（创业板）标成兜底")
         ck(E.expected_for(mk(["main"] * 3).drop(columns=["board"]))
-           == (E.STREAK_PERF[4][1], "", True),
+           == (E.perf_row(1)[1], "", True),
            "清单没有 board 列（老产物）时退回整体平均，不许崩")
         E.board_hit_table = lambda: {}
-        ck(E.expected_for(mk(["star"] * 10))[0] == E.STREAK_PERF[4][1],
+        ck(E.expected_for(mk(["star"] * 10))[0] == E.perf_row(1)[1],
            "整张表读不到时退回整体平均")
         E.board_hit_table = lambda: tbl
         html = E._body("2026-09-16", mk(["star"] * 6 + ["main"] * 4),
@@ -2736,6 +2747,63 @@ def check_expected_board() -> None:
                - real["overall"]["n"]) == 0, "各板块名额加起来等于总数")
     else:
         ck(True, "没有 board_hit.json / window_grid.json，跳过同源核对")
+
+
+
+def check_board_shrink() -> None:
+    """板块系数的经验贝叶斯收缩（board_adj.py）的三条性质。"""
+    print("\n[板块系数·收缩估计]")
+    import board_adj as BA
+    # 1. 板块之间看不出真实差异 -> tau2=0 -> 因子全是 1（自动退化成不校正）
+    same = {"main": (50, 500), "star": (20, 200), "bj": (5, 50)}
+    f = BA.shrink_factors(same)
+    ck(all(abs(v - 1.0) < 1e-9 for v in f.values()) and len(f) == 3,
+       f"命中率相同时因子全为 1（拿到 {f}）")
+    d = BA.diagnostics(same)
+    ck(abs(d["tau2"]) < 1e-12, f"命中率相同时 tau2=0（拿到 {d['tau2']:.2e}）")
+    # 2. 样本越小被信得越少。真实数字：main 75/466、star 14/211、bj 5/19
+    real = {"main": (75, 466), "star": (14, 211), "bj": (5, 19)}
+    d = BA.diagnostics(real)
+    w = {k: v["shrink_weight"] for k, v in d["boards"].items()}
+    ck(w["main"] > w["star"] > w["bj"],
+       f"样本大的被信得多：main {w['main']:.2f} > star {w['star']:.2f} > bj {w['bj']:.2f}")
+    # 北交所裸因子 1.95，收缩后必须明显往 1 靠
+    bj = d["boards"]["bj"]
+    ck(abs(bj["factor"] - 1.0) < abs(bj["raw_factor"] - 1.0) * 0.8,
+       f"小样本板块被拉回全市场：裸 {bj['raw_factor']:.2f} -> {bj['factor']:.2f}")
+    # 3. 因子恒在夹子里，且样本不够时什么都不给
+    for clamp in ((0.5, 1.5), (0.6, 1.4), (0.8, 1.25)):
+        f = BA.shrink_factors(real, clamp=clamp)
+        ck(all(clamp[0] - 1e-9 <= v <= clamp[1] + 1e-9 for v in f.values()),
+           f"因子都在夹子 {clamp} 内（{ {k: round(v, 2) for k, v in f.items()} }）")
+    ck(BA.shrink_factors({"main": (5, 30), "star": (2, 20)}) == {},
+       "总名额不够 MIN_TOTAL 时返回空（= 不校正）")
+    ck(BA.shrink_factors({"main": (75, 466)}) == {},
+       "只有一个板块时返回空（估不出板块间方差）")
+
+
+def check_rule_fingerprint() -> None:
+    """成绩表的失效保护必须看得见板块系数（2026-09-16 对齐检查 3/4/5）。"""
+    print("\n[成绩表·规则指纹含板块系数]")
+    import export as E
+    grid = dict(E.PERF_GRID)
+    try:
+        E.PERF_GRID.clear()
+        E.PERF_GRID.update({"board_adj": {"main": 1.19, "star": 1.27,
+                                          "bj": 0.9, "chinext": 0.59}})
+        same = {"score_min": E.PERF_RULE[0], "cap_a": E.PERF_RULE[1],
+                "board_adj": {"main": 1.19, "star": 1.27, "bj": 0.9, "chinext": 0.59}}
+        ck(E._same_rule(same), "同一条规则判 True")
+        diff = {**same, "board_adj": {**same["board_adj"], "star": 1.0}}
+        ck(not E._same_rule(diff),
+           "板块系数改了就判 False（star 1.27->1.0 换掉了近一半的榜）")
+        ck(not E._same_rule({**same, "cap_a": 5}), "上限改了仍然判 False")
+        # 老产物没有 board_adj 时退回只比 (分数线, 上限)
+        E.PERF_GRID.clear()
+        ck(E._same_rule(diff), "grid 里没有 board_adj 时退回老行为")
+    finally:
+        E.PERF_GRID.clear()
+        E.PERF_GRID.update(grid)
 
 
 def main() -> int:
@@ -2793,6 +2861,8 @@ def main() -> int:
     check_evening_decide()
     check_expected_board()
     check_panel_html()
+    check_board_shrink()
+    check_rule_fingerprint()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")

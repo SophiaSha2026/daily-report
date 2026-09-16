@@ -182,6 +182,83 @@ def _write_latest(obj: dict) -> None:
     LATEST.write_text(json.dumps(obj, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+def _n_settled() -> int:
+    """起涨清单里标签已经走满 20 根、能判对错的名额总数。
+
+    truth.json 的 lists 每份清单一行，final=True 表示那份清单的 20 根走完了。
+    真值一批到期是「该复盘了」的最强信号，所以它是加跑会诊的触发条件之一。
+    """
+    try:
+        d = json.loads((ROOT / "state" / "breakout" / "truth.json")
+                       .read_text(encoding="utf-8"))
+        return sum(int(r.get("n_final") or 0) for r in (d.get("lists") or []))
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _param_changed_since(day: str) -> str:
+    """day 之后参数有没有真的变过。变了就该问一次「变对了吗」。"""
+    out = []
+    for rel, what in ((Path("state") / "learned.yaml", "早盘参数"),
+                      (Path("state") / "breakout" / "overrides.json", "起涨常量")):
+        p = ROOT / rel
+        if not p.exists():
+            continue
+        try:
+            import datetime as _dt
+            # 会诊的日期是**北京交易日**，文件 mtime 是本机（美东）时间。
+            # 按本地日期比的话，美东下午改的参数在北京已经是第二天，
+            # 「参数变过」这个触发会整整漏掉一次（2026-09-16 18:24 ET
+            # 批准 BOARD_ADJ，北京是 09-17 06:24）。
+            mt = (_dt.datetime.utcfromtimestamp(p.stat().st_mtime)
+                  + _dt.timedelta(hours=8)).date().isoformat()
+            if mt > day:
+                out.append(f"{what}（{rel.as_posix()} {mt}）")
+        except Exception:  # noqa: BLE001
+            pass
+    return "、".join(out)
+
+
+def due(c: dict, date: str, auto: bool = True) -> tuple[bool, str]:
+    """这一轮该不该跑会诊。返回 (跑不跑, 原因)。
+
+    手动（控制台按钮、--stage council）一律跑：用户想问的时候不该被节奏挡住。
+    自动（学习线末尾）按 config 的 cadence_days 走，外加两个加跑触发：
+    参数真的变过、或者又有一批真值到期。一次六个视角加主审 20 美元，
+    每个交易日都跑约 440 美元/月，而 17 天样本里每天的增量信息很小。
+    """
+    if not auto:
+        return True, "手动触发"
+    k = cfg(c)
+    cad = int(k.get("cadence_days") or 0)
+    if cad <= 0:
+        return True, "没设节奏，每次都跑"
+    try:
+        last = json.loads(LATEST.read_text(encoding="utf-8")) if LATEST.exists() else {}
+    except Exception:  # noqa: BLE001
+        last = {}
+    lday = str(last.get("date") or "")
+    if not lday:
+        return True, "从来没跑过"
+    import datetime as _dt
+    try:
+        gap = (_dt.date.fromisoformat(date) - _dt.date.fromisoformat(lday)).days
+    except Exception:  # noqa: BLE001
+        return True, "上次的日期读不出来"
+    if gap >= cad:
+        return True, f"距上次会诊 {gap} 天（节奏 {cad} 天）"
+    if k.get("trigger_on_param_change", True):
+        ch = _param_changed_since(lday)
+        if ch:
+            return True, f"参数变过：{ch}"
+    need = int(k.get("trigger_new_truth") or 0)
+    if need > 0:
+        now, before = _n_settled(), int(last.get("n_settled") or 0)
+        if now - before >= need:
+            return True, f"又有 {now - before} 个名额的真值到期（触发线 {need}）"
+    return False, f"距上次会诊只有 {gap} 天，也没有触发条件（节奏 {cad} 天）"
+
+
 def run(c: dict, date: str, lenses: list[str] | None = None, skip_llm: bool = False,
         skip_experiments: bool = False, chair_only: bool = False) -> dict:
     """全流程。返回 summary（也写到 <date>/summary.json 和 latest.json）。
@@ -193,7 +270,9 @@ def run(c: dict, date: str, lenses: list[str] | None = None, skip_llm: bool = Fa
     day = STATE / date
     summary: dict = {"date": date, "ok": False, "started_at":
                      dt.datetime.now().isoformat(timespec="seconds"),
-                     "model": k["model"], "effort": k["effort"], "lenses": {}}
+                     "model": k["model"], "effort": k["effort"], "lenses": {},
+                     # 下一轮 due() 拿它比「又有多少真值到期」
+                     "n_settled": _n_settled()}
     from learn.council import agents as AG
     if chair_only:
         have = [ln for ln in S.LENSES if (day / f"{ln}.json").exists()]

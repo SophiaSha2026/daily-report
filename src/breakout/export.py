@@ -35,40 +35,85 @@ log = logging.getLogger("breakout.export")
 # 清单里最强的单一信号，所以准确率按连续天数分档报，不报一个笼统的平均值。
 #
 # 实验 9 之前的那组（18.0 / 25.7 / 31.3）里有股东人数按报告期对齐的偷看
-# （历史教训 25），修掉之后整体降了：首日 15.7%、连续 3 天 22.0%。
-# 基准从 3.55% 改成 2.93%：前者混进了 2023~2024 的训练月份，和验证集
-# 十个月的成绩不是同一段时间，倍数被压低了。
+# （历史教训 25），修掉之后整体降了。基准从 3.55% 改成 2.93%：前者混进了
+# 2023~2024 的训练月份，和验证集十个月的成绩不是同一段时间，倍数被压低了。
+#
+# 当前这一组是 2026-09-16 用户批准 BOARD_ADJ.star 1.27->1.0 之后重跑的
+# （tools/update_perf.py，产物 out_breakout/window_grid.json，board_adj
+# 一起落在里面）。改板块系数换的是**谁上榜**不是多少只：名额从 696 掉到 566，
+# 科创席位 211->37，162 个出榜日里 77 天两张榜不一样。所以批准这类覆盖之后
+# 必须重跑 exp_window 再跑 update_perf，_same_rule() 会盯着这件事，
+# 对不上时邮件自动打星号说「这是旧规则的成绩」。
+#
+# 连续天数这个信号已经三次重测一次比一次弱：实验 8 是 31.3% 对 18.0%，
+# 实验 10 修掉三处偷看后 14.3% 对 12.6%，口径修干净后（实验 12）9.8% 对 13.5%
+# 反了号，现在这一组 11.8% 对 15.0% 仍然是反的。清单还按它排（用户最初的
+# 要求，排序无害），但邮件里不给它任何正面说法。
 BASE = 2.93                       # 全市场基准：验证集 10 个月里随便买一只涨超 50% 的比例
 STREAK_PERF = [
     # 连续天数下限, 准确率%, 相对随便买的倍数, 样本数
-    (5, 4.5, 1.5, 22),
-    (4, 9.5, 3.2, 42),
-    (3, 9.8, 3.3, 82),
-    (2, 15.0, 5.1, 187),
-    (1, 13.5, 4.6, 696),
+    (4, 11.4, 3.9, 35),
+    (3, 11.8, 4.0, 68),
+    (2, 17.6, 6.0, 153),
+    (1, 15.0, 5.1, 566),
 ]
 PERF = {"base": BASE, "window": "验证集 207 个交易日"}
 # 上限主导的日子单独报一个数，它比总平均重要得多。
-# STREAK_PERF 里那 13.5% 是验证集**全部** 696 个名额的平均，而 162 个非空日里
-# 136 天是门槛在决定清单（够格不到 10 只），只有 26 天满员。
-# 2026-09-16 重建后从逐月滚动打分缓存（data/breakout/raw/wf_fixed.parquet，
-# STREAK_PERF 的同一份，已剔 ST）实算：
-#     满 10 只的 26 天、260 个名额  命中  7.69%
-#     没满的 136 天、436 个名额     命中 16.97%
+# STREAK_PERF 里那个整体命中率是验证集**全部**名额的平均，而大多数日子是
+# 门槛在决定清单（够格不到 10 只），只有少数天满员。两组数由
+# tools/update_perf.py 的 cap_split() 从 STREAK_PERF 的同一份缓存算，
+# 不再手填 —— 手填的话下次换规则时没人会想起来重算它（教训 34）。
+# 当前这一组（star=1.0）：
+#     满 10 只的 19 天、190 个名额  命中  8.4%
+#     没满的 126 天、376 个名额     命中 18.4%
 # 差一倍多。够格的票一多（市场普涨那种日子），前 10 名里就混进大量
 # 「分数刚过线」的票，而门槛卡得住的日子留下的才是真的强。
-# 生产 2026-09 那 8 天**全部**满员，拿 13.5% 给它背书是高报。
-CAP_PERF = (7.7, 260, 26)         # 满员日：准确率%, 名额数, 天数
-NONCAP_PERF = (17.0, 436, 136)        # 准确率%, 名额数, 天数
+# 生产 2026-09 那 8 天**全部**满员，拿整体平均给它背书是高报。
+CAP_PERF = (8.4, 190, 19)         # 满员日：准确率%, 名额数, 天数
+NONCAP_PERF = (18.4, 376, 126)        # 准确率%, 名额数, 天数
 # STREAK_PERF / BASE 是在**这条规则**下测的（exp_window.py 的 W5 那几行）。
 # daily.py 的 SCORE_MIN / CAP_A 会被 state/breakout/overrides.json 覆盖
 # （学习会诊批准后就会写），规则一改这张成绩表就不适用了，必须在邮件里说清楚，
 # 不能拿旧规则的成绩给新规则背书。
 PERF_RULE = (97, 10)
+
+
+def _perf_grid() -> dict:
+    """STREAK_PERF 那一跑落下的 window_grid.json，用来核对规则是不是同一条。
+
+    只读 board_adj / days / adj_fit_window 这几个元信息；成绩数字仍以
+    上面写死的常量为准（tools/update_perf.py 从同一份产物改写它们），
+    这样产物丢了也不影响发信。
+    """
+    try:
+        import json as _j
+        p = ROOT / "out_breakout" / "window_grid.json"
+        g = _j.loads(p.read_text(encoding="utf-8"))
+        return {k: g.get(k) for k in ("board_adj", "days", "adj_fit_window",
+                                      "board_adj_mode")}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+PERF_GRID = _perf_grid()
 # 少于这么多样本的档次在成绩表里灰掉：连续≥5 天只有 30 个名额，
 # 6.7% 和 13% 的差别完全在抽样噪音里
 SMALL_N = 50
 BOARD_CN = {"main": "主板", "star": "科创", "chinext": "创业", "bj": "北交"}
+
+
+def perf_row(k: int) -> tuple[int, float, float, int]:
+    """连续 ≥k 天那一行。没有这一档就退到最接近的更低档。
+
+    不许按下标取（以前满处是 STREAK_PERF[4]，本意是「≥1 天」）：档数是随
+    实验产物变的 —— 2026-09-16 批准 star=1.0 之后，连续 5 天一个样本都没有了，
+    成绩表从 5 档变成 4 档，STREAK_PERF[4] 会静默取到另一档，不报错。
+    """
+    for row in STREAK_PERF:
+        if row[0] == k:
+            return row
+    cands = [r for r in STREAK_PERF if r[0] <= k]
+    return max(cands, key=lambda r: r[0]) if cands else STREAK_PERF[-1]
 
 
 def streak_perf(k: int) -> tuple[float, float]:
@@ -87,6 +132,38 @@ def _rule(meta: dict) -> tuple[int, int]:
         smin = D.SCORE_MIN if smin is None else smin
         cap = D.CAP_A if cap is None else cap
     return int(smin), int(cap)
+
+
+def _board_adj(meta: dict) -> dict:
+    """这份清单用的板块系数。2026-09-16 之前落盘的 run_meta 没有这个键。"""
+    ba = meta.get("board_adj")
+    if not isinstance(ba, dict):
+        import daily as D
+        ba = D.BOARD_ADJ
+    return {str(k): round(float(v), 4) for k, v in ba.items()}
+
+
+def _same_rule(meta: dict) -> bool:
+    """这份清单的规则和成绩表实测的那条是不是同一条。
+
+    板块系数必须算进来。它不像分数线和上限那样只是收紧/放宽，它换的是
+    **谁上榜**：2026-09-16 批准 star 1.27->1.0 之后，同一段验证集里
+    162 个出榜日有 77 天两张榜不一样，科创席位从 211 掉到 37，名额
+    696 -> 566。拿另一条规则的命中率给它背书，正是本模块开头禁止的事，
+    而当时的判据只比 (分数线, 上限)，这一维完全看不见。
+
+    比较对象是 STREAK_PERF 那一跑落下的 window_grid.json 里的 board_adj；
+    那份没有（老产物）就退回只比 (分数线, 上限) 的老行为。
+    """
+    if _rule(meta) != PERF_RULE:
+        return False
+    want = PERF_GRID.get("board_adj")
+    if not isinstance(want, dict) or not want:
+        return True
+    have = _board_adj(meta)
+    keys = set(want) | set(have)
+    return all(abs(float(want.get(k, 1.0)) - float(have.get(k, 1.0))) < 1e-6
+               for k in keys)
 
 
 def _min_days() -> int:
@@ -138,7 +215,7 @@ def expected_for(a: pd.DataFrame) -> tuple[float, str, bool]:
     名额里科创占 49，按构成加权只有 7.2%，总平均高估 1.75 倍。
     板块在验证集里没有样本（创业板）就用整体平均兜底并在文案里标注。
     """
-    overall = STREAK_PERF[4][1]
+    overall = perf_row(1)[1]
     if not len(a) or "board" not in a.columns:
         return overall, "", True
     cnt = a["board"].astype(str).value_counts()
@@ -170,8 +247,8 @@ def disclaimer(score_min: int = PERF_RULE[0], cap: int = PERF_RULE[1]) -> str:
         f"上榜条件是分数 ≥ {score_min} 且当天前 {cap} 名，够不到就不上，"
         f"所以<b>清单为空是正常的</b>。"
         f"「连续」指这只票连着几个交易日都够格。验证集上全部上榜的准确率 "
-        f"{STREAK_PERF[4][1]:.1f}%（是随便买的 {STREAK_PERF[4][2]:.1f} 倍），"
-        f"连续 2 天以上 {STREAK_PERF[3][1]:.1f}%，再往上样本太少不作数。"
+        f"{perf_row(1)[1]:.1f}%（是随便买的 {perf_row(1)[2]:.1f} 倍），"
+        f"连续 2 天以上 {perf_row(2)[1]:.1f}%，再往上样本太少不作数。"
         f"全市场随便买一只是 {BASE}%。"
         f"<b>当天够格的超过 {cap} 只、清单被上限截断时要打折看</b>：验证集上"
         f"这类日子（{CAP_PERF[2]} 天 {CAP_PERF[1]} 个名额）的准确率只有 "
@@ -261,7 +338,7 @@ def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
     if comp:
         tail = "（其中有板块在验证集里没有名额，用整体平均代入）" if fallback else ""
         exp_txt = (f'<div class="sub">本份构成 {comp}，按构成的期望命中率 '
-                   f'{exp:.1f}%{tail}；验证集整体 {STREAK_PERF[4][1]:.1f}%，'
+                   f'{exp:.1f}%{tail}；验证集整体 {perf_row(1)[1]:.1f}%，'
                    f'同期全市场基准 {BASE}%。</div>')
     head = (f'<h1>起涨预测 · {date}</h1>'
             f'<div class="sub">清单 A {len(a)} 只，清单 B {len(b)} 只'
@@ -272,7 +349,7 @@ def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
           f'今天连续 3 天以上的有 {n3} 只。</div>'
           f'<table><tr><th>#</th><th>代码</th><th>名称</th><th>分数</th>'
           f'<th>连续</th><th>历史准确率</th><th>现价</th></tr>'
-          f'{_rows_a(a, smin, (smin, cap) != PERF_RULE)}</table>')
+          f'{_rows_a(a, smin, not _same_rule(meta))}</table>')
     tb = (f'<h1 style="margin-top:22px">清单 B · 见顶信号</h1>'
           f'<div class="sub">上过清单 A、之后涨过一波、现在见顶回落的股票。'
           f'分数是它在清单 A 上拿过的最高分，准确率是它当初那一档的成绩，'
@@ -335,25 +412,34 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
             f'<td>{lift:.1f} 倍</td><td>{n} 只</td></tr>')
     rows += (f'<tr><td>随便买</td><td class="sc">{BASE}%</td><td>—</td>'
              f'<td>1.0 倍</td><td>全市场</td></tr>')
-    # 规则和实验那条不一样时（会诊批准改了 SCORE_MIN / CAP_A）必须说明白：
-    # 这张表是旧规则的成绩，拿它给新规则背书正是本模块开头禁止的事
-    if (smin, cap) == PERF_RULE:
+    # 规则和实验那条不一样时（会诊批准改了 SCORE_MIN / CAP_A / 板块系数）
+    # 必须说明白：这张表是旧规则的成绩，拿它给新规则背书正是本模块开头禁止的事
+    if _same_rule(meta):
         rule_txt = (f'口径和每天发的清单一致：剔掉上市不足 {_min_days()} 个交易日的票后，'
                     f'≥{smin} 分按预测值取前 {cap}，连续按上榜天数算，'
                     f'训练集做了 20 日净化。风险剔除（ST / 减持 / 解禁）'
                     f'在历史上回放不了，这张表里不含。')
     else:
+        old_ba = PERF_GRID.get("board_adj") or {}
+        new_ba = _board_adj(meta)
+        diff = [f'{k} {old_ba.get(k, 1.0):g}->{new_ba.get(k, 1.0):g}'
+                for k in sorted(set(old_ba) | set(new_ba))
+                if abs(float(old_ba.get(k, 1.0)) - float(new_ba.get(k, 1.0))) >= 1e-6]
+        chg = (f'，板块系数也改过（{"、".join(diff)}），换的是**谁上榜**不只是多少只'
+               if diff else '')
         rule_txt = (f'下面是按 ≥{PERF_RULE[0]} 分前 {PERF_RULE[1]} 名的<b>旧规则</b>'
-                    f'实测的成绩；当前清单规则是 ≥{smin} 分前 {cap} 名，'
+                    f'实测的成绩；当前清单规则是 ≥{smin} 分前 {cap} 名{chg}，'
                     f'尚未单独实测，各行「历史准确率」只作参考。')
     tc = (f'<h1 style="margin-top:22px">连续天数怎么看</h1>'
           f'<div class="sub">下面是 {PERF["window"]}的实测准确率。{rule_txt}</div>'
           f'<table><tr><th>连续天数</th><th>涨超 50% 的比例</th>'
           f'<th>95% 区间</th><th>相对随便买</th><th>样本</th></tr>{rows}</table>'
-          f'<div class="tip">连续 2 天以上（{STREAK_PERF[3][1]:.1f}%，'
-          f'{STREAK_PERF[3][3]} 只）比全部上榜（{STREAK_PERF[4][1]:.1f}%）略高；'
-          f'3 天以上各档样本只有 {STREAK_PERF[2][3]}、{STREAK_PERF[1][3]}、'
-          f'{STREAK_PERF[0][3]} 只，区间互相盖住，数字上下抖动是样本少'
+          f'<div class="tip">连续 2 天以上（{perf_row(2)[1]:.1f}%，'
+          f'{perf_row(2)[3]} 只）比全部上榜（{perf_row(1)[1]:.1f}%）'
+          f'{"略高" if perf_row(2)[1] > perf_row(1)[1] else "还低"}；'
+          f'3 天以上各档样本只有 '
+          f'{"、".join(str(r[3]) for r in STREAK_PERF if r[0] >= 3)} 只，'
+          f'区间互相盖住，数字上下抖动是样本少'
           f'，不是信号。带 🔥 的是连续 3 天以上，只是提示它已经在榜上待了几天。'
           f'</div>')
 

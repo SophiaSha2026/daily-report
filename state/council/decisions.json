@@ -266,44 +266,195 @@
  },
  "20260916-75d86e": {
   "status": "needs_human",
-  "at": "2026-09-16T14:52:15",
+  "at": "2026-09-16T18:31:01",
   "by": "system",
-  "note": "会诊进程中断 + 消融校验修好后重评",
+  "note": "证据已出（tools/platform_evidence.py -> out_learn/platform_evidence.json），等人定；当前证据不支持改动",
   "result": {
-   "status": "needs_human",
-   "detail": "早盘的特征在 score.py 里，去掉要改代码（和 vscore 同步），不能自动消融"
+   "status": "evidence_only",
+   "detail": "会诊那条 2.5SE 是在**过准入 451 只**上得到的（在线 16 天，差 −1.19±0.46，t=−2.58）；同一口径在回填 400 天 n=3742/13439 上是 −0.09±0.16，t=−0.54，没复现。真正要问的「掐掉加分会不会更好」：回填 +0.031±0.037（t=0.84）、在线 +0.033±0.076（t=0.43），两段都不可分辨，名单每天平均只变 1.9 / 0.94 只。另外提案漏了第二个通道：breakout 还参与 A/B 组划分（前 10 里 796/3533 席是只靠它进 A 组的），只置 0 加分不会动这一条；连组划分一起去掉也是 +0.024±0.037。",
+   "evidence": {
+    "backfill": {
+     "tag": "回填 backfill_2025-01-03_2026-09-02.parquet",
+     "days": 400,
+     "picks_total": 3533,
+     "picks_breakout": 1300,
+     "picks_only_breakout": 796,
+     "share_breakout_pct": 36.8,
+     "excess_vs_pool": {
+      "breakout_yes": {
+       "mean_pct": -0.126,
+       "se_day_clustered": 0.173,
+       "n_days": 328
+      },
+      "breakout_no": {
+       "mean_pct": -0.165,
+       "se_day_clustered": 0.105,
+       "n_days": 395
+      },
+      "only_breakout": {
+       "mean_pct": -0.043,
+       "se_day_clustered": 0.228,
+       "n_days": 283
+      },
+      "all_picks": {
+       "mean_pct": -0.141,
+       "se_day_clustered": 0.074,
+       "n_days": 400
+      }
+     },
+     "admitted_pool_split": {
+      "note": "会诊提案 20260916-75d86e 用的就是这个口径",
+      "n_yes": 3742,
+      "n_no": 13439,
+      "yes": {
+       "mean_pct": -0.014,
+       "se_day_clustered": 0.138,
+       "n_days": 370
+      },
+      "no": {
+       "mean_pct": 0.069,
+       "se_day_clustered": 0.033,
+       "n_days": 400
+      },
+      "diff": {
+       "mean_pct": -0.089,
+       "se_day_clustered": 0.164,
+       "n_days": 370,
+       "t": -0.54
+      }
+     },
+     "diff_yes_minus_no": {
+      "mean_pct": 0.046,
+      "se_day_clustered": 0.224,
+      "n_days": 323,
+      "t": 0.21
+     },
+     "cf_bonus": {
+      "delta_top_excess_pct": 0.031,
+      "se_day_clustered": 0.037,
+      "n_days": 400,
+      "t": 0.84,
+      "days_list_changed": 243,
+      "avg_names_changed": 1.9
+     },
+     "cf_both": {
+      "delta_top_excess_pct": 0.024,
+      "se_day_clustered": 0.037,
+      "n_days": 400,
+      "t": 0.65,
+      "days_list_changed": 243,
+      "avg_names_changed": 1.87
+     },
+     "flag_rate_pool_pct": 4.08
+    },
+    "online": {
+     "tag": "在线真值日",
+     "days": 17,
+     "picks_total": 156,
+     "picks_breakout": 48,
+     "picks_only_breakout": 36,
+     "share_breakout_pct": 30.8,
+     "excess_vs_pool": {
+      "breakout_yes": {
+       "mean_pct": -1.253,
+       "se_day_clustered": 0.426,
+       "n_days": 15
+      },
+      "breakout_no": {
+       "mean_pct": -0.03,
+       "se_day_clustered": 0.356,
+       "n_days": 17
+      },
+      "only_breakout": {
+       "mean_pct": -1.42,
+       "se_day_clustered": 0.805,
+       "n_days": 12
+      },
+      "all_picks": {
+       "mean_pct": -0.352,
+       "se_day_clustered": 0.226,
+       "n_days": 17
+      }
+     },
+     "admitted_pool_split": {
+      "note": "会诊提案 20260916-75d86e 用的就是这个口径",
+      "n_yes": 87,
+      "n_no": 364,
+      "yes": {
+       "mean_pct": -1.023,
+       "se_day_clustered": 0.39,
+       "n_days": 16
+      },
+      "no": {
+       "mean_pct": 0.153,
+       "se_day_clustered": 0.079,
+       "n_days": 17
+      },
+      "diff": {
+       "mean_pct": -1.185,
+       "se_day_clustered": 0.459,
+       "n_days": 16,
+       "t": -2.58
+      }
+     },
+     "diff_yes_minus_no": {
+      "mean_pct": -1.196,
+      "se_day_clustered": 0.702,
+      "n_days": 15,
+      "t": -1.7
+     },
+     "cf_bonus": {
+      "delta_top_excess_pct": 0.033,
+      "se_day_clustered": 0.076,
+      "n_days": 17,
+      "t": 0.43,
+      "days_list_changed": 8,
+      "avg_names_changed": 0.94
+     },
+     "cf_both": {
+      "delta_top_excess_pct": 0.039,
+      "se_day_clustered": 0.076,
+      "n_days": 17,
+      "t": 0.51,
+      "days_list_changed": 7,
+      "avg_names_changed": 0.82
+     },
+     "flag_rate_pool_pct": 2.89
+    },
+    "note": "excess_vs_pool = 前 10 里该组的当日收益均值 − 当天过准入全部的均值，按天聚类。cf_bonus = 只掐 f_position 的 +0.5；cf_both = 连 A/B 组划分里的 breakout 一起去掉。delta 为正 = 掐掉之后前 10 的超额更高。两个反事实都只在这个脚本里算，没有改 score.py / vscore.py。"
+   }
   }
  },
  "20260916-94dc29": {
-  "status": "passed",
-  "at": "2026-09-16T14:52:16",
-  "by": "system",
+  "status": "applied",
+  "at": "2026-09-16T18:24:57",
+  "by": "user",
   "result": {
    "status": "passed",
-   "detail": "全部上榜 14.4% vs 基线 12.6%（−1SE 线 11.5%），样本 689/783",
+   "detail": "全部上榜 15.1% vs 基线 13.5%（−1SE 线 12.2%），样本 564/696",
    "base": {
     "SCORE_MIN": 97,
     "CAP_A": 10,
     "MIN_STREAK": 1,
     "ge1": {
-     "n": 783,
-     "hit": 0.12643678486347198,
-     "se": 0.011876897538619287,
-     "per_day": 3.782608695652174
+     "n": 696,
+     "hit": 0.1350574642419815,
+     "se": 0.012955324738213553,
+     "per_day": 3.36231884057971
     },
     "ge2": {
-     "n": 216,
-     "hit": 0.15740740299224854,
-     "se": 0.0247796130805858,
-     "per_day": 1.0434782608695652
+     "n": 187,
+     "hit": 0.14973261952400208,
+     "se": 0.026092468454018886,
+     "per_day": 0.9033816425120773
     },
     "ge3": {
-     "n": 98,
-     "hit": 0.1428571492433548,
-     "se": 0.0353479763230783,
-     "per_day": 0.47342995169082125
+     "n": 82,
+     "hit": 0.09756097197532654,
+     "se": 0.03276725550304608,
+     "per_day": 0.3961352657004831
     },
-    "empty_days": 31
+    "empty_days": 45
    },
    "cand": {
     "SCORE_MIN": 97,
@@ -313,26 +464,33 @@
      "star": 1.0
     },
     "ge1": {
-     "n": 689,
-     "hit": 0.14368650317192078,
-     "se": 0.013363332409573091,
-     "per_day": 3.3285024154589373
+     "n": 564,
+     "hit": 0.15070922672748566,
+     "se": 0.015064633546061057,
+     "per_day": 2.7246376811594204
     },
     "ge2": {
-     "n": 186,
-     "hit": 0.18817204236984253,
-     "se": 0.02865847515248529,
-     "per_day": 0.8985507246376812
+     "n": 152,
+     "hit": 0.17763157188892365,
+     "se": 0.031000699966332868,
+     "per_day": 0.7342995169082126
     },
     "ge3": {
-     "n": 83,
-     "hit": 0.1807228922843933,
-     "se": 0.042236016219923025,
-     "per_day": 0.40096618357487923
+     "n": 68,
+     "hit": 0.11764705926179886,
+     "se": 0.03907124501337074,
+     "per_day": 0.3285024154589372
     },
-    "empty_days": 38
+    "empty_days": 62
    },
    "note": "缓存分数来自上次逐月滚动测试，和当前特征表可能差一天数据；板块系数是在缓存的前 100 名上重排的近似"
-  }
+  },
+  "note": "overrides {'CAP_A': 10, 'SCORE_MIN': 97, 'MIN_STREAK': 1, 'BOARD_ADJ': {'star': 1.0}}"
+ },
+ "20260916-7568be": {
+  "status": "needs_human",
+  "at": "2026-09-16T18:35:09",
+  "by": "system",
+  "note": "要写代码或改流程，等人做"
  }
 }

@@ -151,14 +151,46 @@ def morning(c: dict, n_days: int = 0) -> dict:
             return float("nan"), nd
         return float(per_day.std(ddof=1) / math.sqrt(nd)), nd
 
+    def _split(frame, mask) -> dict:
+        """一个子集的超额：按天均值 + 按天标准误 + 池化值，三个一起给。
+
+        点估计（excess_pct）和 se_day_clustered 同出一条每天一个数的序列，
+        比值才有意义；池化的那个另起名字，不许拿去除按天的 se。
+        """
+        g = frame[mask]
+        n = int(len(g))
+        if not n:
+            return {"n": 0, "excess_pct": None, "excess_pct_pooled": None,
+                    "se_day_clustered": None, "n_days": 0}
+        per_day = g.groupby("date")["y_pct"].mean()
+        nd = int(per_day.notna().sum())
+        se = (float(per_day.std(ddof=1) / math.sqrt(nd)) if nd > 1 else float("nan"))
+        return {"n": n, "excess_pct": _f(per_day.mean(), 3),
+                "excess_pct_pooled": _f(g["y_pct"].mean(), 3),
+                "se_day_clustered": _f(se, 3), "n_days": nd}
+
     def bucket(series, bins, labels):
+        """分档的超额：点估计和标准误必须来自**同一条**每天一个数的序列。
+
+        以前 excess_pct 是把全部行池化求均值、se 却是按天聚类算的，分子分母
+        不是一个估计量，比值没有意义。2026-09-16 实测差别能到反号：
+        gap_pct 3-4 档池化 +0.093、按天 −0.836；liangbi 2.5-4 档 +0.189 / −0.283；
+        score 40-50 档 −0.036 / +0.158。六路 LLM 拿 spread/se 判显著性，
+        三个维度的结论方向因此是错的（教训 33 堵了分母没堵分子）。
+        池化那个数也留着（excess_pct_pooled），它回答的是另一个问题
+        「这一档的票平均表现如何」，只是不能拿去除按天的 se。
+        """
         cut = pd.cut(series, bins, right=False, labels=labels)
         rows = []
         for k, g in ok.groupby(cut, observed=True):
             se, nd = _clustered_se(g)
+            per_day = g.groupby("date")["y_pct"].mean()
             rows.append({"bucket": str(k), "n": int(len(g)),
-                         "excess_pct": _f(g["y_pct"].mean(), 3),
+                         "excess_pct": _f(per_day.mean(), 3),
+                         "excess_pct_pooled": _f(g["y_pct"].mean(), 3),
                          "se_day_clustered": _f(se, 3), "n_days": nd,
+                         "t": _f(per_day.mean() / se, 2)
+                         if se == se and se > 0 else None,
                          "hit_rate": _f((g["y"] > 0).mean(), 3)})
         return rows
 
@@ -177,30 +209,45 @@ def morning(c: dict, n_days: int = 0) -> dict:
         parts = vscore.parts(d_, c)
         w = c["scoring"]["weights"]
         for k, v in parts.items():
-            v = pd.Series(np.asarray(v, float))
-            # 并列值（板块维大量 0、连续性只有几档）会把分位撑爆，按 first 排名切成严格三等份
-            rk = v.rank(method="first")
-            n_ = int(rk.notna().sum())
-            hi_m, lo_m = (rk > 2 * n_ / 3).to_numpy(), (rk <= n_ / 3).to_numpy()
-            tie = float((v.value_counts(normalize=True).iloc[0]) if n_ else 0)
-            a, b = ok["y_pct"][hi_m].mean(), ok["y_pct"][lo_m].mean()
-            # 差值的按天聚类标准误：每天算一次「高三分之一 − 低三分之一」，再对天求 se
-            per_day = (ok[hi_m].groupby("date")["y_pct"].mean()
-                       - ok[lo_m].groupby("date")["y_pct"].mean()).dropna()
+            v = pd.Series(np.asarray(v, float), index=ok.index)
+            # 三分位**按天切**，不按全样本切。按全样本切的话，某个维度在某天
+            # 可能只出高三分之一不出低三分之一（2026-09-16 实测：板块维只有
+            # 12 天、连续性只有 6 天能配成对），配对差里就混进了「哪天贡献了
+            # 多少 hi/lo」的日间成分，而 17 天里只有 6 天有效的配对根本不能用。
+            # 按天切之后每天都是自己内部的高 1/3 对低 1/3，天数=全部有效天。
+            # 并列值（板块维大量 0、连续性只有几档）会把分位撑爆，
+            # 所以按 first 排名切成严格三等份而不是用 qcut。
+            tmp = pd.DataFrame({"date": ok["date"].to_numpy(),
+                                "v": v.to_numpy(), "y": ok["y_pct"].to_numpy()})
+            rk = tmp.groupby("date")["v"].rank(method="first")
+            cnt = tmp.groupby("date")["v"].transform("size")
+            hi_m = (rk > 2 * cnt / 3).to_numpy()
+            lo_m = (rk <= cnt / 3).to_numpy()
+            tie = float((v.value_counts(normalize=True).iloc[0]) if len(v) else 0)
+            # 点估计和标准误同出一条序列：每天一个「高 1/3 − 低 1/3」，
+            # 对天求均值和标准误。以前点估计是池化的、se 是按天的，比值无意义。
+            per_day = (tmp[hi_m].groupby("date")["y"].mean()
+                       - tmp[lo_m].groupby("date")["y"].mean()).dropna()
             se = (float(per_day.std(ddof=1) / math.sqrt(len(per_day)))
                   if len(per_day) > 1 else float("nan"))
+            spread = float(per_day.mean()) if len(per_day) else float("nan")
+            a_d = tmp[hi_m].groupby("date")["y"].mean()
+            b_d = tmp[lo_m].groupby("date")["y"].mean()
             dims.append({"dim": k, "weight": w.get(k),
-                         "high_third_excess_pct": _f(a, 3),
-                         "low_third_excess_pct": _f(b, 3),
-                         "spread_pct": _f(a - b, 3),
+                         "high_third_excess_pct": _f(a_d.mean(), 3),
+                         "low_third_excess_pct": _f(b_d.mean(), 3),
+                         "spread_pct": _f(spread, 3),
+                         "spread_pct_pooled": _f(
+                             tmp["y"][hi_m].mean() - tmp["y"][lo_m].mean(), 3),
                          "spread_se_day_clustered": _f(se, 3),
+                         "spread_t": _f(spread / se, 2)
+                         if se == se and se > 0 else None,
                          "spread_n_days": int(len(per_day)),
                          "n_high": int(hi_m.sum()), "n_low": int(lo_m.sum()),
                          "top_value_share": _f(tie, 3),
                          "evaluable": tie < 0.5})
         gb = vscore.assign_group_b(d_, c["screen"])
-        groups = {"A": {"n": int((~gb).sum()), "excess_pct": _f(ok["y_pct"][~gb].mean(), 3)},
-                  "B": {"n": int(gb.sum()), "excess_pct": _f(ok["y_pct"][gb].mean(), 3)}}
+        groups = {"A": _split(ok, ~gb), "B": _split(ok, gb)}
     except Exception as e:  # noqa: BLE001
         log.warning("维度拆解失败: %s", e)
         groups = {}
@@ -208,9 +255,24 @@ def morning(c: dict, n_days: int = 0) -> dict:
     for col, name in (("prev_limit_up", "昨日涨停"), ("breakout", "突破平台"),
                       ("ma_bull", "均线多头"), ("monotonic", "稳步抬升")):
         if col in ok.columns:
-            m = ok[col].astype(bool)
-            flags[name] = {"yes_n": int(m.sum()), "yes_excess_pct": _f(ok["y_pct"][m].mean(), 3),
-                           "no_n": int((~m).sum()), "no_excess_pct": _f(ok["y_pct"][~m].mean(), 3)}
+            m = ok[col].astype(bool).to_numpy()
+            yes, no = _split(ok, m), _split(ok, ~m)
+            # 差值也按天配对给标准误。以前这里只有两个池化的均值、一个 se 都没有，
+            # 会诊据此提了「突破平台加分该消融」（是 −1.58 对 否 +0.17）。
+            # 实际按天聚类：在线 16 天差 −1.19±0.46（t=−2.58），而同一口径在
+            # 回填 400 天上是 −0.09±0.16（t=−0.54），没复现 —— 没有标准误的
+            # 两个数摆在一起，看的人只能靠感觉判大小。见 tools/platform_evidence.py。
+            per_day = (ok[m].groupby("date")["y_pct"].mean()
+                       - ok[~m].groupby("date")["y_pct"].mean()).dropna()
+            dse = (float(per_day.std(ddof=1) / math.sqrt(len(per_day)))
+                   if len(per_day) > 1 else float("nan"))
+            dmean = float(per_day.mean()) if len(per_day) else float("nan")
+            flags[name] = {
+                "yes_n": yes["n"], "yes_excess_pct": yes["excess_pct"],
+                "no_n": no["n"], "no_excess_pct": no["excess_pct"],
+                "diff_pct": _f(dmean, 3), "diff_se_day_clustered": _f(dse, 3),
+                "diff_t": _f(dmean / dse, 2) if dse == dse and dse > 0 else None,
+                "diff_n_days": int(len(per_day))}
     rj = df[df["rej"]]
     # 被剔除的按原因拆：「准入差一点」的票到底好不好，只有按原因看才知道
     by_reason = []
@@ -271,6 +333,15 @@ def morning(c: dict, n_days: int = 0) -> dict:
                              "（那天前 10 就是全部，排序没起作用）",
             "se_day_clustered": "按天聚类的标准误：先按天求均值再对天求 se。同一天的票不独立，"
                                 "按票数算的 se 会虚高",
+            "excess_pct / spread_pct": "**按天**的均值（每天算一个数，再对天平均），"
+                                       "和它旁边的 se_day_clustered 是同一个估计量，"
+                                       "所以 t = 点估计 / se 才有意义（t 已经算好放在 t / spread_t 里）。"
+                                       "带 _pooled 后缀的是把所有行池化的均值，回答的是"
+                                       "「这一档的票平均表现如何」，**不要**拿它去除按天的 se —— "
+                                       "2026-09-16 之前就是这么混着算的，六个维度里三个的符号是反的",
+            "dims 的高/低三分之一": "**按天**各切各的（每天在自己当天的票里取该维度得分最高 1/3 和"
+                                "最低 1/3），不是在全样本上切。按全样本切会出现某天只有 hi 没有 lo，"
+                                "配对天数掉到 6~12 天",
             "days_to_detect_0p5": "以 80% 把握分辨 ±0.5 个百分点/天的排序增益，还需要多少个真值日",
             "ic": "当日 Spearman(分数, ytil)，只算过准入的票",
             "groups": "A 组 = 昨日涨停 / 连板 / 突破平台（接力、强势）；B 组 = 60 日位置 <= "
@@ -446,11 +517,20 @@ def _breakout_model() -> dict:
                                                 "__mean/__slope 是 5 日聚合；只列重要性前 20 个"}
         except Exception as e:  # noqa: BLE001
             log.warning("读清单特征失败: %s", e)
-    fs = _json(ROOT / "out_breakout" / "feature_select.json")
+    # 生产模型旁边那份（daily.py 落的，带 fingerprint）。以前读的是
+    # out_breakout/feature_select.json —— 那是实验脚本 09-12 写的，start=87
+    # end=34，而生产模型是 102 进 51 出：入模的 51 列里 16 列在那份记录的
+    # dropped 里。提案 20260916-9b9104 报的「87->34 与模型矛盾」就是这么来的，
+    # 是读错路径造出来的假阳。指纹一起给出去，视角能自己核对是不是同一次训练。
+    fs = _json(ROOT / "state" / "breakout" / "feature_select.json")
     if fs:
-        out["feature_select"] = {"start": fs.get("start"), "end": fs.get("end"),
-                                 "dropped": {k: len(v) if isinstance(v, list) else v
-                                             for k, v in (fs.get("dropped") or {}).items()}}
+        out["feature_select"] = {
+            "start": fs.get("start"), "end": fs.get("end"),
+            "fingerprint": fs.get("fingerprint"), "fit_date": fs.get("fit_date"),
+            "dropped": {k: len(v) if isinstance(v, list) else v
+                        for k, v in (fs.get("dropped") or {}).items()},
+            "matches_model": (str(fs.get("fingerprint") or "")[:8]
+                              == str((out.get("fingerprint") or ""))[:8]) or None}
     wg = _json(ROOT / "out_breakout" / "window_grid.json")
     if wg:
         out["walk_forward_w5"] = [r for r in wg.get("grid", []) if r.get("kind") == "W5"]

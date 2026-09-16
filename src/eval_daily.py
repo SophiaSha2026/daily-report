@@ -1072,7 +1072,7 @@ def main() -> int:
         rc |= stage_learn(c, date, a.dry)
         # 学习会诊：研究性组件，任何失败都不影响上面的裁决和退出码
         if not a.dry:
-            stage_council(c, date)
+            stage_council(c, date, auto=True)
         return rc
     if a.stage == "council":
         return stage_council(c, date)
@@ -1081,8 +1081,13 @@ def main() -> int:
     return stage_learn(c, date, a.dry)
 
 
-def stage_council(c: dict, date: str) -> int:
-    """学习会诊（docs/council.md）。fail-open：失败只写 state/council/latest.json。"""
+def stage_council(c: dict, date: str, auto: bool = False) -> int:
+    """学习会诊（docs/council.md）。fail-open：失败只写 state/council/latest.json。
+
+    auto=True 是学习线末尾自动调的，要过 run.due() 的节奏闸（每周一次 +
+    参数变过/真值到期时加跑）；auto=False 是手动（控制台按钮、--stage council），
+    随时可以问，不受节奏限制。一次六个视角加主审实测 20.23 美元。
+    """
     lc = (c.get("learning") or {}).get("council") or {}
     if not lc.get("enabled", True):
         log.info("学习会诊已关闭（learning.council.enabled=false）")
@@ -1094,6 +1099,11 @@ def stage_council(c: dict, date: str) -> int:
         return 0
     try:
         from learn.council import run as CR
+        go, why = CR.due(c, date, auto=auto)
+        if not go:
+            log.info("学习会诊这轮不跑：%s", why)
+            return 0
+        log.info("学习会诊开跑：%s", why)
         s = CR.run(c, date)
         log.info("学习会诊 %s：%s，%d 条提案，%.0f 秒", date,
                  "成功" if s.get("ok") else s.get("error", "失败"),

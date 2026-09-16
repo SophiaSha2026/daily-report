@@ -5,13 +5,19 @@
 （历史教训 30）。selftest_breakout 会逐位对账两边，所以这两件事只能一起做。
 
     python tools/update_perf.py --show          只打印产物里的数，不改文件
-    python tools/update_perf.py --from rolling  按滚动校正臂写（默认）
-    python tools/update_perf.py --from fixed    按固定板块系数那一臂写
+    python tools/update_perf.py --from fixed    按生产在用的板块系数那一臂写（默认）
+    python tools/update_perf.py --from rolling  按滚动校正臂写（要显式指定）
 
-为什么默认用滚动校正臂：生产的 BOARD_ADJ 是在整个验证集上按板块命中率算出来
-的，再拿同一个验证集评估等于自己给自己打分（审计 F8-11）。滚动臂每个月只用
-之前已结束的月份估板块系数，是这条线上能给出的最诚实的数。两臂的数都写进
-docs/breakout_log.md，邮件里印哪一个在这里选。
+**默认必须是 fixed，因为生产用的就是它。** 2026-09-16 之前默认是 rolling，
+理由是「滚动臂每月只用过去的月份估系数，是最诚实的数」—— 那个理由对，
+但结论错：滚动臂和固定臂选出来的不是同一批票（整体命中一样，构成从
+主板 67%/科创 30% 变成主板 54%/北交 31%），它是**另一套策略**，不是同一套
+策略的更诚实估法。把它的数字写进邮件，就是拿 A 策略的成绩给 B 策略背书。
+当天例行跑一次 update_perf 就会静默发生这件事（2026-09-16 实测发生了）。
+
+写之前还要核对产物的板块系数和生产此刻生效的是不是同一套（含 overrides.json
+里会诊批准的覆盖），对不上直接拒绝写，让人先去重跑 exp_window。
+两臂的数都写进 docs/breakout_log.md，邮件里印哪一个在这里选。
 """
 from __future__ import annotations
 
@@ -43,6 +49,47 @@ def w5c(grid: dict) -> dict | None:
         if r.get("kind") == "W5c" and "满" in r.get("label", ""):
             return r
     return None
+
+
+def cap_split(arm: str) -> tuple[tuple, tuple] | None:
+    """满员日 vs 非满员日的命中率，从建 grid 的**同一份**缓存算。
+
+    「满员」= 当天够格（score >= SCORE_MIN）的票超过 CAP_A 只，清单是被上限
+    截断的；「非满员」= 门槛在决定清单。两者差一倍多（2026-09-16 实测
+    7.7% vs 17.0%），而生产 2026-09 那 8 天全部满员，所以这两个数必须
+    印在邮件里，且必须和 STREAK_PERF 同一次实验、同一套规则。
+
+    返回 ((满员 hit%, 名额, 天数), (非满员 hit%, 名额, 天数))。
+    """
+    import sys as _s
+    _s.path.insert(0, str(ROOT / "src"))
+    _s.path.insert(0, str(ROOT / "src" / "breakout"))
+    try:
+        import pandas as pd
+        import daily as D
+    except Exception as e:  # noqa: BLE001
+        print(f"[!] 满员日那组算不了（{e}）", flush=True)
+        return None
+    f = (ROOT / "data" / "breakout" / "raw"
+         / ("wf_scores.parquet" if arm == "fixed" else "wf_rolling.parquet"))
+    if not f.exists():
+        print(f"[!] 没有 {f.name}，满员日那组跳过", flush=True)
+        return None
+    d = pd.read_parquet(f)
+    d = d[d["y_up"].notna()]
+    ok = d[d["score"] >= D.SCORE_MIN]
+    if ok.empty:
+        return None
+    nq = ok.groupby("date").size()
+    picks = ok[ok["rank"] <= D.CAP_A].copy()
+    picks["capped"] = picks["date"].map(nq > D.CAP_A)
+    out = []
+    for flag in (True, False):
+        g = picks[picks["capped"] == flag]
+        n = int(len(g))
+        out.append((round(100 * float(g["y_up"].mean()), 1) if n else float("nan"),
+                    n, int(g["date"].nunique())))
+    return out[0], out[1]
 
 
 def load(arm: str) -> tuple[dict, dict, dict]:
@@ -81,14 +128,46 @@ def show(arm: str) -> None:
         print(f"  分数 {b['lo']}~{b['hi']}  n={b['n']:<7} 命中 {100 * b['hit']:.2f}%")
 
 
+def _check_arm(arm: str, grid: dict) -> None:
+    """产物里的板块系数必须等于生产此刻生效的那套，否则拒绝写。
+
+    只有 fixed 臂才谈得上「和生产一致」：rolling 是逐月重估的另一套策略，
+    显式指定它就是明知故犯，只警告。
+    """
+    if arm != "fixed":
+        print("[!] 按 rolling 臂写：那是另一套策略的成绩，"
+              "邮件里的免责声明要自己说清楚", flush=True)
+        return
+    want = grid.get("board_adj") or {}
+    try:
+        import sys as _s
+        _s.path.insert(0, str(ROOT / "src"))
+        _s.path.insert(0, str(ROOT / "src" / "breakout"))
+        import daily as D
+        have = {str(k): round(float(v), 4) for k, v in D.BOARD_ADJ.items()}
+    except Exception as e:  # noqa: BLE001
+        print(f"[!] 读不到生产的板块系数（{e}），跳过核对", flush=True)
+        return
+    want = {str(k): round(float(v), 4) for k, v in want.items()}
+    if want and want != have:
+        raise SystemExit(
+            "产物的板块系数和生产不一致，拒绝写：\n"
+            f"  window_grid.json: {want}\n"
+            f"  生产（含 overrides）: {have}\n"
+            "先跑 python src/breakout/exp_window.py --refit 重出成绩表。")
+
+
 def rewrite(arm: str) -> None:
     grid, cal, board = load(arm)
+    _check_arm(arm, grid)
     rows = w5(grid)
-    if len(rows) < 5:
-        raise SystemExit(f"W5 行只有 {len(rows)} 条，不够写 STREAK_PERF")
+    if len(rows) < 2:
+        raise SystemExit(f"W5 行只有 {len(rows)} 条，连「全部上榜」和「连续 2 天」都凑不齐")
     base = round(100 * float(cal["base"]), 2)
     lines = []
-    for k in (5, 4, 3, 2, 1):
+    # 有几档写几档。板块系数一改，高档次可能一个样本都没有（star=1.0 之后
+    # 连续 5 天就没了），硬要 5 条会把上一轮的旧数字留在表里。
+    for k in sorted(rows, reverse=True):
         r = rows[k]
         hit = round(100 * r["hit"], 1)
         lines.append(f"    ({k}, {hit}, {round(hit / base, 1)}, {int(r['n'])}),")
@@ -104,6 +183,16 @@ def rewrite(arm: str) -> None:
         s2 = re.sub(r"CAP_PERF = \([\d., ]+\)",
                     f"CAP_PERF = ({round(100 * c['hit'], 1)}, {int(c['n'])}, "
                     f"{int(c.get('days') or c.get('empty') or 0)})", s2, count=1)
+    else:
+        sp = cap_split(arm)
+        if sp:
+            (h1, n1, d1), (h2, n2, d2) = sp
+            s2 = re.sub(r"CAP_PERF = \([\d., ]+\)",
+                        f"CAP_PERF = ({h1}, {n1}, {d1})", s2, count=1)
+            s2 = re.sub(r"NONCAP_PERF = \([\d., ]+\)",
+                        f"NONCAP_PERF = ({h2}, {n2}, {d2})", s2, count=1)
+            print(f"满员日 {h1}%（{n1} 席 / {d1} 天） vs "
+                  f"非满员 {h2}%（{n2} 席 / {d2} 天）")
     if s2 == s:
         raise SystemExit("一个常量都没改到，正则和文件对不上了")
     EXPORT.write_text(s2, encoding="utf-8")
@@ -113,7 +202,7 @@ def rewrite(arm: str) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--from", dest="arm", choices=["fixed", "rolling"], default="rolling")
+    ap.add_argument("--from", dest="arm", choices=["fixed", "rolling"], default="fixed")
     ap.add_argument("--show", action="store_true")
     a = ap.parse_args()
     if a.show:

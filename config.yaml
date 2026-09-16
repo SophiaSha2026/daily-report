@@ -398,6 +398,13 @@ learning:
     history_days: 0           # 早盘证据取多少个在线真值日，0 = 全部
     auto_experiments: true    # 会诊完自动跑 param / threshold / feature_drop 实验
     mail: true                # 会诊结论发一封邮件（SKIP_MAIL=1 时不发）
+    # 跑的节奏（2026-09-16 用户定：每周一次 + 触发时加跑）。一次六个视角
+    # 加主审实测花 20.23 美元，每个交易日都跑约 440 美元/月，而 17 天的样本里
+    # 每天的增量信息很小，六个视角会反复说同一件事。
+    # 手动跑（控制台按钮 / --stage council）不受这一段限制，随时可以问。
+    cadence_days: 7           # 距上次会诊不足这么多天就不自动跑
+    trigger_on_param_change: true   # 参数真的变过（learned.yaml / 起涨 overrides）就加跑
+    trigger_new_truth: 10     # 自上次会诊又有这么多个名额的真值到期就加跑
 
   # ---- 历史回填（H 层）----
   backfill:

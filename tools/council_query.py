@@ -147,7 +147,9 @@ def q_importance(a) -> None:
 
 
 def q_feature_ic(a) -> None:
-    fs = _json(ROOT / "out_breakout" / "feature_select.json")
+    # 生产模型旁边那份（带 fingerprint）。out_breakout 那份是 09-12 的实验产物，
+    # 和现在入模的 51 列对不上（见 evidence.py 同处注释）。
+    fs = _json(ROOT / "state" / "breakout" / "feature_select.json")
     tab = fs.get("ic_table") or {}
     hits = {k: v for k, v in tab.items() if a.name in k} if isinstance(tab, dict) else tab
     _out(hits)

@@ -1,6 +1,6 @@
 {
  "date": "2026-09-16",
- "generated_at": "2026-09-16T18:11:56",
+ "generated_at": "2026-09-16T18:52:31",
  "morning": {
   "days": 17,
   "note": "",
@@ -301,41 +301,51 @@
     {
      "bucket": "<40",
      "n": 121,
-     "excess_pct": 0.212,
+     "excess_pct": 0.103,
+     "excess_pct_pooled": 0.212,
      "se_day_clustered": 0.84,
      "n_days": 17,
+     "t": 0.12,
      "hit_rate": 0.463
     },
     {
      "bucket": "40-50",
      "n": 98,
-     "excess_pct": -0.036,
+     "excess_pct": 0.158,
+     "excess_pct_pooled": -0.036,
      "se_day_clustered": 0.779,
      "n_days": 16,
+     "t": 0.2,
      "hit_rate": 0.429
     },
     {
      "bucket": "50-60",
      "n": 122,
-     "excess_pct": -0.582,
+     "excess_pct": -0.855,
+     "excess_pct_pooled": -0.582,
      "se_day_clustered": 0.575,
      "n_days": 17,
+     "t": -1.49,
      "hit_rate": 0.451
     },
     {
      "bucket": "60-70",
      "n": 71,
-     "excess_pct": -0.017,
+     "excess_pct": -0.465,
+     "excess_pct_pooled": -0.017,
      "se_day_clustered": 0.81,
      "n_days": 14,
+     "t": -0.57,
      "hit_rate": 0.521
     },
     {
      "bucket": "70+",
      "n": 39,
-     "excess_pct": -0.626,
+     "excess_pct": -0.866,
+     "excess_pct_pooled": -0.626,
      "se_day_clustered": 1.159,
      "n_days": 14,
+     "t": -0.75,
      "hit_rate": 0.385
     }
    ],
@@ -343,25 +353,31 @@
     {
      "bucket": "2-3",
      "n": 242,
-     "excess_pct": -0.116,
+     "excess_pct": -0.082,
+     "excess_pct_pooled": -0.116,
      "se_day_clustered": 0.517,
      "n_days": 17,
+     "t": -0.16,
      "hit_rate": 0.45
     },
     {
      "bucket": "3-4",
      "n": 134,
-     "excess_pct": 0.093,
+     "excess_pct": -0.836,
+     "excess_pct_pooled": 0.093,
      "se_day_clustered": 0.679,
      "n_days": 17,
+     "t": -1.23,
      "hit_rate": 0.485
     },
     {
      "bucket": "4-5",
      "n": 75,
-     "excess_pct": -0.784,
+     "excess_pct": -0.853,
+     "excess_pct_pooled": -0.784,
      "se_day_clustered": 0.888,
      "n_days": 17,
+     "t": -0.96,
      "hit_rate": 0.413
     }
    ],
@@ -369,25 +385,31 @@
     {
      "bucket": "2.5-4",
      "n": 185,
-     "excess_pct": 0.189,
+     "excess_pct": -0.283,
+     "excess_pct_pooled": 0.189,
      "se_day_clustered": 0.776,
      "n_days": 16,
+     "t": -0.36,
      "hit_rate": 0.492
     },
     {
      "bucket": "4-7",
      "n": 168,
-     "excess_pct": -0.505,
+     "excess_pct": -0.369,
+     "excess_pct_pooled": -0.505,
      "se_day_clustered": 0.471,
      "n_days": 16,
+     "t": -0.78,
      "hit_rate": 0.399
     },
     {
      "bucket": "7-10",
      "n": 61,
-     "excess_pct": -0.75,
+     "excess_pct": -0.565,
+     "excess_pct_pooled": -0.75,
      "se_day_clustered": 0.797,
      "n_days": 16,
+     "t": -0.71,
      "hit_rate": 0.443
     }
    ],
@@ -452,78 +474,90 @@
    {
     "dim": "gap",
     "weight": 0.2,
-    "high_third_excess_pct": 0.138,
-    "low_third_excess_pct": -0.314,
-    "spread_pct": 0.451,
-    "spread_se_day_clustered": 0.716,
+    "high_third_excess_pct": -0.735,
+    "low_third_excess_pct": -0.06,
+    "spread_pct": -0.674,
+    "spread_pct_pooled": -0.223,
+    "spread_se_day_clustered": 0.541,
+    "spread_t": -1.25,
     "spread_n_days": 17,
-    "n_high": 151,
-    "n_low": 150,
+    "n_high": 155,
+    "n_low": 145,
     "top_value_share": 0.02,
     "evaluable": true
    },
    {
     "dim": "volume",
     "weight": 0.25,
-    "high_third_excess_pct": -0.477,
-    "low_third_excess_pct": 0.436,
-    "spread_pct": -0.913,
-    "spread_se_day_clustered": 0.613,
+    "high_third_excess_pct": -0.891,
+    "low_third_excess_pct": -0.138,
+    "spread_pct": -0.754,
+    "spread_pct_pooled": -0.78,
+    "spread_se_day_clustered": 0.566,
+    "spread_t": -1.33,
     "spread_n_days": 17,
-    "n_high": 151,
-    "n_low": 150,
+    "n_high": 155,
+    "n_low": 145,
     "top_value_share": 0.007,
     "evaluable": true
    },
    {
     "dim": "trend",
     "weight": 0.2,
-    "high_third_excess_pct": 0.282,
-    "low_third_excess_pct": -0.386,
-    "spread_pct": 0.668,
-    "spread_se_day_clustered": 0.605,
+    "high_third_excess_pct": -0.281,
+    "low_third_excess_pct": -0.444,
+    "spread_pct": 0.163,
+    "spread_pct_pooled": 0.48,
+    "spread_se_day_clustered": 0.624,
+    "spread_t": 0.26,
     "spread_n_days": 17,
-    "n_high": 151,
-    "n_low": 150,
+    "n_high": 155,
+    "n_low": 145,
     "top_value_share": 0.22,
     "evaluable": true
    },
    {
     "dim": "position",
     "weight": 0.15,
-    "high_third_excess_pct": -0.702,
-    "low_third_excess_pct": -0.208,
-    "spread_pct": -0.493,
-    "spread_se_day_clustered": 0.472,
-    "spread_n_days": 16,
-    "n_high": 151,
-    "n_low": 150,
+    "high_third_excess_pct": -0.497,
+    "low_third_excess_pct": -0.508,
+    "spread_pct": 0.011,
+    "spread_pct_pooled": -0.213,
+    "spread_se_day_clustered": 0.487,
+    "spread_t": 0.02,
+    "spread_n_days": 17,
+    "n_high": 155,
+    "n_low": 145,
     "top_value_share": 0.222,
     "evaluable": true
    },
    {
     "dim": "sector",
     "weight": 0.15,
-    "high_third_excess_pct": -0.188,
-    "low_third_excess_pct": -0.232,
-    "spread_pct": 0.044,
-    "spread_se_day_clustered": 1.219,
-    "spread_n_days": 12,
-    "n_high": 151,
-    "n_low": 150,
+    "high_third_excess_pct": -0.562,
+    "low_third_excess_pct": -0.095,
+    "spread_pct": -0.468,
+    "spread_pct_pooled": 0.128,
+    "spread_se_day_clustered": 0.74,
+    "spread_t": -0.63,
+    "spread_n_days": 17,
+    "n_high": 155,
+    "n_low": 145,
     "top_value_share": 0.388,
     "evaluable": true
    },
    {
     "dim": "continuity",
     "weight": 0.05,
-    "high_third_excess_pct": -0.899,
-    "low_third_excess_pct": -0.04,
-    "spread_pct": -0.859,
-    "spread_se_day_clustered": 1.347,
-    "spread_n_days": 6,
-    "n_high": 151,
-    "n_low": 150,
+    "high_third_excess_pct": -0.372,
+    "low_third_excess_pct": -0.506,
+    "spread_pct": 0.134,
+    "spread_pct_pooled": 0.052,
+    "spread_se_day_clustered": 0.545,
+    "spread_t": 0.25,
+    "spread_n_days": 17,
+    "n_high": 155,
+    "n_low": 145,
     "top_value_share": 0.885,
     "evaluable": false
    }
@@ -531,37 +565,59 @@
   "groups": {
    "A": {
     "n": 327,
-    "excess_pct": -0.377
+    "excess_pct": -0.45,
+    "excess_pct_pooled": -0.377,
+    "se_day_clustered": 0.524,
+    "n_days": 17
    },
    "B": {
     "n": 124,
-    "excess_pct": 0.393
+    "excess_pct": 0.212,
+    "excess_pct_pooled": 0.393,
+    "se_day_clustered": 0.657,
+    "n_days": 15
    }
   },
   "flags": {
    "昨日涨停": {
     "yes_n": 52,
-    "yes_excess_pct": -1.015,
+    "yes_excess_pct": -0.799,
     "no_n": 399,
-    "no_excess_pct": -0.054
+    "no_excess_pct": -0.319,
+    "diff_pct": -0.326,
+    "diff_se_day_clustered": 0.718,
+    "diff_t": -0.45,
+    "diff_n_days": 15
    },
    "突破平台": {
     "yes_n": 87,
-    "yes_excess_pct": -1.582,
+    "yes_excess_pct": -1.672,
     "no_n": 364,
-    "no_excess_pct": 0.173
+    "no_excess_pct": -0.222,
+    "diff_pct": -1.185,
+    "diff_se_day_clustered": 0.459,
+    "diff_t": -2.58,
+    "diff_n_days": 16
    },
    "均线多头": {
     "yes_n": 223,
-    "yes_excess_pct": -0.215,
+    "yes_excess_pct": -0.253,
     "no_n": 228,
-    "no_excess_pct": -0.117
+    "no_excess_pct": -0.42,
+    "diff_pct": 0.167,
+    "diff_se_day_clustered": 0.495,
+    "diff_t": 0.34,
+    "diff_n_days": 17
    },
    "稳步抬升": {
     "yes_n": 275,
-    "yes_excess_pct": 0.056,
+    "yes_excess_pct": -0.423,
     "no_n": 176,
-    "no_excess_pct": -0.511
+    "no_excess_pct": -0.538,
+    "diff_pct": 0.115,
+    "diff_se_day_clustered": 0.538,
+    "diff_t": 0.21,
+    "diff_n_days": 17
    }
   },
   "worst_best": {
@@ -2746,6 +2802,8 @@
    "sent_n": "当天真发出去几只（生产口径），可能少于 10",
    "rank_gain_pct": "前 10 的 y 均值 − 过准入全部的 y 均值。过准入不足 10 只的天为 null（那天前 10 就是全部，排序没起作用）",
    "se_day_clustered": "按天聚类的标准误：先按天求均值再对天求 se。同一天的票不独立，按票数算的 se 会虚高",
+   "excess_pct / spread_pct": "**按天**的均值（每天算一个数，再对天平均），和它旁边的 se_day_clustered 是同一个估计量，所以 t = 点估计 / se 才有意义（t 已经算好放在 t / spread_t 里）。带 _pooled 后缀的是把所有行池化的均值，回答的是「这一档的票平均表现如何」，**不要**拿它去除按天的 se —— 2026-09-16 之前就是这么混着算的，六个维度里三个的符号是反的",
+   "dims 的高/低三分之一": "**按天**各切各的（每天在自己当天的票里取该维度得分最高 1/3 和最低 1/3），不是在全样本上切。按全样本切会出现某天只有 hi 没有 lo，配对天数掉到 6~12 天",
    "days_to_detect_0p5": "以 80% 把握分辨 ±0.5 个百分点/天的排序增益，还需要多少个真值日",
    "ic": "当日 Spearman(分数, ytil)，只算过准入的票",
    "groups": "A 组 = 昨日涨停 / 连板 / 突破平台（接力、强势）；B 组 = 60 日位置 <= 0.4（低位首板预备）；其余归 A",
@@ -3929,34 +3987,28 @@
   "expected": {
    "streak_perf": [
     {
-     "streak_ge": 5,
-     "hit_pct": 4.5,
-     "lift": 1.5,
-     "n": 22
-    },
-    {
      "streak_ge": 4,
-     "hit_pct": 9.5,
-     "lift": 3.2,
-     "n": 42
+     "hit_pct": 11.4,
+     "lift": 3.9,
+     "n": 35
     },
     {
      "streak_ge": 3,
-     "hit_pct": 9.8,
-     "lift": 3.3,
-     "n": 82
+     "hit_pct": 11.8,
+     "lift": 4.0,
+     "n": 68
     },
     {
      "streak_ge": 2,
-     "hit_pct": 15.0,
-     "lift": 5.1,
-     "n": 187
+     "hit_pct": 17.6,
+     "lift": 6.0,
+     "n": 153
     },
     {
      "streak_ge": 1,
-     "hit_pct": 13.5,
-     "lift": 4.6,
-     "n": 696
+     "hit_pct": 15.0,
+     "lift": 5.1,
+     "n": 566
     }
    ],
    "base_pct": 2.93,
@@ -4013,14 +4065,14 @@
    ],
    "cap_perf": {
     "full_cap": [
-     7.7,
-     260,
-     26
+     8.4,
+     190,
+     19
     ],
     "not_full": [
-     17.0,
-     436,
-     136
+     18.4,
+     376,
+     126
     ],
     "note": "满员日（够格超过上限、被截断）vs 门槛卡得住的日子，格式 (准确率%, 名额数, 天数)"
    },
@@ -4513,278 +4565,139 @@
     "note": "特征值 = 当日横截面百分位经板块×市值分箱中性化后的残差（正 = 高于同板块同市值档均值，量级约 ±0.5），__mean/__slope 是 5 日聚合；只列重要性前 20 个"
    },
    "feature_select": {
-    "start": 87,
-    "end": 34,
+    "start": 102,
+    "end": 51,
+    "fingerprint": "28d0fb539ceaa459ec8a163badf718d3",
+    "fit_date": "2026-09-17",
     "dropped": {
-     "ic_too_weak": {
-      "ma20_slope5__slope": 0.0047,
-      "vol_compress__slope": 0.0044,
-      "chip_conc_chg20__slope": -0.0008,
-      "chip_peak__slope": -0.0048,
-      "vol_ratio5__last": 0.0043,
-      "vol_ratio5__slope": 0.0021,
-      "turn_std20__slope": 0.0,
-      "gdhs_stale_days__last": 0.0,
-      "gdhs_stale_days__mean": 0.0,
-      "gdhs_stale_days__slope": 0.0,
-      "rs_accel__last": 0.001,
-      "rs_accel__mean": -0.0002,
-      "rs_accel__slope": 0.0013,
-      "x_holder_chip__slope": -0.0004,
-      "x_squeeze_burst__slope": 0.0016,
-      "x_light_top__slope": 0.0026
-     },
-     "ic_unstable": {
-      "dist_52w_high__last": {
-       "flip": 0.48,
-       "ic": -0.0172
-      },
-      "dist_52w_high__mean": {
-       "flip": 0.48,
-       "ic": -0.0194
-      },
-      "above_ma60__slope": {
-       "flip": 0.48,
-       "ic": 0.0031
-      },
-      "range_compress__slope": {
-       "flip": 0.43,
-       "ic": 0.0041
-      },
-      "atr_ratio__mean": {
-       "flip": 0.43,
-       "ic": 0.0106
-      },
-      "chip_conc90__slope": {
-       "flip": 0.43,
-       "ic": -0.0037
-      },
-      "chip_conc_chg20__mean": {
-       "flip": 0.48,
-       "ic": 0.009
-      },
-      "chip_dev__mean": {
-       "flip": 0.43,
-       "ic": 0.0065
-      },
-      "gdhs_chg1__last": {
-       "flip": 0.48,
-       "ic": 0.0053
-      },
-      "gdhs_chg1__mean": {
-       "flip": 0.43,
-       "ic": 0.0051
-      },
-      "gdhs_chg3__last": {
-       "flip": 0.48,
-       "ic": 0.0084
-      },
-      "gdhs_chg3__mean": {
-       "flip": 0.43,
-       "ic": 0.0082
-      },
-      "gdhs_chg3__slope": {
-       "flip": 0.48,
-       "ic": -0.0053
-      },
-      "gdhs_down_streak__last": {
-       "flip": 0.52,
-       "ic": -0.0008
-      },
-      "gdhs_down_streak__mean": {
-       "flip": 0.52,
-       "ic": -0.0007
-      },
-      "rs60__last": {
-       "flip": 0.43,
-       "ic": 0.0144
-      },
-      "rs60__mean": {
-       "flip": 0.48,
-       "ic": 0.0122
-      },
-      "mkt_breadth__mean": {
-       "flip": 0.43,
-       "ic": -0.0097
-      },
-      "mkt_breadth__slope": {
-       "flip": 0.7,
-       "ic": 0.0013
-      },
-      "mkt_ret5__last": {
-       "flip": 0.43,
-       "ic": -0.0076
-      },
-      "mkt_ret5__mean": {
-       "flip": 0.48,
-       "ic": -0.0121
-      },
-      "x_holder_chip__last": {
-       "flip": 0.52,
-       "ic": -0.0006
-      },
-      "x_holder_chip__mean": {
-       "flip": 0.52,
-       "ic": -0.001
-      },
-      "x_light_top__last": {
-       "flip": 0.57,
-       "ic": -0.0035
-      },
-      "x_light_top__mean": {
-       "flip": 0.48,
-       "ic": -0.0037
-      }
-     },
-     "collinear": {
-      "turn_pct__last": "与 turn_pct__mean 相关 0.93",
-      "boll_width__mean": "与 boll_width__last 相关 0.96",
-      "chip_conc90__mean": "与 chip_conc90__last 相关 0.98",
-      "dist_52w_low__mean": "与 dist_52w_low__last 相关 0.97",
-      "ma_align__mean": "与 ma_align__last 相关 0.86",
-      "above_ma60__last": "与 above_ma60__mean 相关 0.93",
-      "chip_win__mean": "与 chip_win__last 相关 0.89",
-      "turn_std20__last": "与 turn_std20__mean 相关 0.93",
-      "chip_peak__mean": "与 chip_peak__last 相关 0.87",
-      "ma20_slope5__last": "与 rs20__last 相关 0.91",
-      "rs20__mean": "与 rs20__last 相关 0.91",
-      "chip_dev__last": "与 chip_win__last 相关 0.86"
-     }
-    }
+     "ic_too_weak": 23,
+     "ic_unstable": 2,
+     "collinear": 26
+    },
+    "matches_model": true
    },
    "walk_forward_w5": [
     {
      "kind": "W5",
      "label": "生产口径 ≥97分且前10名 连续≥2天",
-     "n": 187,
-     "empty": 112,
-     "per_day": 0.9033816425120773,
-     "hit": 0.14973261952400208,
-     "se": 0.026092468454018886,
-     "lift": 5.115535034411635,
-     "per_month": 2.8405796950278077
+     "n": 153,
+     "empty": 125,
+     "per_day": 0.7391304347826086,
+     "hit": 0.1764705926179886,
+     "se": 0.030819813947499112,
+     "lift": 6.029023615231648,
+     "per_month": 2.739130502809649
     },
     {
      "kind": "W5",
      "label": "生产口径 ≥97分且前10名 连续≥1天",
-     "n": 696,
-     "empty": 45,
-     "per_day": 3.36231884057971,
-     "hit": 0.1350574642419815,
-     "se": 0.012955324738213553,
-     "lift": 4.614166186265802,
-     "per_month": 9.536231388216432
+     "n": 566,
+     "empty": 62,
+     "per_day": 2.7342995169082127,
+     "hit": 0.15017667412757874,
+     "se": 0.015016106822045834,
+     "lift": 5.130705922952886,
+     "per_month": 8.623188157876333
     },
     {
      "kind": "W5",
      "label": "生产口径 ≥97分且前10名 连续≥3天",
-     "n": 82,
-     "empty": 153,
-     "per_day": 0.3961352657004831,
-     "hit": 0.09756097197532654,
-     "se": 0.03276725550304608,
-     "lift": 3.3331185396848872,
-     "per_month": 0.8115941726643106
+     "n": 68,
+     "empty": 163,
+     "per_day": 0.3285024154589372,
+     "hit": 0.11764705926179886,
+     "se": 0.03907124501337074,
+     "lift": 4.019348991972729,
+     "per_month": 0.8115942059219747
     },
     {
      "kind": "W5",
      "label": "生产口径 ≥97分且前10名 连续≥4天",
-     "n": 42,
-     "empty": 175,
-     "per_day": 0.2028985507246377,
-     "hit": 0.095238097012043,
-     "se": 0.045294749482737984,
-     "lift": 3.25375875627223,
-     "per_month": 0.4057971090078354
-    },
-    {
-     "kind": "W5",
-     "label": "生产口径 ≥97分且前10名 连续≥5天",
-     "n": 22,
-     "empty": 186,
-     "per_day": 0.10628019323671498,
-     "hit": 0.04545454680919647,
-     "se": 0.044409474308349524,
-     "lift": 1.5529303328489128,
-     "per_month": 0.10144927838574286
+     "n": 35,
+     "empty": 181,
+     "per_day": 0.16908212560386474,
+     "hit": 0.11428571492433548,
+     "se": 0.053778511451685926,
+     "lift": 3.904510456617654,
+     "per_month": 0.4057971037168434
     }
    ],
    "validation_w5": {
-    "n_picks": 696,
-    "hit_rate": 0.1351,
+    "n_picks": 566,
+    "hit_rate": 0.1502,
     "by_board": [
      {
       "board": "bj",
-      "n": 19,
+      "n": 21,
       "hits": 5,
-      "hit_rate": 0.2632,
-      "share_of_picks": 0.027
+      "hit_rate": 0.2381,
+      "share_of_picks": 0.037
      },
      {
       "board": "main",
-      "n": 466,
-      "hits": 75,
-      "hit_rate": 0.1609,
-      "share_of_picks": 0.67
+      "n": 508,
+      "hits": 79,
+      "hit_rate": 0.1555,
+      "share_of_picks": 0.898
      },
      {
       "board": "star",
-      "n": 211,
-      "hits": 14,
-      "hit_rate": 0.0664,
-      "share_of_picks": 0.303
+      "n": 37,
+      "hits": 1,
+      "hit_rate": 0.027,
+      "share_of_picks": 0.065
      }
     ],
     "pace": {
      "bar3": {
-      "n": 696,
-      "mean_rise_all": 0.0893,
-      "mean_rise_hits": 0.2316,
-      "mean_rise_misses": 0.0671,
-      "share_hits_already_ge25": 0.457,
-      "p_hit_given_ge25": 0.672,
-      "n_ge25": 64,
-      "share_all_ge15": 0.224
+      "n": 566,
+      "mean_rise_all": 0.0961,
+      "mean_rise_hits": 0.2279,
+      "mean_rise_misses": 0.0728,
+      "share_hits_already_ge25": 0.459,
+      "p_hit_given_ge25": 0.619,
+      "n_ge25": 63,
+      "share_all_ge15": 0.258
      },
      "bar5": {
-      "n": 696,
-      "mean_rise_all": 0.1214,
-      "mean_rise_hits": 0.3573,
-      "mean_rise_misses": 0.0845,
-      "share_hits_already_ge25": 0.638,
-      "p_hit_given_ge25": 0.612,
-      "n_ge25": 98,
-      "share_all_ge15": 0.27
+      "n": 566,
+      "mean_rise_all": 0.1321,
+      "mean_rise_hits": 0.3557,
+      "mean_rise_misses": 0.0926,
+      "share_hits_already_ge25": 0.671,
+      "p_hit_given_ge25": 0.594,
+      "n_ge25": 96,
+      "share_all_ge15": 0.311
      },
      "bar7": {
-      "n": 696,
-      "mean_rise_all": 0.1489,
-      "mean_rise_hits": 0.4785,
-      "mean_rise_misses": 0.0974,
-      "share_hits_already_ge25": 0.787,
-      "p_hit_given_ge25": 0.578,
-      "n_ge25": 128,
-      "share_all_ge15": 0.313
+      "n": 566,
+      "mean_rise_all": 0.1644,
+      "mean_rise_hits": 0.4803,
+      "mean_rise_misses": 0.1086,
+      "share_hits_already_ge25": 0.835,
+      "p_hit_given_ge25": 0.559,
+      "n_ge25": 127,
+      "share_all_ge15": 0.366
      },
      "bar10": {
-      "n": 696,
-      "mean_rise_all": 0.1817,
-      "mean_rise_hits": 0.6473,
-      "mean_rise_misses": 0.109,
-      "share_hits_already_ge25": 0.883,
-      "p_hit_given_ge25": 0.55,
-      "n_ge25": 151,
-      "share_all_ge15": 0.343
+      "n": 566,
+      "mean_rise_all": 0.2016,
+      "mean_rise_hits": 0.6599,
+      "mean_rise_misses": 0.1207,
+      "share_hits_already_ge25": 0.918,
+      "p_hit_given_ge25": 0.531,
+      "n_ge25": 147,
+      "share_all_ge15": 0.403
      },
      "bar15": {
-      "n": 696,
-      "mean_rise_all": 0.2281,
-      "mean_rise_hits": 0.868,
-      "mean_rise_misses": 0.1282,
-      "share_hits_already_ge25": 0.947,
-      "p_hit_given_ge25": 0.481,
-      "n_ge25": 185,
-      "share_all_ge15": 0.401
+      "n": 566,
+      "mean_rise_all": 0.2496,
+      "mean_rise_hits": 0.8841,
+      "mean_rise_misses": 0.1374,
+      "share_hits_already_ge25": 0.953,
+      "p_hit_given_ge25": 0.476,
+      "n_ge25": 170,
+      "share_all_ge15": 0.458
      }
     },
     "note": "pace.barK：验证集名额在第 K 根时的最高涨幅；进行中的清单拿同一根数对照。p_hit_given_ge25 = 第 K 根已涨 25% 的票最终命中的比例"

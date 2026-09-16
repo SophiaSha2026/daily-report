@@ -1,0 +1,15 @@
+{
+ "CAP_A": 10,
+ "SCORE_MIN": 97,
+ "MIN_STREAK": 1,
+ "BOARD_ADJ": {
+  "star": 1.0
+ },
+ "history": [
+  {
+   "proposal": "20260916-94dc29",
+   "at": "2026-09-16T18:24:57",
+   "by": "user"
+  }
+ ]
+}

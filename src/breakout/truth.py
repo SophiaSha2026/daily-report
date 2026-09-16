@@ -176,6 +176,29 @@ def _breakdowns(picks: list[dict]) -> dict:
 BOARD_FILE = ROOT / "out_breakout" / "board_hit.json"
 
 
+def _rule_stamp() -> dict:
+    """当前生产规则的指纹：分数线 / 上限 / 板块系数（含会诊批准的覆盖）。"""
+    try:
+        import daily as D
+        return {"score_min": int(D.SCORE_MIN), "cap_a": int(D.CAP_A),
+                "board_adj": {str(k): round(float(v), 4)
+                              for k, v in D.BOARD_ADJ.items()}}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _grid_arm() -> dict:
+    """建缓存那一跑用的板块系数（out_breakout/window_grid.json 落的）。"""
+    try:
+        import json as _j
+        g = _j.loads((ROOT / "out_breakout" / "window_grid.json")
+                     .read_text(encoding="utf-8"))
+        ba = g.get("board_adj")
+        return {str(k): round(float(v), 4) for k, v in ba.items()} if ba else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def validation_by_board(refresh: bool = False) -> dict:
     """验证集里生产口径名额按板块的命中率。邮件的期望要按本份清单的板块构成加权。
 
@@ -191,12 +214,19 @@ def validation_by_board(refresh: bool = False) -> dict:
     import json as _j
     cache = BOARD_FILE
     src = ROOT / "data" / "breakout" / "raw" / "wf_scores.parquet"
+    rule = _rule_stamp()
     if not refresh and cache.exists():
-        if not src.exists() or cache.stat().st_mtime >= src.stat().st_mtime:
-            try:
-                return _j.loads(cache.read_text(encoding="utf-8"))
-            except Exception:  # noqa: BLE001
-                pass
+        fresh = not src.exists() or cache.stat().st_mtime >= src.stat().st_mtime
+        try:
+            got = _j.loads(cache.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            got = None
+        # 规则也要比。只看 mtime 的话，改 BOARD_ADJ（会诊批准写 overrides.json）
+        # 既不动 parquet 也不动缓存，邮件里按板块加权的期望会一直停在旧系数上，
+        # 而那正是「谁上榜」变了的那一维（2026-09-16 star 1.27->1.0 换掉了
+        # 162 个出榜日里的 77 天）。
+        if got is not None and fresh and got.get("rule") == rule:
+            return got
     if not src.exists():
         return {}
     try:
@@ -215,6 +245,13 @@ def validation_by_board(refresh: bool = False) -> dict:
             lo, hi = wilson(k, n)
             out["boards"][str(b)] = {"n": n, "hits": k, "hit": k / n,
                                      "ci_lo": lo, "ci_hi": hi}
+        out["rule"] = rule
+        # 缓存里的 score / rank 两列是**建缓存那一跑**的板块系数烘进去的，
+        # 只有 SCORE_MIN / CAP_A 是这里活取的。两者对不上时算出来的数不是
+        # 当前规则的成绩，标出来让调用方（export）能说清楚。
+        out["source_arm"] = _grid_arm()
+        out["arm_matches"] = (not out["source_arm"]
+                              or out["source_arm"] == rule.get("board_adj"))
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_text(_j.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
         return out

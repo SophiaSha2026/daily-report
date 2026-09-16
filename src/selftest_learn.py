@@ -2566,6 +2566,97 @@ def check_apply_held_refresh(c: dict) -> None:
        "自测没有碰生产目录里的 learned.yaml / held_change.json / change.html（教训 17）")
 
 
+
+def check_estimator_pairing() -> None:
+    """点估计和标准误必须是同一个估计量（2026-09-16 对齐检查第 1 条）。
+
+    以前证据包里 excess_pct / spread_pct 是把所有行池化求均值，旁边的
+    se_day_clustered 却是按天聚类算的。六路 LLM 拿这个比值判显著性，
+    而分子分母不是一个东西：实测 gap / sector / continuity 三个维度
+    两种算法**符号相反**，结论方向是错的。
+    这里用一份构造数据钉住「点估计 == 每天一个数的均值」。
+    """
+    print("\n[证据包·点估计与标准误同源]")
+    import ast
+    import inspect
+    from learn.council import evidence as EV
+
+    src = inspect.getsource(EV.morning)
+    tree = ast.parse(src)
+    # 判据：凡是带 *_se_day_clustered 的 dict，配对的点估计必须引用按天序列
+    # （per_day / a_d / b_d / spread）。没配标准误的池化值不管 —— 它们回答的是
+    # 另一个问题，只是不能拿去除按天的 se。
+    PAIR = {"se_day_clustered": "excess_pct",
+            "spread_se_day_clustered": "spread_pct",
+            "diff_se_day_clustered": "diff_pct"}
+    DAY = ("per_day", "a_d", "b_d", "spread", "dmean")
+    bad, checked = [], 0
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Dict):
+            continue
+        keys = {k.value: v for k, v in zip(node.keys, node.values)
+                if isinstance(k, ast.Constant) and isinstance(k.value, str)}
+        for se_key, pt_key in PAIR.items():
+            if se_key in keys and pt_key in keys:
+                # 空子集那条分支两个值都写死 None，没有估计量可言，跳过
+                if isinstance(keys[pt_key], ast.Constant):
+                    continue
+                checked += 1
+                txt = ast.dump(keys[pt_key])
+                if not any(t in txt for t in DAY):
+                    bad.append(f"{pt_key} 配 {se_key}")
+    ck(checked >= 3 and not bad,
+       f"带按天标准误的记录，点估计也来自按天序列（核了 {checked} 处，可疑：{bad}）")
+    # 两个字段都要有 _pooled 兄弟，池化那个数留着但不许拿去除按天的 se
+    ck('"excess_pct_pooled"' in src and '"spread_pct_pooled"' in src,
+       "池化的那个数另起名字保留（excess_pct_pooled / spread_pct_pooled）")
+    ck('"t"' in src and '"spread_t"' in src,
+       "t 值在证据包里算好，不让读的人自己拿两个不同的量去除")
+
+    # 三分位按天切：某天只有高三分之一没有低三分之一的话，配对天数会塌
+    ck('groupby("date")["v"].rank' in src,
+       "三分位按天切（不是在全样本上切，否则配对天数会塌到 6~12 天）")
+    ck('"diff_se_day_clustered"' in src and '"diff_t"' in src,
+       "是/否 两组的差也给标准误（会诊那条「突破平台该消融」就是看着两个"
+       "没有标准误的数提的）")
+
+
+def check_council_cadence() -> None:
+    """会诊的节奏闸：每周一次 + 参数变过/真值到期加跑，手动不受限。"""
+    print("\n[会诊·跑的节奏]")
+    import json
+    import tempfile
+    from pathlib import Path as _P
+    from learn.council import run as CR
+
+    c = {"learning": {"council": {"cadence_days": 7, "trigger_new_truth": 10,
+                                  "trigger_on_param_change": False}}}
+    old = CR.LATEST
+    with tempfile.TemporaryDirectory() as td:
+        CR.LATEST = _P(td) / "latest.json"
+        try:
+            ck(CR.due(c, "2026-09-20", auto=True)[0], "从没跑过时要跑")
+            CR.LATEST.write_text(json.dumps(
+                {"date": "2026-09-16", "n_settled": 100}), encoding="utf-8")
+            ok, why = CR.due(c, "2026-09-18", auto=True)
+            ck(not ok, f"距上次 2 天不自动跑（{why}）")
+            ok, why = CR.due(c, "2026-09-23", auto=True)
+            ck(ok, f"距上次 7 天要跑（{why}）")
+            ck(CR.due(c, "2026-09-18", auto=False)[0], "手动一律跑")
+            # 真值到期触发：把已结算名额数抬上去
+            ns = CR._n_settled
+            CR._n_settled = lambda: 130
+            try:
+                ok, why = CR.due(c, "2026-09-18", auto=True)
+                ck(ok and "真值" in why, f"又有 30 个名额到期就加跑（{why}）")
+            finally:
+                CR._n_settled = ns
+            c2 = {"learning": {"council": {"cadence_days": 0}}}
+            ck(CR.due(c2, "2026-09-18", auto=True)[0], "cadence_days=0 时每次都跑")
+        finally:
+            CR.LATEST = old
+
+
 def main() -> int:
     t0 = time.time()
     c = C.load()
@@ -2601,6 +2692,8 @@ def main() -> int:
     check_attribution_idempotent(c)
     check_proposal_send()
     check_council()
+    check_estimator_pairing()
+    check_council_cadence()
     print(f"\n耗时 {time.time()-t0:.2f}s | 断言失败 {BAD} 个")
     return 1 if BAD else 0
 

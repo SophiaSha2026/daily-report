@@ -90,7 +90,8 @@ MIN_HISTORY_DAYS = 120
 def load_overrides() -> dict:
     """学习会诊批准过的常量覆盖（state/breakout/overrides.json）。
 
-    只认 SCORE_MIN / CAP_A / MIN_STREAK / drop_features 四个键，其余忽略。
+    只认 SCORE_MIN / CAP_A / MIN_STREAK / drop_features / BOARD_ADJ 五个键，
+    其余忽略（BOARD_ADJ 里也只认四个板块名）。
     文件由 learn/council/experiments.apply 写，人在控制台批准才会有；
     删掉文件 = 回到代码里的默认值。读失败按没有处理，不许影响出清单。
     """
@@ -132,17 +133,19 @@ TRAIN_END_GAP = 25  # 训练只用到 N 个交易日之前（标签要 20 天才
 MIN_HOLD_DAYS = 5   # 进 A 池后至少过几个交易日才可能进 B
 
 # 板块校正。模型对北交所**严重超配**：北交所占全市场 5.5%，却占清单的 50%，
-# 而它的命中率是四个板块里最低的之一。两段独立数据指向同一个方向：
+# 而它的命中率是四个板块里最低的之一。因子 = 该板块命中率 / 整体命中率，
+# 取**验证集**的数字算（封存数据只许用一次，已经在验收时用掉了，
+# 不能拿它来调模型）。这不是拍脑袋的偏好，是用历史证据纠正模型的系统性偏差。
 #
-#              验证集(2025-03..12)   封存数据(2026-01..08)
-#   主板              13.3%                16.1%
-#   科创板            14.1%                16.7%
-#   北交所             10.0%                11.3%
-#   创业板              6.6%                10.3%
+# 下面这四个数是 2026-09-12 那一版训练表上算的。2026-09-16 重建重训之后，
+# 同一段验证集（207 个交易日、剔 ST、生产口径）的按板块命中率变成：
+#     主板 16.1%（466 席）  科创 6.6%（211 席）  北交 26.3%（19 席）  创业 无名额
+# 科创从「四板块最高」变成「和随便买（2.93%）差不多」，所以会诊提了把
+# star 从 1.27 压到 1.0，用户 2026-09-16 批准，写在 state/breakout/overrides.json。
 #
-# 因子 = 该板块命中率 / 整体命中率，取**验证集**的数字算
-# （封存数据只许用一次，已经在验收时用掉了，不能拿它来调模型）。
-# 这不是拍脑袋的偏好，是用历史证据纠正模型的系统性偏差。
+# 手写死这四个数本身是个待修的问题（样本内 + 小样本板块会掀桌子）：
+# 会诊提案 20260916-7568be 提议换成经验贝叶斯收缩（src/breakout/board_adj.py），
+# 缓存精确重算 15.63% 对固定臂的 15.02%，且构成不被掀翻。等人批。
 BOARD_ADJ = {"main": 1.19, "star": 1.27, "bj": 0.90, "chinext": 0.59}
 BOARD_ADJ.update(_OVR.get("BOARD_ADJ", {}))   # 会诊批准过的板块系数覆盖
 RISE_MIN = 0.20     # 进池后至少涨过这么多，才谈得上「波段结束」
@@ -269,9 +272,11 @@ def load_or_fit(df: pd.DataFrame, force: bool = False,
     STATE.mkdir(parents=True, exist_ok=True)
     mdl.m.booster_.save_model(str(p))
     # 这次筛选的记录和模型一起落盘。out_breakout/feature_select.json 是实验
-    # 脚本写的，和生产模型不是同一次：2026-09-16 会诊读它时 start=87，而生产
-    # 模型是 102 列进 45 列出，十个生产特征躺在那份记录的 dropped 里，
-    # 按它做的特征级判断全部无据。带 fingerprint 才能核对是不是同一次。
+    # 脚本写的，和生产模型不是同一次：2026-09-16 会诊读它时 start=87 end=34，
+    # 而当天重训后的生产模型是 102 列进 51 列出 —— 入模的 51 列里有 16 列
+    # 躺在那份记录的 dropped 里，另有 6 列它压根没见过，按它做的特征级判断
+    # 全部无据。带 fingerprint 才能核对是不是同一次。
+    # ic_table 也要落：会诊的 feature_ic 查询读这份文件，不写的话它永远返回空。
     sel_p = STATE / "feature_select.json"
     try:
         sel_p.write_text(json.dumps(
@@ -281,6 +286,7 @@ def load_or_fit(df: pd.DataFrame, force: bool = False,
              "keep": list(feats),
              "dropped": {k: list(v) for k, v in rep.get("dropped", {}).items()},
              "n_dropped": {k: len(v) for k, v in rep.get("dropped", {}).items()},
+             "ic_table": rep.get("ic_table") or {},
              "l1_zero": list(rep.get("l1_zero", []))},
             ensure_ascii=False, indent=1), encoding="utf-8")
     except Exception as e:  # noqa: BLE001
@@ -763,6 +769,11 @@ def stage_scan(force_fit: bool = False) -> int:
          # 规则要跟着清单一起落盘：邮件和面板按它印「上榜条件是 ≥N 分前 M 名」，
          # 会诊批准 overrides.json 之后不写 cap_a 的话，邮件还会说「前 10」
          "score_min": SCORE_MIN, "cap_a": CAP_A, "min_streak": MIN_STREAK,
+         # 板块系数也是规则的一部分。2026-09-16 会诊批准 star 1.27->1.0 之后，
+         # 生产每天的榜换掉了近一半（162 个出榜日里 77 天不同，科创席位
+         # 211->37），而邮件里印的成绩常量是旧系数下测的，失效保护只比
+         # (分数线, 上限) 看不见这一维，照样声明「口径和每天发的清单一致」。
+         "board_adj": dict(BOARD_ADJ),
          "n_streak3": int((picks["streak"] >= 3).sum()) if len(picks) else 0,
          "pool": len(pool), "model_date": obj["fit_date"],
          "rejected": len(bad),
