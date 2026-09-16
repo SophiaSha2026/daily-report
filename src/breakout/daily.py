@@ -95,6 +95,9 @@ def load_overrides() -> dict:
                 out[k] = int(o[k])
         if isinstance(o.get("drop_features"), list):
             out["drop_features"] = sorted(str(x) for x in o["drop_features"])
+        if isinstance(o.get("BOARD_ADJ"), dict):
+            out["BOARD_ADJ"] = {str(k): float(v) for k, v in o["BOARD_ADJ"].items()
+                                if k in ("main", "star", "bj", "chinext")}
         return out
     except Exception as e:  # noqa: BLE001
         log.warning("overrides.json 读取失败，按默认值: %s", e)
@@ -128,6 +131,7 @@ MIN_HOLD_DAYS = 5   # 进 A 池后至少过几个交易日才可能进 B
 # （封存数据只许用一次，已经在验收时用掉了，不能拿它来调模型）。
 # 这不是拍脑袋的偏好，是用历史证据纠正模型的系统性偏差。
 BOARD_ADJ = {"main": 1.19, "star": 1.27, "bj": 0.90, "chinext": 0.59}
+BOARD_ADJ.update(_OVR.get("BOARD_ADJ", {}))   # 会诊批准过的板块系数覆盖
 RISE_MIN = 0.20     # 进池后至少涨过这么多，才谈得上「波段结束」
 
 

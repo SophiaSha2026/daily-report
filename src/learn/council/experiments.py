@@ -47,6 +47,30 @@ TRAIN = ROOT / "data" / "breakout" / "train.parquet"
 MAX_DROP_PER_RUN = 2
 
 THRESHOLD_KEYS = {"SCORE_MIN", "CAP_A", "MIN_STREAK"}
+BOARDS = ("main", "star", "bj", "chinext")
+
+
+def _rescore_board_adj(d: pd.DataFrame, new_adj: dict) -> pd.DataFrame:
+    """用缓存分数检验一组新的板块系数。
+
+    缓存里的 _p 已经乘过旧系数，除回去得到原始预测值；每月「97 分」对应的
+    _p 门槛取该月 score>=97 的最小 _p（分位映射单调，缓存每天前 100 名足够密）。
+    重排后每天前 100 之外的票进不来，是近似；系数只降不升时没有影响。
+    """
+    import daily as D
+    import features as F
+    d = d.copy()
+    d["board"] = d["code"].map(F.board_of)
+    d["m"] = d["date"].str[:7]
+    # 门槛要在改系数**之前**算：改完再算，被压低的那个板块会把最小值拖下去
+    thr = d[d["score"] >= 97].groupby("m")["_p"].min()
+    old = d["board"].map(D.BOARD_ADJ).fillna(1.0)
+    new = d["board"].map({**D.BOARD_ADJ, **new_adj}).fillna(1.0)
+    d["_p"] = d["_p"] / old * new
+    d["score"] = np.where(d["_p"] >= d["m"].map(thr).fillna(np.inf), 97, 0)
+    d = d.sort_values(["date", "_p"], ascending=[True, False])
+    d["rank"] = d.groupby("date").cumcount() + 1
+    return d.drop(columns=["m"])
 
 
 # ---------------------------------------------------------------------
@@ -122,24 +146,37 @@ def exp_threshold(p: dict) -> dict:
                 vals[kk] = int(float(v))
             except Exception:  # noqa: BLE001
                 pass
-    if not vals:
+    # 板块系数：params 里 BOARD_ADJ.star / board_adj.star / star 这类键
+    adj = {}
+    for k, v in params.items():
+        kk = str(k).lower().replace("board_adj.", "").replace("board_adj_", "")
+        if kk in BOARDS:
+            try:
+                adj[kk] = float(v)
+            except Exception:  # noqa: BLE001
+                pass
+    if not vals and not adj:
         m = re.search(r"(SCORE_MIN|CAP_A|MIN_STREAK)\D+(\d+)", p.get("change", ""), re.I)
         if m:
             vals[m.group(1).upper()] = int(m.group(2))
-    if not vals:
+    if not vals and not adj:
         return {"status": "needs_human",
-                "detail": "只能自动测 SCORE_MIN / CAP_A / MIN_STREAK；其它常量（如 BOARD_ADJ）要重打分"}
+                "detail": "只能自动测 SCORE_MIN / CAP_A / MIN_STREAK / BOARD_ADJ.<板块>；其它常量要重打分"}
     if not WF_CACHE.exists():
         return {"status": "needs_human", "detail": "没有逐月滚动分数缓存（先跑 exp_window.py）"}
     d = pd.read_parquet(WF_CACHE)
     cur = _current_thresholds()
     new = {**cur, **vals}
     base = _w5(d, cur["SCORE_MIN"], cur["CAP_A"], cur["MIN_STREAK"])
-    cand = _w5(d, new["SCORE_MIN"], new["CAP_A"], new["MIN_STREAK"])
+    dc = _rescore_board_adj(d, adj) if adj else d
+    cand = _w5(dc, new["SCORE_MIN"], new["CAP_A"], new["MIN_STREAK"])
     ok, why = _pass_breakout(base, cand)
+    if adj:
+        new["BOARD_ADJ"] = adj
     return {"status": "passed" if ok else "failed", "detail": why,
             "base": {**cur, **base}, "cand": {**new, **cand},
-            "note": "缓存分数来自上次逐月滚动测试，和当前特征表可能差一天数据"}
+            "note": "缓存分数来自上次逐月滚动测试，和当前特征表可能差一天数据"
+                    + ("；板块系数是在缓存的前 100 名上重排的近似" if adj else "")}
 
 
 # ---------------------------------------------------------------------
@@ -336,7 +373,10 @@ def apply(pid: str, c: dict, by: str = "gui") -> dict:
                 for k in THRESHOLD_KEYS:
                     if k in cand:
                         ov[k] = int(cand[k])
-                what = f"overrides {({k: ov.get(k) for k in THRESHOLD_KEYS})}"
+                if isinstance(cand.get("BOARD_ADJ"), dict):
+                    ov["BOARD_ADJ"] = {**(ov.get("BOARD_ADJ") or {}),
+                                       **{k: float(v) for k, v in cand["BOARD_ADJ"].items()}}
+                what = f"overrides {({k: ov.get(k) for k in list(THRESHOLD_KEYS) + ['BOARD_ADJ']})}"
             else:
                 cur = set(ov.get("drop_features") or [])
                 cur |= set(res.get("dropped") or [])

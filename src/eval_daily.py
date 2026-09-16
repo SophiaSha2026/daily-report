@@ -259,6 +259,9 @@ def evaluate_candidate(c: dict, theta_new: dict, date: str) -> dict | None:
     theta0, theta_prev = C.theta0(box), C.theta_now(box)
     dayw = load_day_weights(c)
     theta_new = {k: float(theta_new.get(k, theta_prev[k])) for k in box}
+    # 提案只给了一两个权重时，其余权重按 O.project 投影到「箱 ∩ Σw=1」，
+    # 否则权重和不为 1，七道闸评的是一个生产上根本不会出现的参数（审计 F3-5）
+    theta_new = O.project(theta_new, box)
 
     def mk(sub_days):
         sub = df[df["date"].isin(sub_days)]

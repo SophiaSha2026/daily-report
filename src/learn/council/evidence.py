@@ -147,14 +147,20 @@ def morning(c: dict, n_days: int = 0) -> dict:
         parts = vscore.parts(d_, c)
         w = c["scoring"]["weights"]
         for k, v in parts.items():
-            v = np.asarray(v, float)
-            hi, lo = np.nanquantile(v, 2 / 3), np.nanquantile(v, 1 / 3)
-            a, b = ok["y_pct"][v >= hi].mean(), ok["y_pct"][v <= lo].mean()
+            v = pd.Series(np.asarray(v, float))
+            # 并列值（板块维大量 0、连续性只有几档）会把分位撑爆，按 first 排名切成严格三等份
+            rk = v.rank(method="first")
+            n_ = int(rk.notna().sum())
+            hi_m, lo_m = (rk > 2 * n_ / 3).to_numpy(), (rk <= n_ / 3).to_numpy()
+            tie = float((v.value_counts(normalize=True).iloc[0]) if n_ else 0)
+            a, b = ok["y_pct"][hi_m].mean(), ok["y_pct"][lo_m].mean()
             dims.append({"dim": k, "weight": w.get(k),
                          "high_third_excess_pct": _f(a, 3),
                          "low_third_excess_pct": _f(b, 3),
                          "spread_pct": _f(a - b, 3),
-                         "n_high": int((v >= hi).sum()), "n_low": int((v <= lo).sum())})
+                         "n_high": int(hi_m.sum()), "n_low": int(lo_m.sum()),
+                         "top_value_share": _f(tie, 3),
+                         "evaluable": tie < 0.5})
         gb = vscore.assign_group_b(d_, c["screen"])
         groups = {"A": {"n": int((~gb).sum()), "excess_pct": _f(ok["y_pct"][~gb].mean(), 3)},
                   "B": {"n": int(gb.sum()), "excess_pct": _f(ok["y_pct"][gb].mean(), 3)}}
@@ -183,7 +189,13 @@ def morning(c: dict, n_days: int = 0) -> dict:
                               "excess_pct": _f(100 * g["y"].mean(), 3),
                               "hit_rate": _f((g["y"] > 0).mean(), 3)})
         by_reason.sort(key=lambda x: -x["n"])
-    by["rejected_by_reason"] = by_reason[:12]
+        known = sum(x["n"] for x in by_reason)
+        if len(rj) > known:
+            g = rr[~rr["_why"].isin([x["reason"] for x in by_reason])]
+            by_reason.append({"reason": "其他/无原因", "n": int(len(rj) - known),
+                              "excess_pct": _f(100 * g["y"].mean(), 3) if len(g) else None,
+                              "hit_rate": _f((g["y"] > 0).mean(), 3) if len(g) else None})
+    by["rejected_by_reason"] = by_reason[:14]
     dl = [x for x in daily if x["top_excess_pct"] is not None]
     te = np.array([x["top_excess_pct"] for x in dl], float)
     out.update({
@@ -365,7 +377,9 @@ def _breakout_model() -> dict:
                 rows.append({"code": str(r.code).zfill(6), "score": _f(getattr(r, "score", 0), 0),
                              "feats": {f: _f(getattr(r, f), 3) for f in feats[:20]}})
             out["latest_list_feats"] = {"date": str(d["date"].iloc[0]), "rows": rows,
-                                        "note": "特征值是当日横截面百分位（0~1），只列重要性前 20 个"}
+                                        "note": "特征值 = 当日横截面百分位经板块×市值分箱中性化后的残差"
+                                                "（正 = 高于同板块同市值档均值，量级约 ±0.5），"
+                                                "__mean/__slope 是 5 日聚合；只列重要性前 20 个"}
         except Exception as e:  # noqa: BLE001
             log.warning("读清单特征失败: %s", e)
     fs = _json(ROOT / "out_breakout" / "feature_select.json")
