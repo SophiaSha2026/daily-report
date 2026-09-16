@@ -481,9 +481,12 @@ def _snap_row(c: str, v, os_: float, target: str) -> tuple[dict | None, bool]:
         return None, False
     if not (v.price > 0 and high > 0 and low > 0 and v.open_ > 0):
         return None, False
-    # 科创板快照的成交量是股不是手。有换手率就按「换手率 × 流通股本」核对，
-    # 没有就按板块给默认单位（以前没有兜底，换手率偶发为空时科创板放大 100 倍）
-    board_vol = v.volume_hand if c.startswith("688") else v.volume_hand * 100.0
+    # Quote.volume_hand 一律是「手」：腾讯对科创板原始给「股」，2026-09-16 起
+    # 由 datasource.tx_vol_hand 在解析时就折算好了（三路数据源统一口径）。
+    # 这里只做一次 手 -> 股。**别再按板块分叉**：datasource 折过之后再分叉，
+    # 科创板会被当成已经是股、少乘 100，当天的成交量和换手率整段差两个数量级。
+    # 有换手率时仍按「换手率 × 流通股本」核对，防的是股本漂了而不是单位。
+    board_vol = v.volume_hand * 100.0
     vol, drift = board_vol, False
     if turn_q > 0 and os_ > 0:
         exp = turn_q * os_

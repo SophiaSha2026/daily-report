@@ -93,6 +93,26 @@ def step_window() -> bool:
     return len(w5) >= 5
 
 
+def step_window_rolling() -> bool:
+    """板块系数按「只用本月之前已结束的月份」逐月估，得到不含样本内拟合的成绩。
+
+    生产用的 BOARD_ADJ 是在整个验证集上按板块命中率算出来的，再拿同一个验证集
+    评估，等于自己给自己打分（审计 F8-11）。邮件里印的成绩要用这一份。
+    """
+    if run([sys.executable, str(ROOT / "src" / "breakout" / "exp_window.py"),
+            "--refit", "--adj", "rolling"]) != 0:
+        return False
+    f = OUT / "window_grid_rolling.json"
+    if not f.exists():
+        log.error("没写出 %s", f.name)
+        return False
+    g = json.loads(f.read_text(encoding="utf-8"))
+    for r in sorted([x for x in g["grid"] if x["kind"] == "W5"], key=lambda x: x["label"]):
+        log.info("  [滚动校正] %s  n=%d  命中 %.1f%%  ±%.1f", r["label"], r["n"],
+                 100 * r["hit"], 100 * r["se"])
+    return True
+
+
 def step_calib() -> bool:
     if run([sys.executable, str(ROOT / "src" / "breakout" / "exp_calib.py")]) != 0:
         return False
@@ -129,8 +149,8 @@ def step_train_table() -> bool:
 
 STEPS = {
     "breakout": [("建特征表", step_build), ("重训模型", step_refit),
-                 ("逐月滚动", step_window), ("分数分档", step_calib),
-                 ("按板块命中率", step_board)],
+                 ("逐月滚动", step_window), ("逐月滚动-滚动校正", step_window_rolling),
+                 ("分数分档", step_calib), ("按板块命中率", step_board)],
     "morning": [("回填训练表", step_train_table)],
 }
 

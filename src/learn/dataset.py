@@ -47,7 +47,7 @@ def mad(x: np.ndarray) -> float:
 
 def neutralize(df: pd.DataFrame, nz: dict, *,
                salvage_guard: bool = True) -> pd.DataFrame:
-    """按天做中性化，写入列 y（中心化+缩尾）和 ytil（再除 MAD）。
+    """按天做中性化，写入 y（中心化+缩尾）、y_raw（只中心化，汇报用）和 ytil。
 
     整天被丢弃的条件：可用样本少于 min_pool，或者 MAD 为 0
     （全池同涨同跌，尺度没有意义）。
@@ -81,20 +81,25 @@ def neutralize(df: pd.DataFrame, nz: dict, *,
             continue
         r = ok["r"].to_numpy(float)
         center = np.median(r) if use_med else np.mean(r)
-        y = r - center
-        lo, hi = np.quantile(y, [q, 1 - q])
-        y = np.clip(y, lo, hi)
+        raw = r - center
+        lo, hi = np.quantile(raw, [q, 1 - q])
+        y = np.clip(raw, lo, hi)
         scale = mad(y) if use_mad else float(np.std(y))
         if not np.isfinite(scale) or scale <= 0:
             log.info("%s 离散度为 0，整天丢弃", date)
             continue
+        # y 是**缩尾后**的，只给目标函数（防单日暴涨暴跌把梯度带翻）。
+        # 汇报口径（面板、邮件、会诊证据）要未缩尾的 y_raw：缩尾把坏日子前排的
+        # 亏损截掉，实测 09-10 的前 10 超额 −1.72% 被缩尾修饰了 0.34 个百分点。
+        # 两列并存，谁用哪个由调用方决定（learn/online_eval.py）。
         ok["y"] = y
+        ok["y_raw"] = raw
         ok["ytil"] = y / scale
         ok["day_center"] = center
         ok["day_scale"] = scale
         out.append(ok)
     if not out:
-        return df.iloc[0:0].assign(y=[], ytil=[])
+        return df.iloc[0:0].assign(y=[], y_raw=[], ytil=[])
     return pd.concat(out, ignore_index=True)
 
 
