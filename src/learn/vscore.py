@@ -17,6 +17,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from score import round1 as _round1_one
+
 # 与 score.py 的 AuctionFeature 字段一一对应，顺序无关
 NEEDED = [
     "limit_pct", "prev_close", "auc_price", "gap_pct", "auc_ratio", "auc_amount",
@@ -30,6 +32,15 @@ NEEDED = [
 # ---------------------------------------------------------------------
 #  分项打分。签名和 score.py 里的同名函数一致，只是吃数组。
 # ---------------------------------------------------------------------
+def round1(a: "np.ndarray") -> "np.ndarray":
+    """score.round1 的向量化版。逐元素调同一个函数，不是第二份实现。
+
+    数组一天最多几千行，逐元素调没有性能问题；而 np.round 和它在 x.x5 上
+    结果相反（见 score.round1 的说明）。
+    """
+    return np.array([_round1_one(v) for v in np.asarray(a, float)], dtype=float)
+
+
 def f_gap(gap: np.ndarray, lo: float, hi: float, peak: float) -> np.ndarray:
     """钟形，两臂各自按自己的跨度归一。见 score.py::f_gap 的注释。"""
     half = np.where(gap < peak, peak - lo, hi - peak)

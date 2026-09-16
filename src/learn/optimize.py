@@ -41,7 +41,9 @@ def production_order(scores: np.ndarray, rej: np.ndarray, c: dict,
     out = c["output"]
     s = np.asarray(scores, float)
     n = int(out["top_n"] if top_n is None else top_n)
-    ok = (~np.asarray(rej, bool)) & (np.round(s, 1) >= float(out["min_score"]))
+    # 取整必须和生产同一份实现：np.round 在 x.x5 上和 Python 内置 round
+    # 结果相反（12.65 -> 12.6 vs 12.7），而门槛判的就是取整之后的分。
+    ok = (~np.asarray(rej, bool)) & (vscore.round1(s) >= float(out["min_score"]))
     idx = np.flatnonzero(ok)
     return idx[np.argsort(-s[idx], kind="stable")][:n]
 

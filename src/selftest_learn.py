@@ -2657,6 +2657,48 @@ def check_council_cadence() -> None:
             CR.LATEST = old
 
 
+
+def check_round_one_impl() -> None:
+    """分数取整到 0.1 只有一份实现（2026-09-16 端到端测试发现）。
+
+    生产 score.py 用 Python 内置 round，学习线 optimize.production_order 用
+    np.round，两者在 x.x5 上系统性相反：12.65 -> 12.7 vs 12.6。一份 1012 行的
+    真实快照里 7 行受影响。门槛判据 `取整后的分 >= min_score` 就架在这上面。
+    """
+    print("\n[分数取整·唯一实现]")
+    import ast
+    import inspect
+    import numpy as np
+    import score as S
+    from learn import vscore
+    from learn import optimize as OPT
+
+    xs = [12.65, 44.95, 96.95, 0.05, 1.15, 7.25, 23.15, 0.0, 100.0]
+    v = vscore.round1(xs)
+    ck(all(abs(v[i] - S.round1(x)) < 1e-12 for i, x in enumerate(xs)),
+       "向量化的 round1 和 score.round1 逐位一致")
+    npr = np.round(np.asarray(xs, float), 1)
+    ck(any(abs(npr[i] - S.round1(x)) > 1e-12 for i, x in enumerate(xs)),
+       "np.round 确实和它不一样（所以这条断言不是废话）")
+    ck(abs(S.round1(12.65) - 12.7) < 1e-12,
+       f"12.65 -> 12.7（拿到 {S.round1(12.65)}）")
+
+    # production_order 里不许真的**调用** np.round（注释里提它是可以的，
+    # 所以看 AST 不看文本）
+    src = inspect.getsource(OPT.production_order)
+    t = ast.parse(src.strip())
+    called = {ast.unparse(n.func) for n in ast.walk(t) if isinstance(n, ast.Call)}
+    ck(not {x for x in called if x.endswith(".round") and "round1" not in x},
+       f"production_order 不调 np.round（实际调用：{sorted(called)}）")
+    ck(any("round1" in x for x in called), "production_order 调 round1")
+    # score_one 落盘的 score 也走 round1
+    s1 = inspect.getsource(S.score_one)
+    tree = ast.parse(s1.strip())
+    calls = [n.func.id for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
+    ck("round1" in calls, "score_one 的 score 字段用 round1 落盘")
+
+
 def main() -> int:
     t0 = time.time()
     c = C.load()
@@ -2692,6 +2734,7 @@ def main() -> int:
     check_attribution_idempotent(c)
     check_proposal_send()
     check_council()
+    check_round_one_impl()
     check_estimator_pairing()
     check_council_cadence()
     print(f"\n耗时 {time.time()-t0:.2f}s | 断言失败 {BAD} 个")

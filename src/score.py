@@ -216,6 +216,18 @@ def assign_group(feat: AuctionFeature, sc: dict[str, Any]) -> str:
 PART_KEYS = ("gap", "volume", "trend", "position", "sector", "continuity")
 
 
+def round1(x: float) -> float:
+    """分数取整到 0.1。**唯一实现**，学习线也调它。
+
+    不许用 np.round：它先乘 10 再 rint，12.65*10 在双精度里是
+    126.49999999999999，于是 12.65 -> 12.6；Python 内置 round 按这个 double
+    的精确十进制值判（12.650000000000000355 > 12.65），给 12.7。
+    两者在 x.x5 上系统性相反，而「够不够 min_score」这条门槛就架在取整结果上。
+    2026-09-16 实测：一份 1012 行的真实快照里 7 行两种取法不同。
+    """
+    return round(float(x), 1)
+
+
 def score_one(feat: AuctionFeature, cfg: dict[str, Any]) -> dict[str, Any]:
     sc, w, pen = cfg["screen"], cfg["scoring"]["weights"], cfg["scoring"]["penalties"]
 
@@ -258,7 +270,7 @@ def score_one(feat: AuctionFeature, cfg: dict[str, Any]) -> dict[str, Any]:
         **asdict(feat),
         "group": group,
         "liangbi": round(_liangbi(feat.auc_ratio, sc), 1),
-        "score": round(max(0.0, raw - penalty), 1),
+        "score": round1(max(0.0, raw - penalty)),
         # 排序用它，不用取整后的 score：取整到 0.1 后并列的票按候选池顺序
         # （昨日成交额）定先后，和 vscore（不取整）也对不上。
         "score_raw": max(0.0, raw - penalty),

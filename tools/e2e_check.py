@@ -215,19 +215,55 @@ def step_morning_pool() -> tuple[bool, str]:
     except Exception:  # noqa: BLE001
         m = {}
     return rc == 0 and bool(m.get("date")), \
-        f"rc={rc}；候选池 {m.get('date', '?')} / {m.get('n', '?')} 只 | {tail(out, 2)}"
+        (f"rc={rc}；候选池 {m.get('date', '?')} / {m.get('count', '?')} 只"
+         f"（历史缺 {m.get('missing_hist', '?')}）| {tail(out, 2)}")
 
 
 def step_morning_enrich() -> tuple[bool, str]:
-    """早盘的打分 + 面板 + 邮件渲染，用已有快照重放，SKIP_MAIL=1 必须不发信。"""
+    """早盘：① enrich 不许拿旧产物发信；② 打分和选榜这条路真的走一遍。
+
+    ① 单独跑 enrich 时，out/ 里如果是上一个交易日的产物它会拒绝发信
+    （正确行为），但那也意味着**这一步没有测到打分和渲染**，只测到了拒绝。
+    所以 ② 拿最近一份竞价快照重放：快照里存的就是当天 score_one 打完分的行，
+    用向量化孪生体 vscore 重算一遍，必须逐位复现存档的分数（差一位就说明
+    config / 孪生体 / 生产打分器三者之间漂了），再按生产口径选出那张榜。
+    不写 out/（教训 17）。
+    """
     sent = ROOT / "out" / "mail_sent.json"
     before = sent.read_text(encoding="utf-8") if sent.exists() else ""
     rc, out = run([PY, "src/run_auction.py", "--stage", "enrich"], timeout=900)
     after = sent.read_text(encoding="utf-8") if sent.exists() else ""
-    panel = ROOT / "out" / "panel.html"
-    ok = rc == 0 and after == before and panel.exists()
-    return ok, (f"rc={rc}；发信戳{'没动' if after == before else '被改了（不该发信）'}；"
-                f"面板{'在' if panel.exists() else '缺'} | {tail(out, 3)}")
+    no_mail = after == before
+    refused = "不发信" in out
+
+    import glob
+    import numpy as np
+    import pandas as pd
+    import cfg as C
+    from learn import vscore
+    from learn.optimize import production_order
+    snaps = sorted(glob.glob(str(ROOT / "data" / "*" / "auction_*.parquet")))
+    if not snaps:
+        return False, "没有任何竞价快照可以重放"
+    c = C.load()
+    df = pd.read_parquet(snaps[-1])
+    sc, rej = vscore.score_df(df, c)
+    # 取整走 vscore.round1（= score.round1 的向量化版）。这里以前写 np.round，
+    # 于是 1012 行里 7 行对不上 —— 查下去发现不是孪生体漂了（原始分逐位相同），
+    # 是取整有两份实现：np.round 在 x.x5 上和生产的 round 结果相反。已并成一份。
+    same = float(np.mean(vscore.round1(sc) == df["score"].to_numpy(float)))
+    # 剔除判定也要对上：孪生体说剔、存档说没剔（或反过来）就是口径漂了
+    rej_same = float(np.mean(rej == df["rejected"].notna().to_numpy()))
+    sel = production_order(sc, rej, c)
+    top = df.iloc[sel]
+    lo, hi = c["screen"]["gap_pct_min"], c["screen"]["gap_pct_max"]
+    inrange = bool(((top["gap_pct"] >= lo) & (top["gap_pct"] <= hi)).all()) if len(top) else True
+    ok = (rc == 0 and no_mail and same > 0.999 and rej_same > 0.999 and inrange)
+    return ok, (f"rc={rc}；发信戳{'没动' if no_mail else '被改了（不该发信）'}"
+                f"{'（enrich 拒绝拿旧产物发信）' if refused else ''}；"
+                f"重放 {Path(snaps[-1]).name}（{len(df)} 行）："
+                f"分数复现 {100 * same:.1f}%、剔除判定复现 {100 * rej_same:.1f}%；"
+                f"选出 {len(top)} 只，涨幅都在 {lo}~{hi}% 内={inrange}")
 
 
 def step_site() -> tuple[bool, str]:
