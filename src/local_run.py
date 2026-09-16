@@ -138,18 +138,9 @@ def step(i: int, n: int, text: str) -> None:
 #  环境
 # ---------------------------------------------------------------------
 def load_env() -> None:
-    """tools/local.env -> os.environ。已存在的环境变量优先，不覆盖。"""
-    p = ROOT / "tools" / "local.env"
-    if not p.exists():
-        return
-    for line in p.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        k, v = k.strip(), v.strip()
-        if k and v and "FILLME" not in v and k not in os.environ:
-            os.environ[k] = v
+    """tools/local.env -> os.environ（实现在 src/localenv.py，三个入口共用）。"""
+    import localenv
+    localenv.load()
 
 
 def sh(*args: str, check: bool = True, quiet: bool = False) -> int:

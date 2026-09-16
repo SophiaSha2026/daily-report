@@ -29,8 +29,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 import pandas as pd
 
 import cfg as C
+import localenv
 from learn import (apply as A, dataset, gate, labels as L, objective as O,
                    optimize as OPT, report as R)
+
+# SMTP 凭证和 OAuth token 在 tools/local.env 里。控制台的按钮直接跑这个脚本
+# （不经过 local_run），不加载就发不出信，而发信失败是 fail-open 的（教训 16）。
+localenv.load()
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s")

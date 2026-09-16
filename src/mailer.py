@@ -13,6 +13,14 @@ log = logging.getLogger(__name__)
 
 
 def _conf() -> dict:
+    """凭证来自环境变量。本机跑的入口不一定加载过 tools/local.env（控制台的
+    按钮就是直接跑脚本），所以在这个唯一的入口兜一次底；云端没有这个文件，
+    而且已存在的环境变量优先，GitHub Secrets 不会被盖掉。"""
+    try:
+        import localenv
+        localenv.load()
+    except Exception:  # noqa: BLE001
+        pass
     return {
         "host": os.environ["SMTP_HOST"],
         "port": int(os.environ.get("SMTP_PORT", "587")),

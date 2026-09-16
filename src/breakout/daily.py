@@ -600,22 +600,9 @@ def stage_scan(force_fit: bool = False) -> int:
 
 
 def load_env() -> None:
-    """把 tools/local.env 读进环境变量。
-
-    SMTP 配置在那个文件里，不在环境里。local_run.py 走的时候会先加载，
-    但 daily.py 单独跑（控制台点按钮、手动命令行）时没人加载，
-    发信就会报 KeyError: 'SMTP_HOST'。
-    """
-    f = ROOT / "tools" / "local.env"
-    if not f.exists():
-        return
-    import os
-    for ln in f.read_text(encoding="utf-8").splitlines():
-        ln = ln.strip()
-        if not ln or ln.startswith("#") or "=" not in ln:
-            continue
-        k, v = ln.split("=", 1)
-        os.environ.setdefault(k.strip(), v.strip())
+    """tools/local.env -> os.environ（实现在 src/localenv.py，三个入口共用）。"""
+    import localenv
+    localenv.load()
 
 
 def stage_send() -> int:
