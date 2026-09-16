@@ -54,7 +54,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import datasource as ds                                    # noqa: E402
 from datasource import _turnover as turnover_pct           # noqa: E402
-from mailer import send_alert                              # noqa: E402
+from mailer import send_alert, skip_mail                   # noqa: E402
 from pullback_export import write_panel, write_blocks, send_pullback  # noqa: E402
 
 OUT = ROOT / "out_pullback"
@@ -164,7 +164,10 @@ def find_pattern(h: pd.DataFrame, today_to: float, today_vol: float,
     hi_i = n - ac["min_days"] - 1                  # 调整至少 min_days 天
     for i in range(hi_i, lo_i - 1, -1):
         s, prev = h.iloc[i], h.iloc[i - 1]
-        if float(s["涨跌幅"]) < lc["gain_pct_min"]:
+        # 写成 `not (>=)` 而不是 `<`：日线首根的涨跌幅现在是 NaN（datasource
+        # 改的，给 0.0 会伪造「昨天平盘」），而 `nan < 5` 是 False 会把
+        # NaN 那根当成合格启动日放过去
+        if not (float(s["涨跌幅"]) >= lc["gain_pct_min"]):
             continue
         if float(prev["成交量"]) <= 0:
             continue
@@ -489,19 +492,23 @@ def stage_send(c: dict, asof: str | None = None) -> int:
         notice = "本次无 LLM 分析（模型调用失败或额度耗尽），以下为纯量化结果"
         log.warning(notice)
 
-    blocks = write_blocks(sel, OUT, today) if sel else []
+    # 无条件写，空榜写成空文件。形态线空榜是常态（30 天里 26 天 0 只），
+    # 以前每个空榜日 形态_全部.txt 都还是上一次出票那天的代码，被提交、
+    # 被发布到 Pages（2026-09-11 实测：run_meta n=0，文件仍是 09-10 的 920060）
+    blocks = write_blocks(sel, OUT, today)
     write_panel(sel, texts, OUT, today, notice, stamp)
 
     owner = os.environ.get("GH_OWNER", "")
     repo = os.environ.get("GH_REPO", "")
     page = f"https://{owner.lower()}.github.io/{repo}/pullback.html" if owner else ""
 
-    att = list(blocks)
+    att = [p for p in blocks if p.stat().st_size > 0]
     if (OUT / "detail.csv").exists():
         att.append(OUT / "detail.csv")
 
-    if os.environ.get("SKIP_MAIL"):
+    if skip_mail():
         # 本地 dry-run，或远端 yield_check 确认本地已发信。面板照常生成。
+        # 判定收在 mailer.skip_mail()：以前这里是真值判断，SKIP_MAIL=0 也跳过
         log.info("SKIP_MAIL=1：面板已生成，邮件不发")
         return 0
     send_pullback(today, sel, texts, notice=notice, attachments=att,

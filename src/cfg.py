@@ -57,8 +57,21 @@ def _set_path(d: dict, path: str, value: Any) -> None:
     cur[parts[-1]] = value
 
 
-def _allowed(path: str) -> bool:
-    return any(path == p or path.startswith(p) for p in _ALLOWED_PREFIX)
+def _allowed(path: str, known: frozenset[str]) -> bool:
+    """白名单：必须是 config.yaml 里**已经存在**的键，且落在允许的前缀下。
+
+    以前只做 startswith，比硬约束 8 承诺的松：`screen.gap_pct_peakXYZ`、
+    `screen.auc_ratio_decay_foo`、`scoring.weights.foo` 全部放行。
+    多出来的死键不影响正常排序（score_one / vscore 按 parts 的六个固定键取
+    权重），但会让 cfg.diff() 列出假变更、theta_version 被判成 learned，
+    而抢救模式以前 `sum(w.values())` 会把它算进分母（已一并改掉）。
+    `scoring.weights.` 带点，仍然对 config.yaml 里新增的维度开放；
+    三个 screen 前缀不带点，只匹配精确键。
+    """
+    if path not in known:
+        return False
+    return any(path == p or (p.endswith(".") and path.startswith(p))
+               for p in _ALLOWED_PREFIX)
 
 
 def base() -> dict:
@@ -75,7 +88,8 @@ def learned() -> dict[str, Any]:
         params = raw.get("params") or {}
         if not isinstance(params, dict):
             raise TypeError("learned.yaml 的 params 不是 dict")
-        bad = [k for k in params if not _allowed(k)]
+        known = frozenset(_flat(base()))
+        bad = [k for k in params if not _allowed(k, known)]
         if bad:
             log.warning("learned.yaml 含不允许的键，整份忽略: %s", bad)
             return {}

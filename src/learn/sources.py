@@ -7,14 +7,22 @@
               continuity。竞价量能和竞价轨迹历史上取不到，2026-09-02 全渠道
               实测见 docs/learning.md 2.3。
     tushare   填了 TUSHARE_TOKEN 就走这条。两个接口按可用性自动降级：
-                stk_auction_o  竞价段 OHLC -> 能补 volume + trend
-                stk_auction    竞价成交量/额/量比/换手/流通股本 -> 只补 volume
+                stk_auction_o  **只能补撮合价**。2026-09-16 实测：它的 bar 是
+                               「09:25 撮合价 -> 09:30 之后」，不是竞价段 ——
+                               open == 日线开盘 99.4%，close 只有 56%，
+                               amount 比线上 09:25:10 的真竞价额中位高 25%~33%。
+                               所以 volume 不可学、trend 更不可学。
+                stk_auction    竞价成交量/额/量比/换手/流通股本 -> 能补 volume
               官网「集合竞价成交」¥500/年 对应的是后者，历史从 2025-01 起。
               前者是否在同一权限里不确定，所以运行时探测：先试 _o，
               401/权限不足就退到 stk_auction，都不通就退回 free。
 
-表上带一列 `completeness`，取值 H 或 FULL，下游据此决定哪些维度可学。
+表上带一列 `completeness`，取值 H 或 H+V，下游据此决定哪些维度可学。
 换源不改任何下游代码。
+
+trend 这一维在**任何**历史源上都不可学：它要 09:19:40 / 09:23:30 两个
+撤单前的虚拟撮合价，属于 L1 快照流，Tushare 的竞价包和分钟线都不含
+（分钟线从 09:30 起）。只能靠线上积累。
 """
 from __future__ import annotations
 
@@ -31,7 +39,17 @@ CACHE = ROOT / "cache"
 
 # H 块能还原的维度。免费源下 volume / trend 的参数不参与学习。
 DIMS_H = ["gap", "position", "sector", "continuity"]
-DIMS_ALL = DIMS_H + ["volume", "trend"]
+
+# 每个维度对应哪些可学参数（箱约束里的键）。restrict_box 按这张表裁剪。
+DIM_PARAMS = {
+    "gap": ("scoring.weights.gap", "screen.gap_pct_peak"),
+    "volume": ("scoring.weights.volume", "screen.auc_ratio_score_hi",
+               "screen.auc_ratio_decay"),
+    "trend": ("scoring.weights.trend",),
+    "position": ("scoring.weights.position",),
+    "sector": ("scoring.weights.sector",),
+    "continuity": ("scoring.weights.continuity",),
+}
 
 
 def token() -> str:
@@ -71,20 +89,68 @@ def which() -> str:
 
 
 def completeness() -> str:
-    """H = 只有 gap/position/sector/continuity；+V = 再加 volume；FULL = 全六维。"""
+    """H = 只有 gap/position/sector/continuity；H+V = 再加 volume。
+
+    2026-09-16 前 `_o` 被当成 "FULL"（全六维可学），那是按接口名想当然：
+    它的 bar 越过了撮合，竞价额中位偏大 25%~33%（量能准入两边判定不一致
+    16.6%），轨迹更是开盘后的涨跌。所以 `_o` 的完整度是 H，不是 FULL。
+    换成 stk_auction（非 _o）拿纯竞价额之前，必须先用重叠日实测
+    median(ts_amount / 线上 auc_amount) 落在 [0.98, 1.02]。
+    """
     if which() != "tushare":
         return "H"
-    return {"o": "FULL", "plain": "H+V"}.get(probe_ts(), "H")
+    return {"o": "H", "plain": "H+V"}.get(probe_ts(), "H")
 
 
 def learnable_dims() -> list[str]:
-    """免费源 0.55 权重；stk_auction 再加 volume 到 0.80；_o 才是全部。
+    """这份历史数据**真的**能学的维度。免费源和 _o 都是 0.55 权重那四维。
 
-    竞价斜率(trend, 0.20) 需要 09:19/09:23 的盘中虚拟撮合价，属于 L1 快照流，
-    Tushare 的竞价包和分钟线都不含（分钟线从 09:30 起）。只能靠线上积累。
+    trend 在任何历史源上都不可学（模块 docstring 末尾那段）；volume 只有
+    拿到纯竞价成交额（stk_auction）才算数。
     """
-    return {"FULL": DIMS_ALL, "H+V": DIMS_H + ["volume"]}.get(
-        completeness(), DIMS_H)
+    return {"H+V": DIMS_H + ["volume"]}.get(completeness(), DIMS_H)
+
+
+def dims_from_cfg(c: dict) -> list[str]:
+    """可学维度：配置里写了就以配置为准，没写才按数据源探测。
+
+    config.yaml 的 learning.backfill.learnable_dims 以前是个死键（全仓零引用），
+    用户改它没有任何效果。现在它是唯一真相，探测只当兜底 ——
+    probe_ts() 要联网，离线场合（自测、无 token）也能走配置这条路。
+    """
+    d = ((c.get("learning") or {}).get("backfill") or {}).get("learnable_dims")
+    return list(d) if d else learnable_dims()
+
+
+def restrict_box(box: dict[str, list], theta0: dict[str, float],
+                 dims: list[str] | None = None) -> dict[str, list]:
+    """把箱约束裁到这份数据真能学的维度上。
+
+    裁法是**钉死**（lo=hi=θ⁰）而不是删键：objective.project 要求箱里
+    scoring.weights.* 那组的和恰好为 1，删掉两个权重键会让剩下四个被归一到
+    1，加上仍在生效的 trend/volume 两个 0.20，总权重变成 1.4。钉死则既不动
+    生产语义，又让优化器一步也迈不出去。
+
+    只打日志不裁是没用的：闸门比的是同一份被污染的目标函数，
+    trend 权重照样会被顶高（回填里 slope 恒 0，f_trend 恒 0.5，优化器只会
+    把 w_trend 推到下界去腾预算，那不是学到的结论，是数据缺失）。
+
+    theta0 传人工基线 C.theta0(box)。注意：如果 state/learned.yaml 里某个
+    被钉死的键已经学到了别的值，锚定项会被 1e-12 的尺度放大 ——
+    转为不可学之前要先 rollback 那个键。
+    """
+    dims = list(dims if dims is not None else learnable_dims())
+    keep: set[str] = set()
+    for dim in dims:
+        keep.update(DIM_PARAMS.get(dim, ()))
+    out: dict[str, list] = {}
+    for k, v in box.items():
+        if k in keep:
+            out[k] = list(v)
+        else:
+            x = float(theta0[k])
+            out[k] = [x, x]
+    return out
 
 
 # ---------------------------------------------------------------------
@@ -97,15 +163,23 @@ def _normalize(h: pd.DataFrame, code: str) -> pd.DataFrame:
     datetime.date 对象，腾讯 K 线给的是字符串。混在一张表里
     pyarrow 直接报 ArrowTypeError，整批落盘失败——第一次跑就是这么
     把二十分钟的下载丢掉的。统一成 'YYYY-MM-DD' 字符串。
+
+    单位由 datasource 那一层保证三路一致：成交量一律「手」（腾讯对 688
+    给的是股，已折算）、成交额一律「元」。`chg_adj` 必须留着 ——
+    它标的是这一行的「涨跌幅」是不是复权口径，只有东财那路是 True，
+    learn/backfill 靠它决定能不能拿 chg 反解昨收。丢了这一列，
+    整张表会被当成不复权口径处理（退化，不会算错，只是多丢除权日）。
     """
     h = h.copy()
     h["日期"] = pd.to_datetime(h["日期"], errors="coerce").dt.strftime("%Y-%m-%d")
     for c in ("开盘", "收盘", "最高", "最低", "成交量", "成交额", "涨跌幅"):
         if c in h.columns:
             h[c] = pd.to_numeric(h[c], errors="coerce")
+    if "chg_adj" in h.columns:
+        h["chg_adj"] = h["chg_adj"].fillna(False).astype(bool)
     h["code"] = str(code).zfill(6)
     keep = ["日期", "开盘", "收盘", "最高", "最低", "成交量", "成交额",
-            "涨跌幅", "code"]
+            "涨跌幅", "chg_adj", "code"]
     return h[[c for c in keep if c in h.columns]]
 
 
@@ -202,6 +276,9 @@ def fetch_auction_ts(start: str, end: str,
     import datasource as ds
     # 优先 stk_auction_o：它按交易日拉是 ~5400 行（A 股全量，不截断），
     # 而 stk_auction 含 ETF 会顶到单次 8000 行上限被静默截断。
+    # 注意：_o 只有 open 是 09:25 撮合价，amount 含开盘后成交（中位偏大
+    # 25%~33%）。要换成 stk_auction 拿纯竞价额，得先解决分页截断，
+    # 并用重叠日对一遍 median(比值) ∈ [0.98, 1.02]。
     api = "stk_auction_o" if tag == "o" else "stk_auction"
     out = out or (CACHE / "hist_auction.parquet")
     pro = ts.pro_api(token())

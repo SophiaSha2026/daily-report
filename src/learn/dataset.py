@@ -115,7 +115,14 @@ def build(dates: list[str] | None = None, nz: dict | None = None
     for d in dates:
         snap = load_snapshot(d)
         lb = lab[lab["date"] == d][["code", "r", "dirty"]]
-        frames.append(snap.merge(lb, on="code", how="inner"))
+        m = snap.merge(lb, on="code", how="inner")
+        # inner merge 会静默缩池：标签是按当天快照的代码集打的，两边对不上
+        # 只可能是标签来自另一份快照（或另一天）。neutralize 的 min_pool=200
+        # 只兜得住极端情况，中等缩水完全看不出来，所以这里出声
+        if len(snap) and len(m) < 0.95 * len(snap):
+            log.warning("%s 标签只覆盖快照 %d/%d 只，标签可能是旧快照打的",
+                        d, len(m), len(snap))
+        frames.append(m)
     df = pd.concat(frames, ignore_index=True)
     df["dirty"] = df["dirty"].fillna(True).astype(bool)
     return neutralize(df, nz)

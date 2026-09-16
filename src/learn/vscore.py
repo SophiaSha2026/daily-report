@@ -35,7 +35,10 @@ def f_gap(gap: np.ndarray, lo: float, hi: float, peak: float) -> np.ndarray:
     half = np.where(gap < peak, peak - lo, hi - peak)
     v = 1.0 - np.abs(gap - peak) / half
     v = np.maximum(0.0, v)
-    return np.where((gap <= lo) | (gap >= hi), 0.0, v)
+    # 写成「在区间内才留 v」而不是「在区间外置 0」：NaN 和任何数比较都是 False，
+    # 后一种写法让 NaN 保住 v（=NaN），而 score.py 的 max(0.0, nan) 是 0.0。
+    # 同 hard_reject 里 gap_in 的写法。
+    return np.where(~((gap > lo) & (gap < hi)), 0.0, v)
 
 
 def f_volume(ratio: np.ndarray, lo: float, hi: float, sat: float,
@@ -57,6 +60,9 @@ def f_volume(ratio: np.ndarray, lo: float, hi: float, sat: float,
 
 def f_trend(slope: np.ndarray, monotonic: np.ndarray,
             limit: np.ndarray) -> np.ndarray:
+    # 斜率缺失按 0，和 score.py::f_trend 同一口径（np.clip(nan) 是 nan，
+    # 而标量那边 min(1.0, nan) 是 1.0 —— 两边都不对，统一成「没有轨迹证据」）
+    slope = np.where(np.isfinite(slope), slope, 0.0)
     s = np.clip(slope / (limit * 0.3), -1.0, 1.0)
     return np.minimum(1.0, (s + 1.0) / 2.0 + np.where(monotonic, 0.15, 0.0))
 
@@ -108,7 +114,10 @@ def hard_reject(d: dict[str, np.ndarray], sc: dict) -> np.ndarray:
     gap_in = (d["gap_pct"] >= sc["gap_pct_min"]) & (d["gap_pct"] <= sc["gap_pct_max"])
     ratio_in = ((d["auc_ratio"] >= sc["auc_ratio_min"])
                 & (d["auc_ratio"] <= sc["auc_ratio_max"]))
-    amt_ok = d["auc_amount"] >= sc.get("min_auc_amount_wan", 0) * 1e4
+    # 直接索引，和 score.py::hard_reject 一样缺键就响。两边同时 .get(…,0) 时
+    # 等价性断言抓不到：生产和回测会一起把这条准入线静默关掉，而训练表里的
+    # sector_members 是按有下限算的，一次拟合里两个口径就分叉（教训 30）。
+    amt_ok = d["auc_amount"] >= sc["min_auc_amount_wan"] * 1e4
     return (
         d["blacklisted"]
         | d["one_word"]
@@ -129,18 +138,26 @@ def assign_group_b(d: dict[str, np.ndarray], sc: dict) -> np.ndarray:
     return (~is_a) & (d["pos_pct_60d"] <= sc["pos_pct_60d_max_for_lowbase"])
 
 
+_BOOL_COLS = ("monotonic", "ma_bull", "breakout", "prev_limit_up",
+              "prev_broken_board", "blacklisted", "one_word")
+
+
 def prepare(df: "pd.DataFrame") -> dict[str, np.ndarray]:
-    """DataFrame -> 列数组字典。一次准备，多次求值时不用反复转换。"""
+    """DataFrame -> 列数组字典。一次准备，多次求值时不用反复转换。
+
+    按**列名**分流，不按 dtype。以前写的是
+    `col.astype(bool) if col.dtype == bool or col.dtype == object else ...`，
+    一个数值列只要以 object 到达（concat 时 dtype 漂了、或混进一个 None），
+    就会被 astype(bool) 变成 True/False：gap_pct 变 bool 后
+    `True >= 2.0` 恒为 False，整天 100% 被硬性排除，优化器每次目标函数求值
+    都是零幸存者；pos_pct_60d 变 bool 则实测 12 只通过者里 9 只分数变了、
+    最大差 40.72 分。全程不抛异常，退出码 0。
+    数值列一律 astype(float)，object 里的 None 会正确变成 NaN 而不是 False。
+    """
     out: dict[str, np.ndarray] = {}
     for k in NEEDED:
         col = df[k].to_numpy()
-        out[k] = col.astype(bool) if col.dtype == bool or col.dtype == object \
-            else col.astype(float)
-    for k in ("monotonic", "ma_bull", "breakout", "prev_limit_up",
-              "prev_broken_board", "blacklisted", "one_word"):
-        out[k] = df[k].to_numpy().astype(bool)
-    for k in ("board_height", "sector_members", "sector_prev_limitups"):
-        out[k] = df[k].to_numpy().astype(float)
+        out[k] = col.astype(bool) if k in _BOOL_COLS else col.astype(float)
     return out
 
 

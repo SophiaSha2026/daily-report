@@ -2166,11 +2166,20 @@ def check_nonfinite(c: dict) -> None:
     # 教训 26：必须挑一只**过了准入**的票，否则这条规则根本碰不到
     ck(len(cand) > 10, f"第一天有 {len(cand)} 只过准入的票（够触发这条规则）")
     bad = cand[3]
+    # 2026-09-16 起 NaN 斜率在 score.py 和 vscore.py 两边都按 0 处理（和生产
+    # 「T1 漏采就拿 T3 补、斜率 0」同口径），所以它不再是 NaN 分数的入口。
+    # 先把这件事钉住（孪生体一致性的一部分），再用仍然可达的那条路径
+    # ——标签算不出来——去验通用守卫。
+    slope_nan = df.copy()
+    slope_nan.loc[bad, "slope"] = np.nan
+    s_sn, rej_sn = vscore.score_df(slope_nan, c)
+    ck(not bool(rej_sn[bad]) and np.isfinite(s_sn[bad]),
+       "NaN 斜率不再产生 NaN 分数（两个打分器都按 0 处理）")
     dirty = df.copy()
-    dirty.loc[bad, "slope"] = np.nan        # require_positive_slope=false，不会被剔
+    dirty.loc[bad, "ytil"] = np.nan         # 标签没算出来：过了准入但收益是 NaN
     s1, rej1 = vscore.score_df(dirty, c)
-    ck(not bool(rej1[bad]) and not np.isfinite(s1[bad]),
-       "NaN 斜率没被硬性排除，分数确实变成了 NaN（正是那条潜伏路径）")
+    ck(not bool(rej1[bad]) and not np.isfinite(float(dirty.loc[bad, "ytil"])),
+       "标签缺失的行没被硬性排除，收益确实是 NaN（守卫要抓的就是它）")
 
     p_ok = OPT.Problem(df.drop(index=[bad]), c, box, t0, t0, None, 10, 1.345)
     p_bad = OPT.Problem(dirty, c, box, t0, t0, None, 10, 1.345)

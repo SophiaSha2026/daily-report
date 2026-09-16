@@ -23,6 +23,7 @@ tdx_export.py 里的完整版随时可用——那边能做到真正的可排序
 from __future__ import annotations
 
 import json
+import html as _h
 import datetime as _dt
 from pathlib import Path
 
@@ -56,8 +57,10 @@ def write_ths_blocks(rows: list[dict], out_dir: Path,
                       .encode("gbk"))
         paths.append(p)
 
+    # 和上面分层那三个同口径：空榜写 0 字节，不是一个孤零零的换行
     p = out_dir / "竞价_全部.txt"
-    p.write_bytes(("\r\n".join(r["code"] for r in rows) + "\r\n").encode("gbk"))
+    p.write_bytes(("\r\n".join(r["code"] for r in rows)
+                   + ("\r\n" if rows else "")).encode("gbk"))
     paths.insert(0, p)
     return paths
 
@@ -91,7 +94,10 @@ tr:hover{background:#1b1f26}
    padding:8px 12px;border-radius:5px;font-size:12px;margin-bottom:12px}
 """
 
-# 自动刷新脚本，竞价面板和形态面板共用。__STAMP__ / __DATE__ 由调用方替换。
+# 自动刷新脚本，三个面板共用。__STAMP__ / __DATE__ / __LAGOK__ 由调用方替换。
+# __LAGOK__：这条线的面板日期本来就落后今天吗。竞价面板 false（它的日期
+# 就是今天），起涨预测和形态面板 true（它们的日期是最近一个已收盘交易日）。
+# 不替换时表达式退化成 false，也就是保持老行为，不会因为漏了一处就炸掉脚本。
 REFRESH_JS = """/* ---------------------------------------------------------------------
    自动刷新。为什么需要：
    GitHub Pages 给 index.html 挂的是 Cache-Control: max-age=600，
@@ -101,7 +107,7 @@ REFRESH_JS = """/* -------------------------------------------------------------
    带上 ?v=<新stamp> 就是不同的缓存键，必然回源。
    stamp.txt 的请求也带 cb=<随机> 绕开缓存，否则查的还是旧的。
    --------------------------------------------------------------------- */
-const STAMP='__STAMP__', PDATE='__DATE__';
+const STAMP='__STAMP__', PDATE='__DATE__', LAGOK=('__LAGOK__'==='true');
 function bjToday(){
   // Date.now() 已经是 UTC 毫秒，加 8 小时再按 UTC 取日期就是北京日期。
   // 以前还加了一次 getTimezoneOffset，美东浏览器算成北京 +4 小时，
@@ -128,8 +134,11 @@ function poll(){
     }).catch(()=>{});
 }
 (function(){
-  const t=bjToday();
-  if(PDATE!==t){
+  /* 横幅只在「这条线的面板日期本来该等于今天」且「是工作日」时才有意义。
+     起涨预测/形态的面板日期就是最近一个已收盘交易日，按旧口径 720/720 小时
+     全在挂「数据过期」，等于没有过期检测；竞价面板周末两天也是无条件误报。 */
+  const t=bjToday(), wd=new Date(Date.now()+8*36e5).getUTCDay();
+  if(!LAGOK && PDATE!==t && wd>=1 && wd<=5){
     banner('面板数据日期 '+PDATE+'，当前北京 '+t+
            '。若今日榜单已发布，本页会自动刷新（每 15 秒检查一次）。');
   }
@@ -185,23 +194,31 @@ function one(c){put(c,'已复制 '+c);}
 """ + REFRESH_JS + """</script></body></html>"""
 
 
-def _criteria_line(sc: dict) -> str:
+def _criteria_line(sc: dict, late: bool = False) -> str:
     """把当前生效的准入区间渲染成一行。
 
     写死一段文案的话，改 config 之后面板会继续显示旧口径，看不出改动生效没有。
     量比是 AUC_RATIO 的换算显示值，筛选本身仍然用 AUC_RATIO。
+
+    late=True 是抢救日：那一跑的量能区间被放成 0~1e9（run_auction.salvage_screen），
+    照着渲染会印成「量比 0.0~240000000000」，不如直接说已放开。
     """
     k = sc.get("liangbi_per_auc_ratio", 240)
+    vol = ('量比 已放开（抢救：累计额混入连续竞价，量能维度停用）' if late else
+           f'量比 {sc["auc_ratio_min"]*k:.1f}~{sc["auc_ratio_max"]*k:.0f} '
+           f'（竞价量能 {sc["auc_ratio_min"]*100:.2f}%~'
+           f'{sc["auc_ratio_max"]*100:.2f}%）')
     return (f'准入：竞价涨幅 {sc["gap_pct_min"]:.0f}%~{sc["gap_pct_max"]:.0f}% · '
-            f'量比 {sc["auc_ratio_min"]*k:.1f}~{sc["auc_ratio_max"]*k:.0f} '
-            f'（竞价量能 {sc["auc_ratio_min"]*100:.2f}%~{sc["auc_ratio_max"]*100:.2f}%）'
-            f' · 竞价额 ≥ {sc["min_auc_amount_wan"]:.0f} 万')
+            f'{vol} · 竞价额 ≥ {sc["min_auc_amount_wan"]:.0f} 万')
 
 
 def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
                     tiers: list[float], date: str, notice: str = "",
                     screen: dict | None = None,
-                    shadow_rows: list | None = None) -> Path:
+                    shadow_rows: list | None = None,
+                    collected: str = "", late: bool = False) -> Path:
+    """collected = 实际采集时刻（run_meta.captured_at），以前写死 09:25:10。"""
+    mm = int((screen or {}).get("sector_min_members", 3))
     tr = []
     data = []
     for i, r in enumerate(rows, 1):
@@ -211,27 +228,31 @@ def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
         shape = "抬升" if (r["monotonic"] and r["slope"] > 0) else (
                 "走弱" if r["slope"] < 0 else "震荡")
         rs = r["risk_tags"]
-        cell = (f'<div class="rn">{t.get("reason","")}</div>'
+        # LLM 文案和名称是外部输入，转义后再拼（同 mailer._rows_html）。
+        # 面板会发布到公开的 GitHub Pages，未转义的 `<script>` 就在那上面执行。
+        cell = (f'<div class="rn">{_h.escape(t.get("reason", ""))}</div>'
                 if t.get("reason") else "")
-        rk = t.get("risk") or (" / ".join(rs) if rs else "")
+        rk = _h.escape(t.get("risk") or "") or (" / ".join(rs) if rs else "")
         if rk:
             cell += f'<div class="rz">⚠ {rk}</div>'
         tr.append(
             f'<tr><td>{i}</td>'
             f'<td class="code" onclick="one(\'{r["code"]}\')">{r["code"]}</td>'
-            f'<td>{r["name"]}</td><td class="t{tier}">{tier}</td>'
+            f'<td>{_h.escape(str(r["name"]))}</td>'
+            f'<td class="t{tier}">{tier}</td>'
             f'<td>{r["auc_price"]:.2f}</td>'
             f'<td class="up">+{r["gap_pct"]:.2f}%</td>'
             f'<td>{r["auc_ratio"]*100:.2f}% ({r.get("liangbi", 0):.1f})</td>'
             f'<td>{shape} {r["slope"]:+.1f}</td>'
-            f'<td>{r["sector"]}'
-            + (f'·{r["sector_members"]}' if r["sector_members"] >= 3 else '')
+            f'<td>{_h.escape(str(r["sector"]))}'
+            + (f'·{r["sector_members"]}'
+               if r["sector_members"] >= mm else '')
             + f'</td><td class="sc">{r["score"]:.0f}</td>'
             f'<td>{cell}</td></tr>'
         )
-    sub = f'共 {len(rows)} 只 · 采集于 09:25:10'
+    sub = f'共 {len(rows)} 只 · 采集于 {collected or "未知"}'
     if screen:
-        sub += ' · ' + _criteria_line(screen)
+        sub += ' · ' + _criteria_line(screen, late=late)
     if notice:
         sub += f' · <span style="color:#d0a34a">{notice}</span>'
     # 每次生成都换一个 stamp。页面拿它跟 stamp.txt 比对，不一致就跳新 URL，
@@ -243,7 +264,7 @@ def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
     shadow_html = ""
     if shadow_rows:
         body = "".join(
-            f"""<tr><td>{i}</td><td class="code" onclick="one('{r["code"]}')">{r["code"]}</td><td>{r["name"]}</td><td class="up">+{r["gap_pct"]:.2f}%</td><td>{r.get("liangbi", 0):.1f}</td><td>{r["sscore"]:+.2f}</td></tr>"""
+            f"""<tr><td>{i}</td><td class="code" onclick="one('{r["code"]}')">{r["code"]}</td><td>{_h.escape(str(r["name"]))}</td><td class="up">+{r["gap_pct"]:.2f}%</td><td>{r.get("liangbi", 0):.1f}</td><td>{r["sscore"]:+.2f}</td></tr>"""
             for i, r in enumerate(shadow_rows, 1))
         shadow_html = (
             '<h1 style="font-size:15px;margin-top:18px">影子参考榜（试运行）</h1>'
@@ -256,6 +277,8 @@ def write_ths_panel(rows: list[dict], texts: dict, out_dir: Path,
     html = (_PANEL.replace("__DATE__", date).replace("__SUB__", sub)
             .replace("__STAMP__", stamp)
             .replace("__STAMPFILE__", "stamp.txt")
+            # 竞价面板的日期就是今天，日期横幅对它有意义
+            .replace("__LAGOK__", "false")
             .replace("__ROWS__", "".join(tr))
             .replace("__SHADOW__", shadow_html)
             .replace("__DATA__", json.dumps(data, ensure_ascii=False)))

@@ -17,6 +17,7 @@
 """
 from __future__ import annotations
 
+import datetime as dt
 import logging
 from pathlib import Path
 
@@ -25,13 +26,18 @@ import pandas as pd
 log = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent.parent
 LABEL_DIR = ROOT / "data" / "labels"
+BJ = dt.timezone(dt.timedelta(hours=8))
+# 收盘 15:00，给集合竞价撮合和快照落库留 5 分钟。和
+# local_run.last_closed_trade_day / breakout.backfill.last_closed_trade_day 同一口径
+CLOSE_HM = (15, 5)
 
 
 def path_for(date: str) -> Path:
     return LABEL_DIR / date[:7] / f"label_{date}.parquet"
 
 
-def from_quotes(codes: list[str], date: str = "") -> pd.DataFrame:
+def from_quotes(codes: list[str], date: str = "",
+                now: dt.datetime | None = None) -> pd.DataFrame:
     """live 路径：收盘后抓一次全池快照。
 
     收盘后 Quote.price 就是收盘价，Quote.open_ 就是当天开盘价。
@@ -40,7 +46,22 @@ def from_quotes(codes: list[str], date: str = "") -> pd.DataFrame:
     date 给了就只收快照时间戳是那一天的行：隔天盘中手动重跑学习线时，
     快照里已经是新一天的开盘价和现价，拿它给昨天打标是错的（部分票会
     穿过 0.5% 的失配守卫）。这种情况返回空表，调用方按「取不到」处理。
+
+    **还没收盘就一行都不打。** 原来只比日期不比时刻：交易日盘中直接跑
+    `python src/eval_daily.py --stage label`（不带 --date，默认今天）时，
+    ts 是今天、Quote.price 是**盘中现价**，会被当收盘价写成 r = 现价/开盘−1
+    （09:25~09:30 期间全是 0）落进 data/labels，然后 `--stage all` 顺手写
+    state/learning_status.json，计划任务当晚据此整夜跳过，错标签再也不会
+    被覆盖（labels.save 的「旧的可用行更多就不覆盖」还会帮倒忙）。
+    这是历史教训 28「到点已过就立即执行」的同类：时间闸要写在模块里，
+    不能指望每个调用方都记得传 --date（breakout/backfill.py 就是自己算的）。
+    先判再抓，还省掉一次 3.6 秒的全池请求。
     """
+    now = now or dt.datetime.now(BJ)
+    if date and date == now.strftime("%Y-%m-%d") and (now.hour, now.minute) < CLOSE_HM:
+        log.error("%s 还没收盘（北京 %s），快照 price 是盘中现价不是收盘价，不打标",
+                  date, now.strftime("%H:%M"))
+        return pd.DataFrame()
     import datasource as ds
     q = ds.fetch_quotes([ds.to_symbol(c) for c in codes])
     rec = []
@@ -99,25 +120,37 @@ def build(date: str, snap: pd.DataFrame, raw: pd.DataFrame,
                "open_mismatch_pct", "dirty"]]
 
 
-def save(date: str, df: pd.DataFrame) -> Path:
+def save(date: str, df: pd.DataFrame, *,
+         force: bool = False) -> tuple[Path, bool]:
+    """落盘一天的标签。返回 (路径, 是否真的写了)。
+
+    守卫「已有一份更好的（可用行更多）就不覆盖」认的是**严格少于**
+    （old_ok > n_ok），可用行相等照常覆盖。它是为「重跑拿到更脏的一份」
+    设计的，但口径一旦收紧（更多行判脏、失配阈值变小、新增剔除条件），
+    它恰好拦住修复真正改动到的那几天：把 max_open_mismatch_pct 从 0.5
+    收到 0.1 模拟一遍，08-24（1050<1059）和 08-25（1139<1140）被拦，
+    其余 6 天因为新旧相等而放行。修了口径重打一遍，结果只有没差别的天
+    被覆盖 —— 等于没修，而且只留一行 warning、退出码还是 0。
+    所以要有 force，并且**把「写没写」告诉调用方**（教训 16：
+    失败必须留下一个能被查询的对象，只写日志等于没写）。
+    """
     p = path_for(date)
     p.parent.mkdir(parents=True, exist_ok=True)
     n_ok = int((~df["dirty"]).sum())
-    # 已有一份更好的（可用行更多）就不覆盖：重跑拿到的往往是更脏的一份
-    if p.exists():
+    if p.exists() and not force:
         try:
             old = pd.read_parquet(p)
             old_ok = int((~old["dirty"]).sum())
             if old_ok > n_ok:
-                log.warning("标签 %s 已有可用 %d 行的一份，本次只有 %d 行，不覆盖",
-                            date, old_ok, n_ok)
-                return p
+                log.warning("标签 %s 已有可用 %d 行的一份，本次只有 %d 行，不覆盖"
+                            "（口径改了要重打就加 --force）", date, old_ok, n_ok)
+                return p, False
         except Exception:  # noqa: BLE001
             pass
     df.to_parquet(p, index=False)
     log.info("标签 %s: %d 行，可用 %d，脏 %d", date, len(df), n_ok,
              len(df) - n_ok)
-    return p
+    return p, True
 
 
 def load_all() -> pd.DataFrame:

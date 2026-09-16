@@ -25,20 +25,39 @@ runtime:
 
 universe:
   # ---- 盘前候选池构建（08:35 运行）----
+  # 这一段的每个键都必须有代码真的执行它，两边读的是同一份键：
+  # 生产 premarket.stage1/stage2，回填 learn/backfill.build_pool
+  # （入池条件走同一个函数 premarket.include_mask）。
+  # 2026-09-16 审计前 6/11 个键没有任何代码读（max_3d_gain_pct、in_hot_board、
+  # min_listed_days、amount_ratio_5d_gte…），而真正生效的三条规则
+  # （换手>=5、成交额前600、昨跌<=-9）写死在 premarket.py 里：
+  # 用户改配置没效果，还以为「近3日涨幅>25% 已剔除」，实际 8 天里 3 只这种
+  # 票进了邮件前 10。selftest.py 有断言钉住「配置里的键都有人读、
+  # stage1 里不出现裸阈值」。
   max_candidates: 1600
-  exclude_st: true
+  exclude_st: true            # 名字含 ST / 退（生产和回填同一判据）
   exclude_bj: false           # 北交所保留（30cm 已按涨停幅度归一化）
-  min_listed_days: 60         # 次新股
-  min_mktcap_yi: 0            # 不限市值
-  max_mktcap_yi: 0            # 0 = 不限
+  min_listed_days: 60         # 次新股：日线不足这么多根就剔除。
+                              # 生产在 stage2 按日线根数判，回填按窗口内根数判；
+                              # stage1 另按名字的 N/C 前缀做一道零成本兜底
+  min_mktcap_yi: 0            # 0 = 不限市值。当前快照源**没有总市值这一列**
+  max_mktcap_yi: 0            # （腾讯低位字段里没有，硬约束 6 不许读高位字段），
+                              # 设成非 0 会被 stage1 直接拒绝并发告警邮件 ——
+                              # 不拒绝的话整池被筛空、当天发一封「今日无标的」
+                              # 的空榜邮件，看起来完全像一个合法的空日
   exclude_yesterday_limit_down: true
-  max_3d_gain_pct: 25.0       # 近3日累计涨幅超此值剔除（高位）
+  yesterday_drop_pct_max: -9.0   # 昨日涨幅 <= 此值剔除（昨日跌停）
   # 入池条件（满足任一）
   include_if:
     yesterday_limit_up: true       # 昨日涨停
     yesterday_gain_pct_gte: 5.0    # 昨日涨幅 >= 5%
-    amount_ratio_5d_gte: 1.5       # 昨日成交额 / 前5日均额
-    in_hot_board: true             # 属于昨日涨幅前 15 的行业/概念
+    turnover_pct_gte: 5.0          # 昨日换手率 >= 5%
+    amount_rank_top: 600           # 昨日成交额全市场前 600
+  # 删掉的键，别加回来 —— 要加就得同时有代码执行它：
+  #   max_3d_gain_pct / in_hot_board  全仓零引用，纯死配置
+  #   include_if.amount_ratio_5d_gte  只有回填在用（生产两阶段收缩拿不到
+  #     全市场日线，做不了入池条件）。它还让回填 24% 的行靠一条生产没有的
+  #     规则进池，是回测池和生产池日均只重合 70% 的主因
 
 # ---- 公告黑名单关键词（盘前扫描候选池的隔夜公告）----
 announcement_blacklist:
@@ -106,6 +125,9 @@ screen:
   min_auc_amount_wan: 300   # 竞价成交额下限（万元）
 
   # 竞价形态
+  # 注意：回填表的 slope 恒为 0（历史拿不到 09:19/09:23 两个采样点，
+  # 见 learn/backfill.py 已知偏差 5），这条置 true 会把 404 天的训练行
+  # **全部**判成剔除，学习线当场没有样本。要开先想清楚回填那条线怎么办。
   require_positive_slope: false   # T3涨幅 > T1涨幅 才入选（严格模式打开）
   last_min_dive_max: 2.0          # T2->T3 跳水超过此值(百分点)直接剔除
   fake_limit_t1_frac: 0.90        # T1 涨幅 >= 涨停幅度*0.90 视为"假涨停"
@@ -256,8 +278,10 @@ learning:
     huber_c: 1.345            # Huber M 估计的截断点。对高斯 95% 效率的标准取值。
                               # 它决定单日影响力上限 = c × MAD({G_d})
     # λ₀ 的校准依据（2026-09-03 实测，不是拍脑袋）：在 401 天回填表上
-    # 对 θ⁰ 做单参数扰动探针，裸目标 Ĝ 的梯度量级是每 σ 约 0.02~0.03
-    # （最强的两个方向：trend 权重 ↑、auc_ratio_score_hi ↓）。
+    # 对 θ⁰ 做单参数扰动探针，裸目标 Ĝ 的梯度量级是每 σ 约 0.02~0.03。
+    # 【2026-09-16 作废一半】当时「最强方向是 trend 权重 ↑」是前视泄漏造出来的：
+    # 回填的 slope 算的是开盘后的涨跌（见 learn/backfill.py 已知偏差 5）。
+    # 修完口径后 trend 在回填数据上是常数，这条梯度量级要在重建的训练表上重测。
     # 原值 8.0 在 N=401 时罚 1.83/σ²，要求信号比实际大十倍才放行，
     # 等于结构性永不迭代。按「均衡步长 ≈ 0.3σ」反解：λ₀ ≈ 0.25。
     # 防过拟合的主责在七道闸（走向前+自助+在线否决），锚定只管搜索正则。
@@ -300,6 +324,12 @@ learning:
   # ---- 可学参数的箱约束 ----
   # 只有列在这里的才可能被自动改。准入区间（gap_pct_min/max、auc_ratio_min/max）
   # 故意不在这里：那是用户定的规则，系统只能提案，见 propose_only。
+  # 注意：这份箱是「理论上可学的全集」，真正交给优化器之前要先过
+  # learn/sources.py::restrict_box() —— 它按这批训练数据**真能学**的维度
+  # 把其余参数钉死（lo=hi=θ⁰）。回填数据里 trend 是常数、volume 的分母
+  # 含开盘后成交，这两维不能学（2026-09-16）。
+  # 裁法是钉死不是删键：objective.project 要求箱里 scoring.weights.* 那组
+  # 的和恰好为 1，删掉两个权重键会让剩下四个被归一到 1，总权重变成 1.4。
   box:
     scoring.weights.gap:        [0.05, 0.40]
     scoring.weights.volume:     [0.05, 0.40]
@@ -361,6 +391,10 @@ learning:
     # 历史日线还原不了竞价量能和竞价斜率（2026-09-02 实测：腾讯分钟线硬顶
     # 320 根 ≈ 1.3 天，东财分钟接口不通）。所以回填只能学下面这四个维度，
     # volume / trend 的参数必须靠在线积累。详见 docs/learning.md 第 2 节。
+    # 买了 Tushare 的竞价包也一样：stk_auction_o 只有 open 是撮合价，
+    # amount 含开盘后成交（中位偏高 25%~33%），轨迹根本没有。
+    # 这个键以前没人读，现在由 learn/sources.py::restrict_box() 执行 ——
+    # 不在这张表里的维度，对应的箱约束会被钉死在人工基线。
     learnable_dims: [gap, position, sector, continuity]
     workers: 4                # 和 daily_hist_many 一样保守，免费接口并发高就限流
 

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import html as _h
 import logging
 import datetime as _dt
 from pathlib import Path
@@ -24,8 +25,11 @@ log = logging.getLogger("pullback.export")
 def write_blocks(rows: list[dict], out_dir: Path, date: str) -> list[Path]:
     """同花顺自选股导入用的纯代码 txt。GBK + CRLF，同花顺只认这个。"""
     out_dir.mkdir(exist_ok=True)
+    # 空榜写 0 字节而不是一个换行：这个文件每天都要覆盖掉，
+    # 「今天没有」必须是空的，不能留着上一次出票那天的代码
     p = out_dir / "形态_全部.txt"
-    p.write_bytes(("\r\n".join(r["code"] for r in rows) + "\r\n").encode("gbk"))
+    p.write_bytes(("\r\n".join(r["code"] for r in rows)
+                   + ("\r\n" if rows else "")).encode("gbk"))
     return [p]
 
 
@@ -81,15 +85,16 @@ def write_panel(rows: list[dict], texts: dict, out_dir: Path, date: str,
     tr = []
     for i, r in enumerate(rows, 1):
         t = texts.get(r["code"], {})
-        cell = (f'<div class="rn">{t.get("reason","")}</div>'
+        # 外部输入一律转义（同 mailer._rows_html / ths_export.write_ths_panel）
+        cell = (f'<div class="rn">{_h.escape(t.get("reason", ""))}</div>'
                 if t.get("reason") else "")
         if t.get("risk"):
-            cell += f'<div class="rz">⚠ {t["risk"]}</div>'
+            cell += f'<div class="rz">⚠ {_h.escape(str(t["risk"]))}</div>'
         brk = ' <span class="ok">破启动高</span>' if r.get("break_launch_high") else ""
         tr.append(
             f'<tr><td>{i}</td>'
             f'<td class="code" onclick="one(\'{r["code"]}\')">{r["code"]}</td>'
-            f'<td>{r["name"]}{brk}</td>'
+            f'<td>{_h.escape(str(r["name"]))}{brk}</td>'
             f'<td>{r["close"]:.2f}</td>'
             f'<td class="up">+{r["gain_pct"]:.2f}%</td>'
             f'<td>{r["vol_ratio"]:.2f}x</td>'
@@ -117,6 +122,9 @@ def write_panel(rows: list[dict], texts: dict, out_dir: Path, date: str,
             # build_site.py 发布时把 out_pullback/stamp.txt 改名成这个，
             # 避免和竞价面板的 stamp.txt 在站点根目录撞名
             .replace("__STAMPFILE__", "stamp-pullback.txt")
+            # 形态是收盘后跑的，面板日期本来就是最近一个已收盘交易日，
+            # 关掉「面板数据日期 != 今天」那条横幅（否则次日早上 100% 误报）
+            .replace("__LAGOK__", "true")
             .replace("__ROWS__", "".join(tr) or
                      '<tr><td colspan="13" class="dim">今日无标的满足形态条件</td></tr>')
             .replace("__DATA__", json.dumps(
@@ -137,13 +145,14 @@ def build_html(date: str, rows: list[dict], texts: dict, notice: str,
     body = []
     for r in rows:
         t = texts.get(r["code"], {})
-        cell = (f'<div class="rn">{t.get("reason","")}</div>'
+        cell = (f'<div class="rn">{_h.escape(t.get("reason", ""))}</div>'
                 if t.get("reason") else "")
         if t.get("risk"):
-            cell += f'<div class="rz">⚠ {t["risk"]}</div>'
+            cell += f'<div class="rz">⚠ {_h.escape(str(t["risk"]))}</div>'
         brk = " ·破启动高" if r.get("break_launch_high") else ""
         body.append(
-            f'<tr><td class="c">{r["code"]}</td><td>{r["name"]}{brk}</td>'
+            f'<tr><td class="c">{r["code"]}</td>'
+            f'<td>{_h.escape(str(r["name"]))}{brk}</td>'
             f'<td>{r["close"]:.2f}</td>'
             f'<td class="up">+{r["gain_pct"]:.2f}%</td>'
             f'<td>{r["vol_ratio"]:.2f}x</td>'
@@ -160,7 +169,10 @@ def build_html(date: str, rows: list[dict], texts: dict, notice: str,
              f'全市场 {stat.get("quotes","?")} → 今日条件 {stat.get("after_today","?")} '
              f'→ 形态匹配 {stat.get("matched","?")} 只</div>']
     if notice:
-        parts.append(f'<div class="notice">{notice}</div>')
+        # mailer._CSS 里没有 .notice 这个类（只有 c/dn/meta/rn/rz/s/up/warn），
+        # 「本次无 LLM 分析」那句以前和正文同色、没有边框，硬约束 2 要求的
+        # 「顶部声明」在视觉上根本不存在
+        parts.append(f'<div class="warn"><b>{notice}</b></div>')
     if page_url:
         parts.append(f'<div class="meta">在线面板：'
                      f'<a href="{page_url}">{page_url}</a></div>')

@@ -18,7 +18,7 @@ from typing import Any
 class AuctionFeature:
     code: str
     name: str
-    limit_pct: float          # 当日涨停幅度 10/20/30/5
+    limit_pct: float          # 当日涨停幅度 10/20/30（未股改 S 股 5）
     prev_close: float
     auc_price: float          # 9:25 竞价成交价
     gap_pct: float            # 高开幅度 %
@@ -30,7 +30,7 @@ class AuctionFeature:
     t2_chg: float             # 9:23:30 涨幅 %
     t3_chg: float             # 9:25:10 涨幅 % (= gap_pct)
     slope: float              # t3 - t1
-    monotonic: bool           # t1 <= t2 <= t3
+    monotonic: bool           # T1 <= T2 <= T3（score.is_monotonic，两边共用）
     dive: float               # t2 - t3（尾盘跳水幅度）
     pos_pct_60d: float        # 60日价格分位 0~1
     ma_bull: bool             # 5>10>20 多头排列
@@ -42,7 +42,8 @@ class AuctionFeature:
     sector_members: int       # 候选池内同板块入选数
     sector_prev_limitups: int
     blacklisted: bool
-    one_word: bool            # 一字板（竞价即封涨停且无量差）
+    one_word: bool            # 一字板：09:25 撮合价 == 涨停价（±0.005）。
+                              # 线上并**不**判「无量差」，注释别再那么写
 
 
 # ---------------------------------------------------------------------
@@ -89,8 +90,36 @@ def f_volume(ratio: float, lo: float, hi: float, sat: float,
     return max(0.0, 1.0 - decay * math.log(ratio / sat))
 
 
+MONO_EPS = 1e-9
+
+
+def is_monotonic(t1, t2, t3):
+    """稳步抬升 T1 <= T2 <= T3。标量和 Series 都能用（返回 bool 或布尔数组）。
+
+    eps 只吸收浮点噪声，**不吸收真实回落**。2026-09-16 前 run_auction 写的是
+    `t1 <= t2 + 0.05 <= t3 + 0.10`（有效容差 0.05 个百分点），而回填/文档
+    是严格口径，同一列在拼起来的训练表里是两种定义（教训 30）。
+    那 0.05 还是个**按价格漂**的容差：18 个在线快照日里 461 行（占
+    monotonic=True 的 5.51%）靠它拿到 +0.15 趋势分（折合总分 3.0），
+    这些行 prev_close 中位 53.72 —— 10 元票回落一个 tick 就出局，
+    100 元票回落 5 个 tick 仍算「稳步抬升」。08-25 第 10 名 001337
+    （t2 0.21 > t3 0.19）就是靠它进的榜。
+    """
+    return (t1 <= t2 + MONO_EPS) & (t2 <= t3 + MONO_EPS)
+
+
 def f_trend(slope: float, monotonic: bool, limit: float) -> float:
-    """竞价斜率归一到涨停幅度；单调抬升额外加分。"""
+    """竞价斜率归一到涨停幅度；单调抬升额外加分。
+
+    斜率缺失按 0 处理（和 run_auction.build_features 里「T1 漏采就拿 T3 补、
+    斜率 0」同一口径）。以前没有这一步：`min(1.0, nan)` 因为参数顺序返回 1.0，
+    slope 为 NaN 的票反而拿趋势满分（权重 0.20 = 20 分）且不被剔除，
+    而向量化孪生体 vscore 的 np.clip(nan) 给的是 NaN，整天目标函数作废。
+    现有数据（42.8 万行回填 + 2.1 万行在线快照）里一行都没有，
+    这条是硬约束 9 上一个没人测过的洞。
+    """
+    if not math.isfinite(slope):
+        slope = 0.0
     s = max(-1.0, min(1.0, slope / (limit * 0.3)))
     base = (s + 1.0) / 2.0
     return min(1.0, base + (0.15 if monotonic else 0.0))
@@ -155,8 +184,11 @@ def hard_reject(feat: AuctionFeature, sc: dict[str, Any]) -> str | None:
                 f"(量比≈{_liangbi(feat.auc_ratio, sc):.1f}) 超出区间")
     # 绝对流动性下限（CLAUDE.md「min_auc_amount_wan 不能删」）。2026-09-15 前
     # 它只用来数板块成员，从不剔除：竞价额 127 万的票照样进前 10。
-    if not (feat.auc_amount >= sc.get("min_auc_amount_wan", 0) * 1e4):
-        return f"竞价额 {feat.auc_amount/1e4:.0f} 万不足 {sc.get('min_auc_amount_wan', 0)} 万"
+    # 直接索引，缺键就 KeyError：.get(…, 0) 那个默认值恰好等于 09-15 之前的
+    # 老 bug 状态（规则写在配置里没人执行），一个配置笔误就能把它悄悄退回去。
+    # 另外三处调用点（build_features / ths_export / backfill）本来就是直接索引。
+    if not (feat.auc_amount >= sc["min_auc_amount_wan"] * 1e4):
+        return f"竞价额 {feat.auc_amount/1e4:.0f} 万不足 {sc['min_auc_amount_wan']} 万"
     # 先判假涨停：它同时也会触发跳水条件，先判才能给出准确的拒绝原因
     if (feat.t1_chg >= feat.limit_pct * sc["fake_limit_t1_frac"]
             and feat.t3_chg < feat.limit_pct * sc["fake_limit_t3_frac"]):
@@ -175,6 +207,13 @@ def assign_group(feat: AuctionFeature, sc: dict[str, Any]) -> str:
     if feat.pos_pct_60d <= sc["pos_pct_60d_max_for_lowbase"]:
         return "B"
     return "A"
+
+
+# 总分真正会乘到的六个维度。score_one 的 parts 就是这几个键，
+# run_auction.salvage_screen 分摊量能权重时也只认这一组：weights 里多出来的
+# 键（手改 learned.yaml 有可能带进来）从不被乘，却会进分摊的分母。
+# selftest.py 钉住它和 score_one 实际产出的 parts 一致。
+PART_KEYS = ("gap", "volume", "trend", "position", "sector", "continuity")
 
 
 def score_one(feat: AuctionFeature, cfg: dict[str, Any]) -> dict[str, Any]:

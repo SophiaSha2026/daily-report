@@ -31,14 +31,26 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import datasource as ds
 from datasource import Quote, limit_pct, limit_price
-from score import AuctionFeature, score_one, rank
+from score import (AuctionFeature, score_one, rank, is_monotonic,
+                   PART_KEYS as _WEIGHT_DIMS)
 from ths_export import write_ths_blocks, write_ths_panel
 from tdx_export import write_tdx_custom
-from mailer import send_report, send_alert
+from mailer import send_report, send_alert, skip_mail
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "out"
 TZ = dt.timezone(dt.timedelta(hours=8))
+
+# 抢救日邮件顶部黄框和面板副标题共用这一句。提到模块级是为了让自测能引用它
+# （以前埋在 stage_enrich 里，没有任何用例渲染过它）。
+# 用 <b> 而不是 markdown 的 `**`：这句原样插进 mailer.build_html 的
+# `<div class="warn"><b>{notice}</b></div>` 和面板的 <span>，中间没有任何
+# markdown->HTML 转换，写星号就在邮件里显示成两个星号。
+LATE_NOTICE = ("⚠ 抢救结果，非正常竞价扫描：cron 与本机触发器均未按时启动，"
+               "09:25-09:30 数据窗口已过。竞价价取今开（精确值），"
+               "量能维度<b>已停用</b>（累计额混入连续竞价，无法还原竞价量），"
+               "斜率/稳步抬升/假涨停/尾盘跳水四个维度同样失效。"
+               "本榜实质是按高开幅度+位置+板块共振排序。")
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -93,7 +105,10 @@ def build_features(uni: pd.DataFrame, snaps: dict[str, dict[str, Quote]],
         # 不能白给 +0.15 趋势分
         traj_ok = a1 is not None and a2 is not None
         prev_amt = float(row.prev_amount) or 1.0
-        up = limit_price(a3.prev_close, lp)
+        # 传 code：北交所封板价向下取整到分（920 段 978 个封板日实测），
+        # 四舍五入会高 0.01，一字板的 920 票 one_word 判 False，
+        # 于是被记成「竞价涨幅 30.00% 超出区间」，detail.csv 的归因就错了
+        up = limit_price(a3.prev_close, lp, row.code)
 
         feats.append(AuctionFeature(
             code=row.code, name=a3.name, limit_pct=lp,
@@ -103,7 +118,7 @@ def build_features(uni: pd.DataFrame, snaps: dict[str, dict[str, Quote]],
             auc_ratio=round(a3.amount_yuan / prev_amt, 5),
             t1_chg=round(t1, 2), t2_chg=round(t2, 2), t3_chg=round(t3, 2),
             slope=round(t3 - t1, 2),
-            monotonic=(traj_ok and (t1 <= t2 + 0.05 <= t3 + 0.10)),
+            monotonic=bool(traj_ok and is_monotonic(t1, t2, t3)),
             dive=round(t2 - t3, 2),
             pos_pct_60d=float(row.pos_pct_60d), ma_bull=bool(row.ma_bull),
             breakout=(a3.price > float(row.platform_high)),
@@ -138,11 +153,43 @@ def select(rows: list[dict], c: dict) -> list[dict]:
     o = c["output"]
     res = rank(rows, c)
     if o.get("merge_groups"):
-        return sorted(res["all"], key=lambda r: -r["score"])[: o["top_n"]]
+        # 排序已经在 rank() 里做完，键是未取整的 score_raw。这里只截前 top_n，
+        # 别再按取整后的 score 排一次：取整到 0.1 后并列的票（18 个真实快照里
+        # 有 5 天前 10 内出现过）会退回按候选池顺序（昨日成交额）定先后，
+        # 而那正是 score.py 加 score_raw 要避免的事。
+        return res["all"][: o["top_n"]]
     return res["A"] + res["B"]
 
 
-def write_prompt(sel: list[dict], date: str, late: bool = False) -> None:
+def salvage_screen(c: dict) -> dict:
+    """抢救模式的准入口径：量能维度整体停用，权重分摊给其余维度。
+
+    抽成函数是因为 quick 和 enrich 是**两个进程**（local_run 各起一次
+    subprocess，各自 cfg() 重新加载 config）：只在 quick 里改的话，
+    enrich 渲染面板准入行用的还是 config 里的「量比 2.5~10」，
+    而那一跑实际是按 0~1e9 筛的（2026-08-28 上榜票量比 254~1230），
+    面板上「准入：量比 2.5~10」和警告框「量能维度已停用」自相矛盾。
+    """
+    sc = c["screen"]
+    sc["auc_ratio_min"], sc["auc_ratio_max"] = 0.0, 1e9
+    w = c["scoring"]["weights"]
+    vw = w.pop("volume", 0.0)
+    # 只分摊给 score_one 真正会乘的那五个维度。以前 `sum(w.values())` 把
+    # weights 里任何一个多余的键也算进分母：score_one / vscore 按 parts 的六个
+    # 固定键取权重，多出来的键从不被乘，于是抢救日全体 raw 被整体压低
+    # （实测多一个 0.30 的死键，六个真键之和从 1.0 变成 0.9286），
+    # 贴 min_score=45 的票会掉榜。
+    keys = [k for k in _WEIGHT_DIMS if k != "volume" and k in w]
+    rest = sum(w[k] for k in keys)
+    if rest > 0:
+        for k in keys:
+            w[k] = w[k] / rest * (rest + vw)
+    w["volume"] = 0.0
+    return sc
+
+
+def write_prompt(sel: list[dict], date: str, late: bool = False,
+                 captured_at: str = "") -> None:
     brief = [{k: r[k] for k in
               ("code", "name", "gap_pct", "auc_ratio", "slope", "monotonic",
                "sector", "sector_members", "board_height", "prev_limit_up",
@@ -158,8 +205,12 @@ def write_prompt(sel: list[dict], date: str, late: bool = False) -> None:
     # enrich 读到的就是旧清单，会把昨天的票当成今天的发出去。
     # 所以发信前必须比对这个戳。
     # dry 标记：试跑也会走到这里，不标的话计划任务会把试跑当成「今天跑完了」
+    # captured_at：T3（抢救模式下是那一次单次快照）实际采完的时刻。
+    # 邮件抬头和面板副标题以前写死「采集于 09:25:10」，抢救日 09:51 跑的
+    # 那一份照样这么印，和同一封邮件里「数据窗口已过」的警告自相矛盾
     (OUT / "run_meta.json").write_text(
         json.dumps({"date": date, "n": len(sel), "late": bool(late),
+                    "captured_at": str(captured_at or ""),
                     "dry": bool(os.environ.get("DRY_RUN"))},
                    ensure_ascii=False),
         encoding="utf-8")
@@ -173,8 +224,33 @@ def _atomic_text(p: Path, text: str) -> None:
     os.replace(tmp, p)
 
 
+def quick_mode(now: dt.datetime, hard_deadline: str, late: bool,
+               auto_salvage: bool) -> str:
+    """返回 'normal' / 'salvage' / 'abort'。分界线只有 hard_deadline 一条。
+
+    以前是两条：local_run 自己算 `(bj.hour, bj.minute) >= (9, 27)` 决定要不要
+    加 --late，run_auction 用秒级的 hard_deadline（09:26:30）决定要不要放弃。
+    两条线之间 09:26:30~09:26:59 有 32 秒的缝，手点「早盘选股」落在里面就发
+    一封「启动过晚，原因通常是 GitHub Actions 排队延迟」的告警邮件（措辞还
+    是错的，这是本机跑的），而按设计那一刻本该出一份抢救榜。
+    local_run 那个 bj 还是建池**之前**取的：premarket 跑满 18.5 分钟以上时，
+    quick 实际起在 09:26:30 之后，late 却仍按 09:07 判成 False。
+    2026-09-04 那次 premarket 实测 1089 秒，离触发线只差 21 秒。
+
+    auto_salvage=True 是本地流程（手点或计划任务）：过线直接转抢救。
+    云端不带它，过线仍然告警放弃 —— 硬约束 3「宁可不发也不发脏数据」，
+    云端没有人盯着，抢救榜该由本机决定出不出。
+    """
+    if late:
+        return "salvage"
+    h, m, s = (int(x) for x in hard_deadline.split(":"))
+    if now > now.replace(hour=h, minute=m, second=s, microsecond=0):
+        return "salvage" if auto_salvage else "abort"
+    return "normal"
+
+
 # ---------------------------------------------------------------------
-def stage_quick(c: dict, late: bool = False) -> int:
+def stage_quick(c: dict, late: bool = False, auto_salvage: bool = False) -> int:
     """
     late=True 是**抢救模式**：cron 和本机触发器都没在点上跑，等发现时
     09:25-09:30 那个数据窗口已经过了。
@@ -198,10 +274,15 @@ def stage_quick(c: dict, late: bool = False) -> int:
         if now_bj().weekday() >= 5:
             return 0
 
-    if not late and now_bj() > target(rt["hard_deadline"]):
+    mode = quick_mode(now_bj(), rt["hard_deadline"], late, auto_salvage)
+    if mode == "abort":
         send_alert(f"{today} 竞价任务启动过晚（{now_bj():%H:%M:%S}），已跳过。\n"
                    f"原因通常是 GitHub Actions 排队延迟，非代码故障。")
         return 0
+    if mode == "salvage" and not late:
+        log.warning("已过 hard_deadline %s（现在 %s），转抢救模式",
+                    rt["hard_deadline"], now_bj().strftime("%H:%M:%S"))
+    late = mode == "salvage"
 
     p = ROOT / "cache" / "universe.parquet"
     if not p.exists():
@@ -230,25 +311,20 @@ def stage_quick(c: dict, late: bool = False) -> int:
         # 2026-09-02 上限收回 4.17%（量比 10）之后只会切得更狠，这段更不能省。
         # 所以这里直接把量能的准入区间放开、权重清零并按比例分给其余维度，
         # 而不是拿一个已知污染的数去做筛选和打分。
-        sc = c["screen"]
-        sc["auc_ratio_min"], sc["auc_ratio_max"] = 0.0, 1e9
-        w = c["scoring"]["weights"]
-        vw = w.pop("volume", 0.0)
-        rest = sum(w.values())
-        if rest > 0:
-            for k in w:
-                w[k] = w[k] / rest * (rest + vw)
-        w["volume"] = 0.0
+        vw = c["scoring"]["weights"].get("volume", 0.0)
+        salvage_screen(c)
         log.warning("抢救模式：量能维度不可用（累计额已混入连续竞价），"
                     "准入区间放开、权重 %.2f 已分摊给其余维度", vw)
 
     snaps = {}
+    captured_at = ""
     if late:
         # 只取一次快照，四个 T 全指向它。price 换成 open_（=竞价撮合价），
         # gap_pct 因此是真值。T1=T2=T3 意味着斜率 0、单调成立、跳水 0，
         # 这些维度事实上已失效，置中性比编造一个数诚实。
         t0 = time.time()
         q = ds.fetch_quotes(syms)
+        captured_at = now_bj().strftime("%H:%M:%S")
         for v in q.values():
             if v.open_ and v.open_ > 0:
                 v.price = v.open_
@@ -272,6 +348,9 @@ def stage_quick(c: dict, late: bool = False) -> int:
                 return 1
             t0 = time.time()
             snaps[tag] = ds.fetch_quotes(syms)
+            if tag == "T3":
+                # T3 是「最终竞价结果」那一次，邮件/面板说的采集时刻就是它
+                captured_at = now_bj().strftime("%H:%M:%S")
             log.info("%s: %d/%d 只, %.1fs", tag, len(snaps[tag]), len(syms),
                      time.time() - t0)
 
@@ -294,7 +373,7 @@ def stage_quick(c: dict, late: bool = False) -> int:
     tmp = OUT / "detail.csv.tmp"
     pd.DataFrame(rows).to_csv(tmp, index=False, encoding="utf-8-sig")
     os.replace(tmp, OUT / "detail.csv")
-    write_prompt(sel, today, late=late)
+    write_prompt(sel, today, late=late, captured_at=captured_at)
     log.info("入选 %d 只，等待 Claude 分析", len(sel))
     return 0
 
@@ -318,13 +397,17 @@ def stage_enrich(c: dict) -> int:
         return 0
     sel = json.loads(f.read_text(encoding="utf-8"))
 
+    # 抢救日的准入口径和采集时刻都要跟着改：quick 那个进程按 0~1e9 筛的，
+    # enrich 这个进程重新 cfg() 之后并不知道，以前照印「量比 2.5~10」
+    late = bool(stamp.get("late"))
+    screen = salvage_screen(c) if late else c["screen"]
+    cap = str(stamp.get("captured_at") or "")
+    collected = (f'今开（抢救，采样于 {cap or "未知"}）' if late
+                 else (cap or c["runtime"]["snapshot_t3"]))
+
     texts, notice = {}, ""
-    if stamp.get("late"):
-        notice = ("⚠ 抢救结果，非正常竞价扫描：cron 与本机触发器均未按时启动，"
-                  "09:25-09:30 数据窗口已过。竞价价取今开（精确值），"
-                  "量能维度**已停用**（累计额混入连续竞价，无法还原竞价量），"
-                  "斜率/稳步抬升/假涨停/尾盘跳水四个维度同样失效。"
-                  "本榜实质是按高开幅度+位置+板块共振排序。")
+    if late:
+        notice = LATE_NOTICE
     try:
         texts = json.loads((OUT / "commentary.json").read_text(encoding="utf-8"))
         if not isinstance(texts, dict):
@@ -390,17 +473,23 @@ def stage_enrich(c: dict) -> int:
 
     tiers = o["ths_tiers"]
     OUT.mkdir(exist_ok=True)
-    blocks = write_ths_blocks(sel, OUT, tiers, today) if sel else []
-    write_ths_panel(sel, texts, OUT, tiers, today, notice, c["screen"],
-                    shadow_rows)
-    if sel:
-        write_tdx_custom(sel, OUT)          # 可选：给通达信用
+    # 无条件写，空榜也要写（写成空文件）。以前空榜日这两个函数整个不进，
+    # 上一交易日的 竞价_*.txt / watchlist.ebk / 外部数据_1.txt 原样留在 out/，
+    # 被提交进仓库、被 build_site 发布到 Pages，用户按面板提示导进同花顺
+    # 拿到的是昨天的票（2026-08-28 实测发生过：run_meta n=0，
+    # 竞价_全部.txt 和 08-27 逐字节相同）。删文件不行：build_site 和
+    # sync_tdx.ps1 按固定文件名取，删了会 404，空文件才是正确的「今天没有」。
+    blocks = write_ths_blocks(sel, OUT, tiers, today)
+    write_ths_panel(sel, texts, OUT, tiers, today, notice, screen,
+                    shadow_rows, collected=collected, late=late)
+    write_tdx_custom(sel, OUT)              # 可选：给通达信用
 
     owner = os.environ.get("GH_OWNER", "")
     repo = os.environ.get("GH_REPO", "")
     page = f"https://{owner.lower()}.github.io/{repo}/" if owner else ""
 
-    att = list(blocks)
+    # 空文件不当附件：空榜日附一堆 0 字节的 txt 只会让人以为发错了
+    att = [p for p in blocks if p.stat().st_size > 0]
     if o.get("attach_csv") and (OUT / "detail.csv").exists():
         att.append(OUT / "detail.csv")
 
@@ -417,14 +506,16 @@ def stage_enrich(c: dict) -> int:
         else:
             log.warning("晚于软时点 %s %.0f 秒，仍在硬上限 %s 之内",
                         soft, late, hard)
-    if os.environ.get("SKIP_MAIL"):
+    if skip_mail():
         # 两个来源：本地 dry-run；远端 yield_check 确认本地已发信。
         # 面板、txt、csv 全部照常生成，只有邮件不发。
+        # 判定收在 mailer.skip_mail()：以前这里是真值判断，SKIP_MAIL=0 也跳过，
+        # 而学习线写的是 == "1"，同一个变量两套语义。
         log.info("SKIP_MAIL=1：面板已生成，邮件不发（本地已接管或 dry-run）")
         return 0
     send_report(today, {"A": sel, "B": []}, texts, c,
                 attachments=att, stage="清单", notice=notice, page_url=page,
-                shadow_rows=shadow_rows)
+                shadow_rows=shadow_rows, collected=collected)
     # 真发出去了才落这个戳。enrich 有四条「退出码 0 但没发信」的分支
     # （非交易日、run_meta 不是今天、空榜不发、SKIP_MAIL），local_run 以前
     # 只看退出码就推 sent 标记，云端据此让位，结果谁都没发。
@@ -439,9 +530,14 @@ def main() -> int:
     ap.add_argument("--stage", choices=["quick", "enrich"], required=True)
     ap.add_argument("--late", action="store_true",
                     help="抢救模式：窗口已过，用今开当竞价价补出一份清单")
+    ap.add_argument("--salvage-if-late", action="store_true",
+                    help="过 hard_deadline 不告警放弃，直接转抢救模式"
+                         "（本地流程用；云端不带，仍按硬约束 3 放弃）")
     a = ap.parse_args()
     c = cfg()
-    return stage_quick(c, late=a.late) if a.stage == "quick" else stage_enrich(c)
+    if a.stage == "quick":
+        return stage_quick(c, late=a.late, auto_salvage=a.salvage_if_late)
+    return stage_enrich(c)
 
 
 if __name__ == "__main__":
