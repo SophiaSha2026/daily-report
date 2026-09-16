@@ -315,8 +315,14 @@ def exp_param(p: dict, c: dict, date: str = "") -> dict:
        提案日判，否则跨午夜重跑结果会变。
     """
     params = p.get("params") or {}
-    box = c["learning"]["box"]
     import cfg as C
+    import eval_daily as ED
+    # 用**裁剪过的**箱：数据源给不出的维度（回填表没有竞价轨迹 -> trend、
+    # 竞价额含盘后成交 -> volume）被钉死成基线值。拿未裁剪的箱夹提案值，
+    # 一条动 trend 的提案会在 evaluate_candidate 里被投影回基线，闸门给出的
+    # 理由是「参数没有实际改动」，看不出真正的原因是「这一维当前不可学」。
+    box = ED._learn_box(c)
+    pinned = [k for k, (lo, hi) in box.items() if abs(hi - lo) < 1e-12]
     prev = C.theta_now(box)          # 循环前的基准，下面 theta 会被原地改
     theta = dict(prev)
     asked = {}
@@ -332,7 +338,12 @@ def exp_param(p: dict, c: dict, date: str = "") -> dict:
     if not asked:
         return {"status": "needs_human",
                 "detail": f"参数不在可学白名单里（{sorted(box)}），或没给 params"}
-    import eval_daily as ED
+    hit_pinned = [k for k in params if k in pinned]
+    if hit_pinned and all(k in pinned for k in asked):
+        return {"status": "needs_human",
+                "detail": f"这几维当前数据源不可学，已钉死在人工基线：{hit_pinned}。"
+                          f"回填表给不出竞价轨迹（trend）、竞价额含盘后成交（volume），"
+                          f"要动它们得先有足够的在线真值天，或换数据源"}
     date = date or p.get("date") or dt.date.today().isoformat()
     res = ED.evaluate_candidate(c, theta, date)
     if not res:

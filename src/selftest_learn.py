@@ -673,6 +673,137 @@ def check_bf_dirty(c: dict) -> None:
            "raw['one_word'].astype(bool)")
 
 
+def check_learn_box(c: dict) -> None:
+    """交给优化器和闸门的箱必须先按可学维度裁过（W2-2 / F8-15）。
+
+    回填表占训练表绝大多数天，它的 trend / volume 两维是代理值或含开盘后
+    成交的量：不裁的话优化器照样在这两个维度上调参数，学出来的是数据缺失
+    不是结论。裁法是钉死 lo=hi=θ⁰ 而不是删键（删键 Σw 会归一到 1，
+    加上仍生效的 trend/volume 两个 0.20 总权重变成 1.4）。
+    """
+    print("\n可学维度裁剪进优化器")
+    import copy
+    import eval_daily as ED
+    from learn import sources as SRC
+
+    box = c["learning"]["box"]
+    t0 = C.theta0(box)
+    r = ED._learn_box(c)
+    ck(set(r) == set(box), "键一个不少（钉死不是删键）")
+    pinned = [k for k, (lo, hi) in r.items() if hi <= lo]
+    # 训练源只有回填（config 的 learnable_dims 就是这份数据的真相）：
+    # trend / volume 那三个参数的上下界必须相等
+    for k in ("scoring.weights.trend", "scoring.weights.volume",
+              "screen.auc_ratio_score_hi", "screen.auc_ratio_decay"):
+        ck(r[k][0] == r[k][1] == t0[k],
+           f"{k} 上下界相等且等于人工基线（回填学不了这一维）")
+    for k in ("scoring.weights.gap", "scoring.weights.sector",
+              "screen.gap_pct_peak"):
+        ck(r[k] == list(box[k]) and r[k][0] < r[k][1], f"{k} 仍然可学")
+    ck(set(pinned) == {"scoring.weights.trend", "scoring.weights.volume",
+                       "screen.auc_ratio_score_hi", "screen.auc_ratio_decay"},
+       f"被钉死的恰好是那四个参数（实得 {sorted(pinned)}）")
+
+    # 真的有后果：投影之后 trend/volume 一步都迈不出去，而 Σw 仍然是 1
+    t = {k: float(v) for k, v in t0.items()}
+    t["scoring.weights.trend"] = 0.40
+    t["scoring.weights.volume"] = 0.40
+    p_full = O.project(t, box)
+    p_cut = O.project(t, r)
+    ck(abs(p_cut["scoring.weights.trend"] - t0["scoring.weights.trend"]) < 1e-12
+       and abs(p_cut["scoring.weights.volume"]
+               - t0["scoring.weights.volume"]) < 1e-12,
+       "裁过的箱：把 trend/volume 顶到 0.40 也会被拉回基线")
+    ck(p_full["scoring.weights.trend"] > t0["scoring.weights.trend"] + 0.05,
+       "不裁的箱：同一组值会真的把 trend 推高（说明这条规则有后果）")
+    wk = [k for k in p_cut if k.startswith("scoring.weights.")]
+    ck(abs(sum(p_cut[k] for k in wk) - 1.0) < 1e-9, "裁过之后 Σw 仍然是 1")
+
+    # 配置换成「量能可学」时 volume 解锁 —— 箱跟着 learnable_dims 走，
+    # 不是写死的
+    c2 = copy.deepcopy(c)
+    c2["learning"]["backfill"]["learnable_dims"] = ["gap", "volume"]
+    r2 = ED._learn_box(c2)
+    ck(r2["scoring.weights.volume"] == list(box["scoring.weights.volume"])
+       and r2["scoring.weights.trend"][0] == r2["scoring.weights.trend"][1],
+       "learnable_dims 加了 volume 就解锁 volume，trend 仍锁")
+    ck(SRC.dims_from_cfg(c) == c["learning"]["backfill"]["learnable_dims"],
+       "可学维度的唯一真相是 config.learning.backfill.learnable_dims")
+
+    # 接线：三处取箱的地方都必须经 _learn_box，不许再裸取 lc["box"]
+    src = (ROOT / "src" / "eval_daily.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    fns = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+    for name in ("_judge", "evaluate_candidate", "stage_learn"):
+        f = fns.get(name)
+        n_cut = sum(1 for n in ast.walk(f) if isinstance(n, ast.Call)
+                    and getattr(n.func, "id", "") == "_learn_box") if f else 0
+        raw = [n for n in ast.walk(f) if isinstance(n, ast.Subscript)
+               and isinstance(n.slice, ast.Constant) and n.slice.value == "box"
+               and getattr(n.value, "id", "") == "lc"] if f else [None]
+        ck(n_cut == 1 and not raw,
+           f"{name} 取箱经 _learn_box（没有裸 lc['box']）")
+
+
+def check_proxy_cols() -> None:
+    """回填行的竞价轨迹是代理值，不许当特征喂给模型和影子（W2-3）。"""
+    print("\n回填行的代理列屏蔽")
+    from learn import model_select as MS
+
+    # 两段各占一天：_load_train 里在线天会覆盖同日的回填天，一天只可能
+    # 来自一个源，秩归一也是按天做的
+    df = pd.concat([_multiday(1, 6, 300).assign(_src="backfill",
+                                                date="2026-01-01"),
+                    _multiday(1, 6, 400).assign(_src="online",
+                                                date="2026-01-02")],
+                   ignore_index=True)
+    # 回填行照 backfill.to_features 的样子摆：t1=t2=t3=gap_pct、
+    # slope=dive=0、monotonic=False，也就是「五列在回填上是常数」
+    m = df["_src"] == "backfill"
+    for k in ("t1_chg", "t2_chg"):
+        df.loc[m, k] = df.loc[m, "gap_pct"].to_numpy()
+    for k in ("slope", "dive"):
+        df.loc[m, k] = 0.0
+    df.loc[m, "monotonic"] = False
+    d = MS.prep_features(df)
+    bf, on = d["_src"] == "backfill", d["_src"] == "online"
+
+    ck(MS.PROXY_COLS == ["t1_chg", "t2_chg", "slope", "dive", "monotonic"],
+       "代理列就是这五个（t3_chg 不在里面：它是撮合价涨幅，回填有真值）")
+    ck(all(d.loc[bf, k].isna().all() for k in MS.PROXY_COLS),
+       "回填行的五列全是 NaN（常数当特征 = 把 gap 学两遍）")
+    ck(not d.loc[on, MS.PROXY_COLS].isna().any().any(),
+       "在线行一个都不动（那是 09:19:40 / 09:23:30 的真采样）")
+    ck(float((d.loc[bf, "t3_chg"].to_numpy()
+              - df.loc[bf.to_numpy(), "gap_pct"].to_numpy()).max()) == 0.0,
+       "t3_chg 不屏蔽")
+    ck(all(k in MS.FEATURES for k in MS.PROXY_COLS),
+       "列还在特征表里（影子模型的 features 列表不变，换了它比较就失效）")
+    X = MS.rank_norm(d[MS.FEATURES], d["date"]).fillna(0.0)
+    ck(float(np.abs(X.loc[bf.to_numpy(), MS.PROXY_COLS].to_numpy()).max()) == 0.0,
+       "秩归一后回填那天整列是 0（截面中性），不是某个被当真的常数")
+
+    # 没有 _src 列的调用方是实时打分（run_auction 读 out/detail.csv 给影子
+    # 参考榜），那里的轨迹是真采样，抹掉就变成训练一套、生产另一套（教训 30）
+    live = MS.prep_features(df[df["_src"] == "online"].drop(columns="_src"))
+    ck(not live[MS.PROXY_COLS].isna().any().any(),
+       "没有 _src 列的表原样保留（实时打分那路）")
+
+    # 手写打分器基线不能吃 NaN：vscore 的 monotonic 走 astype(bool)，
+    # NaN -> True，每行白送趋势分（教训 9 同型）
+    ck(bool(np.asarray(np.nan).astype(bool)),
+       "NaN.astype(bool) 就是 True —— 所以基线必须打在原表上")
+    mtree = ast.parse((ROOT / "src" / "learn" / "model_select.py").read_text(
+        encoding="utf-8"))
+    wf = next(x for x in ast.walk(mtree) if isinstance(x, ast.FunctionDef)
+              and x.name == "walk_forward")
+    sdf = [x for x in ast.walk(wf) if isinstance(x, ast.Call)
+           and getattr(x.func, "attr", "") == "score_df"]
+    ck(len(sdf) == 1 and isinstance(sdf[0].args[0], ast.Name)
+       and sdf[0].args[0].id == "df",
+       "walk_forward 的基线打分喂的是原表 df，不是 prep_features 的产物")
+
+
 def check_shadow_oos(c: dict) -> None:
     """影子对比必须是样本外的：先用上一次落盘的模型记账，再 refit。"""
     print("\n影子样本外对比与账本")
@@ -1137,6 +1268,20 @@ def check_report_send() -> None:
         os.environ["SKIP_MAIL"] = "1"
         R.send("2026-09-04", "<b>ok</b>", {})
         ck(not got, "SKIP_MAIL=1 时不发（本地 dry-run / 远端让位共用）")
+        # F5-14：判定只有一份（mailer.skip_mail）。以前这里写死 == "1"，
+        # 而三条业务线是真值判断：写 true 学习邮件照发、写 0 那三条全静音
+        for v, want_sent in (("true", False), ("TRUE", False), ("1", False),
+                             ("0", True), ("false", True), ("", True)):
+            got.clear()
+            os.environ["SKIP_MAIL"] = v
+            R.send("2026-09-04", "<b>ok</b>", {})
+            ck(bool(got) is want_sent,
+               f"SKIP_MAIL={v!r} -> {'照发' if want_sent else '不发'}"
+               "（和早盘/形态/起涨预测同一判据）")
+        rsrc = (ROOT / "src" / "learn" / "report.py").read_text(encoding="utf-8")
+        ck("mailer.skip_mail()" in rsrc and 'SKIP_MAIL") == "1"' not in rsrc,
+           "report.send 调 mailer.skip_mail()，不再自己比字符串")
+        os.environ["SKIP_MAIL"] = "1"
         html = R.build_proposal_html("2026-09-04", shadow.promotion_stat(
             [{"date": "2026-09-01", "base_top_excess": 0.0, "shadow_top_excess": 0.01,
               "base_ic": 0.0, "shadow_ic": 0.1, "overlap": 0.5}] * 31, 30, 0.9, 100),
@@ -1165,6 +1310,39 @@ def check_cfg(c: dict) -> None:
        "apply_theta 写副本，不污染原配置")
     ck(abs(sum(c["scoring"]["weights"].values()) - 1.0) < 1e-9,
        "人工基线的六个权重和为 1")
+
+    # W2-6：代码在用 g.get 取默认值的旋钮必须写进配置，否则用户改不了也看不见
+    g = c["learning"]["gate"]
+    ck(int(g["oos_blocks"]) == 3 and int(g["oos_min_blocks_better"]) == 2,
+       "闸门 2 的分块旋钮写进 config（oos_blocks=3 / 至少 2 块同向）")
+    esrc = (ROOT / "src" / "eval_daily.py").read_text(encoding="utf-8")
+    gsrc = (ROOT / "src" / "learn" / "gate.py").read_text(encoding="utf-8")
+    ck('g.get("oos_blocks"' in esrc and 'g.get("oos_min_blocks_better"' in gsrc,
+       "两处仍按同名键取（配置里的值和代码默认值是同一个旋钮）")
+    # 真的碰到这条规则：三块里只有一块同向时，要求 2 块不过、要求 1 块过。
+    # 只看「样本外改善」那一条 check，不看 v.accepted —— 冷却期要读
+    # state/theta_history.jsonl，自测不许依赖 state/
+    t0 = C.theta0(box)
+    t1 = dict(t0)
+    t1["screen.gap_pct_peak"] = t0["screen.gap_pct_peak"] + 0.1
+    days = [f"2026-08-{d:02d}" for d in range(1, 26)]
+    base = dict(theta_new=t1, theta_old=t0, box=box, n_days=len(days),
+                all_days=days, today=days[-1], boot_p=0.95,
+                oos_new=0.05, oos_old=0.03, churn={d: 0.1 for d in days})
+    blocks = [0.0095, -0.0175, -0.0134]     # 09-16 那个提案的真实三块
+
+    def _oos_check(need: int):
+        v = gate.evaluate(g={**g, "oos_min_blocks_better": need},
+                          block_delta=blocks, **base)
+        return next(x for x in v.checks if x.name == "样本外改善")
+
+    ck(not _oos_check(2).passed and _oos_check(1).passed,
+       "1/3 块同向：要求 2 块不过、要求 1 块过（这个旋钮真的接上了）")
+
+    # learnable_dims 是箱裁剪的唯一真相（restrict_box 按它执行）
+    ld = c["learning"]["backfill"]["learnable_dims"]
+    ck(isinstance(ld, list) and ld and "trend" not in ld and "volume" not in ld,
+       f"learning.backfill.learnable_dims 存在且不含 trend/volume（{ld}）")
 
 
 def check_council() -> None:
@@ -1861,6 +2039,93 @@ def check_label_guard(c: dict) -> None:
     finally:
         L.LABEL_DIR = keep2
 
+    check_label_rc(c)
+
+
+def check_label_rc(c: dict) -> None:
+    """「没覆盖」必须能从退出码看出来（W2-4，教训 27：退出码 0 不等于做了事）。
+
+    labels.save 的守卫是「已有可用行更多就不覆盖」。口径一收紧，被拦下的
+    恰好是真正改动到的那几天，而以前 stage_label 一律 return 0，批量重打
+    一遍看不出哪天没打上。现在：0 写了 / 1 失败 / 2 没覆盖，`--all` 把 2 的
+    那些天收集起来在结尾点名。
+    """
+    print("\n标签退出码：没覆盖 -> 2")
+    import datetime as _dt
+    import tempfile
+    import logging as _logging
+    import eval_daily as ED
+    from learn import labels as L
+
+    td = Path(tempfile.mkdtemp(prefix="labrc_"))
+    fake_root = Path(tempfile.mkdtemp(prefix="labrcroot_"))
+    (fake_root / "data" / "2026-09").mkdir(parents=True)
+    codes = [f"{600000 + i:06d}" for i in range(100)]
+    pd.DataFrame({"code": codes, "auc_price": [10.0] * 100,
+                  "one_word": [False] * 100}).to_parquet(
+        fake_root / "data" / "2026-09" / "auction_2026-09-16.parquet")
+
+    def quotes(n_clean: int):
+        # 前 n_clean 只开盘价 == 撮合价（干净），其余高开 2%（失配 > 0.5%，
+        # 按 learning.label.max_open_mismatch_pct 判脏）
+        return lambda cs, date="", **k: pd.DataFrame({
+            "code": codes,
+            "open": [10.0] * n_clean + [10.2] * (100 - n_clean),
+            "close": [10.5] * 100})
+
+    keep = (L.LABEL_DIR, L.from_quotes, ED.now_bj, ED.ROOT, ED.dataset,
+            ED.stage_label)
+    L.LABEL_DIR = td
+    ED.ROOT = fake_root
+    ED.now_bj = lambda: _dt.datetime(2026, 9, 16, 15, 10,
+                                     tzinfo=_dt.timezone.utc)
+    try:
+        L.from_quotes = quotes(100)
+        ck(ED.stage_label(c, "2026-09-16", False) == 0, "第一遍 100 行可用 -> 0")
+        L.from_quotes = quotes(50)
+        ck(ED.stage_label(c, "2026-09-16", False) == 2,
+           "同一天再打 50 行可用 -> 2（守卫不覆盖）")
+        back = pd.read_parquet(L.path_for("2026-09-16"))
+        ck(int((~back["dirty"]).sum()) == 100, "盘上那份没被覆盖")
+        ck(ED.stage_label(c, "2026-09-16", False, True) == 0,
+           "--force 时覆盖，退 0")
+        ck(int((~pd.read_parquet(L.path_for("2026-09-16"))["dirty"]).sum()) == 50,
+           "force 之后盘上是新的那份（50 行可用）")
+
+        # --all：2 不许混进失败里，但必须点名到天
+        logs: list[str] = []
+        h = _logging.Handler(); h.emit = lambda r: logs.append(r.getMessage())
+        lg = _logging.getLogger("eval"); lg.addHandler(h)
+        rcs = {"2026-09-14": 0, "2026-09-15": 2, "2026-09-16": 2}
+
+        class _FakeDS:
+            snapshot_days = staticmethod(lambda: sorted(rcs))
+
+        ED.dataset = _FakeDS
+        ED.stage_label = lambda cc, d, b, f=False: rcs[d]
+        argv = sys.argv
+        sys.argv = ["eval_daily.py", "--stage", "label", "--all",
+                    "--date", "2026-09-16"]
+        try:
+            rc = ED.main()
+        finally:
+            sys.argv = argv
+            lg.removeHandler(h)
+        ck(rc == 0, "--all：只有「没覆盖」时退出码仍是 0（不是失败）")
+        ck(any("2026-09-15" in x and "2026-09-16" in x and "force" in x
+               for x in logs),
+           "--all：没覆盖的那几天在结尾被点名，并提示 --force")
+        rcs["2026-09-14"] = 1
+        sys.argv = ["eval_daily.py", "--stage", "label", "--all",
+                    "--date", "2026-09-16"]
+        try:
+            ck(ED.main() == 1, "--all：真失败的天照样让退出码非零")
+        finally:
+            sys.argv = argv
+    finally:
+        (L.LABEL_DIR, L.from_quotes, ED.now_bj, ED.ROOT, ED.dataset,
+         ED.stage_label) = keep
+
 
 def check_llm_brief_date() -> None:
     """brief 是别的日子的就不归因（F3-11）。"""
@@ -2316,6 +2581,8 @@ def main() -> int:
     check_cfg(c)
     check_wiring()
     check_race_source(c)
+    check_learn_box(c)
+    check_proxy_cols()
     check_shadow_stat()
     check_report_send()
     check_bf_dirty(c)

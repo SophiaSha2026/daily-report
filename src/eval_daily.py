@@ -37,7 +37,7 @@ import pandas as pd
 import cfg as C
 import localenv
 from learn import (apply as A, dataset, gate, labels as L, objective as O,
-                   optimize as OPT, report as R)
+                   optimize as OPT, report as R, sources)
 
 # SMTP 凭证和 OAuth token 在 tools/local.env 里。控制台的按钮直接跑这个脚本
 # （不经过 local_run），不加载就发不出信，而发信失败是 fail-open 的（教训 16）。
@@ -108,7 +108,14 @@ def _cost(c: dict) -> float:
 # ---------------------------------------------------------------------
 def stage_label(c: dict, date: str, backfill: bool,
                 force: bool = False) -> int:
-    """收盘后抓收盘价，和当天的竞价快照拼出标签。"""
+    """收盘后抓收盘价，和当天的竞价快照拼出标签。
+
+    退出码：0 写了（或那天根本没有快照，无事可做）、1 失败、
+    **2 没覆盖**（已有一份可用行更多的标签，见 labels.save 的守卫）。
+    2 和 0 必须分开：口径收紧后重打一遍，恰好是真正改动到的那几天会被守卫
+    拦下，只留一行 warning、退出码还是 0 —— 等于没修而且看不出来（教训 27：
+    退出码 0 不等于做了事）。要强行覆盖加 --force。
+    """
     # 先判时刻**再联网**：labels.from_quotes 的过滤只看时间戳是不是今天，
     # 盘中现价一样以今天开头，会被当成收盘价写进标签；而 labels.save 的
     # 「可用行更多才覆盖」还可能让收盘后正确的那份被拒，错标签永久留下
@@ -140,10 +147,10 @@ def stage_label(c: dict, date: str, backfill: bool,
         return 1
     # force 给「口径改了要重打一遍」用：save 的守卫是「可用行更少就不覆盖」，
     # 收紧口径时它恰好拦住真正改动到的那几天（见 labels.save 的注释）
-    L.save(date, L.build(date, snap, raw,
-                         c["learning"]["label"]["max_open_mismatch_pct"]),
-           force=force)
-    return 0
+    _p, wrote = L.save(date, L.build(
+        date, snap, raw, c["learning"]["label"]["max_open_mismatch_pct"]),
+        force=force)
+    return 0 if wrote else 2
 
 
 # ---------------------------------------------------------------------
@@ -229,6 +236,36 @@ def load_day_weights(c: dict) -> dict[str, float]:
 # ---------------------------------------------------------------------
 #  stage: learn
 # ---------------------------------------------------------------------
+def _learn_box(c: dict) -> dict[str, list]:
+    """交给优化器和闸门之前，先把箱裁到这份训练数据**真能学**的维度。
+
+    训练表的绝大多数天是回填（404 天回填 vs 17 天在线），而回填的
+    t1/t2/slope/dive/monotonic 是代理值、竞价额含开盘后成交（learn/backfill.py
+    已知偏差 5、learn/sources.py 模块注释）：trend / volume 两维在那上面是
+    常数。不裁的话优化器照样在这两个维度上调参数，把权重推到边界去给别的
+    维度腾预算——那不是学到的结论，是数据缺失，而且它一路过闸就会落地。
+    只打日志不裁是没用的（restrict_box 的注释）。
+
+    裁法是钉死 lo=hi=θ⁰ 而不是删键：删键会让剩下四个权重被 O.project 归一到
+    1，加上仍在生效的 trend/volume 两个 0.20，总权重变成 1.4。
+    可学维度以 config.learning.backfill.learnable_dims 为唯一真相
+    （sources.dims_from_cfg），探测只当兜底——probe_ts 要联网。
+    """
+    box = c["learning"]["box"]
+    t0 = C.theta0(box)
+    out = sources.restrict_box(box, t0, sources.dims_from_cfg(c))
+    # 被钉死的维度上如果 learned.yaml 已经学到了别的值，θ_prev 就落在箱外：
+    # 锚定项会被 σ=1e-12 放大，闸门 4 的步长分母还是 0（gate.evaluate 的
+    # sig = hi − lo）。这种状态只能人来解，先 --stage rollback 回基线。
+    now = C.theta_now(box)
+    bad = [k for k, (lo, hi) in out.items()
+           if hi <= lo and abs(now[k] - t0[k]) > 1e-9]
+    if bad:
+        log.warning("这些维度已转为不可学，但当前生效值不是人工基线：%s。"
+                    "先 --stage rollback 回基线，否则闸门算不出步长", bad)
+    return out
+
+
 def _bf_dirty(raw: pd.DataFrame, c: dict) -> pd.Series:
     """回填表的「脏样本」口径，必须和在线 labels.build 是同一条（教训 30）。
 
@@ -341,7 +378,7 @@ def _judge(c: dict, df, mk, p_te, theta_new: dict, theta_prev: dict,
     "churn", "boot_p"})。
     """
     lc = c["learning"]
-    box, g = lc["box"], lc["gate"]
+    box, g = _learn_box(c), lc["gate"]
     theta0 = C.theta0(box)
     dayw = load_day_weights(c)
     n = len(days)
@@ -405,7 +442,7 @@ def evaluate_candidate(c: dict, theta_new: dict, date: str) -> dict | None:
     返回 {"verdict": dict, "metrics": {"prev":..., "new":...}}；数据不够返回 None。
     """
     lc = c["learning"]
-    box, g = lc["box"], lc["gate"]
+    box, g = _learn_box(c), lc["gate"]
     df, _source = _load_train(c)
     if df.empty:
         return None
@@ -591,7 +628,7 @@ def stage_learn(c: dict, date: str, dry: bool) -> int:
     if _reject_bad_date(date, "不拟合、不写状态"):
         return 2
     lc = c["learning"]
-    box, g = lc["box"], lc["gate"]
+    box, g = _learn_box(c), lc["gate"]
     df, source = _load_train(c)
     if df.empty:
         log.warning("还没有任何带标签的数据")
@@ -988,9 +1025,21 @@ def main() -> int:
         return 0
     if a.stage == "label":
         if a.all:
-            rc = 0
+            # 2（没覆盖）不能 `rc |=` 混进失败里，也不能就这么算了：批量重打
+            # 一遍时被守卫拦下的正是「口径改了、行数变少」的那几天，而那是唯一
+            # 需要人看一眼的信号。逐天收集，末尾一次性列出来（教训 16：
+            # 失败只写日志等于没写，这里至少要点名到天）。
+            rc, kept = 0, []
             for d in dataset.snapshot_days():
-                rc |= stage_label(c, d, a.backfill, a.force)
+                r = stage_label(c, d, a.backfill, a.force)
+                if r == 2:
+                    kept.append(d)
+                else:
+                    rc |= r
+            if kept:
+                log.warning("%d 天保留了旧标签没覆盖（新的可用行更少）：%s。"
+                            "口径改了要重打就加 --force", len(kept),
+                            " ".join(kept))
             return rc
         return stage_label(c, date, a.backfill, a.force)
     if a.stage == "brief":
@@ -1006,12 +1055,18 @@ def main() -> int:
         # 本地全流程：抓标签 -> 备归因输入 -> 归因 -> 拟合与闸门。
         # 每一步失败都不阻断后面（归因尤其：它是研究性的，不是关键路径）。
         rc = stage_label(c, date, a.backfill, a.force)
-        if rc != 0:
+        if rc == 1:
             # 标签没拿到（网络不通、快照时间戳不是当天）就别往下走：往下走
             # 会写 learning_status，计划任务据此判「今天跑完了」不再重试，
             # 这一天的真值就永久丢了。退出非零，下一次敲门再抓一次（很快）。
             log.error("%s 标签没拿到，本轮不拟合、不写状态，等下一次重试", date)
             return rc
+        if rc == 2:
+            # 2 = 已有一份可用行更多的标签，没覆盖。那天的真值本来就在盘上，
+            # 拟合照跑；当成失败 return 2 的话，计划任务每半小时重试一次、
+            # 一整天都不会拟合（labels.save 的守卫每次都拦），学习线停摆。
+            log.warning("%s 保留了旧标签（新的可用行更少），学习照常往下跑", date)
+            rc = 0
         stage_brief(c, date)
         _maybe_attribute(c, date, force=a.force_llm)
         rc |= stage_learn(c, date, a.dry)

@@ -296,14 +296,19 @@ def send(date: str, html: str, cfg: dict, subject: str | None = None) -> bool:
     selftest_learn.check_report_send 用假 SMTP 钉住这条接线。
 
     返回**真发出去了没有**（审计 F2-5）：不抛不代表发成了，调用方要据此
-    决定落不落「已发」标记。SKIP_MAIL=1 也算没发。
+    决定落不落「已发」标记。SKIP_MAIL 算没发（判据见 mailer.skip_mail）。
     """
     import os
-    if os.environ.get("SKIP_MAIL") == "1":
-        log.info("SKIP_MAIL=1，学习邮件生成但不发")
+    import mailer
+    # SKIP_MAIL 的判定只有一份（mailer.skip_mail）。这里以前是 `== "1"`，
+    # 而早盘/形态/起涨预测三条线是真值判断：往 tools/local.env 写一行
+    # SKIP_MAIL=0 想「明确开启发信」，那三条线全静音、学习邮件照发；
+    # 写 true 则正好反过来（审计 F5-14）。
+    if mailer.skip_mail():
+        log.info("SKIP_MAIL=%s，学习邮件生成但不发",
+                 os.environ.get("SKIP_MAIL", ""))
         return False
     try:
-        import mailer
         from email.message import EmailMessage
         from email.utils import formataddr
         c = mailer._conf()

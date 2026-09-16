@@ -115,7 +115,11 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
                    「明显更差」都判不出来。
     """
     checks: list[Check] = []
-    sig = {k: (hi - lo) for k, (lo, hi) in box.items()}
+    # 箱宽为 0 的维度是**被钉死的**（sources.restrict_box 对数据源给不出的维度
+    # 把 lo/hi 都设成 θ⁰）。它本不该出现在 moved 里，但 learned.yaml 是可以人手
+    # 改的：一旦某个钉死维度上存有非基线值，θ_prev 就落在箱外、被投影回 θ⁰，
+    # 那个键进了 moved，这里的除法就是 ZeroDivisionError（整条学习线当场崩）。
+    sig = {k: max(hi - lo, 1e-12) for k, (lo, hi) in box.items()}
     moved = {k: (theta_old[k], theta_new[k]) for k in box
              if abs(theta_new[k] - theta_old[k]) > 1e-9}
 

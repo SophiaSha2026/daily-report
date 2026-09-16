@@ -55,6 +55,12 @@ FEATURES = [
     "cauc_ratio_prev",      # 昨日尾盘竞价额 / 昨日全天成交额
 ]
 
+# 回填行上是代理值、不是真采样的那几列。learn/backfill.py::to_features 给的是
+# t1=t2=t3=gap_pct、slope=dive=0、monotonic=False —— 历史只拿得到 09:25 一个
+# 撮合价，09:19:40 / 09:23:30 那两个撤单前的虚拟价属于 L1 快照流。
+# t3_chg 不在这张表里：它就是撮合价涨幅，回填拿得到真值。
+PROXY_COLS = ["t1_chg", "t2_chg", "slope", "dive", "monotonic"]
+
 # 复杂度序（用于奥卡姆剃刀）。数字越小越简单。
 COMPLEXITY = {
     "Baseline(手写打分器)": 0,
@@ -78,6 +84,22 @@ def prep_features(df: pd.DataFrame) -> pd.DataFrame:
     for b in ("monotonic", "ma_bull", "breakout", "prev_limit_up",
               "prev_broken_board"):
         d[b] = d[b].astype(float)
+
+    # 回填行的竞价轨迹是代理值，不许当特征。那五列在回填行上是常数，喂进去
+    # 只会让模型把 gap 学第二遍（t1=t2=gap_pct）、把常数当信号；而线上真采样的
+    # slope 恰恰是影子排序器最大的那个系数，两边混在一张表里比的不是同一件事
+    # （教训 30：回测口径和生产口径差一点，成绩就不是同一件事）。
+    # 置 NaN 不删列：下游 rank_norm(...).fillna(0) 会把这些行压成截面中性，
+    # 而列还在——影子模型文件里的 features 列表不变，它的正当性来自
+    # 「就是擂台上赢的那个东西」，换了特征表比较立刻失效。
+    # **只认 `_src` 明写的 backfill**：没有这一列的调用方是实时打分
+    # （run_auction 读 out/detail.csv 给影子参考榜），那里的 T1/T2/T3 是
+    # 09:19:40 / 09:23:30 / 09:25:10 的真采样，抹掉就变成训练一套、生产另一套。
+    # _load_train 出来的训练表两段都带 `_src`，回填那一半跑不掉。
+    if "_src" in d.columns:
+        bf = d["_src"].astype(str).eq("backfill").to_numpy()
+        if bf.any():
+            d.loc[bf, PROXY_COLS] = np.nan
 
     # 板块竞价一致性。「未分类」是占位符，给 NaN 不给板块统计
     # （CLAUDE.md 历史教训第 9 条：占位符不许混进业务计数）。
@@ -202,7 +224,12 @@ def walk_forward(df: pd.DataFrame, c: dict, n_folds: int = 5,
     # 今天两者逐位相同（唯一调用方传的就是 C.load()），但只要将来有人拿一份
     # 变体配置来跑擂台（会诊实验、C.apply_theta），「Baseline(手写打分器)」
     # 那一行就静默用生产 θ，比出来的结论是错的还不报错（审计 F2-9）。
-    base_score, base_rej = vscore.score_df(d, c)
+    # 基线打分喂的是**原表**不是 prep_features 的产物：后者把回填行的轨迹列
+    # 置了 NaN（给 ML 模型看的口径），而生产打分器在没有轨迹证据时吃的是
+    # 中性值 slope=0 / monotonic=False（run_auction 的 traj_ok=False 同一条）。
+    # 拿 NaN 去打分更糟：vscore 的 monotonic 走 astype(bool)，NaN → True，
+    # 每一行白送趋势分（教训 9 同型）。两张表行数行序完全一致。
+    base_score, base_rej = vscore.score_df(df, c)
     d = d.assign(_base=np.where(base_rej, -1e9, base_score), _rej=base_rej)
 
     rows = []

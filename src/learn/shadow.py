@@ -57,6 +57,11 @@ LEDGER = ROOT / "state" / "shadow_compare.json"   # 逐日对比账本，先到�
 def fit(df: pd.DataFrame) -> dict | None:
     """在带 ytil 的训练表上拟合 RankHuber，落系数文件。
 
+    传进来的表必须带 `_src`（_load_train 的产物就带）：prep_features 按它把
+    回填行的 t1/t2/slope/dive/monotonic 置 NaN，那五列在回填上是代理常数。
+    所以这几个系数只由在线真值天的变化撑起来——影子最大的系数正是 slope，
+    混着代理值拟合出来的它不是同一个东西（model_select.PROXY_COLS）。
+
     失败返回 None 不抛——影子是研究性组件，任何失败都不能影响主流程。
     """
     try:

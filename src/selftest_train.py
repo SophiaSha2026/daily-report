@@ -706,6 +706,71 @@ def check_table_guard() -> None:
             ck(True, f"{name} -> 拒绝落盘")
 
 
+def check_open_mismatch() -> None:
+    """买入价与撮合价的偏离必须入表（F8-14）。
+
+    回填表以前只有一字板一条脏样本规则，在线 labels.build 还判「日线开盘价
+    与 auc_price 偏离 > 0.5%」：买入价和特征描述的价不是同一个价，那一行的
+    标签就是错的。40.76 万行里这样的有 46190 行（11.53%），准入区间内占
+    21.4%。缺了这一列，eval_daily._bf_dirty 只能退回旧口径（打一行 warning），
+    两条线的可用样本不是同一批（教训 30）。
+    """
+    print("\n开盘价失配入表（F8-14）")
+    ck("open_mismatch_pct" in BF.COLS,
+       "open_mismatch_pct 进 COLS（不入表 = 下游一行都判不了）")
+    seg = BF_SRC.split('d["open_mismatch_pct"] =')[1].split("\n\n")[0]
+    ck(".abs()" in seg,
+       "偏离取绝对值：不带 .abs() 的话 open 低于撮合价的那一半行是负数，"
+       "`> 阈值` 永远不成立，实测漏掉六成脏行")
+
+    ds_ = days(8)
+    c = cfg()
+    thr = float(c["learning"]["label"]["max_open_mismatch_pct"])
+
+    def one(open_px: float, auc: float | None, whole: bool = False):
+        rows = flat("600000", ds_[:-1], 10.0, high=10.3)
+        rows.append(row("600000", ds_[-1], 11.0, 10.0, open=open_px,
+                        high=11.2, low=10.1))
+        a = auc_row("600000", ds_[-1], open=auc) if auc is not None else None
+        g = feats(rows, a)
+        return g if whole else g.iloc[-1]
+
+    # COLS 里的每一列都得真的被链路产出，否则 build() 在 d[COLS] 那一步
+    # KeyError —— 往 COLS 里加名字和往 to_features 里加计算是两件事
+    full = BF.add_sector_stats(one(10.302, 10.2, whole=True), c)
+    ck(not [k for k in BF.COLS if k not in full.columns],
+       "COLS 里每一列链路都产出（含新加的 open_mismatch_pct）")
+
+    hi = one(10.302, 10.2)      # 开盘比撮合价高 1.0%
+    lo = one(10.098, 10.2)      # 开盘比撮合价低 1.0%（不带 .abs() 就漏掉）
+    none_ = one(10.2, None)     # 没竞价数据：auc_price 由 open 兜底，必然相等
+    ck(abs(hi.open_mismatch_pct - 1.0) < 1e-6,
+       "偏离 = |open − auc_price| / auc_price × 100 = 1.0")
+    ck(abs(lo.open_mismatch_pct - 1.0) < 1e-6, "开盘价低于撮合价时同样是 +1.0")
+    ck(abs(none_.open_mismatch_pct) < 1e-12, "免费源（无竞价）那路偏离 0，不判脏")
+
+    # 口径必须和在线 labels.build 逐位一致，两边是同一个公式
+    from learn import labels as L
+    lab = L.build(ds_[-1],
+                  pd.DataFrame({"code": ["600000"], "auc_price": [10.2],
+                                "one_word": [False]}),
+                  pd.DataFrame({"code": ["600000"], "open": [10.302],
+                                "close": [11.0]}), thr)
+    ck(abs(float(lab["open_mismatch_pct"].iloc[0])
+           - float(hi.open_mismatch_pct)) < 1e-9,
+       "和在线 labels.build 逐位同口径")
+
+    # 真的被判脏：_bf_dirty 是训练表可用样本的唯一口径
+    import eval_daily as ED
+    frame = pd.DataFrame({
+        "one_word": [False, False, False, False],
+        "open_mismatch_pct": [hi.open_mismatch_pct, lo.open_mismatch_pct,
+                              none_.open_mismatch_pct, thr / 2]})
+    got = ED._bf_dirty(frame, c).tolist()
+    ck(got == [True, True, False, False],
+       f"偏离 1% 的两行（高开/低开）被判脏，0 和 {thr / 2}% 的不判（实得 {got}）")
+
+
 def check_auction_price_guard() -> None:
     print("\n撮合价哨兵（F2-1）")
     n = 1000
@@ -882,6 +947,7 @@ def main() -> int:
     check_labels()
     check_dataset_coverage()
     check_table_guard()
+    check_open_mismatch()
     check_auction_price_guard()
     check_real_amount()
     check_learnable_box()

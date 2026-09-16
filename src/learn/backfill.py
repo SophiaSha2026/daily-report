@@ -356,6 +356,15 @@ def to_features(d: pd.DataFrame, sector: dict[str, str],
     pc = d["prev_close"]
     # 竞价撮合价：有竞价数据用它，没有就用日线开盘（两者本该相等）
     d["auc_price"] = d["auc_price"].fillna(d["open"])
+    # 买入价（日线开盘）和特征描述的价（撮合价）偏离多少。口径逐字照抄在线
+    # learn/labels.py::build：|open − auc_price| / auc_price × 100，两边都没有
+    # 就留 NaN。**必须带 .abs()**：不带的话 open 低于撮合价的那一半行是负数，
+    # 下游 `> 阈值` 判不脏，2026-09-16 审计实测会漏掉六成脏行。
+    # 有这一列，eval_daily._bf_dirty 才能和在线判同一条规则（教训 30）；
+    # 缺列时它只判一字板并打 warning，两边可用样本不是同一批。
+    mis = (d["auc_price"] > 0) & (d["open"] > 0)
+    d["open_mismatch_pct"] = ((d["open"] - d["auc_price"]).abs()
+                              / d["auc_price"] * 100).where(mis)
     d["gap_pct"] = np.where(pc > 0, (d["auc_price"] / pc - 1.0) * 100, np.nan)
 
     # 涨停幅度（含 ST 的 5%）已经在 daily_features 里按 datasource.limit_pct
@@ -471,6 +480,10 @@ COLS = ["date", "code", "name", "limit_pct", "prev_close", "auc_price",
         # auc_ratio 的分母是不是估算值（实测 0.03% 的行接不上新浪真值）。
         # 有这一列才能在复盘时把估算行单独挑出来，而不是整表当成同一口径
         "prev_amount_est",
+        # 买入价与撮合价的偏离（在线 labels.build 同名同口径）。
+        # eval_daily._bf_dirty 按它判脏；不入表的话回填和在线的可用样本
+        # 口径不一致，而这件事不报错（审计 F8-14）
+        "open_mismatch_pct",
         "cauc_ratio_prev", "r"]
 
 
