@@ -545,6 +545,23 @@ def build(c: dict, date: str, n_days: int = 0) -> Path:
     except Exception as e:  # noqa: BLE001
         log.warning("起涨预测证据失败: %s", e)
         pack["breakout"] = {"error": str(e)}
+    try:
+        # 市场环境：自己算的，省得 LLM 去网上查成交额还没法核对（会诊第一次就是这么干的）
+        import regime as RG
+        RG.record(90)
+        pack["regime"] = {
+            "recent": RG.load(30),
+            "definitions": {
+                "turnover_yi": "沪深京全市场成交额（亿元），只统计日线表里有的票",
+                "adv_share": "上涨家数占比", "limit_up/limit_down": "按板块涨跌停幅度近似计数（ST 未单列）",
+                "base20": "那一天全市场随便买一只，之后 20 根 K 线内最高价涨超 50% 的比例。"
+                          "起涨预测的命中率要和它比，不是和验证集的 2.93% 比；"
+                          "不满 20 根的日子是 null",
+                "ret_median_pct": "全市场当日涨跌幅中位数",
+            }}
+    except Exception as e:  # noqa: BLE001
+        log.warning("环境指标失败: %s", e)
+        pack["regime"] = {"error": str(e)}
     d = OUT_DIR / date
     d.mkdir(parents=True, exist_ok=True)
     p = d / "evidence.json"
