@@ -239,9 +239,14 @@ build-train，或把在线天并进训练表 —— 未做，等用户决定。
 
 ## 五之二、学习会诊（2026-09-16 起）
 
-每次学习流程（参数自学）末尾自动跑，也可以在控制台「运行 -> 1-3 学习会诊」手动跑。
 六个 Opus 5（max 推理）进程并行，各看一个角度（差距定位 / 波动还是真差距 /
-特征体检 / 市场环境 / 数据与流程 / 改进提案），主审汇总。10~15 分钟。
+特征体检 / 市场环境 / 数据与流程 / 改进提案），主审汇总。约 25 分钟、**20 美元一次**。
+
+**多久跑一次**（2026-09-16 用户定）：自动那条是**每周一次**，外加两个加跑触发 ——
+参数真的变过（`state/learned.yaml` 或 `state/breakout/overrides.json` 动过），
+或者又有 10 个名额的真值到期。控制台「运行 -> 1-3 学习会诊」**手动跑不受这个限制**，
+想问随时问。节奏在 `config.yaml` 的 `learning.council.cadence_days`。
+每个交易日都跑的话约 440 美元/月，而 17 天样本里每天的增量信息很小。
 
 看结果：控制台「面板 -> 学习会诊」（Pages 上也有 council.html，只读）。
 页面上有：主审结论（差距表、原因权重、波动还是真差距）、图（起涨每份清单的
@@ -256,6 +261,20 @@ build-train，或把在线天并进训练表 —— 未做，等用户决定。
   daily.py 读，去掉特征会让下次打分自动重训
 - 「needs_human」= 要写代码，进积压，等人做
 - 回滚：删 state/learned.yaml 或 state/breakout/overrides.json
+
+**批准「起涨常量」类的提案之后，成绩表必须跟着重跑**（2026-09-16 踩过）。
+批准 `BOARD_ADJ.star` 1.27->1.0 之后生产当场换了规则（162 个出榜日里 77 天
+换了票），而邮件里印的历史准确率还是旧规则测的。按顺序跑：
+
+```
+python src/breakout/exp_window.py --refit        # 重出成绩表（20 分钟）
+python tools/update_perf.py                      # 按新产物改写 export.py 的常量
+python -c "import sys;sys.path[:0]=['src','src/breakout'];import truth;truth.validation_by_board(refresh=True)"
+python src/selftest_breakout.py                  # 逐位对账，红了说明还有没跟上的
+```
+
+少跑任何一步都不会报错。邮件里有一道防呆（规则对不上就打星号说明），
+但那只是兜底，不是替代。
 
 关掉：config.yaml `learning.council.enabled: false`。
 它挂了不影响学习流程（fail-open），latest.json 里记原因，总览页会诊卡变黄。

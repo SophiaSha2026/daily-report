@@ -277,14 +277,28 @@ def _chart_morning(ev: dict) -> str:
             f"{summ.get('admitted_excess_mean_pct')}% vs 被剔除 {summ.get('rejected_excess_mean_pct')}%。</div>")
     dims = m.get("dims") or []
     if dims:
-        tail += "<table><tr><th>维度</th><th>权重</th><th>高 1/3 超额</th><th>低 1/3 超额</th><th>差</th></tr>"
+        # 只按符号上色会骗人：17 天的样本上标准误约 0.5 个百分点，六个维度
+        # 没有一个分辨得出来，却会被全部涂成绿或红。所以标准误和 t 一起印，
+        # |t| < 2 的一律灰掉（2026-09-16 对齐检查）。
+        tail += ("<table><tr><th>维度</th><th>权重</th><th>高 1/3 超额</th>"
+                 "<th>低 1/3 超额</th><th>差</th><th>标准误</th><th>t</th>"
+                 "<th>天数</th></tr>")
         for d in dims:
-            sp = d.get("spread_pct")
-            cls = "ok" if (sp or 0) > 0 else "no"
+            sp, se, t = d.get("spread_pct"), d.get("spread_se_day_clustered"), d.get("spread_t")
+            if sp is None:
+                continue
+            cls = ("ok" if sp > 0 else "no") if (t is not None and abs(t) >= 2) else "dim"
             tail += (f"<tr><td>{_e(d['dim'])}</td><td>{d.get('weight')}</td>"
-                     f"<td>{d.get('high_third_excess_pct')}%</td><td>{d.get('low_third_excess_pct')}%</td>"
-                     f"<td class='{cls}'>{sp:+.2f}</td></tr>" if sp is not None else "")
-        tail += "</table><div class='dim'>差为负 = 这个维度打高分的票反而更差。</div>"
+                     f"<td>{d.get('high_third_excess_pct')}%</td>"
+                     f"<td>{d.get('low_third_excess_pct')}%</td>"
+                     f"<td class='{cls}'>{sp:+.2f}</td>"
+                     f"<td>{'—' if se is None else f'±{se:.2f}'}</td>"
+                     f"<td>{'—' if t is None else f'{t:+.2f}'}</td>"
+                     f"<td>{d.get('spread_n_days')}</td></tr>")
+        tail += ("</table><div class='dim'>差为负 = 这个维度打高分的票反而更差。"
+                 "每天在当天的票里切高低三分之一，再对天平均；标准误按天聚类，"
+                 "和左边的差是同一条序列算出来的。<b>只有 |t| ≥ 2 的才上色</b>，"
+                 "灰的表示这个样本量下分辨不出来。</div>")
     return "<h2>早盘选股 · 逐日真值</h2>" + "".join(p) + tail
 
 
