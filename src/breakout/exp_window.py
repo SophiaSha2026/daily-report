@@ -232,10 +232,14 @@ def main() -> int:
               % (r["label"], r["n"], r["per_day"], r["empty"],
                  100 * r["hit"], 100 * r["se"], r["lift"], r["per_month"]))
 
-    (OUT / "window_grid.json").write_text(json.dumps(
-        {"days": days, "base": base, "win": W, "grid": rows},
+    # 消融跑完别覆盖生产那份（selftest 钉着 STREAK_PERF 和它一致），
+    # WF_OUT 指到别的文件名
+    out = Path(os.environ.get("WF_OUT", str(OUT / "window_grid.json")))
+    out.write_text(json.dumps(
+        {"days": days, "base": base, "win": W, "grid": rows,
+         "drop": os.environ.get("WF_DROP", "")},
         ensure_ascii=False, indent=2), encoding="utf-8")
-    print("\n-> " + str(OUT / "window_grid.json"))
+    print("\n-> " + str(out))
     return 0
 
 
