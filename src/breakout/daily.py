@@ -806,8 +806,12 @@ def stage_send() -> int:
         hist = []
     E.write_panel(a, b, meta, OUT, date, history=hist)
     import os
-    if os.environ.get("SKIP_MAIL"):
-        log.info("SKIP_MAIL=1，只生成面板不发邮件")
+    from mailer import skip_mail
+    if skip_mail():
+        # 判据只有 mailer.skip_mail 一份（只认 1/true，不分大小写）。以前这里
+        # 是真值判断：local.env 里写一行 SKIP_MAIL=0 想「明确开启发信」，
+        # 三条线会一起不发信而退出码全是 0。
+        log.info("SKIP_MAIL 已设，只生成面板不发邮件")
         return 0
     E.send_mail(date, a, b, meta)
     # 真发出去才落这个标记，教训 27：退出码 0 不等于做了事。

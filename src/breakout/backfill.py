@@ -630,6 +630,18 @@ def stage_update(target: str = "") -> int:
     if hist_max >= target:
         log.info("日线已覆盖到 %s（%d 只，目标日 %s），不用追加",
                  hist_max, int(cnt.loc[hist_max]), target)
+        # 这条早退路也要写账：local_run.flow_breakout 读 update_status.json 判
+        # 「今天缺了谁」，最常见的一条路不写的话，那边只能记一行「没写账」。
+        try:
+            STATE.mkdir(parents=True, exist_ok=True)
+            (STATE / "update_status.json").write_text(json.dumps(
+                {"date": target, "covered": hist_max, "rows": int(cnt.loc[hist_max]),
+                 "appended": 0, "stale": 0, "newcodes": 0, "refetch_only": 0,
+                 "missing": 0, "short": [], "filled": [],
+                 "note": "已覆盖，本轮没有追加"}, ensure_ascii=False),
+                encoding="utf-8")
+        except Exception as e:  # noqa: BLE001
+            log.warning("update_status.json 写不出来：%s", e)
         return 0
     tds = sorted(ds.trade_dates())
     missing_days = [d for d in tds if hist_max < d <= target]
