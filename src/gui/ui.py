@@ -302,10 +302,21 @@ function sysCard(no, title, when, items) {
 function lineOf(s, key) { return s.lines.find(l => l.key === key) || {}; }
 
 function pickState(l, s) {
-  // 三种状态：跑完了(ok) / 周末不用跑(no) / 该跑没跑(warn)
-  if (l.done) return ["ok", (l.n === undefined || l.n === null)
-    ? "已完成" : l.n + " 只", "数据 " + (l.date || "-")];
-  if (s.weekend) return ["no", "周末", "不用跑"];
+  // 五种状态：跑完了(ok) / 跑完但没发出去(bad) / 只试跑过(warn) /
+  //          周末不用跑(no) / 该跑没跑(warn)
+  // 周末只对早盘系统成立：晚间系统和参数自学的目标日是最近一个已收盘
+  // 交易日，北京周六凌晨（美东周五）正是补周五清单的时段，那会儿显示
+  // 「周末不用跑」会把真正该报的「没跑」盖掉。
+  //
+  // done 和 sent 是两件事：run_meta 在采样/扫描阶段就落盘，发信是后面的
+  // 子进程。只按 done 上绿灯的话，「采样成功、enrich 挂了没发信」和正常
+  // 日子在界面上一模一样（教训 16：失败必须有一个能被界面查询的对象）。
+  const n = (l.n === undefined || l.n === null) ? "已完成" : l.n + " 只";
+  if (l.done && l.sent === false)
+    return ["bad", n + "，邮件没发出去", "数据 " + (l.date || "-")];
+  if (l.done) return ["ok", n, "数据 " + (l.date || "-")];
+  if (l.dry) return ["warn", "只试跑过", "没发信，真跑还没做"];
+  if (s.weekend && l.key === "morning") return ["no", "周末", "不用跑"];
   return ["warn", "没跑", "数据 " + (l.date || "无")];
 }
 
@@ -334,7 +345,7 @@ function renderHome(s) {
   const h = el("h2", null, "今天");
   h.appendChild(Object.assign(el("span", "hint"),
     { textContent: `北京 ${s.bj} 周${s.weekday}` +
-      (s.weekend ? "（周末，两个系统都不该跑）" : "") }));
+      (s.weekend ? "（周末，早盘系统不跑；晚间系统和参数自学仍会补上一交易日）" : "") }));
   box.appendChild(h);
 
   // ===== 1 早盘系统 =====
@@ -451,7 +462,11 @@ function renderSync(box, s) {
     b.onclick = async () => {
       b.disabled = true; b.textContent = "上传中…";
       try { const r = await api("/api/push", {});
-        toast("已重试"); alert(r.log || "(无输出)"); refresh(); }
+        // 推成功了卡片就该转绿：push_main 两头都写 push_status，
+        // refresh() 重读的就是它。以前这里无论成败都说「已重试」，
+        // 而卡片因为没人改 push_status 一直红着。
+        toast(r.ok ? "已上传" : "上传失败，看日志");
+        alert(r.log || "(无输出)"); refresh(); }
       catch (e) { toast("失败: " + e.message); }
       finally { b.disabled = false; b.textContent = "重试上传"; }
     };
@@ -632,7 +647,8 @@ function renderSched(s) {
   const box = $("#v-sched"); box.innerHTML = "";
   const h = el("h2", null, "Windows 计划任务");
   h.appendChild(Object.assign(el("span", "hint"),
-    { textContent: "每天自动运行靠这个。时刻是本机（美东）时间，括号里是对应的北京时间" }));
+    { textContent: "每天自动运行靠这个。表里「上次/下次」是 Windows 报的本机（美东）时间，" +
+                   "排期本身按 UTC 锚定，对应的北京时刻见下面的说明" }));
   box.appendChild(h);
 
   const t = el("table");
@@ -671,12 +687,14 @@ function renderSched(s) {
   const tip = el("div", "muted");
   tip.style.cssText = "font-size:12px;margin-top:14px;line-height:1.8";
   tip.innerHTML =
-    "早盘选股 <b>DailyReport-Local-Morning</b>：美东周日到周四 18:00 起每 15 分钟，" +
-    "持续 3 小时 15 分。夏令时对应北京 06:00-09:15，冬令时 07:00-10:15，" +
-    "两种时令都盖得住 09:16 这条开跑上界。北京 08:30 之前只等你手点，08:30 没点才自动跑。<br>" +
-    "起涨预测 <b>DailyReport-Local-Evening</b>：美东周一到周五 04:30 起每 30 分钟，持续 16 小时。" +
+    "早盘选股 <b>DailyReport-Local-Morning</b>：北京周一到周五 06:00 起每 15 分钟，" +
+    "持续 3 小时 15 分（末次 09:00，开跑上界 09:16）。" +
+    "北京 08:30 之前只等你手点，08:30 没点才自动跑。<br>" +
+    "起涨预测 <b>DailyReport-Local-Evening</b>：北京周一到周五 16:30 起每 30 分钟，持续 16 小时。" +
     "目标日是最近一个已收盘的交易日，北京 16:00 到次日 08:30 都能补跑，结果一样。<br>" +
-    "参数自学 <b>DailyReport-Local-Learn</b>：美东周一到周五 04:40 起每 30 分钟，持续 16 小时。<br>" +
+    "参数自学 <b>DailyReport-Local-Learn</b>：北京周一到周五 16:40 起每 30 分钟，持续 16 小时。<br>" +
+    "三条线的触发器按 <b>UTC</b> 锚定（Morning 22:00Z / Evening 08:30Z / Learn 08:40Z），" +
+    "北京时刻固定不漂；漂的是美东墙钟：Morning 夏令时 18:00、冬令时 17:00 起。<br>" +
     "同步远端 <b>DailyReport-Local-Sync</b>：每 30 分钟把云端代跑的产物拉到本地面板。<br>" +
     "反复重试是因为笔记本可能整段时间不在线（2026-08-27 就漏发过一次）。" +
     "反复敲是安全的：流程会先查目标日跑过没有、有没有正在跑，跑完了再敲直接退出，不会重发邮件。" +
@@ -705,11 +723,17 @@ async function refresh(force) {
     lastStatus = s;
     $("#clock").textContent = "北京 " + s.bj;
     const bad = !s.sync.ok || (s.cloud_cron_live || []).length;
-    const undone = s.lines.filter(l => !l.done && l.key !== "evening").length;
+    // 周末只让早盘系统安静下来。晚间系统/参数自学的目标日是上一个已收盘
+    // 交易日，周六没补出来是真没跑，不能被「周末」两个字盖住（教训 16）。
+    // 「跑完了但邮件没发出去」也算没跑完：那一天计划任务反而会跳过
+    // （already_done 只看 run_meta），顶栏再写「一切正常」就没人去补了。
+    const undone = s.lines.filter(l => (!l.done || l.sent === false)
+      && l.key !== "evening"
+      && !(s.weekend && l.key === "morning")).length;
     $("#health").innerHTML = bad
       ? '<span class="dot bad"></span>有问题，看总览'
-      : (s.weekend ? '<span class="dot idle"></span>周末'
-        : (undone ? '<span class="dot warn"></span>' + undone + " 条线今天还没跑"
+      : (undone ? '<span class="dot warn"></span>' + undone + " 条线今天还没跑"
+        : (s.weekend ? '<span class="dot idle"></span>周末'
           : '<span class="dot ok"></span>一切正常'));
     if (view === "home") renderHome(s);
     if (view === "sched") renderSched(s);

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import subprocess
 import threading
@@ -74,6 +75,38 @@ def _council_decide(body: dict) -> dict:
         return res
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def _retry_push() -> dict:
+    """「重试推送」。09-07 那次失联之后必须有一个不用开终端的出口。
+
+    这里一条 git 命令都不自己拼，整个推送走 local_run.push_main。三个理由，
+    都是这个按钮以前真的坏在上面：
+      1. 它只有 fetch + push。09-07 那次是本地 22 个 commit、远端 25 个的
+         **分叉**，push 每次都 non-fast-forward，按多少下结果一样 —— 按钮
+         对自己的设计场景无效。push_main 失败时会 fetch + merge -X ours 再试。
+      2. 它不写 state/push_status.json，推成功之后同步卡片继续红、继续说
+         「上次推送失败」，红灯从此不可信（教训 16 的反面）。
+      3. 有流程正在跑时它照样动工作区。sync_repo 早就有 any_flow_running
+         守卫，这里没有。
+    """
+    import sys as _sys
+    _p = str(ROOT / "src")
+    if _p not in _sys.path:
+        _sys.path.insert(0, _p)
+    import local_run           # 顶层只 import 标准库，不会把 akshare 拉进来
+    busy = local_run.any_flow_running()
+    if busy:
+        return {"ok": False, "busy": True,
+                "error": f"{local_run.FLOWS[busy][1]} 正在跑，等它推完再试"}
+    try:
+        with local_run.git_lock(timeout=30):
+            local_run._git_unstick()
+            ok, log_txt = local_run.push_main("manual push [gui]")
+        return {"ok": ok, "log": log_txt}
+    except local_run.GitBusy as e:
+        return {"ok": False, "busy": True,
+                "error": f"有流程正在用 git（{e}），等它跑完再点"}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -235,25 +268,28 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(_council_decide(body))
 
         if p == "/api/push":
-            # 「重试推送」。09-07 那次失联之后必须有一个不用开终端的出口。
-            out = []
-            for args in (["rebase", "--abort"], ["merge", "--abort"],
-                         ["fetch", "-q", "origin", "main"],
-                         ["push", "origin", "main"]):
-                r = subprocess.run(["git", *args], cwd=ROOT,
-                                   capture_output=True, text=True,
-                                   encoding="utf-8", errors="replace")
-                if args[0] in ("push", "fetch"):
-                    out.append(f"$ git {' '.join(args)}\n"
-                               f"{(r.stdout or '') + (r.stderr or '')}".strip())
-            return self._json({"log": "\n\n".join(out)})
+            r = _retry_push()
+            return self._json(r, 409 if r.get("busy") else 200)
 
         return self._json({"error": "not found"}, 404)
 
     def _task(self, body: dict) -> None:
-        """启用/停用一个计划任务。只认 DailyReport-* ，不做通用任务管理。"""
-        name = body.get("name", "")
-        if not name.startswith("DailyReport-"):
+        """启用/停用一个计划任务。只认 Windows 实际报出来的 DailyReport-* 任务。
+
+        两道，缺一不可：
+          1. 正则：名字要拼进 PowerShell 的**单引号字符串**，而单引号是那种
+             字符串里唯一的转义点，一个 `'` 就出来了。实测
+             `DailyReport-x'; Write-Output INJECTED-$PID; '` 通过了原来的
+             startswith 检查，第二条语句真的执行，而且因为最后一段
+             `'' | Out-Null` 成功，退出码 0、接口回 ok:true、界面 toast「已改」，
+             完全静默。
+          2. 白名单：只放行 scheduled_tasks() 实际列出来的键。用它而不是
+             LINES 的 task 字段，是因为本机还有 Local-Sync 和两个旧的
+             Trigger 任务（共 6 个），界面给每个都画了按钮。
+        """
+        name = str(body.get("name", ""))
+        if (not re.fullmatch(r"DailyReport-[A-Za-z0-9_-]+", name)
+                or name not in status.scheduled_tasks()):
             return self._json({"error": "只允许操作 DailyReport-* 任务"}, 403)
         verb = "Enable" if body.get("enable") else "Disable"
         r = subprocess.run(

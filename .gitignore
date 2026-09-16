@@ -18,11 +18,15 @@ tools/local_run_*.log
 # 派生出来的训练表 data/train/*.parquet 才提交。
 cache/hist_daily.parquet
 cache/hist_auction.parquet
-# out_learn 里只有 learn.html 入库：它要进 Pages 站点，而部署跑在
+# out_learn 里只有面板入库：它们要进 Pages 站点，而部署跑在
 # 另一个 job 另一次 checkout（历史教训 7：跨 job 传状态要么提交要么
 # download-artifact）。其余产物（PDF、brief、race csv）留本地。
+# build_site.py 发布哪几个文件，这里就要放行哪几个：council.html 从
+# 2026-09-16 上线起被这条规则挡着，git add 返回 rc=1 又被吞掉，
+# 「已推送」照打，面板一次都没上过 Pages。
 out_learn/*
 !out_learn/learn.html
+!out_learn/council.html
 
 cache/hist_auction_c.parquet
 tools/local_flow*.log

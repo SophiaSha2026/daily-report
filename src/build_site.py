@@ -64,6 +64,12 @@ def main() -> int:
         if lp.exists():
             shutil.copy2(lp, SITE / nm)
             log.info("已发布 %s -> %s", lp, nm)
+        else:
+            # 云端这一步是 `git checkout origin/main -- out_learn` 之后跑的，
+            # 缺文件意味着它根本没进过仓库（council.html 就被 .gitignore 挡了
+            # 几天，三层全静默：add 的 rc 被吞、这里 exists() 跳过不出声、
+            # Pages 上连 404 都碰不到，因为没有任何链接指向它）。
+            log.warning("out_learn 缺 %s，站点不发布这一页", nm)
 
     if not got:
         log.error("两个面板都不存在，_site 是空的")

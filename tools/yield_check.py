@@ -57,6 +57,24 @@ def marker_on_origin(kind: str, flow: str, date: str) -> bool:
     return r.returncode == 0
 
 
+def confirm_at(soft: str, hard: str) -> tuple[str, str]:
+    """两个检查时点：软时点前 30 秒查 claim，硬上限前 10 秒确认 sent。
+
+    两处都必须借位。以前硬上限那一处写的是 `dt.time(h, m, max(s - 10, 0))`，
+    秒数小于 10 时被 clamp 到整分而不是退到上一分钟：send_deadline 改成
+    09:28:05 的话确认点是 09:28:00（余量 5 秒）、改成 09:28:00 的话确认点
+    就是 09:28:00（余量 0）。而确认之后还要 git fetch（1~3 秒）+ 切 step +
+    起 python/pandas（3~5 秒）才轮到 enrich，10 秒余量本来就紧，
+    0~5 秒必然越过硬上限，邮件顶部于是天天出现「本次发信晚于硬上限」——
+    一个纯算术 bug 伪装成「链路变慢」的告警。
+    """
+    def _shift(hms: str, sec: int) -> str:
+        h, m, s = (int(x) for x in hms.split(":"))
+        return (dt.datetime(2000, 1, 1, h, m, s)
+                - dt.timedelta(seconds=sec)).strftime("%H:%M:%S")
+    return _shift(soft, 30), _shift(hard, 10)
+
+
 def sleep_to(hms: str) -> None:
     h, m, s = (int(x) for x in hms.split(":"))
     tgt = now_bj().replace(hour=h, minute=m, second=s, microsecond=0)
@@ -82,16 +100,12 @@ def main() -> int:
             # 发信前 30 秒查 claim（send_at 09:27:30 -> 09:27:00）。
             # 没有就立刻放行，发信时刻分毫不动。时点从 config 推，
             # 改了 send_at 这里自动跟着走，不再各写各的。
-            h, m, s = (int(x) for x in soft.split(":"))
-            chk = (dt.datetime(2000, 1, 1, h, m, s)
-                   - dt.timedelta(seconds=30)).strftime("%H:%M:%S")
+            chk, wait = confirm_at(soft, hard)
             sleep_to(chk)
             if not marker_on_origin("claim", "auction", date):
                 out(False, "无本地接管声明，照常发信")
                 return 0
             # 有 claim：等到硬上限前 10 秒，确认本地是否真的发出去了
-            h, m, s = (int(x) for x in hard.split(":"))
-            wait = dt.time(h, m, max(s - 10, 0)).strftime("%H:%M:%S")
             print(f"检测到本地接管声明，等到 {wait} 确认")
             sleep_to(wait)
             if marker_on_origin("sent", "auction", date):

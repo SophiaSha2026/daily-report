@@ -24,6 +24,7 @@ tools/local_flow_<flow>.log。两边靠 local_run.py 的 --if-needed 幂等互�
 from __future__ import annotations
 
 import itertools
+import json
 import os
 import subprocess
 import sys
@@ -49,7 +50,8 @@ ACTIONS: dict[str, dict] = {
         "mail": True, "danger": True,
         "what": "每天早上 9:27 把当天最强的股票发到你邮箱",
         "desc": "建候选池 -> 集合竞价三次采样 -> AI 写点评 -> 9:27:30 发邮件。"
-                "没到点会自己等着，提前点没关系。",
+                "没到点会自己等着，提前点没关系。今天已经发过信会直接退出，"
+                "不会把同一份清单再发一遍。",
     },
     "morning_dry": {
         "no": "1-1", "name": "早盘选股（试跑）", "group": "1 早盘系统",
@@ -93,7 +95,7 @@ ACTIONS: dict[str, dict] = {
         "desc": "补最近一个交易日的日线 -> 重算特征（约 13 分钟）-> 打分 -> "
                 "剔掉 ST、有减持、有解禁、有增发的 -> 清单 A（接近起涨）和 "
                 "清单 B（可能见顶）-> 面板 + 邮件。收盘后到次日开盘前都能跑，"
-                "结果一样。已经在跑或今天跑过会直接退出。",
+                "结果一样。已经在跑、或目标日已经跑完并发过信，都直接退出。",
     },
     "breakout_dry": {
         "no": "2-1", "name": "起涨预测（试跑）", "group": "2 晚间系统",
@@ -118,13 +120,26 @@ ACTIONS: dict[str, dict] = {
         "desc": "每日自动发送已于 2026-09-12 关掉，这里是手动入口。"
                 "平均每个交易日约 1 只，0 只是常态不是故障。",
     },
+    # 这个按钮以前走 --stage sina，而那是**首次回填**的断点续传：
+    # done_sina.json 里已完成的票一根都不拉（2026-09-16 实测 5515/5548 已
+    # done），点了退出码 0、日志「日线合并完成」，一根新 K 线都没有，
+    # 用户在「日线只到 X」的时候点它纯属白等（教训 22 的同一处）。
+    # 每日增量是 --stage update，和计划任务、起涨预测走的是同一条。
     "bk_backfill": {
         "no": "3-3", "name": "补数据", "group": "3 辅助工具",
-        "cmd": ["src/breakout/backfill.py", "--stage", "sina"],
+        "cmd": ["src/breakout/backfill.py", "--stage", "update"],
         "mail": False, "danger": False,
-        "what": "下载全市场三年日线，起涨预测要用",
-        "desc": "中断了可以接着跑，已下好的会跳过。首次约 70 分钟，"
-                "之后每天只补新增的那一天。",
+        "what": "把最近一个收盘日的日线追加进去，起涨预测要用",
+        "desc": "腾讯快照追加目标日那一根，秒级；昨收对不上的票整段重拉；"
+                "缺不止一个交易日会自动改走全量刷新（约 70 分钟）。"
+                "从没回填过请先点「全量回填」。",
+    },
+    "bk_refresh": {
+        "no": "3-3b", "name": "全量回填", "group": "3 辅助工具",
+        "cmd": ["src/breakout/backfill.py", "--stage", "refresh"],
+        "mail": False, "danger": False,
+        "what": "重新下载全市场三年日线",
+        "desc": "首次回填或数据坏了才用，约 70 分钟。中断了再点会接着跑。",
     },
     "bk_build": {
         "no": "3-4", "name": "算特征", "group": "3 辅助工具",
@@ -173,7 +188,10 @@ ACTIONS: dict[str, dict] = {
         "no": "4-1", "name": "检查早盘选股", "group": "4 检查",
         "cmd": ["src/selftest.py"], "mail": False, "danger": False,
         "what": "确认早盘选股的打分逻辑没被改坏",
-        "desc": "17 个打分用例 + 9 条曲线形状检查 + 4 条规则检查 + 1000 个随机样本。",
+        # 不写死条数：用例是一条条加的（2026-09-15 又加了「竞价额不足」那条），
+        # 这里的数字改不改全靠人记得，写错了自测也不会红。真实条数看自测输出。
+        "desc": "打分用例（每条准入/剔除规则各一个）+ 曲线形状检查 + 规则检查 + "
+                "1000 个随机样本，各项条数在自测输出里。",
     },
     "selftest_learn": {
         "no": "4-2", "name": "检查参数自学", "group": "4 检查",
@@ -204,9 +222,22 @@ ACTIONS: dict[str, dict] = {
 
 
 # 按钮 -> 它会和哪条线抢文件。流程在跑时这些按钮被拒。
+# evening 在这里是因为它**内嵌跑学习线**（local_run.flow_evening 末尾），
+# 和计划任务 DailyReport-Local-Learn 撞上就是两份 eval_daily --stage all：
+# 同日两行 theta_history、两封参数变更邮件、会诊双跑（一次约 $5）。
 CONFLICTS = {"premarket": "morning", "bk_backfill": "breakout",
-             "bk_build": "breakout", "bk_refit": "breakout"}
+             "bk_refresh": "breakout",
+             "bk_build": "breakout", "bk_refit": "breakout",
+             "evening": "learn"}
 FLOW_NAMES = {"morning": "早盘选股", "breakout": "起涨预测", "learn": "参数自学"}
+
+
+def _flow_of(key: str) -> str:
+    """这个按钮起的是哪条线（`local_run.py --flow X`），不是就返回空串。"""
+    cmd = ACTIONS.get(key, {}).get("cmd", [])
+    if len(cmd) >= 3 and cmd[0] == "src/local_run.py" and cmd[1] == "--flow":
+        return cmd[2]
+    return ""
 
 _seq = itertools.count(1)
 
@@ -278,6 +309,26 @@ class Job:
             self.proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             self.proc.kill()
+        self._drop_lock()
+
+    def _drop_lock(self) -> None:
+        """终止之后把这条线的进程锁清掉。
+
+        taskkill /F 是 TerminateProcess，local_run.py 里 `finally: release_lock`
+        根本不会执行，state/lock/<flow>.json 留在原地。PID 一旦被系统复用
+        （实测释放句柄后十几秒就可能重新分配），这条线在锁的有效期内
+        （3~4 小时）会被 --if-needed 和手动入口一致跳过。
+        GUI 明知是自己杀的，按 pid 核对后直接清掉。
+        """
+        flow = _flow_of(self.key)
+        if not flow:
+            return
+        p = ROOT / "state" / "lock" / f"{flow}.json"
+        try:
+            if json.loads(p.read_text(encoding="utf-8")).get("pid") == self.proc.pid:
+                p.unlink()
+        except Exception:  # noqa: BLE001
+            pass
 
     def brief(self) -> dict:
         return {
@@ -307,7 +358,9 @@ class Registry:
         if clash:
             try:
                 import sys
-                sys.path.insert(0, str(ROOT / "src"))
+                p = str(ROOT / "src")
+                if p not in sys.path:
+                    sys.path.insert(0, p)
                 import local_run
                 other = local_run.running_instance(clash)
             except Exception:  # noqa: BLE001
@@ -316,9 +369,19 @@ class Registry:
                 return None, (f"{FLOW_NAMES.get(clash, clash)}正在跑"
                               f"（pid {other.get('pid')}），它会自己做这一步，先别点")
         with self._lock:
+            flow = _flow_of(key)
             for j in self._jobs.values():
-                if j.key == key and j.running:
+                if not j.running:
+                    continue
+                if j.key == key:
                     return None, f"{ACTIONS[key]['name']}已经在跑了（{j.id}）"
+                # 同一条线的两个按钮（「早盘选股」和「早盘选股（试跑）」）
+                # 命令行都是 --flow morning，落到同一把进程锁上。以前这里
+                # 只挡同 key，两个一起点就是两个实例互相看见、双双退出 0，
+                # 谁都不跑。
+                if flow and _flow_of(j.key) == flow:
+                    return None, (f"同一条线不能同时起两个："
+                                  f"{ACTIONS[j.key]['name']}正在跑（{j.id}）")
             j = Job(key)
             self._jobs[j.id] = j
             return j, ""

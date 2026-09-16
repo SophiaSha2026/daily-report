@@ -49,8 +49,8 @@ permissions:
   id-token: write
 
 # 幂等检查只看 data/auction_<date>.parquet 存不存在，而那个文件要到 09:27
-# 才写出来。五个 cron 入口 checkout 时全都看不到它，
-# 于是五个 job 并行跑完、发出五封一模一样的邮件。
+# 才写出来。四个 cron 入口加 Worker 那一次派发，checkout 时全都看不到它，
+# 于是几个 job 并行跑完、发出几封一模一样的邮件。
 # 加串行组：后来的排队等前一个跑完，那时 checkout 已经能看到数据文件，
 # 幂等检查生效，整个 job 空跑跳过。
 concurrency:
@@ -78,7 +78,9 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
 
-      - name: 幂等检查（八个入口只跑一次）
+      # 入口一共五个：四条 cron（07:40/08:20/08:59/09:11 北京）+ Cloudflare
+      # Worker 07:30 派发。不是八个，那是 2026-08 的旧排期。
+      - name: 幂等检查（四个 cron + Worker 派发只跑一次）
         id: g
         run: |
           D=$(TZ=Asia/Shanghai date +%F)
@@ -243,26 +245,54 @@ jobs:
       # 文件只会让两边的历史互相撞。云端自己发信的那天才提交。
       - name: 提交数据（同时充当 60 天 keepalive）
         if: steps.g.outputs.skip == 'false' && steps.yield.outputs.skip_mail != '1'
+        # 末尾的告警要真发得出去：mailer._conf 全靠这几个环境变量，
+        # 不给的话 KeyError 被 `|| true` 吞掉，又成了「只写日志」。
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_TO:   ${{ secrets.MAIL_TO }}
         run: |
+          # 这一步以前是 `git pull --rebase --autostash || true` 然后 push 三次。
+          # 本地 09:25:42 推过当日 parquet、而云端仍在兜底发信的那天（本地
+          # quick 成功、enrich 挂了），rebase 一定冲突：cache/universe.parquet
+          # 内容冲突、data/<月>/auction_<日>.parquet add/add 冲突。`|| true`
+          # 把它吞掉，仓库停在 rebase-merge 中间态，HEAD 正好落在 origin/main
+          # 上，于是第一次 push 输出 "Everything up-to-date"、rc=0、ok=1、
+          # 跳出循环，::warning 永远不打印 —— 云端真正发出去的那份快照静默
+          # 丢失，仓库里留的是本地那份（采样时刻不同），次日学习线按它标注训练。
+          # 现在：先清残留再 rebase（教训 15），冲突取 theirs（今天是云端发的
+          # 信，发出去的就是云端这份，和上面「本地发了信就不提交」同一个原则），
+          # 最后不认 push 的退出码，认「origin 上那个 blob == 发信用的 blob」。
+          D="${{ steps.g.outputs.date }}"; F="data/${D:0:7}/auction_${D}.parquet"
           git config user.name auction-bot
           git config user.email bot@users.noreply.github.com
           git add data/ out/ cache/ || true
-          git diff --staged --quiet || git commit -m "data: ${{ steps.g.outputs.date }}"
-          git pull --rebase --autostash || true
+          git diff --staged --quiet || git commit -m "data: $D"
+          WANT=$(git rev-parse "HEAD:$F" 2>/dev/null || echo none)
           # 必须显式带 token：claude-code-action 跑完会把 checkout 写进
           # .git/config 的凭证清掉，之后裸 git push 会报
           # 「Invalid username or token」。2026-08-24 实测踩到。
-          # 重试三次：盘前和竞价可能同时往 cache/ 推，撞上就 rebase 再来。
-          # push 失败的代价不只是丢数据——幂等检查靠的就是那个数据文件，
-          # 推不上去，后面排队的入口会以为今天还没跑过。
           URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           ok=""
           for i in 1 2 3; do
+            git rebase --abort 2>/dev/null || true
+            git fetch -q origin "${{ github.ref_name }}"
+            if ! git rebase --autostash -X theirs "origin/${{ github.ref_name }}"; then
+              git rebase --abort 2>/dev/null || true
+              sleep 5
+              continue
+            fi
             if git push "$URL" HEAD:${{ github.ref_name }}; then ok=1; break; fi
             sleep 5
-            git pull --rebase --autostash || true
           done
-          [ -n "$ok" ] || echo "::warning::push 失败"
+          git fetch -q origin "${{ github.ref_name }}" || true
+          GOT=$(git rev-parse "origin/${{ github.ref_name }}:$F" 2>/dev/null || echo missing)
+          if [ -z "$ok" ] || { [ "$WANT" != none ] && [ "$GOT" != "$WANT" ]; }; then
+            echo "::error::今日快照 $F 没推上 origin（want=$WANT got=$GOT）"
+            python -c "import sys; sys.path.insert(0,'src'); import mailer; mailer.send_alert('云端兜底日快照未入库: $F')" || true
+          fi
 
       # 面板发布到 GitHub Pages，手机电脑都能直接打开，本地不用装任何东西。
       # 没有今日产物就整段跳过，而不是发一个「今日暂无数据」上去——那样会把
@@ -270,8 +300,29 @@ jobs:
       # 留着旧的不会误导。
       # 注意：空榜（当天确实没票通过筛选）走的是**有产物**这条路，enrich 会
       # 重新生成带「今日无标的通过筛选」的面板，不受这里影响。
+      # Pages 发布以前的条件是「本 runner 自己产出了今日清单」。可是本地
+      # 09:25:44 一推当日 parquet，后面每一班 cron 都在幂等检查（步骤 g）那里
+      # skip=true 整个 job 跳过，连采样都不跑，fresh 自然不是 true ——
+      # 2026-09-16 实测四班 cron 全走这条路，当天 Pages 能不能出完全押在
+      # Cloudflare Worker 07:31 派发的那一次上。押失手的那天，邮件里的
+      # 「在线面板」整天指向上一个交易日，而面板横幅还写着「会自动刷新」。
+      # 所以另加一个判据：origin 上有没有今日的 out/run_meta.json。
+      # 本地跑成功的日子它一定有（09:27:37 推 out:），云端只要把 origin 的
+      # out/ 取下来发布一次就够，10 秒，幂等。
+      - name: origin 上有没有今日面板
+        id: r
+        if: ${{ !cancelled() }}
+        run: |
+          D=$(TZ=Asia/Shanghai date +%F)
+          git fetch -q origin "${{ github.ref_name }}" 2>/dev/null || true
+          if git show "origin/${{ github.ref_name }}:out/run_meta.json" 2>/dev/null | grep -q "\"date\": \"$D\""; then
+            echo "remote_fresh=true" >> $GITHUB_OUTPUT
+          else
+            echo "remote_fresh=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 准备 Pages
-        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        if: ${{ !cancelled() && (steps.q.outputs.fresh == 'true' || steps.r.outputs.remote_fresh == 'true') }}
         # 一个仓库只有一份 Pages 部署。以前这里是 mkdir _site && cp out/*，
         # 加了形态扫描那条线之后，谁后跑谁就把对方的页面整个冲掉。
         # build_site.py 从各个 out*/ 目录各取一份凑齐再发布。
@@ -279,20 +330,33 @@ jobs:
         # 本地发了信的话，本地那份面板（带 Claude 文案）已经推到 origin，
         # 用它而不是云端自己生成的（云端跳过了 Claude 分析）。晚间系统的
         # 面板只有本地能生成，也从 origin 拿最新的。
+        #
+        # 但 checkout origin -- out 必须先核对日期。本地推 sent（09:27:32）和
+        # 推 out（09:27:35）是两次独立的 push，中间那 3 秒断网或 GitHub 5xx，
+        # 云端 09:28:30 就会拿**上一个交易日**的 out/ 覆盖掉自己刚生成的今日
+        # 面板（内嵌 stamp 和 stamp.txt 一起换旧，页面的自刷新也不会触发），
+        # 而它手里那份日期是对的，只是缺 LLM 文案。纯退化，所以宁可用自己的。
+        # python3：skip=true 那条路上 setup-python 没跑过，
+        # build_site 只用标准库，系统 python3 就够。
         run: |
+          D="${{ steps.g.outputs.date }}"
           git fetch -q origin "${{ github.ref_name }}" 2>/dev/null || true
-          if [ "${{ steps.yield.outputs.skip_mail }}" = "1" ]; then
-            git checkout "origin/${{ github.ref_name }}" -- out 2>/dev/null || true
+          if [ "${{ steps.yield.outputs.skip_mail }}" = "1" ] || [ "${{ steps.q.outputs.fresh }}" != "true" ]; then
+            if git show "origin/${{ github.ref_name }}:out/run_meta.json" 2>/dev/null | grep -q "\"date\": \"$D\""; then
+              git checkout "origin/${{ github.ref_name }}" -- out 2>/dev/null || true
+            else
+              echo "::warning::origin 的 out/ 不是 $D 的（本地 out 还没推到），改用云端自己生成的今日面板（无 LLM 文案）"
+            fi
           fi
           for d in out_breakout out_learn out_pullback; do
             git checkout "origin/${{ github.ref_name }}" -- "$d" 2>/dev/null || true
           done
-          python src/build_site.py
+          python3 src/build_site.py
       - uses: actions/upload-pages-artifact@v3
-        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        if: ${{ !cancelled() && (steps.q.outputs.fresh == 'true' || steps.r.outputs.remote_fresh == 'true') }}
         with: { path: _site }
       - uses: actions/deploy-pages@v4
-        if: steps.g.outputs.skip == 'false' && steps.q.outputs.fresh == 'true'
+        if: ${{ !cancelled() && (steps.q.outputs.fresh == 'true' || steps.r.outputs.remote_fresh == 'true') }}
         continue-on-error: true
 
       - uses: actions/upload-artifact@v4

@@ -21,6 +21,7 @@ CLAUDE.md 的硬约束第 8 条同理——三条自测线不许依赖 state/。
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 import datetime as dt
@@ -34,18 +35,30 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 # （akshare 之类）而起不来。字段少，漂了也一眼看得出来。
 LINES = [
     # system 字段决定总览页归到哪一组。仓库里就两个系统，别再加第三个。
+    #
+    # sent 字段回答的是另一个问题：「跑完了」不等于「发出去了」。
+    # 竞价线 09:25:45 采样完就写 run_meta，enrich 在那之后才发信，而它有四条
+    # 「没发信也 return 0」的分支（教训 27）；起涨预测的 run_meta 在 scan 阶段
+    # 就落盘，send 是下一个子进程。两条线都可能「run_meta 是今天、邮件没出去」，
+    # 以前界面对这种日子一律绿灯，用户看不出和正常日子的区别。
+    #   ("json", 路径)   文件里的 date 等于目标日才算发过
+    #   ("exists", 模板) 文件存在就算发过，{d} 填目标日
+    # 不发信的线（参数自学）留 None，界面上不显示这一格。
     {"key": "morning", "name": "早盘选股", "system": "早盘系统",
      "meta": "out/run_meta.json", "panel": "out/panel.html",
-     "due": "09:27:30", "task": "DailyReport-Local-Morning"},
+     "due": "09:27:30", "task": "DailyReport-Local-Morning",
+     "sent": ("json", "out/mail_sent.json")},
     {"key": "learn", "name": "参数自学", "system": "早盘系统",
      "meta": "state/learning_status.json", "panel": "out_learn/learn.html",
-     "due": "收盘后", "task": "DailyReport-Local-Learn"},
+     "due": "收盘后", "task": "DailyReport-Local-Learn", "sent": None},
     {"key": "breakout", "name": "起涨预测", "system": "晚间系统",
      "meta": "out_breakout/run_meta.json", "panel": "out_breakout/panel.html",
-     "due": "17:00 后，最晚次日 08:30", "task": "DailyReport-Local-Evening"},
+     "due": "17:00 后，最晚次日 08:30", "task": "DailyReport-Local-Evening",
+     "sent": ("exists", "state/sent/breakout_{d}.json")},
     {"key": "evening", "name": "回调形态", "system": "辅助工具",
      "meta": "out_pullback/run_meta.json", "panel": "out_pullback/panel.html",
-     "due": "已停用自动", "task": None},
+     "due": "已停用自动", "task": None,
+     "sent": ("exists", "state/sent/pullback_{d}.json")},
 ]
 
 
@@ -66,9 +79,14 @@ def _json(rel: str) -> dict:
 
 def _git(*args: str) -> str:
     try:
+        # GIT_OPTIONAL_LOCKS=0 是 git 给后台轮询准备的开关。总览页每 5 秒跑一次
+        # `git status --porcelain`，而 status 每次都会创建 .git/index.lock
+        # （3000 文件的仓库持锁约 20ms，实测 20/20 次命中；带上这个环境变量后
+        # 0/20）。流程那边的 `git add` 撞上就 rc=128，产物推不上去。
         r = subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
                            text=True, encoding="utf-8", errors="replace",
-                           timeout=15)
+                           timeout=15,
+                           env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"})
         return (r.stdout or "").strip()
     except Exception:  # noqa: BLE001
         return ""
@@ -96,7 +114,10 @@ def scheduled_tasks(force: bool = False) -> dict:
         "  $i = $_ | Get-ScheduledTaskInfo;"
         "  [pscustomobject]@{"
         "    name=$_.TaskName; state=[string]$_.State;"
-        "    last=if($i.LastRunTime){$i.LastRunTime.ToString('MM-dd HH:mm')}else{''};"
+        # 年份的过滤只能放在这一侧：格式串里没有年，出了 PowerShell 就再也
+        # 分不清「1999-11-30 的哨兵」和「真的 11 月 30 日跑过」。
+        "    last=if($i.LastRunTime -and $i.LastRunTime.Year -ge 2000)"
+        "{$i.LastRunTime.ToString('MM-dd HH:mm')}else{''};"
         "    rc=$i.LastTaskResult;"
         "    next=if($i.NextRunTime){$i.NextRunTime.ToString('MM-dd HH:mm')}else{''}"
         "  } } | ConvertTo-Json -Compress"
@@ -114,14 +135,18 @@ def scheduled_tasks(force: bool = False) -> dict:
             data = [data]
         for d in data:
             # 从没跑过的任务，Windows 返回两个哨兵值而不是空：
-            #   LastRunTime   = 1899-11-30（OLE 自动化的零日期）
+            #   LastRunTime   = 1999-11-30 00:00（本机 208 个任务实测 80 个，
+            #                   和 rc 哨兵 80/80 完全重合）
             #   LastTaskResult= 267011 = 0x41303 SCHED_S_TASK_HAS_NOT_RUN
             # 照原样显示就成了「11-30 00:00 / 错误码 267011」，看着像出过错。
-            if d.get("last", "").startswith("11-30"):
-                d["last"] = ""
+            #
+            # 只能按 rc 判，不能按 last 的 "11-30" 前缀判：上面的格式串里没有
+            # 年份，真的 11 月 30 日跑过（"11-30 18:07"）也是这个前缀，
+            # 会被一起清空，排期页从当天一直到 12-01 都显示「没跑过却成功」。
             if d.get("rc") == 267011:
                 d["rc"] = None
                 d["never"] = True
+                d["last"] = ""
         out = {d["name"]: d for d in data}
     except Exception:  # noqa: BLE001
         out = {}
@@ -144,8 +169,11 @@ def sync_status() -> dict:
     ahead = _git("rev-list", "--count", "origin/main..main")
     behind = _git("rev-list", "--count", "main..origin/main")
     dirty = _git("status", "--porcelain")
+    # index.lock 也算卡住：被 taskkill /F 打断的 git 会把它留下，之后每一次
+    # add/commit 都 rc=128，而流程日志只会说「没有需要提交的产物」。
     stuck = [d for d in ("rebase-merge", "rebase-apply", "MERGE_HEAD",
-                         "CHERRY_PICK_HEAD") if (ROOT / ".git" / d).exists()]
+                         "CHERRY_PICK_HEAD", "index.lock")
+             if (ROOT / ".git" / d).exists()]
 
     problems = []
     if push and not push.get("ok"):
@@ -156,7 +184,7 @@ def sync_status() -> dict:
         problems.append(f"远端有 {behind} 个 commit 没拉下来")
     if stuck:
         problems.append(f"仓库卡在 {'/'.join(stuck)} 中间状态，"
-                        f"下次推送会自动清理")
+                        f"下次推送/同步会自动清理（也可以点「重试推送」）")
     return {
         "ok": not problems,
         "problems": problems,
@@ -180,14 +208,17 @@ _td_lock = threading.Lock()
 def _trade_dates() -> set:
     with _td_lock:
         if time.time() - _td_cache["at"] > 600:
-            s: set = set()
             try:
                 f = ROOT / "state" / "trade_dates.json"
+                s: set = set()
                 if f.exists() and time.time() - f.stat().st_mtime < 14 * 86400:
                     s = set(json.loads(f.read_text(encoding="utf-8")))
+                _td_cache.update(at=time.time(), s=s)
             except Exception:  # noqa: BLE001
-                s = set()
-            _td_cache.update(at=time.time(), s=s)
+                # 读到半截 JSON（写端是 write_text，截断再写，不原子）。
+                # 以前这里把空集缓存 10 分钟，退化成「周一到周五」，节假日
+                # 前后目标日就和调度器对不上了。留着上一次的集合，30 秒后重读。
+                _td_cache["at"] = time.time() - 570
         return _td_cache["s"]
 
 
@@ -207,12 +238,43 @@ def target_date(key: str) -> str:
     return today_bj()
 
 
+def _sent_ok(ln: dict, d: str) -> bool | None:
+    """目标日这条线的邮件真发出去了没有。不发信的线返回 None。
+
+    证据只认「真交给 SMTP 之后才落的那个文件」：
+      早盘     out/mail_sent.json（run_auction 在 send_report 之后写）
+      起涨预测 state/sent/breakout_<目标日>.json（local_run.push_marker 写，
+               试跑的 dry 分支不写，所以它同时也是「不是试跑」的证据）
+    run_meta 一律更早落盘，拿它当发信证据就是教训 27 那条「退出码 0 不等于
+    做了事」的界面版。
+    """
+    spec = ln.get("sent")
+    if not spec:
+        return None
+    kind, rel = spec
+    if kind == "json":
+        return _json(rel).get("date") == d
+    return (ROOT / rel.format(d=d)).exists()
+
+
 def line_status(tasks: dict) -> list[dict]:
     out = []
+    L = _local_run()
     for ln in LINES:
         meta = _json(ln["meta"])
         d = target_date(ln["key"])
-        done = meta.get("date") == d
+        # 「跑完了」必须和计划任务用同一个函数判：以前这里只比日期，
+        # 真跑完之后再点一次试跑，run_meta 被标成 dry，控制台说「已跑完」
+        # 而计划任务下一次敲门就整条重跑重发。目标日由这里算好传进去
+        # （local_run.target_date 会 import akshare，教训 19）。
+        dry = bool(meta.get("dry")) and meta.get("date") == d
+        done = meta.get("date") == d and not meta.get("dry")
+        if L:
+            try:
+                done = bool(L.done_for(ln["key"], d))
+            except Exception:  # noqa: BLE001
+                pass
+        sent = _sent_ok(ln, d)
         panel = ROOT / ln["panel"]
         try:
             pdate = _json(ln["meta"]).get("date") or ""
@@ -224,7 +286,8 @@ def line_status(tasks: dict) -> list[dict]:
         out.append({
             "key": ln["key"], "name": ln["name"], "due": ln["due"],
             "system": ln["system"],
-            "done": done, "date": meta.get("date", ""), "target": d,
+            "done": done, "dry": dry, "sent": sent,
+            "date": meta.get("date", ""), "target": d,
             "n": meta.get("n"), "panel_date": pdate, "panel_mtime": pmtime,
             "task": ln["task"], "task_state": t.get("state", ""),
             "task_last": t.get("last", ""), "task_rc": t.get("rc"),
@@ -321,14 +384,17 @@ def morning_perf() -> dict:
             "online": online}
 
 
-# 触发规则，给排期页显式列出来。时刻两套：本机任务是美东时间（跟夏令时走），
-# 开跑窗口是北京时间（local_run.FLOWS 判的就是北京时间）。
+# 触发规则，给排期页显式列出来。时刻一律写北京时间：本机计划任务的触发器是
+# 按 UTC 锚定的（tools/setup_tasks.ps1 写死 22:00Z / 08:30Z / 08:40Z，
+# StartBoundary 带偏移就不跟夏令时走），所以北京时刻是固定的，漂的是美东墙钟。
+# 开跑窗口也是北京时间（local_run.FLOWS 判的就是北京时间）。
 # 规则本身在 src/local_run.py（本机）、tools/yield_check.py 和
 # tools/evening_check.py（云端）里，这里只是把它们用人话写出来。
 RULES = {
     "morning": {
-        "local_when": "手动：美东 18:00~20:30（冬令时 17:00~19:30）随时点。"
-                      "自动：计划任务美东周日~周四 18:00 起每 15 分钟敲，北京 08:30 起没手点就跑",
+        "local_when": "手动：北京 06:00~08:30 随时点（美东夏令时 18:00~20:30、冬令时 17:00~19:30）。"
+                      "自动：计划任务北京 06:00 起每 15 分钟敲（22:00Z 锚定，不随夏令时漂），"
+                      "08:30 起没手点就跑",
         "target_rule": "今天（09:16 之后新起进程来不及赶上 09:25 采样）",
         "steps": "同步仓库 -> 推 claim -> 候选池 -> 09:14 预热、09:19/09:23/09:25 采样 -> "
                  "推数据快照 -> Claude 文案 -> 09:27:30 发信 -> 推 sent + 面板",
@@ -339,7 +405,7 @@ RULES = {
     },
     "breakout": {
         "local_when": "手动：北京 16:00 起到次日 08:30 随时点。"
-                      "自动：计划任务美东周一~周五 04:30 起每 30 分钟敲，北京 16:30 起没手点就跑；"
+                      "自动：计划任务北京 16:30 起每 30 分钟敲（08:30Z 锚定），16:30 起没手点就跑；"
                       "机器睡着就等醒了补，登录时也敲一次",
         "target_rule": "最近一个已收盘（15:05 后）的交易日。北京 09-15 早上补跑出的是 09-14 的清单",
         "steps": "同步仓库 -> 推 claim -> 腾讯快照追加目标日日线（追加不到就不出清单）-> "
@@ -349,7 +415,7 @@ RULES = {
                  "没有就发一封「本机没跑」提醒，同一天只发一次。",
     },
     "learn": {
-        "local_when": "自动：计划任务美东周一~周五 04:40 起每 30 分钟敲，北京 16:40 起跑；手动随时",
+        "local_when": "自动：计划任务北京 16:40 起每 30 分钟敲（08:40Z 锚定），16:40 起跑；手动随时",
         "target_rule": "同起涨预测：最近一个已收盘的交易日",
         "steps": "同步仓库 -> 标签 -> 归因 -> 拟合与闸门 -> 推学习产物",
         "cloud": "无。learn.yml 只留手动入口。",
@@ -362,11 +428,13 @@ RULES = {
     },
 }
 
-# --if-needed 的五道检查，顺序就是 local_run.main 里的顺序
+# --if-needed 的几道检查，顺序就是 local_run.if_needed_skip 里的顺序
 IF_NEEDED = [
-    "北京时间周末：跳过",
+    "北京时间周末：跳过（只挡目标日是今天的线；起涨预测/参数自学窗口跨午夜，"
+    "北京周六凌晨正是补周五清单的时段，照跑）",
+    "早盘选股遇非交易日：跳过（日历拿不到时不挡）",
     "这条线正在跑（state/lock 或进程表）：跳过",
-    "目标日已经跑完（run_meta 日期 == 目标日）：跳过",
+    "目标日已经跑完（run_meta 日期 == 目标日；被试跑覆盖时认 sent 标记）：跳过",
     "不在开跑窗口：只拉一次远端，不跑",
     "还没到自动开跑时刻：只拉一次远端，等手动",
     "都通过：先拉远端再核对一次（云端可能已经代跑），然后开跑",
@@ -379,28 +447,46 @@ PRIORITY = [
     "早盘由云端代发；起涨预测云端算不了，只发提醒。",
 ]
 
-MANUAL_RULE = ("控制台按钮和计划任务走同一个入口、同一把锁，谁先起谁跑。手点不看跑没跑过、"
-               "不看自动时刻，只看锁：已经在跑就直接退出。带「会发邮件」的按钮点了就真的发，点前会弹确认。")
+MANUAL_RULE = ("控制台按钮和计划任务走同一个入口、同一把锁，谁先起谁跑。手点不看开跑窗口、"
+               "不看自动时刻，只看两样：已经在跑（锁）就直接退出；目标日已经发过信也直接退出"
+               "（早盘看 out/mail_sent.json，起涨预测看 state/sent/breakout_<目标日>.json，"
+               "确要重发就删掉它）。带「会发邮件」的按钮点了就真的发，点前会弹确认。")
 
 
 def _local_run():
     try:
         import sys
-        sys.path.insert(0, str(ROOT / "src"))
+        # 总览页每 5 秒调好几次，无条件 insert 会让 sys.path 一直长下去
+        p = str(ROOT / "src")
+        if p not in sys.path:
+            sys.path.insert(0, p)
         import local_run
         return local_run
     except Exception:  # noqa: BLE001
         return None
 
 
-def verdict(key: str, done: bool, target: str) -> str:
-    """现在这一刻触发这条线，会发生什么。逐条复述 local_run.main 的判断。"""
+def verdict(key: str, done: bool, target: str,
+            dry: bool = False, sent: bool | None = None) -> str:
+    """现在这一刻触发这条线，会发生什么。逐条复述 local_run.main 的判断。
+
+    dry/sent 不参与 local_run 的跑/跳判断，但排期页上必须说出来：
+    只试跑过的那一天，计划任务到点仍会真跑并发信；run_meta 是今天而没有
+    发信记录的那一天，计划任务反而会跳过（已跑完），邮件其实没出去。
+    """
     L = _local_run()
     now = now_bj()
     if key == "evening":
         return "自动已停用，只有手动"
-    if now.weekday() >= 5:
-        return "北京周末，触发了也跳过"
+    # 周末拦截只管目标日是「今天」的线。起涨预测和学习线的窗口跨午夜，
+    # 北京周六 00:00~08:30 正是补周五清单的时段，不能一刀切说「周末不跑」。
+    weekend = (L.weekend_skip(key) if L and key in getattr(L, "FLOWS", {})
+               else key == "morning" and now.weekday() >= 5)
+    if weekend:
+        return "北京周末，这条线的目标日是今天，触发了也跳过"
+    tds = _trade_dates()
+    if key == "morning" and tds and now.strftime("%Y-%m-%d") not in tds:
+        return "非交易日，触发了也跳过"
     if L:
         try:
             other = L.running_instance(key)
@@ -411,7 +497,14 @@ def verdict(key: str, done: bool, target: str) -> str:
         except Exception:  # noqa: BLE001
             pass
     if done:
-        return f"目标日 {target} 已跑完，再触发直接退出"
+        s = f"目标日 {target} 已跑完，再触发直接退出"
+        if sent is False:
+            s += ("；但没有发信记录，这一天的邮件不是本机发的"
+                  "（早盘看 out/mail_sent.json，起涨预测看 state/sent/）")
+        return s
+    if dry:
+        return (f"目标日 {target} 只试跑过，不算跑完："
+                f"计划任务到点会真跑并发信")
     if L:
         try:
             if not L.in_window(key):
@@ -457,8 +550,10 @@ def rules_status(lines: list[dict]) -> dict:
             "auto_from": auto_text(ln["key"]),
             "target_rule": r.get("target_rule", ""),
             "target": ln.get("target", ""),
-            "done": ln.get("done"),
-            "verdict": verdict(ln["key"], bool(ln.get("done")), ln.get("target", "")),
+            "done": ln.get("done"), "dry": ln.get("dry"), "sent": ln.get("sent"),
+            "verdict": verdict(ln["key"], bool(ln.get("done")),
+                               ln.get("target", ""),
+                               dry=bool(ln.get("dry")), sent=ln.get("sent")),
             "steps": r.get("steps", ""),
             "cloud": r.get("cloud", ""),
         })
