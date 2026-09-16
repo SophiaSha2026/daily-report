@@ -29,6 +29,13 @@ def solve_tau(s: np.ndarray, k: float, tol: float = 0.01,
     n = s.size
     if n <= k:
         return float("inf")            # 池子本来就不够 k 只，等权
+    if not np.all(np.isfinite(s)):
+        # 分数里混进 NaN 的话 rng 是 NaN，下面 60 轮二分的比较全是 False，
+        # 最后返回 NaN，调用方又把 NaN 当成「池子不够 k 只」静默等权。
+        # 2026-09-15 的 auc_ratio 那次就是这么让 404 天里 159 天的目标函数
+        # 和参数无关的（vscore.py:103 的注释）。宁可炸也不要再静默一次。
+        raise ValueError(
+            f"solve_tau: 分数含非有限值 {int((~np.isfinite(s)).sum())} 行")
     rng = float(s.max() - s.min())
     if rng <= 0:
         return float("inf")
@@ -56,16 +63,28 @@ def day_G(scores: np.ndarray, ytil: np.ndarray, k: int,
           tol: float = 0.01) -> float:
     """单日目标：按分数集中到约 k 只票上的组合，当天的标准化超额收益。
 
-    极限行为：τ→0 全押第一名；τ→∞ 等权全池 -> 0（ỹ 已日内中性化）；
-    分数与收益无关时期望为 0。
+    极限行为：τ→0 全押第一名；τ→∞ 等权**硬性排除之后的那个子集** -> 该子集
+    的 mean(ỹ)。注意不是 0：ỹ 是按当日全池中位数中性化的，准入后的子集均值
+    系统性偏正（413 天实测 p10/p50/p90 = −0.51 / +0.21 / +1.01，75% 的天
+    |均值| > 0.2）。以前这里和 docs 都写成「→ 0」，是个不成立的定理（F1-7）。
+
+    空池天返回 NaN 而不是 0.0：一只不剩就是当天没有持仓，对参数没有任何
+    信息，不是「超额收益 0」。0.0 会被当成一个正常观测挤进 Huber 聚合和
+    自助（闸门 7 的在线 Problem 只有 17 天，一个假 0 就占 1/17 权重）。
     """
     if scores.size == 0:
-        return 0.0
+        return float("nan")
+    if not np.all(np.isfinite(scores)) or not np.all(np.isfinite(ytil)):
+        # 上游 Problem._day_arrays 已经按 isfinite 过滤过，走到这里说明有新的
+        # 入口绕开了它。静默退化（返回 mean(ytil)，与 θ 无关）比崩掉难查得多。
+        raise ValueError(
+            "day_G: 分数/收益含非有限值 "
+            f"{int((~np.isfinite(scores)).sum())}/{int((~np.isfinite(ytil)).sum())} 行")
     if scores.size <= k:
         return float(np.mean(ytil))
     tau = solve_tau(scores, k, tol)
     if not np.isfinite(tau):
-        return float(np.mean(ytil))
+        return float(np.mean(ytil))    # 只剩「分数全相同」这一条路
     return float(np.dot(_softmax(scores / tau), ytil))
 
 
@@ -79,15 +98,27 @@ def huber_location(x: np.ndarray, w: np.ndarray | None = None,
     σ̂ 用 MAD。c=1.345 是对高斯 95% 效率的标准取值。
     """
     x = np.asarray(x, float)
-    if x.size == 0:
-        return 0.0
     w = np.ones_like(x) if w is None else np.asarray(w, float)
-    if w.sum() <= 0:
+    # w=0 的天（LLM 判「数据异常」）必须在**算起点和尺度之前**就剔掉。
+    # 以前只有下面的 IRLS 带权，median 和 MAD 用的是含 w=0 天的全部 x：
+    # 那些天照样决定 σ̂，进而决定其它天的截断阈值 c·σ̂。实测注入 10 个
+    # w=0 的极端日，闸门 2 的 ΔĜ 漂 3.7e-3（当次闸门差距的 32%）；异常日
+    # 过半时 σ̂ 完全由它们决定，Huber 直接退化成算术平均（F1-4）。
+    # bootstrap_better 一直是先剔再抽，剔完两个闸门口径才一致。
+    keep = w > 0
+    x, w = x[keep], w[keep]
+    if x.size == 0 or w.sum() <= 0:
         return 0.0
     m = float(np.median(x))
     s = 1.4826 * float(np.median(np.abs(x - m)))
     if not np.isfinite(s) or s <= 0:
-        return float(np.average(x, weights=w))
+        # MAD=0：半数以上样本取同一个值。退回**加权中位数**（Huber c→0 的
+        # 极限），不是加权均值——均值在这个分支上完全没有影响力上限，
+        # 6 个 0 加一个 5.0 就被拖到 0.502，「单日暴走不能主导」当场失效（F1-3）
+        o = np.argsort(x, kind="stable")
+        cw = np.cumsum(w[o])
+        return float(x[o][min(int(np.searchsorted(cw, cw[-1] / 2.0)),
+                              x.size - 1)])
     for _ in range(iters):
         u = (x - m) / s
         # Huber 权：|u|<=c 时 1，超出按 c/|u| 衰减 -> 影响力上限 c·s
@@ -103,12 +134,26 @@ def huber_location(x: np.ndarray, w: np.ndarray | None = None,
     return m
 
 
+def aggregate(g: np.ndarray, day_w: np.ndarray | None = None,
+              huber_c: float = 1.345) -> float:
+    """把逐日 G_d 聚成 Ĝ。
+
+    非有限的天整天剔除：day_G 只在「硬性排除后一只不剩」时返回 NaN，那天
+    根本没有持仓，对参数没有任何信息（F1-7）。day_w 按同一个掩码对齐，
+    所以调用方拿到的 g 数组长度不变、和 dates 一一对应。
+    """
+    g = np.asarray(g, float)
+    ok = np.isfinite(g)
+    w = None if day_w is None else np.asarray(day_w, float)[ok]
+    return huber_location(g[ok], w, huber_c)
+
+
 def G_hat(day_scores: list[np.ndarray], day_ytil: list[np.ndarray],
           day_w: np.ndarray | None, k: int, huber_c: float,
           tol: float = 0.01) -> tuple[float, np.ndarray]:
-    """返回 (Ĝ, 每日 G_d)。"""
+    """返回 (Ĝ, 每日 G_d)。g 原样返回（含空池天的 NaN），按 dates 对齐。"""
     g = np.array([day_G(s, y, k, tol) for s, y in zip(day_scores, day_ytil)])
-    return huber_location(g, day_w, huber_c), g
+    return aggregate(g, day_w, huber_c), g
 
 
 # ---------------------------------------------------------------------

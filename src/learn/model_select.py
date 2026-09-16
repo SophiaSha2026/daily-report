@@ -172,9 +172,10 @@ def walk_forward(df: pd.DataFrame, c: dict, n_folds: int = 5,
     按**天**切，不按行切。同一天的截面残差高度相关，按行随机切分会让
     训练集和测试集共享同一天的行情，样本外 IC 被系统性高估。
     """
-    from learn import vscore
-    import cfg as C
+    from learn import online_eval as OE, vscore
 
+    cost = 2.0 * float(((c.get("learning") or {}).get("label") or {})
+                       .get("cost_bp", 0.0)) / 1e4
     d = prep_features(df)
     days = sorted(d["date"].unique())
     if len(days) < min_train_days + n_folds:
@@ -196,8 +197,12 @@ def walk_forward(df: pd.DataFrame, c: dict, n_folds: int = 5,
     y = d["ytil"].to_numpy(float)
     date = d["date"].to_numpy()
 
-    # 手写打分器不需要训练，直接算一遍
-    base_score, base_rej = vscore.score_df(d, C.load())
+    # 基线 = **传入配置**下的生产打分器（当前生效的 θ），不训练直接算一遍。
+    # 以前这里写 C.load()：teacher 超参按形参 c 走、基线却读磁盘上的配置，
+    # 今天两者逐位相同（唯一调用方传的就是 C.load()），但只要将来有人拿一份
+    # 变体配置来跑擂台（会诊实验、C.apply_theta），「Baseline(手写打分器)」
+    # 那一行就静默用生产 θ，比出来的结论是错的还不报错（审计 F2-9）。
+    base_score, base_rej = vscore.score_df(d, c)
     d = d.assign(_base=np.where(base_rej, -1e9, base_score), _rej=base_rej)
 
     rows = []
@@ -253,10 +258,14 @@ def walk_forward(df: pd.DataFrame, c: dict, n_folds: int = 5,
                     continue
                 ic = spearman(gp["_p"].to_numpy(), gp["ytil"].to_numpy())
                 top = gp.nlargest(top_k, "_p")
+                # 汇报口径：未缩尾的 y_raw 再扣双边成本（审计 F2-10）。
+                # 擂台表和学习邮件/面板必须是同一个口径，否则「RankHuber
+                # +1.40% vs 基线 +0.69%」和别处的数字没法并排看。
+                ex = OE.excess(top, cost)
                 rows.append({
                     "fold": fi, "model": name, "date": day, "ic": ic,
-                    "top_excess": float(top["y"].mean()),
-                    "hit": float((top["y"] > 0).mean()),
+                    "top_excess": float(ex.mean()),
+                    "hit": float((ex > 0).mean()),
                 })
     return pd.DataFrame(rows)
 

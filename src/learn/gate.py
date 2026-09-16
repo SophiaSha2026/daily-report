@@ -81,7 +81,8 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
              online_p: float | None = None,
              online_days: int = 0,
              intents: list[str] | None = None,
-             paired_delta: float | None = None) -> Verdict:
+             paired_delta: float | None = None,
+             block_delta: list[float] | None = None) -> Verdict:
     """跑完六道闸（外加可选的第七道），返回裁决。
 
     统计量一律**关键字传入**。2026-09-04 全仓 debug 抓到：调用方按位置把
@@ -95,29 +96,59 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
       paired_delta 样本外逐日差 G_d(new) − G_d(old) 的 Huber 位置。闸门 2 比的是
                    两个位置估计之差，闸门 3 自助的是配对差的位置，两者可以
                    一正一负（各自都对，量的不是同一件事）；把配对量也写进
-                   裁决，读的人不用猜为什么 P 高而 ΔĜ 为负
+                   裁决，读的人不用猜为什么 P 高而 ΔĜ 为负。
+                   由 optimize.paired_delta 算：**已剔除日权重 0 的天、按 day_w
+                   加权**，和闸门 3 的自助同一组天同一组权重（审计 F1-8）
+      block_delta  样本外段切成若干连续块，每块各自的 ΔĜ。闸门 2 除了整段
+                   改善，还要求多数块同向改善（审计 F1-6）。None = 不检查
       churn        日期 -> 前 K 变动比例（闸门 5 的输入）
-      online_p     P(新参数在**在线真值快照**上更好)。训练数据是回填表，
+      online_p     P(新参数在**在线真值快照**上更好)。训练主体是回填表，
                    竞价轨迹是代理值；这道闸保证学到的东西搬到真值上
                    至少不明显更差。None = 无在线数据，跳过。
-      online_days  参与在线检验的天数。少于 g["online_min_days"] 只记录不否决
-                   ——几天的样本连「明显更差」都判不出来。
+                   只用**样本外段**里的在线日：在线天 2026-09-15 起并进训练表，
+                   落进走向前拟合段的那些天是样本内，拿它们做否决检验是自证
+                   （eval_daily._online_oos，审计 F3-6）。
+      online_days  参与在线检验的天数，按**日权重 > 0** 计，和 bootstrap_better
+                   的 keep 同口径：归因为「数据异常」的天权重是 0，自助里
+                   已经剔掉了，天数却曾照数（eval_daily._online_days，审计 F2-8）。
+                   少于 g["online_min_days"] 只记录不否决——几天的样本连
+                   「明显更差」都判不出来。
     """
     checks: list[Check] = []
     sig = {k: (hi - lo) for k, (lo, hi) in box.items()}
     moved = {k: (theta_old[k], theta_new[k]) for k in box
              if abs(theta_new[k] - theta_old[k]) > 1e-9}
 
+    # 0 权重和为 1。优化器路径靠 sparsify/O.project 保证，但学习会诊的参数
+    # 提案是 LLM 直接给值的，2026-09-16 审计（F2-4）实测：只把 trend
+    # 0.20 -> 0.23 夹进箱送进来，Σw=1.03 一路过闸落地。score.py 的
+    # raw = 100·Σw·v 于是满分变 103，而 min_score=45 和各项扣分都是绝对值，
+    # 等于同时放松准入分数线、相对削弱扣分（18 天真实快照里 >=45 分的行
+    # 280 -> 299）。七道闸量的全是排序量，对整体缩放完全失明，所以要单列一条。
+    wk = [k for k in box if k.startswith("scoring.weights.")]
+    if wk:
+        wsum = sum(float(theta_new[k]) for k in wk)
+        checks.append(Check("权重和为 1", abs(wsum - 1.0) < 1e-6,
+                            f"Σw={wsum:.4f}（{len(wk)} 个权重）"))
+
     # 1 最少天数
     ok = n_days >= g["min_days"]
     checks.append(Check("最少天数", ok,
                         f"{n_days} 天 / 要求 >= {g['min_days']}"))
 
-    # 2 走向前样本外改善
-    ok = oos_new > oos_old
+    # 2 走向前样本外改善 + 块一致性。
+    # 整段的 Ĝ_oos 是一个 83 天尾窗，每天只往后挪一天（相邻两次裁决的 te
+    # 重叠 98%），所以「连着几次都过」几乎等于「过了一次」；而整段一个数
+    # 会把块间分歧抹平（09-16 那个提案三块是 +0.0095/−0.0175/−0.0134）。
+    # 要求多数块同向，一个只在某一段时间里有效的提案就过不去（审计 F1-6）。
+    need_blocks = int(g.get("oos_min_blocks_better", 2))
+    n_up = sum(1 for d in (block_delta or []) if d > 0)
+    ok = oos_new > oos_old and (not block_delta or n_up >= need_blocks)
     checks.append(Check("样本外改善", ok,
                         f"Ĝ_oos {oos_old:+.4f} -> {oos_new:+.4f} "
-                        f"（{oos_new - oos_old:+.4f}）"))
+                        f"（{oos_new - oos_old:+.4f}）"
+                        + (f"；分块 {n_up}/{len(block_delta)} 改善"
+                           f"（要求 >= {need_blocks}）" if block_delta else "")))
 
     # 3 自助显著性
     ok = boot_p >= g["bootstrap_p"]
@@ -146,11 +177,13 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
                             + (f"；超步长: {list(over)}" if over else "")))
 
     # 5 行为回放
-    worst = max(churn.values()) if churn else 0.0
+    worst_day = max(churn, key=lambda d: churn[d]) if churn else ""
+    worst = churn[worst_day] if worst_day else 0.0
     ok = worst <= g["max_churn"]
     checks.append(Check("行为回放换手", ok,
-                        f"最大单日前 K 变动 {worst:.0%} / 上限 "
-                        f"{g['max_churn']:.0%}（回放 {len(churn)} 天）"))
+                        f"最大单日前 K 变动 {worst:.0%}"
+                        + (f"（{worst_day}）" if worst_day else "")
+                        + f" / 上限 {g['max_churn']:.0%}（回放 {len(churn)} 天）"))
 
     # 6 冷却期
     la = last_accept_date()
@@ -184,6 +217,7 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
     return Verdict(accepted, checks, moved,
                    {"oos_old": oos_old, "oos_new": oos_new,
                     "bootstrap_p": boot_p, "paired_delta": paired_delta,
+                    "block_delta": list(block_delta) if block_delta else None,
                     "n_days": n_days, "worst_churn": worst,
                     "online_p": online_p, "online_days": online_days,
                     "intents": list(intents or [])})
@@ -191,11 +225,23 @@ def evaluate(theta_new: dict, theta_old: dict, box: dict, g: dict,
 
 def churn_by_day(old_top: dict[str, list], new_top: dict[str, list]
                  ) -> dict[str, float]:
-    """每天前 K 的变动比例 = 1 − 交集/K。"""
+    """每天清单的变动比例 = 1 − 交集 / 较长那张榜的长度。
+
+    分母是**实际榜长**不是 top_k：生产清单常常不足 10 只（413 天里 24%），
+    一只换手在 6 只的榜上是 1/6，摊成 1/10 就把闸门 5 量小了。
+
+    两边都是空清单的日子不产生条目。以前 `max(..., 1)` 兜底成 1，
+    「当天一只都发不出去」被算成换手 100%（2026-08-28 就是这么来的），
+    生产口径下这种天有 3/413，留着会让闸门 5 永远不过。
+    清单只有 1~2 只的日子照常计入且不打折：那种天换一只，用户收到的邮件
+    就整封换了，闸门 5 判它「换手大」是对的。
+    """
     out = {}
     for day, a in old_top.items():
         b = new_top.get(day, [])
-        k = max(len(a), len(b), 1)
+        k = max(len(a), len(b))
+        if k == 0:
+            continue
         out[day] = 1.0 - len(set(a) & set(b)) / k
     return out
 

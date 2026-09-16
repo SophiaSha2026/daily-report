@@ -80,8 +80,22 @@ def status_line() -> str:
                  f"参数版本 {s.get('theta_version', '基线')}"]
         v = s.get("verdict") or {}
         if v.get("checks"):
+            # 搁置（Opus 审稿否决）时 accepted 已被改写成 False，这里只是把
+            # 「为什么没变」说清楚，不再另判一次（审计 F3-9）。
+            # 「已变更」还要求参数版本真的是 learned：跑过 rollback 之后
+            # learned.yaml 已经删了，只看 accepted 会一直写「已变更」，
+            # 用户照着邮件回滚完看面板会以为没回滚成（审计 F3-14）
+            applied = bool(v.get("accepted")) and s.get("theta_version") == "learned"
             parts.append(f"最近裁决 {s.get('date', '?')} "
-                         + ("已变更" if v.get("accepted") else "未变更"))
+                         + ("已变更" if applied
+                            else ("审稿搁置，等 apply-held" if s.get("held")
+                                  else "未变更")))
+        if s.get("panel_error") or s.get("shadow_error"):
+            parts.append("学习面板异常")
+        if int(s.get("n_nonfinite") or 0):
+            # 分数或收益缺失的行已被剔出目标函数，但必须留一个能被查询的数：
+            # 2026-09-15 前 auc_ratio 的 NaN 就是静默吃掉了 159 天（F1-2）
+            parts.append(f"分数缺失 {int(s['n_nonfinite'])} 行")
         if st.get("ready"):
             parts.append("影子转正提案已发")
         return " · ".join(parts)
@@ -101,12 +115,18 @@ def status_lines() -> list[str]:
     need = int(st.get("min_days", 30))
     p = st.get("p_better")
     ptxt = f"{p:.0%}" if isinstance(p, (int, float)) else "-"
+    # n 是**影子对比**天数（只算影子训练截止日之后的在线日），online_days 是
+    # 在线真值天数，两个数不一样。以前这里只写 n，2026-09-15 影子对比塌成 0
+    # 之后打印「在线真值积累 0/30」，同一份状态里 online_days 是 17，
+    # 用户看到的是「还在积累」而不是「坏了」（审计 F2-2/F3-1）。
+    od = int(s.get("online_days") or n)
+    both = f"（在线真值 {od} 天）" if od != n else ""
     if st.get("ready"):
         phase = "影子达标，切换提案已发邮件，等你决定"
     elif n >= need:
-        phase = f"在线 {n} 天已够，影子优势还不显著（P={ptxt}，需 {st.get('p_req', 0.9):.0%}）"
+        phase = f"影子对比 {n} 天已够，影子优势还不显著（P={ptxt}，需 {st.get('p_req', 0.9):.0%}）"
     else:
-        phase = f"在线真值积累 {n}/{need} 天，还差 {need - n} 个交易日"
+        phase = (f"影子对比 {n}/{need} 天{both}，还差 {need - n} 个交易日")
     out = [f"阶段：{phase}",
            f"训练：回填 {s.get('n_days', 0)} 天 · IC {m.get('ic_mean', float('nan')):.3f}"
            f" · 前10超额 {m.get('top_excess', float('nan'))*100:+.2f}%/日"
@@ -123,9 +143,13 @@ def status_lines() -> list[str]:
         ck = v["checks"]
         passed = sum(1 for c in ck if c.get("passed"))
         failed = "、".join(c["name"] for c in ck if not c.get("passed"))
+        applied = bool(v.get("accepted")) and s.get("theta_version") == "learned"
         out.append(f"裁决：{s.get('date', '?')} {passed}/{len(ck)} 闸通过 -> "
-                   + ("参数已变更" if v.get("accepted") else "参数未变更")
+                   + ("参数已变更" if applied else "参数未变更")
                    + (f"（没过: {failed}）" if failed else ""))
+    if int(s.get("n_nonfinite") or 0):
+        out.append(f"数据：{int(s['n_nonfinite'])} 行分数/收益非有限值，"
+                   "已剔出目标函数（正常应为 0，非 0 说明有一列缺了）")
     return out
 
 
@@ -195,9 +219,13 @@ def build_html(date: str, verdict, metrics_old: dict, metrics_new: dict,
              for lab, k, f in (
                  ("日 IC 均值", "ic_mean", ".4f"),
                  ("ICIR", "icir", ".3f"),
-                 ("前 10 超额收益", "top_excess", "+.4%"),
-                 ("前 10 胜率", "hit_rate", ".1%"),
-                 ("日均通过数", "avg_pool", ".0f")))
+                 # 「前 10」是生产口径（>=45 分再取前 10），日均两个数分开写：
+                 # 过准入 37 只、真发出去 25 只，差 48%，混成一个就是在报
+                 # 一张不存在的榜（审计 F8-8）
+                 ("前 10 超额收益（实发清单）", "top_excess", "+.4%"),
+                 ("前 10 胜率（实发清单）", "hit_rate", ".1%"),
+                 ("日均过准入只数", "avg_pool", ".0f"),
+                 ("日均实发只数", "avg_sent", ".0f")))
          + "</table>",
          "<h2>行为影响（最近 10 天回放）</h2>", _churn_table(old_top, new_top)]
     if regime_counts:
@@ -258,7 +286,7 @@ def build_proposal_html(date: str, stat: dict, cmp_: list[dict]) -> str:
     ])
 
 
-def send(date: str, html: str, cfg: dict, subject: str | None = None) -> None:
+def send(date: str, html: str, cfg: dict, subject: str | None = None) -> bool:
     """复用竞价线的 SMTP 底层。失败只记日志，不抛——学习系统崩了不能
     影响别的东西，这封信本身也不是关键路径。
 
@@ -266,11 +294,14 @@ def send(date: str, html: str, cfg: dict, subject: str | None = None) -> None:
     mailer._send(msg, conf)，一旦真有变更被接受，邮件永远发不出去，
     只会在日志里留一行 warning。现在按 mailer 的约定构造 EmailMessage，
     selftest_learn.check_report_send 用假 SMTP 钉住这条接线。
+
+    返回**真发出去了没有**（审计 F2-5）：不抛不代表发成了，调用方要据此
+    决定落不落「已发」标记。SKIP_MAIL=1 也算没发。
     """
     import os
     if os.environ.get("SKIP_MAIL") == "1":
         log.info("SKIP_MAIL=1，学习邮件生成但不发")
-        return
+        return False
     try:
         import mailer
         from email.message import EmailMessage
@@ -284,5 +315,7 @@ def send(date: str, html: str, cfg: dict, subject: str | None = None) -> None:
         m.add_alternative(html, subtype="html")
         mailer._send(m, c)
         log.info("学习邮件已发出：%s", m["Subject"])
+        return True
     except Exception as e:  # noqa: BLE001
         log.warning("学习邮件发送失败（不影响参数已生效）: %s", e)
+        return False

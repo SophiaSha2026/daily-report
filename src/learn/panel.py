@@ -205,6 +205,12 @@ def _head(st: dict) -> str:
             badge = "<span class='badge'>最新</span>"
     except Exception:  # noqa: BLE001
         pass
+    # fail-open 的分支必须在界面上留痕（教训 16 / 审计 F3-7）：影子对比或
+    # 面板生成挂掉时，learning_status.json 的 date 照旧是今天，徽章会一直
+    # 写「最新」，谁都看不出 learn.html 停在上一版
+    err = str(st.get("panel_error") or st.get("shadow_error") or "")
+    if err:
+        badge += f"<span class='badge old'>异常：{_e(err[:80])}</span>"
     return ("<h1>自学习系统 · 状态与进度</h1>"
             "<div class='dim'><a href='index.html'>← 竞价面板</a> · "
             "<a href='pullback.html'>形态面板</a></div>"
@@ -215,8 +221,13 @@ def _head(st: dict) -> str:
 
 def _stepper(st: dict, cv: dict, proposal: dict) -> str:
     n_train = int(st.get("n_days", 0) or 0)
-    online = int(st.get("online_days", len(st.get("daily") or [])) or 0)
+    real = int(st.get("online_days", len(st.get("daily") or [])) or 0)
     stat = st.get("shadow_stat") or {}
+    # 第 2 步的进度条和第 3 步的门槛必须是同一口径：need（30 天）是**影子对比**
+    # 的门槛，不是在线真值天数。以前进度条读 online_days、第 3 步读影子对比，
+    # 影子对比塌成 0 时同一页写着「17/30 还差 13 天」和「P = –」，自相矛盾
+    # （审计 G1/F2-2）。在线真值天数在关键数字那里单独一张卡。
+    online = int(stat.get("days", real) or 0)
     need = int(stat.get("min_days", cv["shadow_min_days"]))
     p_req = float(stat.get("p_req", cv["p_req"]))
     p = _num(stat.get("p_better"))
@@ -242,9 +253,11 @@ def _stepper(st: dict, cv: dict, proposal: dict) -> str:
             pass
         s2_cls = "cur"
         s2_d = (f"还差 {need - online} 个交易日"
-                + (f" · 约 {eta}（不含节假日）" if eta else ""))
+                + (f" · 约 {eta}（不含节假日）" if eta else "")
+                + (f" · 在线真值已有 {real} 天" if real != online else ""))
     s2 = (f"<div class='step {s2_cls}'><div class='n'>第 2 步</div>"
-          f"<div class='t'>在线真值积累</div><div class='v'>{online} / {need} 天</div>"
+          f"<div class='t'>影子样本外对比</div>"
+          f"<div class='v'>{online} / {need} 天</div>"
           f"<div class='bar'><i style='width:{frac * 100:.0f}%'></i></div>"
           f"<div class='d'>{s2_d}</div></div>")
 
@@ -264,7 +277,13 @@ def _stepper(st: dict, cv: dict, proposal: dict) -> str:
           f"<div class='d'>{s3_d}</div></div>")
 
     # 4 人工切换
-    if proposal:
+    if proposal and proposal.get("send_failed") and not proposal.get("last_sent"):
+        # 提案邮件 SMTP 挂了。以前这一格照样写「等你决定」，用户去邮箱
+        # 找一封不存在的信（审计 F2-5）
+        s4_cls, s4_v = "ready", "邮件没发出去"
+        s4_d = (f"{_e(proposal['send_failed'])} 提案邮件 SMTP 失败，"
+                "下次学习自动重发；证据见第 3 步")
+    elif proposal and proposal.get("last_sent"):
         s4_cls, s4_v = "ready", "等你决定"
         s4_d = (f"提案首发 {_e(proposal.get('date'))}，最近 "
                 f"{_e(proposal.get('last_sent'))}，共 {proposal.get('times', 1)} 次")
@@ -311,10 +330,19 @@ def _today_loop(st: dict, verdicts: list[dict], cv: dict) -> str:
               + (f"，没过：{_e(failed)}" if failed else "，全过") + "</div>")
     else:
         t4 = "<div class='tile off'><b>④ 七道闸</b>本次未裁决</div>"
-    if v.get("accepted"):
+    # 「参数已变更」还要求 theta_version 真的是 learned：rollback 之后
+    # learned.yaml 已经删了，只看 accepted 这一格会一直写「参数已变更」，
+    # 和同页 KPI 的「参数版本 基线」自相矛盾（审计 F3-14）
+    if v.get("accepted") and st.get("theta_version") == "learned":
         chg = "、".join(f"{_PNAME.get(k, k)} {a:.3g}→{b:.3g}" for k, (a, b) in moved.items())
         t5 = (f"<div class='tile on' style='border-color:#e9a23b'><b>⑤ 结果</b>"
               f"<span class='warn'>参数已变更</span>：{_e(chg)}</div>")
+    elif st.get("held"):
+        # Opus 审稿否决：七道闸过了但参数没写。裁决已被改写成「未接受」，
+        # 这一格要说清楚它卡在哪（审计 F3-9）
+        t5 = ("<div class='tile on' style='border-color:#e9a23b'><b>⑤ 结果</b>"
+              "<span class='warn'>被审稿搁置</span>，参数没写；"
+              "认可就跑 --stage apply-held</div>")
     else:
         t5 = (f"<div class='tile on'><b>⑤ 结果</b>参数保持不变<br>"
               f"版本 {_e(st.get('theta_version', '基线'))} · "
@@ -338,9 +366,18 @@ def _kpis(st: dict) -> str:
     s = [x for x in s if x is not None]
     m = st.get("metrics") or {}
     stat = st.get("shadow_stat") or {}
+    # 两个天数分开显示：online_days 是在线真值天数，n 是影子**样本外**
+    # 对比天数（只算影子训练截止日之后的日子）。混成一张卡的时候，
+    # 影子对比塌成 0 而进度条按 17 天走，同一页两个数打架（审计 F2-2/G1）。
+    real = int(st.get("online_days", len(st.get("daily") or [])) or 0)
     cards = [
-        ("在线真值天数", str(n), "系统上线后的真实交易日"),
-        ("正式榜 前10超额/日", _pct(sum(b) / len(b)) if b else "–", "在线均值"),
+        ("在线真值天数", str(real), "系统上线后的真实交易日"),
+        ("影子对比天数", str(n), "只算影子训练截止日之后的样本外日子"),
+        # 影子对比那两列的 base 是**按当前参数回放**的分，不是当天真发出去
+        # 的那张榜。真实榜的成绩在 status["daily"] 里，口径不同不能混写
+        # （审计 F3-13）
+        ("正式榜（回放）前10超额/日", _pct(sum(b) / len(b)) if b else "–",
+         "按当前参数重放的实发清单（≥45 分，最多 10 只）在线均值"),
         ("影子榜 前10超额/日", _pct(sum(s) / len(s)) if s else "–", "在线均值"),
         ("影子占优天数", f"{w} / {n}" if n else "–",
          f"P(影子更好)={_num(stat.get('p_better')):.0%}" if _num(stat.get("p_better")) is not None else "按天自助"),
@@ -495,7 +532,13 @@ def _race_block(race: dict) -> str:
             "<tr><th>模型</th><th>IC</th><th>ICIR</th><th>90%区间</th>"
             f"<th>前10超额</th><th>胜率</th></tr>{rows}</table>"
             f"<div class='dim'>选中：{_e(race.get('winner', '?'))} —— {_e(race.get('why', ''))}。"
-            "胜者当影子排序器试运行，不直接进生产。</div></div>")
+            "胜者当影子排序器试运行，不直接进生产。<br>"
+            # 这张表是手动阶段产的，可能比影子的拟合数据旧好几周；不写清
+            # 数据源和生成时间，面板上「胜者当影子试运行」这句就无从核对
+            # （审计 F3-16）。
+            f"这张表算在 {_e(str(race.get('source', '?')))}："
+            f"{race.get('days', '?')} 天（其中真采样 {race.get('online_days', 0)} 天），"
+            f"{_e(str(race.get('generated_at', '未记录')))} 生成。</div></div>")
 
 
 def _coef_block(model: dict) -> str:
@@ -517,8 +560,9 @@ def _coef_block(model: dict) -> str:
 
 def _legend() -> str:
     return ("<h2>怎么读这页</h2><div class='card legend'>"
-            "<b>阶段</b>：回填训练已完成 → 现在在攒在线真值天 → 攒够且影子显著更好才会有提案 → 切换永远由人决定。<br>"
-            "<b>前 10 超额</b>：当天榜单前 10 的开盘买、收盘卖收益，减去全池中位数。<br>"
+            "<b>阶段</b>：回填训练已完成 → 现在在攒影子样本外对比天 → 攒够且影子显著更好才会有提案 → 切换永远由人决定。<br>"
+            "<b>前 10 超额</b>：当天**实发清单**（≥45 分、最多 10 只，和邮件同一批票）"
+            "的开盘买、收盘卖收益，减去全池中位数。影子榜没有 45 分这条线，取前 10。<br>"
             "<b>IC</b>：打分与当日实际超额的秩相关，单日噪声很大，看趋势别看单点。<br>"
             "<b>七道闸</b>：样本量 / 样本外改善 / 按天自助 / 步长 / 行为回放 / 冷却 / 在线否决，全过才改参数。<br>"
             "排序 100% 确定性；LLM 只做归因与提案，提案过同一道闸。完整设计 docs/learning.md"

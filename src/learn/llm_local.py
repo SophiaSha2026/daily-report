@@ -145,7 +145,12 @@ def _extract_json(text: str) -> dict | None:
 
 
 def _sanitize(obj: dict, date: str, codes: list[str]) -> dict:
-    """枚举校验 + 补全。脏值改写而不是丢弃，下游拿到的一定合法。"""
+    """枚举校验 + 补全。脏值改写而不是丢弃，下游拿到的一定合法。
+
+    codes 先去重：items 是按 codes 逐个 append 的，重复的 code 会出两条，
+    而 panel._regimes 按 items 数 cause 次数，重复条目被双计（审计 F3-4）。
+    """
+    codes = list(dict.fromkeys(codes))
     out = {
         "date": date,
         "day_regime": obj.get("day_regime") if obj.get("day_regime") in REGIMES
@@ -181,8 +186,19 @@ def run(date: str, brief_path: Path, model: str = "claude-opus-5",
             log.warning("没有 %s，跳过归因", brief_path.name)
             return None
         brief = json.loads(brief_path.read_text(encoding="utf-8"))
-        codes = [x["code"] for x in brief.get("worst", [])
-                 + brief.get("best", [])]
+        # 日期闸：brief 是别的日子留下的就别归因。_sanitize 会把输出的 date
+        # 字段**改写成参数 date**、文件名也按参数 date 落盘，所以错位之后
+        # 从文件本身完全看不出来，只能在入口拦（审计 F3-11）。
+        # `--stage all` 那条路也有一道同样的核对，这里是两道里更靠里的那道。
+        if str(brief.get("date", "")) != date:
+            log.warning("%s 是 %s 的，不是 %s 的，跳过归因",
+                        brief_path.name, brief.get("date"), date)
+            return None
+        # 去重：worst/best 现在互斥（learn/brief.py），但这条是第二道防线——
+        # 以前两组相交时 _sanitize 按 codes 逐个 append，09-16 那份 items
+        # 有 14 条而只有 10 只票，panel._regimes 的 cause 次数被双计（F3-4）
+        codes = list(dict.fromkeys(
+            x["code"] for x in brief.get("worst", []) + brief.get("best", [])))
         if not codes:
             log.warning("brief 里没有样本，跳过归因")
             return None

@@ -22,8 +22,17 @@
 确定性保证：推理 = 当日截面秩 × 固定系数向量。系数存 JSON、进 git，
 给定系数文件，任何人可逐位复现当天排名。和 score.py 的可复现性同级。
 
-训练的走向前纪律和主线一致；refit 频率低（每次 stage_learn 顺带），
-系数文件带 fitted_at 和训练窗口，审计链完整。
+记账纪律（2026-09-16 修正，审计 G1/F2-2/F3-1）
+--------------------------------------------
+调用顺序必须是「先用**上一次落盘的**模型给新到的在线日记账，再 refit」：
+每个被比的日子用的正是那天早上产出 out/shadow.json 的那份系数，
+和生产口径一致（教训 30）。顺序反了 train_end 就等于今天，
+`daily_compare` 的 `date > train_end` 过滤恒为空集——2026-09-15 起
+两次学习的影子对比都是 0 天，而面板另一处按 online_days 写着「17/30」，
+同一页两个数互相矛盾，用户看到的是「还在积累」而不是「坏了」（教训 16）。
+
+对比结果落在 `state/shadow_compare.json` 这本账上，按日期先到先得：
+已经记过的天不许被后来 refit 的模型重算覆盖，否则账目随每次训练漂移。
 """
 from __future__ import annotations
 
@@ -39,6 +48,7 @@ log = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent.parent
 MODEL = ROOT / "state" / "shadow_model.json"
 PROPOSAL = ROOT / "state" / "shadow_proposal.json"
+LEDGER = ROOT / "state" / "shadow_compare.json"   # 逐日对比账本，先到先得
 
 # 和擂台同一张特征表（learn/model_select.py::FEATURES），刻意不另起炉灶：
 # 影子的正当性来自「它就是擂台上赢的那个东西」，特征一换比较就失效了。
@@ -107,18 +117,32 @@ def score(df: pd.DataFrame, model: dict | None = None) -> np.ndarray | None:
 
 
 def daily_compare(df_online: pd.DataFrame, base_scores: np.ndarray,
-                  base_rej: np.ndarray, top_k: int = 10) -> list[dict]:
+                  base_rej: np.ndarray, top_k: int = 10,
+                  min_score: float | None = None,
+                  cost: float = 0.0) -> list[dict]:
     """在线真值天上的双榜逐日对比。喂给面板和切换提案。
 
     影子也套用同一份硬性排除（准入是政策层，对两个排序器一视同仁）。
+
+    正式榜那一路还要再套 `min_score`（生产的 45 分线，score.py::rank），
+    因为它就是**当天真发出去的那张清单**；影子分数不在 45 分刻度上，没有
+    对应语义，所以保持前 top_k。两张榜长度可能不同，重合率的分母因此用
+    较长那张，不能固定成 top_k（否则正式榜只有 5 只时重合率天然 ≤50%）。
+
+    两边的超额都走汇报口径（未缩尾的 y_raw 再扣双边 cost），转正统计取的是
+    配对差，常数成本本来就抵消，但逐日数字要能和面板别处并排看（F2-10）。
+    注意这里的 base 是**按当前参数回放**的分，不是当天真发的那张榜
+    （审计 F3-13）；面板上的标签要写清楚。
     """
     from learn.model_select import spearman
+    from learn import online_eval as OE
     sh = score(df_online)
     if sh is None:
         return []
-    # 影子在含在线日的回填表上拟合过，那些天是它的样本内，不能拿来
-    # 给它算成绩。只比 train_end 之后的在线日。以前 15 个真值日里 7 个是
-    # 样本内，P(影子更好)=0.97 偏高。
+    # 影子在含在线日的表上拟合过，那些天是它的样本内，不能拿来给它算成绩。
+    # 只比 train_end 之后的在线日。以前 15 个真值日里 7 个是样本内，
+    # P(影子更好)=0.97 偏高。调用方必须**先比后 refit**，否则 train_end
+    # 等于今天，这个过滤会把所有天都吃掉（见模块注释）。
     train_end = ""
     try:
         train_end = str(json.loads(MODEL.read_text(encoding="utf-8"))
@@ -127,23 +151,69 @@ def daily_compare(df_online: pd.DataFrame, base_scores: np.ndarray,
         pass
     out = []
     d = df_online.assign(_b=np.where(base_rej, -np.inf, base_scores),
-                         _s=np.where(base_rej, -np.inf, sh))
+                         _s=np.where(base_rej, -np.inf, sh),
+                         _ex=OE.excess(df_online, cost).to_numpy(float))
     if train_end:
+        n0 = int(d["date"].nunique())
         d = d[d["date"] > train_end]
+        if n0 and d.empty:
+            # fail-open 的分支必须留下能被查询的信号（教训 16）：静默返回空
+            # 表面上是「还在积累」，实际是 stage_learn 的调用顺序反了。
+            log.warning("影子对比：%d 个在线日全部 <= train_end=%s（样本内），"
+                        "对比为空；stage_learn 必须先 daily_compare 再 fit",
+                        n0, train_end)
     for day, g in d.groupby("date"):
         ok = g[np.isfinite(g["_b"])]
         if len(ok) < 5:
             continue
-        row = {"date": day}
-        for tag, col in (("base", "_b"), ("shadow", "_s")):
-            top = ok.nlargest(top_k, col)
+        base_top = ok.nlargest(top_k, "_b")
+        if min_score is not None:
+            # round 到 0.1：和 score.py 存的 score 字段同口径，44.96 过线
+            base_top = base_top[base_top["_b"].round(1) >= float(min_score)]
+        shadow_top = ok.nlargest(top_k, "_s")
+        row = {"date": day, "base_n": int(len(base_top)),
+               "shadow_n": int(len(shadow_top))}
+        for tag, col, top in (("base", "_b", base_top),
+                              ("shadow", "_s", shadow_top)):
             row[f"{tag}_ic"] = spearman(ok[col].to_numpy(),
                                         ok["ytil"].to_numpy())
-            row[f"{tag}_top_excess"] = float(top["y"].mean())
-        row["overlap"] = len(set(ok.nlargest(top_k, "_b")["code"])
-                             & set(ok.nlargest(top_k, "_s")["code"])) / top_k
+            row[f"{tag}_top_excess"] = (float(top["_ex"].mean())
+                                        if len(top) else None)
+        row["overlap"] = (len(set(base_top["code"]) & set(shadow_top["code"]))
+                          / max(len(base_top), len(shadow_top), 1))
         out.append(row)
     return out
+
+
+def record(rows: list[dict], ledger: Path | None = None) -> list[dict]:
+    """把新出炉的样本外对比行并进账本，按日期去重，**先到先得**。
+
+    已经记过的天不许被后来 refit 的模型重算覆盖：那一天的成绩是当天早上
+    那份系数产出的，事后用见过这一天的模型重算就不是样本外了（教训 30）。
+    同日重跑（--if-needed 反复重试、dry）第二次 daily_compare 返回空，
+    record([]) 原样返回账本，幂等。
+    """
+    p = Path(ledger or LEDGER)
+    try:
+        old = json.loads(p.read_text(encoding="utf-8"))
+        old = [r for r in old if isinstance(r, dict) and r.get("date")]
+    except Exception:  # noqa: BLE001
+        old = []
+    seen = {r["date"] for r in old}
+    merged = sorted(old + [r for r in rows
+                           if isinstance(r, dict) and r.get("date")
+                           and r["date"] not in seen],
+                    key=lambda r: str(r["date"]))
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(merged, ensure_ascii=False, indent=1,
+                                  default=str), encoding="utf-8")
+        import os
+        os.replace(tmp, p)
+    except Exception as e:  # noqa: BLE001
+        log.warning("影子对比账本写入失败（不影响流程）: %s", e)
+    return merged
 
 
 def promotion_stat(cmp_: list[dict], min_days: int, p_req: float,
@@ -192,24 +262,40 @@ def maybe_propose(date: str, stat: dict, cmp_: list[dict], cfg: dict,
 
     已发过的按 remind_days 间隔再提醒，不天天催。切换动作本身永远是
     人工的：这里不写任何参数，不动 score.py，只把证据摆到用户面前。
+
+    **先发信、按结果落盘**（2026-09-16 审计 F2-5）。以前是先写
+    last_sent=今天、times+1 再调 R.send，而 R.send 吞掉所有异常也不返回成败：
+    SMTP 一挂，提案就被记成「已发」，接下来 remind_days=10 天内 :202 直接
+    return False 不重发，日志里 eval_daily 还打「影子转正提案已发出」，
+    面板第 4 步显示「等你决定 · 共 1 次」，用户去邮箱找一封不存在的信。
+    和教训 13（参数变更邮件永远发不出去、四次点火没发现）同一个形状。
+    失败时**不写 last_sent**、只写 send_failed，面板据此显示红字，
+    次日照常重试（节流只认 last_sent）。
     """
     if not stat.get("ready"):
         return False
     prev = load_proposal()
-    if prev:
+    if prev and prev.get("last_sent"):
+        # 只有真发出去过才节流。不能退回 prev["date"] 兜底：失败那次写了
+        # date 没写 last_sent，拿 date 顶上去照样锁 10 天，等于没修。
         try:
-            last = dt.date.fromisoformat(prev.get("last_sent", prev["date"]))
+            last = dt.date.fromisoformat(str(prev["last_sent"]))
             if (dt.date.fromisoformat(date) - last).days < int(remind_days):
                 return False
         except Exception:  # noqa: BLE001
             pass
     from learn import report as R
     html = R.build_proposal_html(date, stat, cmp_)
-    doc = {"date": prev["date"] if prev else date, "last_sent": date,
-           "times": int(prev.get("times", 0) if prev else 0) + 1,
-           "stat": stat}
+    ok = R.send(date, html, cfg, subject=f"[提案] 影子排序器转正 · {date}")
+    if ok:
+        doc = {"date": (prev or {}).get("date") or date, "last_sent": date,
+               "times": int((prev or {}).get("times", 0)) + 1, "stat": stat}
+    else:
+        # 失败必须留下一个能被界面查询的对象（教训 16），只写日志等于没写
+        doc = {k: prev[k] for k in ("date", "last_sent", "times")
+               if prev and k in prev}
+        doc.update(send_failed=date, stat=stat)
     PROPOSAL.parent.mkdir(parents=True, exist_ok=True)
     PROPOSAL.write_text(json.dumps(doc, ensure_ascii=False, indent=2,
                                    default=str), encoding="utf-8")
-    R.send(date, html, cfg, subject=f"[提案] 影子排序器转正 · {date}")
-    return True
+    return bool(ok)
