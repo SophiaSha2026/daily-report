@@ -285,11 +285,19 @@ def exp_feature_drop(p: dict) -> dict:
 
 
 def _known_features() -> set[str]:
+    """起涨预测的基础特征名（六组 + 交互项）。
+
+    交互项 2026-09-16 起是五元组 (a, sa, b, sb, name)，早先这里写的是
+    `set(F.INTERACTIONS)`，并进来的是一堆元组，永远匹配不上特征名 ——
+    消融会把所有提案判成「特征名不存在」。取最后一项才是名字。
+    """
     try:
         import features as F
-        return {f for fs in F.GROUPS.values() for f in fs} | set(F.INTERACTIONS) \
-            if hasattr(F, "INTERACTIONS") else {f for fs in F.GROUPS.values() for f in fs}
-    except Exception:  # noqa: BLE001
+        base = {f for fs in F.GROUPS.values() for f in fs}
+        inter = {t[-1] for t in getattr(F, "INTERACTIONS", []) if t}
+        return base | inter
+    except Exception as e:  # noqa: BLE001
+        log.warning("读不到特征名单: %s", e)
         return set()
 
 

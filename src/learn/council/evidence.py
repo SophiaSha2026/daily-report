@@ -346,8 +346,13 @@ def _backfill_vs_online(online: pd.DataFrame) -> dict:
             "rows": rows,
             "backfill_by_liangbi": bf_by,
             "backfill_y_note": "回填 y = r 减当日（涨幅 2~5% 池）中位数，未缩尾，口径和在线 y 近似",
-            "known_biases": "回填的 t1/t2/t3 是代理值（竞价段 open/high），生产是 09:19:40/09:22/09:25 三个采样点；"
-                            "回填的 one_word、limit_pct（无 ST）定义与生产不同；回填候选池按 amount_ratio_5d_gte 过滤而生产没有"}
+            "known_biases": "2026-09-16 那批审计之后：撮合价改取 stk_auction_o 的 open（以前取的 close 是 "
+                            "09:30 之后的价，只有 44% 对得上）；竞价轨迹回填表给不出，一律按「没有证据」"
+                            "（t1=t2=t3=gap_pct、slope=dive=0、monotonic=False），和线上 T1 漏采同口径，"
+                            "trend 维在回填上不可学、已从可学集合里钉死；竞价额含 09:30 之后的成交"
+                            "（中位高 25~33%），volume 维同样钉死；候选池两边已统一走 premarket.include_mask；"
+                            "one_word / limit_pct 已统一走 datasource。仍然存在的：假涨停规则在回填表上不可观测"
+                            "（在线 1.34% 触发、回填 0.001%），现金分红那种小除息判不出来。"}
 
 
 # ---------------------------------------------------------------------
