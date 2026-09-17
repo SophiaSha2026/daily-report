@@ -11,7 +11,8 @@
 
 顺序有讲究：
   起涨预测  build（特征表，约 20 分钟）-> refit（模型，指纹变了本来也会自动重训）
-            -> exp_window（逐月滚动，成绩表 STREAK_PERF 的来源，约 10 分钟）
+            -> exp_window --adj shrink --save-adj（逐月滚动 + 重估板块系数，
+               成绩表 STREAK_PERF 和 state/breakout/board_adj.json 都从这来）
             -> exp_calib（分数分档，BASE / SCORE_TABLE 的来源）
             -> truth.validation_by_board（按板块命中率，邮件的加权期望用）
   早盘      build-train（回填训练表）-> 学习线下一次跑自然会用新表
@@ -81,8 +82,17 @@ def step_refit() -> bool:
 
 
 def step_window() -> bool:
+    """逐月滚动 + 板块系数重估。**生产在用的是收缩臂**（2026-09-16 用户批准）。
+
+    以前这里跑的是 `--refit`（固定臂，用 daily.BOARD_ADJ 那四个写死的数）。
+    板块系数改成收缩之后再跑固定臂，等于「用收缩估出来的系数、又在同一段
+    数据上评成绩」——样本内那个老毛病原样回来，而且会把 window_grid.json
+    覆盖成另一套口径。--save-adj 顺带把下一期该用的因子写进
+    state/breakout/board_adj.json，生产读它，所以重建和更新系数是同一步。
+    """
     if run([sys.executable, str(ROOT / "src" / "breakout" / "exp_window.py"),
-            "--refit"]) != 0:
+            "--refit", "--adj", "shrink", "--save-adj"],
+           env_extra={"WF_OUT": str(OUT / "window_grid.json")}) != 0:
         return False
     g = json.loads((OUT / "window_grid.json").read_text(encoding="utf-8"))
     w5 = [r for r in g["grid"] if r["kind"] == "W5"]
@@ -94,10 +104,12 @@ def step_window() -> bool:
 
 
 def step_window_rolling() -> bool:
-    """板块系数按「只用本月之前已结束的月份」逐月估，得到不含样本内拟合的成绩。
+    """滚动臂：每个板块各信各的（不收缩）。只当对照，**邮件不用它**。
 
-    生产用的 BOARD_ADJ 是在整个验证集上按板块命中率算出来的，再拿同一个验证集
-    评估，等于自己给自己打分（审计 F8-11）。邮件里印的成绩要用这一份。
+    2026-09-16 实测：它和收缩臂整体命中接近，但清单构成被小样本板块掀翻
+    （北交所 19 个名额的 26.3% 变成因子 2.37，主板 67%/科创 30% -> 主板 54%/
+    北交 31%），那是另一套策略。留着是为了下次有人问「不收缩会怎样」时
+    有现成的数，成绩表不从这里取。
     """
     if run([sys.executable, str(ROOT / "src" / "breakout" / "exp_window.py"),
             "--refit", "--adj", "rolling"]) != 0:
