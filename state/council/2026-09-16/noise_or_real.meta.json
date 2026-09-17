@@ -2,10 +2,10 @@
  "lens": "noise_or_real",
  "model": "claude-opus-5",
  "effort": "max",
- "seconds": 673.5,
- "turns": 13,
- "cost_usd": 2.8694835000000003,
+ "seconds": 991.8,
+ "turns": 2,
+ "cost_usd": 0.38100900000000004,
  "n_tool_calls": 12,
- "denials": 2,
+ "denials": 0,
  "error": ""
 }

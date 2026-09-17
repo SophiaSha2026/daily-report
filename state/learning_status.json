@@ -1,6 +1,6 @@
 {
   "date": "2026-09-16",
-  "dry": true,
+  "dry": false,
   "n_days": 414,
   "days": [
     "2025-01-03",
@@ -530,7 +530,7 @@
   "run_at": "16:30:00",
   "n_nonfinite": 0,
   "accepted_total": 0,
-  "generated_at": "2026-09-16T19:11:02",
+  "generated_at": "2026-09-16T19:41:23",
   "regime_today": "正常",
   "daily": [
     {

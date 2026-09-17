@@ -2,10 +2,10 @@
  "lens": "data_quality",
  "model": "claude-opus-5",
  "effort": "max",
- "seconds": 783.2,
- "turns": 21,
- "cost_usd": 3.577582,
- "n_tool_calls": 20,
- "denials": 2,
+ "seconds": 842.5,
+ "turns": 22,
+ "cost_usd": 4.7641095,
+ "n_tool_calls": 21,
+ "denials": 1,
  "error": ""
 }

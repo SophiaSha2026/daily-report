@@ -1,6 +1,6 @@
 {
  "date": "2026-09-16",
- "generated_at": "2026-09-16T19:26:00",
+ "generated_at": "2026-09-16T19:41:37",
  "morning": {
   "days": 17,
   "note": "",
@@ -1448,31 +1448,23 @@
      "moved": {
       "scoring.weights.gap": [
        0.2,
-       0.2070588235294118
-      ],
-      "scoring.weights.volume": [
-       0.25,
-       0.2588235294117647
-      ],
-      "scoring.weights.trend": [
-       0.2,
-       0.2070588235294118
+       0.20452800133404953
       ],
       "scoring.weights.position": [
        0.15,
-       0.12000000000000001
+       0.15380352112060153
       ],
       "scoring.weights.sector": [
        0.15,
-       0.15529411764705883
+       0.13931391685164318
       ],
       "scoring.weights.continuity": [
        0.05,
-       0.051764705882352956
+       0.05235456069370575
       ],
-      "screen.auc_ratio_score_hi": [
-       0.03,
-       0.027499999999999997
+      "screen.gap_pct_peak": [
+       3.5,
+       3.3
       ]
      }
     }

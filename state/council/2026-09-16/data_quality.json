@@ -1,172 +1,215 @@
 {
  "lens": "data_quality",
- "summary": "两条线都有流程在制造假差距，但没有一处足以翻转结论。早盘：参数自学 09-04~14 在同一份 404 天冻结表上重复拟合 7 次，在线天 09-15 才进训练；前10超额用缩尾 y，坏日亏损被截掉 0.2~0.3 pt；回填与在线的基准中位数口径差约 0.2 pt。起涨：模型 45 个特征里 10 个在筛选记录里标为已剔除（占 37% 增益）；板块系数把验证命中 2.7% 的科创板乘 1.27、创业板乘 0.59 后从未入榜；8 份清单全封顶 10 只，邮件期望 12.6% 不是这条规则下算的。0 份清单满 20 根，按第 7 根对照 09-07 清单与验证集一致。",
+ "summary": "单位和时间对齐没查出错：抽查 3 个票日，竞价价=日线开盘，60 日位置和补数据那段的单位都对得上。假差距来自口径混用。起涨预测：7/8 份清单按旧板块系数出，8/8 天满员（验证集 19/207 天），该对照满员日的 8.4%，不是 15%。早盘：08-24 是旧代码跑的（板块全空、量比缺、剔除原因是废规则），前 6 天是按现规则回放的榜；回填表准入集合比在线大 1.6 倍，对照表的标签基准也不同。",
  "findings": [
   {
-   "line": "morning",
-   "claim": "参数自学 09-04~09-14 七次裁决在同一份 404 天冻结回填表上重复拟合，在线天没进训练集",
-   "evidence": "verdicts 七天 n_days=404 不变，oos_old 0.186288117134206、bootstrap_p 0.485、paired_delta −0.000194 逐位相同；09-15 起 n_days 413、09-16 414（=404+17−7 重叠天）",
-   "magnitude": "7 次裁决 = 1 次实验；在线天在训练集占比 0 → 17/414",
+   "line": "breakout",
+   "claim": "97 分门槛在生产上从没卡住，清单该对照满员日成绩，不是总成绩",
+   "evidence": "8 份清单全是 10 只，09-16 够格 19 只；验证集满员 19/207 天，准确率 8.4%（190 名额）vs 非满员 18.4%（376）；3 份清单 30 个名额 25 个恰为 97 分",
+   "magnitude": "期望 15.0% 应换成 8.4%（Wilson 约 5.2%~13.2%，未按天聚类），差 6.6 个百分点；满员率 8/8 vs 9.2%；风险剔除 09-16 只挡 1/19，量级小",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "7/8 份清单按旧板块系数（科创 1.27）出，期望却按新系数（1.0）算",
+   "evidence": "09-07 科创 5/10、09-15 6/10（系数 1.27）；09-16 系数 1.0 为 3/10；新规则验证集科创席位 6.5%、命中 1/37；lists 真值记录里没有规则字段",
+   "magnitude": "按新规则分板块命中率加权，09-15 那份期望约 9.5%、09-07 约 10.8%，比 15.0% 低 4~6 个百分点（板块样本小，粗估）；两份旧规则清单科创占 11/20（Wilson 34%~74%），高于旧规则验证集的约 30%",
    "confidence": "高"
   },
   {
    "line": "morning",
-   "claim": "09-15 基线目标 Ĝ_oos 从 0.186 掉到 0.108，同一天既加在线天又改口径，裁决记录分不开哪个造成",
-   "evidence": "09-14 oos_old 0.1863（404 天）→ 09-15 0.1079（413 天），净新增 9 天占 2.2%；09-15 审计改了 vscore NaN 量能等口径；verdict 没有代码或训练集指纹",
-   "magnitude": "Ĝ_oos −42%，数据只变了 16/413 天",
+   "claim": "回填表准入集合比在线大约 1.6 倍，量比整体偏高",
+   "evidence": "训练 414 天日均准入 42.2，倒推回填约 42.8、在线 26.5；量比 7~10 档占比 23.5% vs 14.7%，2.5~4 档 31.9% vs 44.7%；回填竞价额中位数高 22%",
+   "magnitude": "回填量比中位数高 33%，相当于回填准入区间落在在线的 1.9~7.5；钉死量能权重只管打分，管不到「谁进准入」；1.6 倍里口径和行情环境各占多少还没拆开",
    "confidence": "中"
   },
   {
    "line": "morning",
-   "claim": "前10超额用的是缩尾后的 y，坏日前排的亏损被当日 q1 截断，面板数字比真实 P&L 好看",
-   "evidence": "拓斯达 300607 09-10：r −11.79%、当日中位 −1.24%，未缩尾 y 应为 −10.55%，记录 y −8.49%（ytil −3.61 与金牛化工相同=被截）；09-10 前10 里 2 只、09-11 里 3 只被截",
-   "magnitude": "09-10 前10超额 −1.72 → 约 −2.06，09-11 −5.83 → 约 −6.06（各差 0.34 / 0.23 pt）",
+   "claim": "早盘 08-24 是旧代码日：板块全空、量比列缺，当天这两维评估不了",
+   "evidence": "08-24 前 3 名和当天最差/最好 10 只全是未分类、members=0，其他天没有；量比分档合计 414 比准入 451 少 37，正好是 08-24 准入数，n_days=16",
+   "magnitude": "17 个真值日里 1 天（5.9%）板块维（权重 0.15）整天为 0，量比分档缺整天；这天也在参数自学的在线 17 天里。另外 18 个交易日缺 08-28",
    "confidence": "高"
   },
   {
    "line": "morning",
-   "claim": "回填 y 减「涨幅 2~5% 池」中位数，在线 y 减全池中位数，两边基准差约 0.2 pt，占回填 vs 在线差距的 1/4",
-   "evidence": "在线涨幅区间外 16046 行超额 +0.458；区间内（准入 451 + 量能剔除 2040 + 假涨停 91 + 跳水 56 等 2649 行）加权均值约 −0.19；回填准入按量比三档 +0.59~0.69（n=16004）vs 在线 −0.165（n=451）",
-   "magnitude": "约 0.2 个百分点（用均值近似中位数），0.77 pt 差距里的 1/4",
-   "confidence": "中"
-  },
-  {
-   "line": "both",
-   "claim": "证据包三处自伤：维度三分位被并列值撑爆、特征值标成百分位却有负数、归因 causes 四天一样",
-   "evidence": "dims continuity n_high=451（=全部准入）n_low=399，position 221/191，sector 169/175，gap/volume/trend 才是 151；latest_list_feats 注「0~1 百分位」但 chip_conc90 −0.481、gdhs_level −0.446；regimes 只有 4/17 天，causes 全是 [形态失效, 板块轮动] 含两个「正常」日",
-   "magnitude": "continuity spread −0.111 无意义；position/sector 各档比 1/3 多 20~45%；13/17 天无归因",
+   "claim": "08-24~09-01 六天的「实发榜」是按现规则回放的，不是当天真发的",
+   "evidence": "准入 37/8/20/34 贴合按 2~5%、2.5~10 回放的 39/10/28/37，当时实发规则是涨幅≤5% 无下限、量比≤50；08-25 准入 8<10 仍标排序可评估，与定义不符",
+   "magnitude": "6/17 天；这 6 天前 10 超额均值 −0.01，之后 11 天 −1.12，差 −1.11±1.23（t≈−0.9），没看出断层；09-02 之后也因 300 万竞价额等补丁和实发有出入（教训 26：6 只）",
    "confidence": "高"
   },
   {
    "line": "morning",
-   "claim": "rules 没列「高开归一」，在线却有 1004 行以它剔除；原因表合计 19269 ≠ 19713，444 行无归因",
-   "evidence": "rules.hard_rejects_in_order 九条无高开归一，CLAUDE.md 称 08-24 起 gap_norm 不参与筛选；rejected_by_reason「高开归一 超出区间」n=1004；八类合计 19269；标签数字被吃掉（「竞价额 万不足 万」「尾盘跳水 pct」）",
-   "magnitude": "1004 行 = 剔除的 5.1%（59 只/天）；444 行 2.3% 无原因",
+   "claim": "剔除原因是当时存的旧标签，准入和分数却按现规则回放",
+   "evidence": "「高开归一 超出区间」1004 条（08-24 废掉的旧规则，接近当天池 1059−准入 37）；「其他/无原因」444 条；「竞价量能」两种写法；一字板 17 天 0 次，回填 0.5%",
+   "magnitude": "19713 条剔除里约 1448 条（7.3%）的原因不属于现规则；不影响准入和前 10，但按原因分析「差一点进准入」的票会归错类",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "回填与在线的超额水平差 1 个百分点以上，里面混着标签口径差，不能直接读",
+   "evidence": "回填 y 减「涨幅 2~5% 池」中位数且不缩尾，在线减全池中位数且按 q1/q99 缩尾；量比三档回填 +0.55~+0.73、在线 −0.28~−0.57",
+   "magnitude": "水平差 1.0~1.3 个百分点；量比斜率回填 +0.18 vs 在线 −0.28，符号相反，这里面多少是口径造成的，证据包拆不出来",
    "confidence": "中"
   },
   {
    "line": "breakout",
-   "claim": "特征筛选记录 87→34 和实际模型 45 个特征对不上，10 个「已剔除」特征在模型里，含重要性第一",
-   "evidence": "importance 里 mkt_ret5__mean(0.165)、mkt_ret5__last、gdhs_chg3__mean、rs60__last、chip_dev__mean 在 ic_unstable 名单；turn_std20__last、ma_align__mean 标为共线被剔，被留的 __mean/__last 反而不在模型里；vol_ratio5__last、chip_peak__slope、ma20_slope5__slope 在 ic_too_weak",
-   "magnitude": "10/45 个特征，合计增益份额 0.367；重要性第一的 mkt_ret5__mean 标 flip 0.48",
-   "confidence": "高"
-  },
-  {
-   "line": "breakout",
-   "claim": "板块系数把验证集命中 2.7% 的科创板乘 1.27，创业板乘 0.59 后 783 个验证名额和 20 个生产名额里一个都没有",
-   "evidence": "board_adj star 1.27 / chinext 0.59 / main 1.19 / bj 0.9；validation_w5.by_board star 4/150（Wilson 1.0%~6.7%）、main 86/520（13.6%~20.0%）、bj 9/113，无 chinext 档；生产 09-07 清单 star 5/10，09-16 star 3/10，chinext 0/20",
-   "magnitude": "去掉 star 验证命中率 12.6% → 15.0%（95/633），名额 3.78 → 3.06 只/天；star 占名额 19.2% 只贡献 4% 命中",
-   "confidence": "高"
-  },
-  {
-   "line": "breakout",
-   "claim": "生产 8 份清单全部封顶 10 只（门槛从没卡住），验证集平均 3.8 只/天、31/207 天空榜，邮件期望 12.6% 不是在封顶规则下算的",
-   "evidence": "lists 8×n=10；09-16 另有 3 只被风险剔除，当天 ≥13 只过 97 分；walk_forward_w5 ≥1天 per_day 3.78、empty 31；regime 组增益 0.418，市场级特征让全市场分数同涨同落，入围数随行情整体漂",
-   "magnitude": "8/8 天封顶 vs 验证均值 3.8/天；验证集没按当日入围数分档，封顶日命中率未知",
-   "confidence": "高"
-  },
-  {
-   "line": "breakout",
-   "claim": "清单之间高度重叠，命中不独立：688137 连上 7 份，4 份清单的 max_rise 是同一只票",
-   "evidence": "stock-lists 688137 09-08~09-16 streak 1→7；lists 09-08/09/10/11 的 max_rise 0.2569/0.2456/0.2810/0.3945 与它的 rise 逐位相同；连续天数跨 09-15 重训没重置，和实发清单一致",
-   "magnitude": "一只票最多被计 7 次；按名额算的每份 Wilson 区间偏窄，8 份合并时更严重",
-   "confidence": "高"
-  },
-  {
-   "line": "breakout",
-   "claim": "起涨预测目前没有可判的差距：0 份满 20 根，按第 7 根对照 09-07 清单与验证集同步，基准窗口也对得上",
-   "evidence": "09-07 清单第 7 根 10 只涨幅均值 13.4%、≥15% 4/10、≥25% 2/10；验证集 bar7 均值 15.8%、≥15% 37%、≥25% 21.7%(170/783)；base_sofar 9/5507 与当日代码数 5507 一致；bars 7/6/5/4/3/2/1/0 与交易日历一致",
-   "magnitude": "均值差 −2.4 pt（n=10，单份 SE 约 3 pt）",
+   "claim": "起涨清单不全是实发：前 5 份是上线前补算的，09-16 是试跑重算的",
+   "evidence": "起涨预测 09-12 上线，09-07 那份连续天数全为 1；run_meta.dry=true，模型日期 09-17（北京日期）；09-16 近岸蛋白连续 7 天是旧规则清单累计出来的",
+   "magnitude": "8 份里 6 份受影响；09-10 之前不可能出现连续≥4 天，按连续档分组时前 3~4 份会系统性落在低档",
    "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "补数据那段单位没断，但流通股本沿用旧值，代码数只减不增",
+   "evidence": "688137/300308 自 09-14 起成交额取整到万，均价落在最高最低价之间；09-14 换手 0.1302748972=9108489/69917453，是用沿用的股本算的；代码数 5515→5502",
+   "magnitude": "单位没问题；沿用股本目前只影响 3 根 K 线，股本有变动的票换手会逐日漂（turn_pct__mean 增益 9.8%，排第 3）；新股没进表是推测",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "日线表早期有 96 个薄日，最少只有 37 只，市场环境特征在这些天上样本太小",
+   "evidence": "codes_per_day 最少 37 只（2023-01-03），thin_days=96；市场环境组增益占 44.3%，mkt_ret5__mean 单项 14.4% 排第一",
+   "magnitude": "薄日阈值和日期分布证据包没给；估计行数占比很小，影响大小未知",
+   "confidence": "低"
+  },
+  {
+   "line": "morning",
+   "claim": "两处看着像数据错，复算后是真的：60 日位置接近 0、竞价价=日线开盘",
+   "evidence": "08-27 中际旭创位置 0.0091=(850.9−846.0)/(1382.33−846.0)，和日线逐位对上；688137 在 09-14/15 由高开复算出开盘 65.33/80.61、开盘到收盘 −4.35%，和日线一致",
+   "magnitude": "抽查 3 个票日，排除「除权导致位置失真」和「竞价价≠开盘价」两个假设",
+   "confidence": "高"
   }
  ],
  "proposals": [
   {
    "kind": "process",
-   "line": "morning",
-   "target": "参数自学的裁决记录（eval_daily --stage learn / learn/gate 出口）",
-   "change": "每条裁决加 train_fingerprint（行数+日期范围+文件 hash）和 objective_fingerprint（vscore.py+objective.py+config.learning hash）；两指纹与上次相同就复用上次裁决并标「未重跑」；代码指纹变了当天把旧 θ⁰ 在新代码上重评一次，新旧 Ĝ_oos 并排记",
-   "rationale": "09-04~14 七次裁决逐位相同（n_days=404 不变），面板当 7 次否决展示；09-15 Ĝ_oos 0.186→0.108 同时叠了数据和口径两个变动，现在无法归因",
-   "expected_effect": "面板 7 条一样的裁决合成 1 条；Ĝ_oos 跳变能拆成数据/代码两部分",
-   "test_plan": "人工实现；selftest_learn 加断言裁决记录含两个指纹；重放 09-14→09-15 看 −42% 归到哪一边",
-   "priority": "P1",
-   "params": {}
-  },
-  {
-   "kind": "data_fix",
-   "line": "morning",
-   "target": "真值/证据包的 top_excess_pct、admitted_excess_pct",
-   "change": "新增 top_excess_raw_pct = mean(r − 当日中位数) 不缩尾，面板和会诊证据默认展示 raw，缩尾 y 只留给学习目标；同时用 300607@09-10 raw=−10.55% 钉住",
-   "rationale": "缩尾按全池 q1/q99 截，前10 集中在尾部：09-10 有 2 只、09-11 有 3 只被截，坏日亏损被少报 0.23~0.34 pt/天",
-   "expected_effect": "09-10 前10超额 −1.72→约 −2.06，09-11 −5.83→约 −6.06；17 天均值预计再低 0.05~0.1 pt",
-   "test_plan": "人工实现 + 自测用例；对 17 天逐日算 raw 与缩尾差，报最大差",
-   "priority": "P1",
-   "params": {}
-  },
-  {
-   "kind": "data_fix",
    "line": "breakout",
-   "target": "breakout/fselect.py 到 build/model 的接线与模型元数据",
-   "change": "训练前断言模型输入列 == fselect 保留列（或明确记录「筛选仅诊断」并在面板写明）；model 元数据保存最终特征名单；selftest_breakout 加「importance 全部在保留集内」",
-   "rationale": "筛选记录 87→34 但模型 45 列，10 个被标为剔除的特征在模型里（含 mkt_ret5__mean 0.165 增益、flip 0.48），别的视角据此提的 feature_drop 会打空",
-   "expected_effect": "n_feats 与筛选一致（34）或面板说明来源；34 特征版逐月滚动测试命中率对比 45 版（12.6%±1.2）",
-   "test_plan": "逐月滚动测试：45 vs 34 特征各跑一遍 W5，看命中率、每天名额数、by_board",
-   "priority": "P1",
-   "params": {}
-  },
-  {
-   "kind": "param",
-   "line": "breakout",
-   "target": "board_adj（BOARD_ADJ 板块系数）",
-   "change": "先做消融：star 1.27→1.0、chinext 0.59→1.0 各跑一遍逐月滚动测试；若 star 命中仍 <5% 则对科创板单独设门槛或从清单 A 剔除",
-   "rationale": "验证集 star 4/150（1.0%~6.7%）vs main 86/520（13.6%~20.0%）区间不交；chinext 被乘 0.59 后 783+20 个名额里 0 个；系数方向和验证结果相反",
-   "expected_effect": "验证集整体命中率 12.6% → ≥14%（仅去 star 即 15.0%）；创业板开始出现在名额里；名额数每天少约 0.7",
-   "test_plan": "消融 + W5 by_board 各档 n≥50 报 Wilson 区间；封存数据复核",
-   "priority": "P1",
+   "target": "breakout/truth.py 清单真值记录，以及 by.board / by.streak 分组",
+   "change": "每份清单的真值记录带上规则指纹（board_adj、SCORE_MIN、CAP_A、模型指纹、dry、是否实发），命中率按指纹分组；09-07~09-15 七份（科创 1.27）不并入新规则统计，对照旧规则那次 window_grid",
+   "rationale": "7/8 份清单按科创 1.27 出（09-07 科创 5/10，09-15 6/10），期望按 1.0 算（验证集科创席位 6.5%，命中 1/37）；真值记录没有规则字段，教训 35 会在真值这一侧重演",
+   "expected_effect": "首批清单约 10-12 走满 20 根时，对照的是同规则的期望，避免 4~6 个百分点的假落差",
+   "test_plan": "自测：构造两份 board_adj 不同的假清单，断言 by.board / by.streak 不混算；lists 输出里 09-07~09-15 的 board_adj.star=1.27",
+   "priority": "P0",
    "params": {
-    "board_adj.star": 1,
-    "board_adj.chinext": 1
+    "truth_fields": [
+     "board_adj",
+     "score_min",
+     "cap_a",
+     "model_fingerprint",
+     "dry",
+     "sent"
+    ],
+    "group_by": "rule_fingerprint"
    }
   },
   {
    "kind": "process",
    "line": "breakout",
-   "target": "breakout/validate.py 的 W5 验收表 + export 邮件期望表",
-   "change": "W5 按当日入围数分档（1~3 / 4~9 / ≥10 封顶）各算命中率和 Wilson 区间，邮件印与当天档位匹配的数；验证名额按公告日回溯应用生产的风险剔除（ST/减持/解禁/增发），过滤前后两组数都报",
-   "rationale": "生产 8/8 天封顶 10 只而验证均值 3.8/天，12.6% 是混合后的数；风险剔除验证没做生产做了，方向未知",
-   "expected_effect": "得到封顶日专属命中率；风险剔除前后差即口径偏差的大小",
-   "test_plan": "跑 validate 看各档 n≥30；对比封顶档与 12.6% 是否在区间内",
+   "target": "run_meta 历史 / 清单期望 / picks.score",
+   "change": "每天把 n_qualified 和是否满员落进能回查的历史（现在只有最新一份 run_meta）；满员日的清单对照 cap_perf.full_cap（8.4%）和同日 base20；picks 另存未取整的分数（两位小数）",
+   "rationale": "8/8 天满员，验证集只有 19/207 天；满员日准确率 8.4%（190 名额）vs 非满员 18.4%（376）；30 个名额 25 个恰为 97 分，按分数段分析没有分辨率",
+   "expected_effect": "满员期的期望从 15.0% 改成 8.4%；满员天占比能监控；by.score 分档有分辨率",
+   "test_plan": "回看 20 个交易日的满员占比；首批清单走满后，看命中率落不落在 8.4% 的 Wilson 区间里；自测断言 score 等于 score_raw 取整",
    "priority": "P1",
-   "params": {}
+   "params": {
+    "log_fields": [
+     "n_qualified",
+     "full_cap"
+    ],
+    "expected_hit_pct_when_full_cap": 8.4,
+    "score_raw_decimals": 2
+   }
   },
   {
    "kind": "data_fix",
-   "line": "both",
-   "target": "会诊证据包生成器（dims / latest_list_feats / rejected_by_reason / regimes）",
-   "change": "维度三分位改 rank(method=first) 并附并列比例；latest_list_feats 说明改「中性化正交后残差」；剔除原因表补「其他/无原因」行并保留阈值数字、加断言合计==n_rejected；归因 causes 空时留空不填默认值",
-   "rationale": "continuity n_high=451 等于全部、position/sector 超 1/3；特征注为 0~1 却有 −0.48；原因表差 444 行；causes 四天完全一样含正常日",
-   "expected_effect": "维度 spread 可比；原因表合计对齐；归因字段有信息量",
-   "test_plan": "selftest_learn 会诊用例加断言 n_high、n_low ≤ n/3+并列数，原因合计==n_rejected",
+   "line": "morning",
+   "target": "08-24 在线快照 + 回放时的剔除原因",
+   "change": "用 cache/sector_map.parquet 给 08-24 补板块，重算 sector_members、量比列和分数；回放时按现规则重算剔除原因，断言回放判剔除的行原因非空；某天未分类占比 >50% 时，板块维记为评估不了",
+   "rationale": "08-24 抽查的行全是未分类、members=0，量比分档少的 37 行正好是当天准入数；剔除原因里有废规则「高开归一」1004 条、「其他/无原因」444 条",
+   "expected_effect": "rejected_by_reason 里的高开归一、其他/无原因归零；量比分档合计等于准入数 451、n_days=17；dims.sector 里少一个全是平局的天",
+   "test_plan": "重出证据包核对这三项计数；对比补之前和补之后 dims.sector 的 spread 和 t；selftest_learn 加一条「回放剔除行必有原因」断言",
+   "priority": "P1",
+   "params": {
+    "date": "2026-08-24",
+    "refill_sector_from": "cache/sector_map.parquet",
+    "assert_reason_nonempty": true,
+    "unclassified_share_max": 0.5
+   }
+  },
+  {
+   "kind": "data_fix",
+   "line": "morning",
+   "target": "回填训练表的 auc_amount 和准入判定",
+   "change": "用重叠日（08-25~09-02 六个在线日；08-24 是旧代码日，不用）逐只算「在线竞价额 / 回填竞价额」，按成交额分档给回填竞价额打折，再判准入",
+   "rationale": "回填日均准入约 42.8，在线 26.5；量比 7~10 档占比 23.5% vs 14.7%；回填竞价额中位数高 22%、量比高 33%。钉死量能权重只管打分，管不到准入集合",
+   "expected_effect": "重叠日上两边准入集合 Jaccard ≥0.8，日均准入之比落在 0.85~1.15；回填量比 7~10 档占比从 23.5% 往 14.7% 靠",
+   "test_plan": "只重建早盘训练表，selftest_train 加一条重叠日 Jaccard 断言；参数自学闸门重跑，看「样本外改善」和「按天自助显著」两道的结论变不变",
+   "priority": "P1",
+   "params": {
+    "calib_days": [
+     "2026-08-25",
+     "2026-08-26",
+     "2026-08-27",
+     "2026-08-31",
+     "2026-09-01",
+     "2026-09-02"
+    ],
+    "jaccard_min": 0.8,
+    "admitted_ratio_band": [
+     0.85,
+     1.15
+    ]
+   }
+  },
+  {
+   "kind": "data_fix",
+   "line": "morning",
+   "target": "backfill_vs_online 对照表的 y（训练标签如果同源，一并改）",
+   "change": "回填 y 和在线 y 走同一份实现：同一个基准（全池中位数）、同一种缩尾（q1/q99）",
+   "rationale": "对照表里回填 y 减「涨幅 2~5% 池」中位数且不缩尾，在线减全池中位数且缩尾；三档水平差 1.0~1.3 个百分点、斜率符号相反，分不清是口径造成的还是真有差异",
+   "expected_effect": "重叠日同一票同一天的 y 相关 ≥0.99、均差 <0.05 个百分点；分档水平可以直接比",
+   "test_plan": "重叠日逐行对账；selftest_train 加 AST 断言，y 只有一处实现",
    "priority": "P2",
-   "params": {}
+   "params": {
+    "benchmark": "pool_median",
+    "winsor_q": [
+     0.01,
+     0.99
+    ]
+   }
+  },
+  {
+   "kind": "data_fix",
+   "line": "breakout",
+   "target": "breakout/backfill.py --stage update + 训练日筛选",
+   "change": "补数据那段用快照 index 38 的换手反推流通股本，和沿用的股本差 >5% 就更新；codes.csv 里新增的代码补进日线表；训练时剔除代码数 <2000 的薄日",
+   "rationale": "09-14 起补数据段的换手=成交量/沿用股本（688137：9108489/69917453），不是快照里的换手；turn_pct__mean 增益排第 3；代码数 5515→5502；最早的薄日只有 37 只",
+   "expected_effect": "换手对账偏差 >5% 的票数归零；每日代码数跟着 codes.csv 走；剔除薄日后逐月滚动 W5 成绩变化 <1 个百分点，就确认影响小",
+   "test_plan": "data_health 加「换手对账偏差」「codes.csv 覆盖率」两项；exp_window --refit 对比剔除薄日前后的成绩",
+   "priority": "P2",
+   "params": {
+    "float_check_tol": 0.05,
+    "min_codes_per_day": 2000,
+    "add_new_listings": true
+   }
   }
  ],
  "questions": [
-  "「高开归一 超出区间」1004 行是哪条代码打的？rules 没列它，CLAUDE.md 说 08-24 起 gap_norm 不参与筛选",
-  "起涨训练窗口是否包含 2023-01~05 的 96 个薄日（最少 37 只）？薄日横截面百分位的行在训练集占多少",
-  "早盘每行的 dirty 标记（开盘价 vs 竞价价不一致）17 天里有多少行为真？证据包没汇总",
-  "run_meta.pool=41 是当天 ≥97 分只数还是 A 池累计只数？验证集 207 天里入围 ≥10 只的天数有多少",
-  "验证集 783 个名额里有多少会被生产的风险剔除（ST/减持/解禁/增发）拦掉，它们的命中率是多少"
+  "在线全池 pos_pct_60d 中位数恰好是 0.5000（回填 0.6453），是不是缺日线时填了 0.5？需要按天给出 pos_pct_60d==0.5 的行数占比。",
+  "09-16 真发出去的起涨清单是哪一版（state/sent/breakout_2026-09-16.json 里的名单）？和 lists 里跟踪的试跑名单是不是同一批？",
+  "证据包 backfill_y_note 描述的是对照表的算法还是训练标签？训练里回填 y 和在线 y 是不是同一份实现（基准池、缩尾）？",
+  "验证集 19 个满员日分布在哪几个月、当时 base20 是多少？8.4% 能不能直接当作现在这段满员期的期望？",
+  "thin_days 的阈值是多少、分布在哪些日期？这些天进没进逐月滚动测试的训练窗，市场环境特征是不是也在这些天上算？"
  ],
  "_meta": {
   "lens": "data_quality",
   "model": "claude-opus-5",
   "effort": "max",
-  "seconds": 783.2,
-  "turns": 21,
-  "cost_usd": 3.577582,
-  "n_tool_calls": 20,
-  "denials": 2,
+  "seconds": 842.5,
+  "turns": 22,
+  "cost_usd": 4.7641095,
+  "n_tool_calls": 21,
+  "denials": 1,
   "error": ""
  }
 }

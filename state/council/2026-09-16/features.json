@@ -1,198 +1,164 @@
 {
  "lens": "features",
- "summary": "起涨预测：日级序列 mkt_ret5 三个变换占 38.6% 增益，只定当天出几只、定不了出谁，翻转率 0.30~0.48 疑为时期指纹；筛选记录（87→34）不是生产模型（102→45）那次，≥10 个「已丢弃」特征在模型里；科创板加成 1.27 但验证命中 2.7%（n=150）≈基准，创业板 0/783。早盘：17 天六个维度价差都在噪声内，只有突破平台接近显著（−1.75pp，n=87）；回填 auc_ratio 比在线高 41~95%，参数自学学的量能口径不是生产的。",
+ "summary": "起涨预测：日内同值的环境4列占增益40.8%，经全局分位数主要决定当天几只过97分；验证集满员日命中8.4%、非满员18.4%，生产8份清单全满。最新清单10只全是高换手、宽布林、强势票，选的是已在动的票而非压缩。x_light_top与chip_win逐位镜像，共线筛漏判。早盘：突破平台差−1.19个百分点，多重比较后不成立；gap/volume为负但只有17天。",
  "findings": [
   {
    "line": "breakout",
-   "claim": "mkt_ret5 三个变换占 38.6% 增益，日级常量只定当天出几只、定不了出谁",
-   "evidence": "importance：mkt_ret5__mean 16.5% / __slope 12.1% / __last 10.1%；不出现在逐只特征分位表（同日同值）；W5 207 天里连续≥1 天 31 天空榜、≥2 天 99 天空榜",
-   "magnitude": "38.6% 增益 vs 最强个股特征 turn_pct__mean 10.2%；空榜 31/207 与 99/207 天",
-   "confidence": "高"
-  },
-  {
-   "line": "breakout",
-   "claim": "mkt_ret5 月度相关性方向最不稳定，更像时期指纹而非可复用的市场状态",
-   "evidence": "旧筛选记录：__mean flip 0.48 / ic −0.012，__last flip 0.43；保留的 __slope ic 0.018 / flip 0.30；对照 turn_pct__mean ic 0.063 / flip 0.04、chip_win 0.09、above_ma60 0.13",
-   "magnitude": "翻转率 0.30~0.48（约 36 个月），验证 207 个交易日；「按周记忆基准率」的机制是推测",
+   "claim": "x_light_top 是 chip_win 的负镜像，两列都过了共线筛，筛子疑似不看负相关",
+   "evidence": "09-16 清单 10/10 只 x_light_top__last+chip_win__last=0.000；筛选 102→51 有 26 列因共线被丢；chip_peak__last 与 chip_win 也强负相关但不全等",
+   "magnitude": "两列增益合计 0.87%，两个 slope 另 0.10%；只核到 10 行",
    "confidence": "中"
   },
   {
    "line": "breakout",
-   "claim": "证据包的特征筛选记录不是生产模型那一次，特征级审计目前无据可依",
-   "evidence": "记录 87→34，模型 102→45；模型含记录判「丢弃」的 mkt_ret5__mean/__last、gdhs_chg3__mean、rs60__last、turn_std20__last 等 ≥10 个；amt_ma20 等成交量组不在记录里；gdhs_stale_days ic 恰为 0.0 是修复前状态",
-   "magnitude": "≥10/45 个模型特征与记录矛盾，合计约 37% 增益",
+   "claim": "环境组 44.3% 里 40.8% 是日内同值的 4 列，mkt_ret5 一条序列的三个变换就占 31.2%",
+   "evidence": "逐项加总：mkt_ret5 __mean 14.41 / __last 8.89 / __slope 7.93，mkt_breadth 9.55；rs60/rs20/rs_accel 五列 3.55 被归进环境组，恰好补足 44.33",
+   "magnitude": "40.8% 增益在同一天所有票上同值；51 列入模",
    "confidence": "高"
   },
   {
    "line": "breakout",
-   "claim": "科创板加成 1.27 却零提升，创业板系数 0.59 实际是整板排除",
-   "evidence": "验证 783 只：main 86/520=16.5% [13.6,20.0]、bj 9/113=8.0% [4.2,14.4]、star 4/150=2.7% [1.0,6.7]，基准 2.93%；chinext 0/783；09-16 清单 3/10 是科创（688137/688004/688046）",
-   "magnitude": "star 比 main 低 13.8pp，Wilson 区间不重叠；star 占名额 19.2%",
-   "confidence": "高"
-  },
-  {
-   "line": "breakout",
-   "claim": "入选票在头部个股特征上不极端，一致的是「已远离 52 周低点」的中途上车",
-   "evidence": "09-16 清单 8 只：turn_pct__mean −0.01~0.48、above_ma60__mean 0.04~0.58 分散；dist_52w_low__last 8/8 ≥0.20，chip_peak__last 7/8 ≤ −0.35；验证集名额第 3 根已平均涨 10.1%、第 5 根 13.4%（n=783）",
-   "magnitude": "8/8 与 7/8 同向；过 97 分与否主要由日级特征决定",
+   "claim": "满员日命中只有非满员一半，生产天天满员；推测是环境特征整体抬分，门在最乐观时最不准",
+   "evidence": "分数是预测值的全局分位（不是当日排名）；验证满员日 8.4%（190 席/19 天）vs 非满员 18.4%（376 席/126 天）；生产 8 份清单全满 10 只，09-16 够格 19 只",
+   "magnitude": "−10.0 个百分点；满员日占验证 19/207 天（9.2%），生产 8/8；未按天聚类，19 天可能集中在几段行情",
    "confidence": "中"
   },
   {
    "line": "breakout",
-   "claim": "三个已知数据问题对当前模型影响都小，薄截面那条相对最大",
-   "evidence": "最新清单 NaN 特征 0 个、筹码组合计增益 7.4%；均线暖机填 0 经当日排名落在中位、只波及上市<60 天的票；薄日 96 天、最少 37 只（2023-01-03），日级 mkt_* 在这些天算错而它们是头部特征",
-   "magnitude": "筹码 7.4%、均线组约 10%、薄日 96/约 900 天",
+   "claim": "清单画像是高换手、宽布林、高波动的强势票，模型主要吃 >50% 标签对波动的偏好，不是在找压缩",
+   "evidence": "09-16 10/10 只为正：turn_pct__mean +0.30~0.60、boll_width__last +0.33~0.56、rs20 +0.43~0.57、dist_52w_low +0.36~0.49；压缩组增益仅 6.6%",
+   "magnitude": "换手、布林宽、ATR 这类波动/活跃代理合计增益 18.0%；验证名额第 3 根已涨≥15% 的占 25.8%",
    "confidence": "中"
   },
   {
    "line": "breakout",
-   "claim": "turn_pct__mean 是唯一高增益且高稳定的特征；新加成交量组里 vol_ratio 几乎无用",
-   "evidence": "turn_pct__mean 增益 10.2%、ic 0.063、flip 0.04；成交量组合计 7.0%：amt_ma20 6.0%、up_vol_share20 0.66%、vol_ratio20 0.33%、vol_ratio5 0.24%",
-   "magnitude": "vol_ratio5+vol_ratio20 合计 0.57% 增益",
-   "confidence": "高"
+   "claim": "新加的成交量组只拿 3.4%，量的信息早由结构组里的换手率（12.1%）带进模型",
+   "evidence": "结构组 19.2% = 换手 turn_pct/turn_std20 12.05 + 筹码 8 列 7.00 + vol_ratio5 0.10；成交量组 = amt_ma20 2.61 + up_vol_share20 0.57 + vol_ratio20 0.25",
+   "magnitude": "3.43% vs 12.05%；vol_ratio5 两列合计 0.10%",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "筹码网格越界今天清单没踩到；训练里 NaN 恰落在涨出网格的票上，缺失方向可能在替代「创新高」",
+   "evidence": "latest_list_nan_feats 为空；筹码 8 列增益 7.00%，含筹码的交叉列另 1.04%；NaN 行占比和 NaN 行命中率证据包里没有",
+   "magnitude": "受影响增益上限约 8.0%；今日清单 0 列 NaN",
+   "confidence": "低"
+  },
+  {
+   "line": "breakout",
+   "claim": "风险剔除不排次新，均线暖机填 0 让次新票在第 2 大特征上显得平均；薄日的环境特征按几十只票算",
+   "evidence": "风险剔除只有 ST/减持/解禁/增发；above_ma60__last 增益 10.3% 排第 2；薄日 96 天、最少 37 只（2023-01-03）",
+   "magnitude": "above_ma60 10.3%、环境 4 列 40.8% 受波及；96 天约占 3.7 年交易日的 11%，行数占比未知",
+   "confidence": "低"
   },
   {
    "line": "morning",
-   "claim": "量能维度权重最大（0.25），但在线和回填都没有「量越大越好」的证据",
-   "evidence": "在线高 1/3 −0.48 vs 低 1/3 +0.45（n=151/151）；按量比 2.5-4 +0.19(185) / 4-7 −0.51(168) / 7-10 −0.75(61)；回填 404 天 0.64/0.69/0.59（n=4916/7277/3811）平坦",
-   "magnitude": "在线价差 −0.92pp ≈ 1.2~1.6 个标准误；回填三档差 <0.11pp",
-   "confidence": "中"
-  },
-  {
-   "line": "morning",
-   "claim": "回填的量能和稳步抬升与在线不是同一口径，参数自学对这两维学的是别的东西",
-   "evidence": "auc_ratio 中位 0.0086 vs 0.0061（+41%）、均值 0.0222 vs 0.0114（+95%）；monotonic 70.3% vs 37.6%；训练 414 天里 397 天是回填；最近意图 volume 权重 0.25→0.259、score_hi 0.03→0.0275",
-   "magnitude": "量能尺度差 41~95%，连续性标记率差 33pp",
-   "confidence": "高"
-  },
-  {
-   "line": "morning",
-   "claim": "突破平台标记的票更差，是四个二值特征里唯一接近显著的",
-   "evidence": "是 n=87 超额 −1.58 vs 否 n=364 +0.17；昨日涨停 −1.02 vs −0.05（52/399）1.2 个标准误；均线多头无差；稳步抬升 +0.06 vs −0.51（275/176）1.1 个标准误；回填 breakout 率 6.0% vs 在线 2.9%",
-   "magnitude": "−1.75pp，2.1~2.9 个标准误（单只 y 标准差按 5~7pp 估），4 项校正后 p≈0.03~0.14",
+   "claim": "突破平台是 10 个检验里唯一 |t|>2 的，多重比较校正后不成立，回填和在线标记率也对不上",
+   "evidence": "是 −1.672（n=87）否 −0.222（n=364），按天 se 0.459，16 天，t=−2.58，双侧 p≈0.02；六维+四标志 Holm 校正 p≈0.2；标记率回填 4.1% vs 在线 2.9%",
+   "magnitude": "−1.19 个百分点/天，16 天",
    "confidence": "中"
   },
   {
    "line": "morning",
-   "claim": "17 天里六个维度的价差都在噪声内，只能看方向不能排座次",
-   "evidence": "gap +0.40、trend +0.68、volume −0.92、position −0.44、sector −0.28、continuity −0.11（各 1/3 约 150 只，价差标准误约 0.6~0.8pp）；A 组 −0.38(327) vs B 组 +0.39(124)",
-   "magnitude": "全部 |价差| ≤ 1.6 个标准误",
+   "claim": "gap 维在线为负，但撮合价修正后的 414 天不支持下调峰值，按噪声处理",
+   "evidence": "在线分档 2-3 −0.08 / 3-4 −0.84 / 4-5 −0.85，spread −0.674（t=−1.25）；峰值 3.5→3.3 连同板块权重，样本外 +0.0135→+0.0067 变差",
+   "magnitude": "−0.67 个百分点/天，t=−1.25，17 天",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "权重最大的量能维（0.25）没有干净验证源：回填量能被 09:30 后成交污染，在线 17 天方向为负",
+   "evidence": "在线量比分档 −0.28/−0.37/−0.57，spread −0.754（t=−1.33）；回填 +0.55/+0.71/+0.73 递增，但回填竞价额中位高 22%、量能比中位高 33%",
+   "magnitude": "−0.75 个百分点/天，se 0.566，17 天",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "连续性维 88.5% 的票同值，对这些票 5% 权重只是常数平移，只影响谁过 45 分线",
+   "evidence": "continuity top_value_share 0.885、不可评；sector 也有 38.8% 同值；发榜按分数≥45 截断，常数项会改变每天发出只数",
+   "magnitude": "5% 权重，88.5% 同值",
    "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "回填位置分布整体偏高 0.145，B 组（位置≤0.4）在回填里偏少，而位置维权重主要由回填定",
+   "evidence": "全池 pos_pct_60d 中位回填 0.645 vs 在线 0.500，均线多头 48.1% vs 41.3%；在线位置维 spread +0.011（t=0.02）；09-16 过准入 12 只无 0.5 堆积",
+   "magnitude": "中位差 0.145；回填 404 天 / 在线 17 天",
+   "confidence": "低"
   }
  ],
  "proposals": [
   {
-   "kind": "process",
-   "line": "breakout",
-   "target": "breakout.model.feature_select / feature-ic 证据块",
-   "change": "证据生成时读与模型指纹（482b519d）配套的那次筛选记录；断言 start 等于模型输入列数（102）、importance 里的特征全在保留集，否则面板标红",
-   "rationale": "现记录 87→34 与模型 102→45 矛盾，≥10 个记录判「丢弃」的特征占模型约 37% 增益，gdhs_stale_days ic 恰为 0 说明是修复前的记录；筛选与月度相关性稳定性是特征体检的全部依据",
-   "expected_effect": "下次会诊能对生产模型做特征级审计；指标：记录 start=102、矛盾特征数=0",
-   "test_plan": "重跑 evidence，对照 importance 与 kept 集合；selftest_learn 加一条一致性断言",
-   "priority": "P0",
-   "params": {
-    "assert": {
-     "feature_select.start": 102,
-     "importance_subset_of_kept": true
-    }
-   }
-  },
-  {
    "kind": "feature_drop",
    "line": "breakout",
-   "target": "mkt_ret5__mean, mkt_ret5__last",
-   "change": "消融这两个变换，只留 mkt_ret5__slope；第二阶段三个全去",
-   "rationale": "三者是同一日级序列的变换，合计 38.6% 增益但翻转率 0.43~0.48；日级连续特征让树按周记忆基准率（2024-10 那类密集起涨周），样本外不可复用；同日所有票同值，去掉不影响排序，只影响过 97 分的只数",
-   "expected_effect": "W5 连续≥1 天命中保持 12.6%±1.2（不低于 11.4%）、连续≥2 天空榜从 99/207 减少、逐月命中率标准差下降；若命中掉到 10% 以下则市场状态门是真的，撤回",
-   "test_plan": "逐月滚动测试 W5 全五档 + 按月命中率标准差；封存数据只看一次",
-   "priority": "P0",
+   "target": "x_light_top__last, x_light_top__slope",
+   "change": "两列移出入模集合；同时核对特征筛选的共线判据是否用 |ρ|，改成 |ρ| 后另被丢的列一并列出",
+   "rationale": "10/10 只与 chip_win 逐位互为相反数。镜像列不给新切分点，只在列抽样时让同一因子被抽两次、把重要性拆成两份；它能过共线筛，说明判据可能不看负相关，别的反向对也会漏",
+   "expected_effect": "逐月滚动测试 W5 连续≥1 天命中 15.0% 变化在 ±1.5 个百分点内；入模 51→49 列",
+   "test_plan": "先在全训练表算两列 Spearman，确认 ≤−0.99；消融重训跑 W5 五档，断言入模列数确实变了且成绩不是逐位相同（教训 32）；封存数据只看一次",
+   "priority": "P1",
    "params": {
     "features": [
-     "mkt_ret5__mean",
-     "mkt_ret5__last"
+     "x_light_top__last",
+     "x_light_top__slope"
     ]
    }
   },
   {
    "kind": "feature_modify",
    "line": "breakout",
-   "target": "BOARD_ADJ.star",
-   "change": "1.27 → 0.9（与北交所同档）；同时用 W5 影子统计 chinext 系数 1.0 时的命中率，不改生产",
-   "rationale": "验证 150 只科创名额命中 2.7% [1.0,6.7]，与基准 2.93% 无异，却拿最大加成；main 16.5% [13.6,20.0]；创业板 0/783 名额说明 0.59 已是排除而非校准",
-   "expected_effect": "科创占名额从 19.2% 降到 10% 以下，W5 连续≥1 天命中 12.6% → 14~15%（去掉全部科创名额即 95/633=15.0%）",
-   "test_plan": "W5 按板块重跑；main 命中不降、总命中升 ≥1.5pp 才落地",
+   "target": "市场环境 4 列（mkt_ret5__mean/__last/__slope、mkt_breadth__last）与清单 A 的选票口径",
+   "change": "排序模型去掉这 4 列（rs* 保留），清单 A 改按当日预测值排名取前 10；4 列另拟合日级模型（目标：当日前 10 命中率或滚动 base20），只决定当天出几只或弃权",
+   "rationale": "4 列占增益 40.8% 但同日同值，经全局分位数主要改变过 97 分的只数。验证满员日命中 8.4%（190 席/19 天）对非满员 18.4%，生产 8/8 满员。和 0267b9 只删两列不同，这里把「出几只」和「选谁」拆开",
+   "expected_effect": "W5 满员日命中 8.4%→≥12%，全体命中不低于 14%，按月命中标准差下降",
+   "test_plan": "逐月滚动测试三臂：现模型 / 去 4 列+日内排名 / 再加日级门；按满员与非满员、按月给命中和 Wilson 区间，标准误按天聚类；封存数据只看一次；批准后走教训 36 的整条流水",
    "priority": "P1",
    "params": {
-    "BOARD_ADJ.star": 0.9
+    "features": [
+     "mkt_ret5__mean",
+     "mkt_ret5__last",
+     "mkt_ret5__slope",
+     "mkt_breadth__last"
+    ],
+    "ranker": "within_day_rank",
+    "day_gate": true
    }
   },
   {
    "kind": "feature_add",
    "line": "breakout",
-   "target": "板块动量组（新）",
-   "change": "加两列：所属行业近 20 日收益的当日全市场排名；行业内近 5 日出现单日涨 ≥5% 的成员占比。用 cache/sector_map.parquet 成分，只用过去价格",
-   "rationale": "45 个特征没有一列带板块信息，换手/成交额类（turn_pct 10.2%、amt_ma20 6.0%、turn_std20 2.3%）在替它当「在风口」的代理；A 股 20 日涨 50% 的事件按题材成簇（早盘归因里已出现「板块轮动」），题材在位时落后成员补涨概率更高",
-   "expected_effect": "新列增益 ≥5%、W5 连续≥1 天命中 +1~2pp；副作用是清单板块集中度上升，要一并记录每份清单最大同行业只数",
-   "test_plan": "重训 + 逐月滚动测试 W5；成分表用当前版本，前视风险仅限成分变更，记为已知偏差",
-   "priority": "P1",
-   "params": {
-    "features": [
-     "sector_ret20_rank",
-     "sector_hot5_share"
-    ],
-    "source": "cache/sector_map.parquet + 日线"
-   }
-  },
-  {
-   "kind": "data_fix",
-   "line": "morning",
-   "target": "回填表 auc_ratio / monotonic 口径",
-   "change": "回填 auc_ratio 按日分位映射到在线分布（或重算代理），monotonic 在回填里标为缺失；修好前 auc_ratio_score_hi、auc_ratio_decay、weights.volume、weights.continuity 四个参数只用在线天数拟合",
-   "rationale": "回填 auc_ratio 比在线高 41%（中位）~95%（均值），monotonic 70% vs 38%；414 训练天里 397 天是回填，学习器最近意图把 volume 权重调高（0.25→0.259），与在线价差 −0.92pp 反向",
-   "expected_effect": "学习器对量能/连续性的意图方向与在线一致；指标：backfill_vs_online 里 auc_ratio 中位差 <10%",
-   "test_plan": "修完重跑 learn 阶段看意图和七道闸；用 2026-08-24 起 17 天在线快照做对照",
-   "priority": "P1",
-   "params": {
-    "online_only_params": [
-     "screen.auc_ratio_score_hi",
-     "screen.auc_ratio_decay",
-     "scoring.weights.volume",
-     "scoring.weights.continuity"
-    ]
-   }
-  },
-  {
-   "kind": "feature_modify",
-   "line": "morning",
-   "target": "score.py 里「突破平台」加分（trend 维度）",
-   "change": "加分置 0 做消融，vscore 同步；若回填 404 天前 10 超额不降、在线升 ≥0.3pp/天则正式去掉",
-   "rationale": "在线 87 只标记票超额 −1.58 vs 364 只 +0.17，−1.75pp 约 2.1~2.9 个标准误；回填标记率 6.0% 是在线 2.9% 的两倍，定义可能也不同",
-   "expected_effect": "在线前 10 超额均值 −0.68pp/天 → 约 −0.4pp/天；若回填里该标记为正，则是这 17 天的行情而非特征错",
-   "test_plan": "vscore 消融：回填 404 天 + 在线 17 天各算前 10 超额与相关性；人工实现",
+   "target": "压缩组：布林宽度和 ATR 的自身历史口径",
+   "change": "新增 boll_width_own120、atr_ratio_own120（当前值在自身过去 120 根里的分位，只用 t 日及以前），再走三层变换；横截面口径保留",
+   "rationale": "压缩→起涨讲的是比自己平时更窄；横截面百分位测的是今天谁全市场最能波动，而 >50% 标签天然偏向高波动。今天 10 只布林宽度残差全为正，压缩组只占 6.6%，论点在模型里没有载体",
+   "expected_effect": "压缩组增益占比 6.6%→≥10%；W5 命中不低于 13.5%；清单布林宽度残差不再 10/10 为正",
+   "test_plan": "先做纯波动基线：当日按 turn_pct__mean+atr_ratio__last 排名取前 10、同风险剔除，跑 W5 看模型比它高几个百分点；再加列重训跑逐月滚动测试；若 range_compress/vol_compress 已是自身历史口径，先查它们为何只有 0.2%",
    "priority": "P2",
    "params": {
     "features": [
-     "breakout"
-    ]
+     "boll_width_own120",
+     "atr_ratio_own120"
+    ],
+    "window": 120,
+    "baseline": "turn_pct__mean+atr_ratio__last"
    }
   }
  ],
  "questions": [
-  "09-15 那次拟合是不是在股东户数改按公告日对齐之后？股东人数组从第 2 掉到第 4（9.7%）像修复后，但筛选记录是修复前的。",
-  "「薄日」阈值是多少，训练表剔除这 96 天了吗？mkt_ret5 / mkt_breadth 按当天有数据的票算还是按指数算？",
-  "BOARD_ADJ 四个系数怎么来的（训练集校准？），W5 验证里已乘上了吗？创业板 0/783 是否有意为之？",
-  "__mean / __slope / __last 的聚合窗口是几根？决定 mkt_ret5 三个变换的共线程度。",
-  "「突破平台」在早盘打分里进哪个维度、加多少分？"
+  "全训练表上 x_light_top 与 chip_win 的 Spearman 是否 ≈−1；筛选的共线判据用 ρ 还是 |ρ|；被丢 51 列的名单（证据包只有计数）；102 列候选里有没有未中性化的市值或股价列。另：feature-ic 对帮助里的示例 chip_conc90 也返回 {}，逐月相关性目前查不到",
+  "筹码网格越界的 NaN 占训练行多少、NaN 行命中率比非 NaN 高多少；above_ma60 暖机填 0 的行数（次新 + 2023 年初）及命中率；96 个薄日占训练行多少",
+  "生产 8 天每天够格几只（只知道 09-16 是 19 只）、当天 mkt_ret5 和 mkt_breadth 的值；验证集 19 个满员日是否集中在少数几段行情；range_compress/vol_compress 是不是自身历史口径",
+  "在线全池 pos_pct_60d 中位恰为 0.500，是否有默认填充值堆积（09-16 过准入 12 只里没有）；「突破平台」回填 4.1% vs 在线 2.9% 是否同一定义",
+  "有没有纯 09:25 竞价额的历史源（参数名和历史深度要实测，不凭记忆），能让量能维在回填上重新可学"
  ],
  "_meta": {
   "lens": "features",
   "model": "claude-opus-5",
   "effort": "max",
-  "seconds": 683.1,
-  "turns": 14,
-  "cost_usd": 2.8582055000000004,
-  "n_tool_calls": 13,
-  "denials": 2,
+  "seconds": 1156.9,
+  "turns": 2,
+  "cost_usd": 0.7822809999999999,
+  "n_tool_calls": 20,
+  "denials": 0,
   "error": ""
  }
 }
