@@ -121,7 +121,9 @@ src/
   breakout/regime.py     每日市场环境指标 state/regime_daily.jsonl，含滚动 20 根的
                          全市场 50% 基准率（清单命中率只有和它比才有意义）
   breakout/board_adj.py  板块校正因子的经验贝叶斯收缩（只用过去的月份估，小样本
-                         板块自动拉回全市场，板块间没差异时因子恒为 1）
+                         板块自动拉回全市场，板块间没差异时因子恒为 1）。
+                         2026-09-16 起生产在用：exp_window --adj shrink --save-adj
+                         落 state/breakout/board_adj.json，daily.py 读它
   breakout/exp_*.py      一次性实验脚本（window 逐月滚动 / calib 分档 / rank / …），
                          成绩表 STREAK_PERF 来自 exp_window.py 的 window_grid.json
   ── 控制台（GUI，2026-09-12）──
@@ -178,6 +180,7 @@ state/                   学习系统状态：learning_status.json / verdict_log
                          push_status.json 上次推送成没成，控制台总览读它
                          council/ 会诊产物 + proposals.jsonl 台账 + decisions.json
                          breakout/overrides.json 会诊批准过的起涨常量覆盖
+                         breakout/board_adj.json 收缩估出来的板块系数（生产在用）
                          breakout/truth.json 历史清单的真值；regime_daily.jsonl 市场环境
                          lock/<flow>.json 进程锁（教训 23）
 tools/gui.cmd            控制台入口（桌面快捷方式指向它）

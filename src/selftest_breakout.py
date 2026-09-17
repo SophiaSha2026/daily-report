@@ -1521,13 +1521,17 @@ def check_table_shape() -> None:
     # 同一个准确率在清单行和对照表必须印成同一个字符串（F5-9）：
     # 以前清单行是 .0f、对照表是 .1f，15.7% 在两处印成 16% 和 15.7%，
     # 连续 1 天（12.6）和连续 4 天（13.0）在清单行都成了 13%，分不出来
-    for need, hit, lift, _n in E.STREAK_PERF:
+    for need, hit, lift, n_ in E.STREAK_PERF:
         row = E._rows_a(pd.DataFrame({"code": ["600000"], "name": ["x"],
                                       "score": [98.0], "streak": [need],
                                       "close": [1.0]}))
         cell = re.findall(r"<td>([\d.]+%)</td>", row)[0]
-        ck(cell == f"{hit:.1f}%" and f'<td class="sc">{cell}</td>' in html,
-           f"连续 {need} 天：清单 A 行印 {cell}，和对照表是同一个字符串")
+        # 样本够的档：行内和对照表必须是同一个字符串（F5-9 那条）。
+        # 样本不够的档（n < SMALL_N）：行内要退到下一个够样本的档，不能把
+        # 24 个名额算出来的 0.0% 印成某只票的「历史准确率」（2026-09-16）。
+        want = f"{hit:.1f}%" if n_ >= E.SMALL_N else f"{E.streak_perf(need)[0]:.1f}%"
+        ck(cell == want and (n_ < E.SMALL_N or f'<td class="sc">{cell}</td>' in html),
+           f"连续 {need} 天（n={n_}）：清单 A 行印 {cell}，应当是 {want}")
         rowb = E._rows_b(pd.DataFrame({"code": ["600001"], "name": ["x"],
                                        "best": [99.0], "days": [need],
                                        "streak": [need], "close": [1.0],
@@ -1541,9 +1545,12 @@ def check_table_shape() -> None:
        "邮件里印的是 STREAK_PERF 里的数（首日 / 连续 3 天）")
 
     # 样本少的档次要有 95% 区间、而且灰掉
-    lo, hi = E._wilson(E.STREAK_PERF[0][1], E.STREAK_PERF[0][3])
-    ck(lo < E.STREAK_PERF[0][1] < hi and f"{lo:.1f}~{hi:.1f}%" in html,
-       f"连续 5 天那档印了 Wilson 区间 {lo:.1f}~{hi:.1f}%")
+    top = E.STREAK_PERF[0]
+    lo, hi = E._wilson(top[1], top[3])
+    # 命中率恰好是 0 时区间下界也是 0（Wilson 在 k=0 上就是这样），
+    # 所以判 <=；区间必须真的把点估计盖住，而且印在表里
+    ck(lo <= top[1] <= hi and f"{lo:.1f}~{hi:.1f}%" in html,
+       f"连续 {top[0]} 天那档印了 Wilson 区间 {lo:.1f}~{hi:.1f}%")
     ck(E.STREAK_PERF[0][3] < E.SMALL_N and "color:#7c8794" in html,
        f"样本少于 {E.SMALL_N} 的行灰掉")
 
@@ -2726,8 +2733,12 @@ def check_expected_board() -> None:
                        pd.DataFrame(columns=["code"]),
                        {"score_min": 97, "cap_a": 10, "model_date": "2026-09-15"},
                        False)
-        ck("本份构成" in html and "期望命中率" in html,
-           "抬头印了本份构成和按构成的期望")
+        # 2026-09-16 用户定：抬头先说「是不是满员日 + 按近期基准折算」，
+        # 按板块构成加权那个数降级成参考，所以断言跟着改
+        ck("本份构成" in html
+           and ("满员日" in html or "门槛卡得住" in html)
+           and ("折算" in html or "基准还在累积" in html),
+           "抬头印了满员与否、按近期基准折算、以及本份构成")
         ck(f"{E.BASE}%" in html, "同一行还印了同期全市场基准")
     finally:
         E.board_hit_table = bht

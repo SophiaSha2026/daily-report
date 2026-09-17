@@ -22,6 +22,7 @@ y_up = 未来 20 个交易日涨超 50%。基准只算这十个月（2.93%，见
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import logging
 import os
@@ -38,6 +39,7 @@ import pandas as pd     # noqa: E402
 
 import arena as A       # noqa: E402
 import build as BD      # noqa: E402
+import board_adj as BA
 import daily as D       # noqa: E402
 import fselect as FS    # noqa: E402
 import model as M       # noqa: E402
@@ -48,6 +50,7 @@ OUT = ROOT / "out_breakout"
 CACHE = Path(os.environ.get("WF_CACHE", str(ROOT / "data" / "breakout" / "raw"
                                             / "wf_scores.parquet")))
 RANK_KEEP = 100     # 每天落盘前多少名。>=95 分的都在这里面，足够算窗口
+FINAL_ADJ: dict = {}   # rolling/shrink 臂跑完后，下一个月该用的那组因子
 # BOARD_ADJ（daily.py）是按验证集 2025-03..12 各板块的命中率除以整体命中率
 # 算出来的：arena.json 的 {main .1326, star .1410, bj .0998, chinext .0660}
 # 除以 .1111 正好是 {1.19, 1.27, 0.90, 0.59}。而这个脚本又在**同一段**数据上
@@ -138,6 +141,11 @@ def build_cache(adj_mode: str = "fixed") -> tuple[pd.DataFrame, float]:
         elif adj_mode == "rolling":
             # 只用本月之前的名额估因子，拟合窗口和评估窗口不重叠
             amap = board_factors(pd.concat(hist, ignore_index=True), m) if hist else {}
+        elif adj_mode == "shrink":
+            # 同上，但各板块的命中率先按经验贝叶斯收缩回全市场（board_adj.py）：
+            # 北交所 19 个名额的 26.3% 不会变成因子 2.37 把清单构成掀翻，
+            # 板块之间看不出真实差异时因子恒为 1（自动退化成不校正）。
+            amap = BA.factors_before(pd.concat(hist, ignore_index=True), m) if hist else {}
         else:
             amap = D.BOARD_ADJ
         adj = (te["board"].map(amap).fillna(1.0).to_numpy(float) if amap
@@ -155,6 +163,14 @@ def build_cache(adj_mode: str = "fixed") -> tuple[pd.DataFrame, float]:
         hist.append(prod[["date", "board", "y_up"]])
         print("  " + m + " 完成", flush=True)
 
+    # 最后一个测试月之后该用的那组因子（= 用全部验证月的名额估）。
+    # 生产要用的就是它，和验收臂同源。
+    global FINAL_ADJ
+    if adj_mode in ("rolling", "shrink") and hist:
+        h = pd.concat(hist, ignore_index=True)
+        nxt = "9999-99"
+        FINAL_ADJ = (BA.factors_before(h, nxt) if adj_mode == "shrink"
+                     else board_factors(h, nxt))
     d = pd.concat(keep, ignore_index=True)
     # 基准只算验证集那十个月：成绩是在这段上测的，基准混进 2023~2024 的
     # 训练月份（3.56%）就和成绩不是同一段时间，倍数被压低。
@@ -237,9 +253,13 @@ def main() -> int:
     ap.add_argument("--refit", action="store_true")
     ap.add_argument("--win", type=int, default=5)
     ap.add_argument("--adj", default="fixed",
-                    choices=["fixed", "none", "rolling"],
+                    choices=["fixed", "none", "rolling", "shrink"],
                     help="板块校正：fixed=daily.BOARD_ADJ（样本内）、"
-                         "none=不校正、rolling=逐月只用之前的月份估")
+                         "none=不校正、rolling=逐月只用之前的月份估、"
+                         "shrink=同 rolling 但先做经验贝叶斯收缩（推荐）")
+    ap.add_argument("--save-adj", action="store_true",
+                    help="--adj shrink 专用：把最后一个测试月之后该用的那组因子"
+                         "写进 state/breakout/board_adj.json 给生产用")
     a = ap.parse_args()
     d, base = load_cache(a.refit, a.adj)
     if a.adj == "none" and not a.refit:
@@ -247,8 +267,11 @@ def main() -> int:
         if not qf.exists():
             raise SystemExit("缺 wf_q.json（每月分位点），先跑一次 --refit")
         d = reprice(d, json.loads(qf.read_text(encoding="utf-8")))
-    adj_used = {} if a.adj == "none" else (
-        dict(D.BOARD_ADJ) if a.adj == "fixed" else {})
+    # rolling / shrink 臂也要把因子记进成绩表：export._same_rule 拿它和生产
+    # 此刻生效的 BOARD_ADJ 比，记成空的话那道防呆就退化成只比 (分数线, 上限)。
+    adj_used = ({} if a.adj == "none"
+                else dict(D.BOARD_ADJ) if a.adj == "fixed"
+                else dict(FINAL_ADJ))
     # 缓存可能是含 ST 的旧版（rank 在没剔过的全市场上排），这里按生产口径
     # 重排一次；缓存本来就是剔过的话这一步是恒等变换
     st = V.st_codes()
@@ -390,6 +413,25 @@ def main() -> int:
     out.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
                    encoding="utf-8")
     print("\n-> " + str(out))
+    if a.save_adj:
+        if not FINAL_ADJ:
+            print("[!] 没有估出因子（--adj 不是 rolling/shrink，或者没有历史名额），"
+                  "不落盘")
+        else:
+            f = ROOT / "state" / "breakout" / "board_adj.json"
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps(
+                {"factors": {k: round(float(v), 4) for k, v in FINAL_ADJ.items()},
+                 "mode": a.adj, "fit_months": ADJ_FIT_WINDOW,
+                 "n_picks": int(sum(1 for _ in [])),
+                 "made_at": dt.datetime.now().isoformat(timespec="seconds"),
+                 "note": ("用截至最后一个验证月的全部生产名额估的板块因子，"
+                          "和 --adj %s 臂逐月用的是同一个估计量。"
+                          "daily.py 读它；删掉这个文件就回到代码里写死的那组。"
+                          % a.adj)},
+                ensure_ascii=False, indent=1), encoding="utf-8")
+            print("-> " + str(f) + "  " + json.dumps(
+                {k: round(v, 3) for k, v in FINAL_ADJ.items()}, ensure_ascii=False))
     return 0
 
 

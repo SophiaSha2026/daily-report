@@ -566,12 +566,7 @@
     }
   ],
   "drop": "",
-  "board_adj": {
-    "bj": 0.987,
-    "chinext": 0.9606,
-    "main": 1.0735,
-    "star": 0.8581
-  },
+  "board_adj": {},
   "board_adj_applied": true,
   "board_adj_mode": "shrink",
   "adj_fit_window": null,
@@ -586,6 +581,5 @@
   "rule": {
     "score_min": 97,
     "cap": 10
-  },
-  "note_adj": "因子由经验贝叶斯收缩逐月估（只用过去的月份），这里记的是最后一个验证月之后该用的那组，也就是生产此刻在用的那组。"
+  }
 }

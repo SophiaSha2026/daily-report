@@ -52,10 +52,11 @@ log = logging.getLogger("breakout.export")
 BASE = 2.93                       # 全市场基准：验证集 10 个月里随便买一只涨超 50% 的比例
 STREAK_PERF = [
     # 连续天数下限, 准确率%, 相对随便买的倍数, 样本数
-    (4, 11.4, 3.9, 35),
-    (3, 11.8, 4.0, 68),
-    (2, 17.6, 6.0, 153),
-    (1, 15.0, 5.1, 566),
+    (5, 0.0, 0.0, 24),
+    (4, 4.8, 1.6, 42),
+    (3, 8.2, 2.8, 73),
+    (2, 17.3, 5.9, 162),
+    (1, 14.7, 5.0, 591),
 ]
 PERF = {"base": BASE, "window": "验证集 207 个交易日"}
 # 上限主导的日子单独报一个数，它比总平均重要得多。
@@ -69,8 +70,8 @@ PERF = {"base": BASE, "window": "验证集 207 个交易日"}
 # 差一倍多。够格的票一多（市场普涨那种日子），前 10 名里就混进大量
 # 「分数刚过线」的票，而门槛卡得住的日子留下的才是真的强。
 # 生产 2026-09 那 8 天**全部**满员，拿整体平均给它背书是高报。
-CAP_PERF = (8.4, 190, 19)         # 满员日：准确率%, 名额数, 天数
-NONCAP_PERF = (18.4, 376, 126)        # 准确率%, 名额数, 天数
+CAP_PERF = (7.6, 210, 21)         # 满员日：准确率%, 名额数, 天数
+NONCAP_PERF = (18.6, 381, 125)        # 准确率%, 名额数, 天数
 # STREAK_PERF / BASE 是在**这条规则**下测的（exp_window.py 的 W5 那几行）。
 # daily.py 的 SCORE_MIN / CAP_A 会被 state/breakout/overrides.json 覆盖
 # （学习会诊批准后就会写），规则一改这张成绩表就不适用了，必须在邮件里说清楚，
@@ -117,9 +118,15 @@ def perf_row(k: int) -> tuple[int, float, float, int]:
 
 
 def streak_perf(k: int) -> tuple[float, float]:
-    """连续 k 天够格的历史准确率和倍数。"""
-    for need, hit, lift, _n in STREAK_PERF:
-        if k >= need:
+    """连续 k 天够格的历史准确率和倍数，印在清单里那只票那一行。
+
+    **样本不够的档次直接跳过，退到下一个够样本的档。** 2026-09-16 换成收缩
+    系数之后，连续≥5 天那档是 0.0%（n=24）、≥4 天 4.8%（n=42），拿 24 个名额
+    算出来的 0% 印成某只票的「历史准确率」是在骗人 —— 成绩表里那几行本来就
+    按 SMALL_N 灰掉了，这里必须用同一条线。
+    """
+    for need, hit, lift, n in STREAK_PERF:
+        if k >= need and n >= SMALL_N:
             return hit, lift
     return STREAK_PERF[-1][1], STREAK_PERF[-1][2]
 
@@ -204,6 +211,35 @@ def board_hit_table() -> dict:
             log.info("按板块的命中率读不到（%s），期望退回整体平均", e)
             _BOARD_HIT["t"] = {}
     return _BOARD_HIT["t"]
+
+
+def recent_base(n: int = 10) -> tuple[float, int, str]:
+    """近期已定的全市场 20 根基准（%），返回 (均值%, 天数, 覆盖到哪天)。
+
+    验证集的 BASE=2.93% 是 2025-03~12 那十个月的水平，而市场基准是会漂的：
+    2026-08 那一段实测只有 1.1~1.6%。拿 2.93% 那段测出来的命中率直接报给
+    今天的清单，等于默认市场还是当时那个市场。
+    源数据 state/regime_daily.jsonl（breakout/regime.py 每日收盘后写），
+    只取 base20_final=true 的行 —— 没走满 20 根的那几天基准还在往上长。
+    """
+    rows = []
+    try:
+        f = ROOT / "state" / "regime_daily.jsonl"
+        import json as _j
+        for line in f.read_text(encoding="utf-8").splitlines():
+            try:
+                r = _j.loads(line)
+            except Exception:  # noqa: BLE001
+                continue
+            if r.get("base20") is not None and r.get("base20_final"):
+                rows.append((str(r.get("date", "")), float(r["base20"])))
+    except Exception as e:  # noqa: BLE001
+        log.info("近期基准读不到（%s），期望就不折算", e)
+        return float("nan"), 0, ""
+    rows = rows[-n:]
+    if not rows:
+        return float("nan"), 0, ""
+    return 100 * sum(v for _, v in rows) / len(rows), len(rows), rows[-1][0]
 
 
 def expected_for(a: pd.DataFrame) -> tuple[float, str, bool]:
@@ -331,15 +367,36 @@ def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
             nq_txt += f"（已按前 {cap} 名截断）"
     md = meta.get("model_date")
     md_txt = f" · 模型训练于 {md}" if md else ""
-    # 期望命中率要按**本份清单**的板块构成加权：清单里科创占多少、主板占多少，
-    # 各板块在验证集上的成绩差 6 倍，总平均对某几种构成会高估近一倍（会诊-1）
+    # 期望命中率怎么印（2026-09-16 用户定）：**先看是不是满员日，再按近期基准折算**。
+    #
+    # 以前印的是按本份清单板块构成加权的数。那个修法解决的是「清单里科创占
+    # 多少」，但漏掉了更大的两项：
+    #   ① 生产 8 份清单 8/8 都是满员日（够格超过上限、被截断），而验证集上
+    #      满员日命中 8.4%（19 天 190 席）、非满员 18.4%（126 天 376 席），
+    #      差一倍多。按整体平均报，对天天满员的生产是系统性高估。
+    #   ② 验证期的全市场基准是 2.93%，而 2026-08 那一段只有 1.1~1.6%。
+    #      同一个模型在基准腰斩的市场里，绝对命中率本来就会掉。
+    # 两项叠起来，今晚会诊的说法是「邮件印的 15% 对这批清单高估 2~3.5 倍」。
     exp, comp, fallback = expected_for(a)
     exp_txt = ""
     if comp:
+        capped = nq is not None and int(nq) > cap
+        perf = CAP_PERF if capped else NONCAP_PERF
+        kind = "满员日（够格超过上限、被截断）" if capped else "门槛卡得住的日子"
+        rb, rn, rday = recent_base()
+        if rb == rb and rb > 0:
+            scaled = perf[0] * rb / BASE
+            adj = (f'；近 {rn} 个已定日的全市场 20 根基准 {rb:.2f}%'
+                   f'（到 {rday}），只有验证期 {BASE}% 的 {rb / BASE:.2f} 倍，'
+                   f'<b>按此折算这份清单的合理期望约 {scaled:.1f}%</b>')
+        else:
+            adj = f'；同期全市场基准还在累积，暂按验证期 {BASE}% 看'
         tail = "（其中有板块在验证集里没有名额，用整体平均代入）" if fallback else ""
-        exp_txt = (f'<div class="sub">本份构成 {comp}，按构成的期望命中率 '
-                   f'{exp:.1f}%{tail}；验证集整体 {perf_row(1)[1]:.1f}%，'
-                   f'同期全市场基准 {BASE}%。</div>')
+        exp_txt = (f'<div class="sub">本份是<b>{kind}</b>，验证集上这类日子命中 '
+                   f'{perf[0]:.1f}%（{perf[2]} 天 {perf[1]} 席）{adj}。'
+                   f'<br>本份构成 {comp}，按构成加权是 {exp:.1f}%{tail}，'
+                   f'验证集整体 {perf_row(1)[1]:.1f}% —— 这两个数都没有把'
+                   f'「满员」和「基准变了」算进去，别拿它们当预期。</div>')
     head = (f'<h1>起涨预测 · {date}</h1>'
             f'<div class="sub">清单 A {len(a)} 只，清单 B {len(b)} 只'
             f'{nq_txt}{rej_txt}{md_txt}</div>{exp_txt}')
@@ -420,12 +477,15 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
                     f'训练集做了 20 日净化。风险剔除（ST / 减持 / 解禁）'
                     f'在历史上回放不了，这张表里不含。')
     else:
-        old_ba = PERF_GRID.get("board_adj") or {}
-        new_ba = _board_adj(meta)
-        diff = [f'{k} {old_ba.get(k, 1.0):g}->{new_ba.get(k, 1.0):g}'
-                for k in sorted(set(old_ba) | set(new_ba))
-                if abs(float(old_ba.get(k, 1.0)) - float(new_ba.get(k, 1.0))) >= 1e-6]
-        chg = (f'，板块系数也改过（{"、".join(diff)}），换的是**谁上榜**不只是多少只'
+        grid_ba = PERF_GRID.get("board_adj") or {}
+        list_ba = _board_adj(meta)
+        # 方向要中性：成绩表和清单谁先换都可能（重跑成绩表在前、清单还没重出，
+        # 或者反过来），写成「A->B」会有一半的时候箭头是反的
+        diff = [f'{k} 成绩表 {grid_ba.get(k, 1.0):g} / 这份清单 {list_ba.get(k, 1.0):g}'
+                for k in sorted(set(grid_ba) | set(list_ba))
+                if abs(float(grid_ba.get(k, 1.0)) - float(list_ba.get(k, 1.0))) >= 1e-6]
+        chg = (f'，板块系数也不是同一套（{"、".join(diff)}），'
+               f'它换的是<b>谁上榜</b>不只是多少只'
                if diff else '')
         rule_txt = (f'下面是按 ≥{PERF_RULE[0]} 分前 {PERF_RULE[1]} 名的<b>旧规则</b>'
                     f'实测的成绩；当前清单规则是 ≥{smin} 分前 {cap} 名{chg}，'

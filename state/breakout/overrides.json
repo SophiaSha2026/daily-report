@@ -2,14 +2,17 @@
  "CAP_A": 10,
  "SCORE_MIN": 97,
  "MIN_STREAK": 1,
- "BOARD_ADJ": {
-  "star": 1.0
- },
  "history": [
   {
    "proposal": "20260916-94dc29",
    "at": "2026-09-16T18:24:57",
    "by": "user"
+  },
+  {
+   "proposal": "20260916-7568be",
+   "at": "2026-09-16T21:00:31",
+   "by": "user",
+   "note": "板块系数改由收缩估计（state/breakout/board_adj.json），撤掉人工覆盖 {'star': 1.0}"
   }
  ]
 }

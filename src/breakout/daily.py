@@ -143,11 +143,45 @@ MIN_HOLD_DAYS = 5   # 进 A 池后至少过几个交易日才可能进 B
 # 科创从「四板块最高」变成「和随便买（2.93%）差不多」，所以会诊提了把
 # star 从 1.27 压到 1.0，用户 2026-09-16 批准，写在 state/breakout/overrides.json。
 #
-# 手写死这四个数本身是个待修的问题（样本内 + 小样本板块会掀桌子）：
-# 会诊提案 20260916-7568be 提议换成经验贝叶斯收缩（src/breakout/board_adj.py），
-# 缓存精确重算 15.63% 对固定臂的 15.02%，且构成不被掀翻。等人批。
+# 2026-09-16 用户批准：这四个数不再人手写，改由**经验贝叶斯收缩**估
+# （src/breakout/board_adj.py，提案 20260916-7568be）。下面这组只当兜底 ——
+# state/breakout/board_adj.json 读不到时才用它。
+#
+# 那个文件由 `exp_window.py --refit --adj shrink --save-adj` 落盘，
+# 用的是「截至最后一个验证月的全部生产名额」估的因子，和验收臂**同一个
+# 估计量**（教训 34：同一个概念不许有两份实现）。所以重跑成绩表和更新
+# 生产系数是同一条命令，不会漂。
+#
+# 收缩解决的是固定/滚动两条路各自的毛病：固定是人按整段验证集写的、
+# 评成绩时又乘在同一段上（样本内）；滚动对每个板块各信各的，北交所 19 个
+# 名额的 26.3% 直接变成因子 2.37，清单构成被掀翻（主板 67%/科创 30% ->
+# 主板 54%/北交 31%，那是另一套策略）。收缩让「一个板块该被信多少」由它
+# 自己的样本量和板块间真实差异共同决定：主板被信 95%、北交所只被信 41%；
+# 板块之间看不出真实差异时因子恒为 1，自动退化成不校正。
 BOARD_ADJ = {"main": 1.19, "star": 1.27, "bj": 0.90, "chinext": 0.59}
-BOARD_ADJ.update(_OVR.get("BOARD_ADJ", {}))   # 会诊批准过的板块系数覆盖
+
+
+def load_board_adj() -> dict:
+    """收缩估出来的板块因子。读不到就返回空（回落到上面写死的那组）。"""
+    f = ROOT / "state" / "breakout" / "board_adj.json"
+    try:
+        if not f.exists():
+            return {}
+        o = json.loads(f.read_text(encoding="utf-8"))
+        got = o.get("factors") or {}
+        out = {str(k): float(v) for k, v in got.items()
+               if k in ("main", "star", "bj", "chinext")}
+        if out:
+            log.info("板块系数用收缩估计（%s，%s）", o.get("mode", "?"),
+                     o.get("made_at", "?"))
+        return out
+    except Exception as e:  # noqa: BLE001
+        log.warning("board_adj.json 读不出来，按写死的那组: %s", e)
+        return {}
+
+
+BOARD_ADJ.update(load_board_adj())            # 收缩估计（有就用它）
+BOARD_ADJ.update(_OVR.get("BOARD_ADJ", {}))   # 人工/会诊批准的覆盖，优先级最高
 RISE_MIN = 0.20     # 进池后至少涨过这么多，才谈得上「波段结束」
 
 
