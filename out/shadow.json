@@ -1,84 +1,86 @@
 {
- "date": "2026-09-16",
+ "date": "2026-09-17",
  "rows": [
   {
-   "code": "003006",
-   "name": "百亚股份",
-   "gap_pct": 2.81,
-   "liangbi": 3.4,
-   "sscore": 0.111
-  },
-  {
-   "code": "601208",
-   "name": "东材科技",
-   "gap_pct": 3.52,
+   "code": "603629",
+   "name": "利通电子",
+   "gap_pct": 2.21,
    "liangbi": 3.7,
-   "sscore": 0.105
+   "sscore": -0.042
   },
   {
-   "code": "688499",
-   "name": "利元亨",
-   "gap_pct": 4.16,
-   "liangbi": 8.0,
-   "sscore": 0.045
+   "code": "301018",
+   "name": "申菱环境",
+   "gap_pct": 4.62,
+   "liangbi": 7.0,
+   "sscore": -0.144
   },
   {
-   "code": "002084",
-   "name": "海鸥住工",
-   "gap_pct": 3.31,
-   "liangbi": 3.9,
-   "sscore": 0.024
+   "code": "600026",
+   "name": "中远海能",
+   "gap_pct": 3.28,
+   "liangbi": 2.9,
+   "sscore": -0.181
   },
   {
-   "code": "003026",
-   "name": "中晶科技",
-   "gap_pct": 3.89,
-   "liangbi": 8.0,
-   "sscore": 0.019
+   "code": "605111",
+   "name": "新洁能",
+   "gap_pct": 2.72,
+   "liangbi": 4.2,
+   "sscore": -0.186
   },
   {
-   "code": "601919",
-   "name": "中远海控",
-   "gap_pct": 2.07,
-   "liangbi": 9.7,
-   "sscore": 0.014
+   "code": "000428",
+   "name": "华天酒店",
+   "gap_pct": 2.46,
+   "liangbi": 3.3,
+   "sscore": -0.19
   },
   {
-   "code": "300829",
-   "name": "金丹科技",
-   "gap_pct": 2.96,
-   "liangbi": 3.8,
-   "sscore": 0.012
+   "code": "688137",
+   "name": "近岸蛋白",
+   "gap_pct": 2.27,
+   "liangbi": 3.3,
+   "sscore": -0.204
   },
   {
-   "code": "002753",
-   "name": "永东股份",
-   "gap_pct": 4.72,
+   "code": "600206",
+   "name": "有研新材",
+   "gap_pct": 2.65,
+   "liangbi": 9.1,
+   "sscore": -0.22
+  },
+  {
+   "code": "301396",
+   "name": "宏景科技",
+   "gap_pct": 4.36,
+   "liangbi": 7.0,
+   "sscore": -0.23
+  },
+  {
+   "code": "000338",
+   "name": "潍柴动力",
+   "gap_pct": 4.98,
    "liangbi": 8.9,
-   "sscore": 0.002
-  },
-  {
-   "code": "300313",
-   "name": "天山生物",
-   "gap_pct": 2.9,
-   "liangbi": 3.1,
-   "sscore": -0.003
+   "sscore": -0.271
   },
   {
    "code": "301520",
    "name": "万邦医药",
-   "gap_pct": 3.24,
-   "liangbi": 5.2,
-   "sscore": -0.03
+   "gap_pct": 2.05,
+   "liangbi": 3.5,
+   "sscore": -0.282
   }
  ],
  "overlap": 6,
  "base_top": [
-  "003026",
-  "688499",
-  "300829",
-  "002753",
-  "601208",
-  "301520"
+  "301396",
+  "605111",
+  "688478",
+  "000338",
+  "600206",
+  "600026",
+  "300741",
+  "603629"
  ]
 }
