@@ -130,6 +130,9 @@ def progress(flow: str, running: dict | None, now: dt.datetime) -> dict:
     pj = _json(ROOT / "state" / "lock" / f"progress_{flow}.json")
     if not running:
         return {}
+    if (not pj or not pj.get("running")) and flow == "morning" and running.get("at"):
+        # 老代码起的那一次没有进度文件；早盘本来就按钟点算，锁里的开跑时刻够用
+        pj = {"running": True, "started_at": running["at"], "text": "在跑"}
     if not pj or not pj.get("running"):
         return {"pct": None, "text": "在跑"}
     step, total = int(pj.get("step") or 0), int(pj.get("total") or 0)

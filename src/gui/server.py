@@ -312,8 +312,90 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"ok": True})
 
 
+class _Server(ThreadingHTTPServer):
+    """端口独占。
+
+    http.server 默认 allow_reuse_address=1，在 Windows 上那是 SO_REUSEADDR ——
+    **允许第二个进程绑同一个端口**，而且不报错。2026-09-18 实测三个控制台
+    同时在听 8765，请求落在最老那个（旧代码）上：双击图标开「新的」，看到的
+    永远是旧页面，gui.cmd 里「端口被占」那句提示也永远不会出现。
+    Windows 上关掉复用、改成 SO_EXCLUSIVEADDRUSE，第二个就会老老实实地绑不上。
+    """
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self) -> None:
+        import socket
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET,
+                                   socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
+def _port_owner(port: int) -> int:
+    """谁在听 127.0.0.1:port。netstat 是系统自带的，不用装 psutil。"""
+    try:
+        r = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True,
+                           text=True, errors="replace", timeout=15,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        for ln in r.stdout.splitlines():
+            parts = ln.split()
+            if (len(parts) >= 5 and parts[1].endswith(f":{port}")
+                    and parts[3].upper() == "LISTENING"):
+                return int(parts[4])
+    except Exception:  # noqa: BLE001
+        pass
+    return 0
+
+
+def _cmdline(pid: int) -> tuple[str, int]:
+    """(命令行, 父进程号)。读不到返回 ("", 0)。"""
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             f"$p=Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}';"
+             f"\"$($p.ParentProcessId)|$($p.CommandLine)\""],
+            capture_output=True, text=True, errors="replace", timeout=20,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        ppid, _, cmd = r.stdout.strip().partition("|")
+        return cmd, int(ppid or 0)
+    except Exception:  # noqa: BLE001
+        return "", 0
+
+
+def _take_over(port: int) -> bool:
+    """端口被一个**旧的控制台**占着 -> 关掉它，换成这一个。
+
+    傻瓜式要求「双击图标 = 最新版」。只动命令行里有 gui\\__main__.py 的进程
+    （别的程序占了端口就不碰，照旧报错）；不带 /T，旧控制台手动起的流程是它的
+    子进程，不跟着死（首页的「在跑」看的是进程锁，不依赖哪个控制台起的）。
+    旧控制台那个 cmd 黑窗口一起关掉，免得它停在「按任意键继续」。
+    """
+    pid = _port_owner(port)
+    if not pid or pid == os.getpid():
+        return False
+    cmd, ppid = _cmdline(pid)
+    if "gui" not in cmd.replace("\\", "/") or "__main__" not in cmd:
+        return False
+    print(f"  关掉旧的控制台（pid {pid}），换成这一个", flush=True)
+    kw = {"capture_output": True, "timeout": 20,
+          "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+    subprocess.run(["taskkill", "/PID", str(pid), "/F"], **kw)
+    if ppid:
+        pcmd, _ = _cmdline(ppid)
+        if "gui.cmd" in pcmd:
+            subprocess.run(["taskkill", "/PID", str(ppid), "/F"], **kw)
+    import time
+    time.sleep(1.0)
+    return True
+
+
 def serve(port: int = 8765, open_browser: bool = True) -> None:
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    try:
+        httpd = _Server(("127.0.0.1", port), Handler)
+    except OSError:
+        if not _take_over(port):
+            raise
+        httpd = _Server(("127.0.0.1", port), Handler)
     url = f"http://127.0.0.1:{port}/?token={TOKEN}"
     # flush 是必须的：从 .cmd 起或者被重定向时 stdout 是块缓冲，
     # 不 flush 的话用户盯着一个空窗口，拿不到带 token 的 URL。

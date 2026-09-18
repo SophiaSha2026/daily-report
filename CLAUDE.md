@@ -127,7 +127,11 @@ src/
   breakout/exp_*.py      一次性实验脚本（window 逐月滚动 / calib 分档 / rank / …），
                          成绩表 STREAK_PERF 来自 exp_window.py 的 window_grid.json
   ── 控制台（GUI，2026-09-12）──
-  gui/server.py          HTTP 服务。标准库 ThreadingHTTPServer，零第三方依赖
+  gui/simple.py          首页傻瓜页（2026-09-18）：三条线各一行（状态 / 多久没跑 /
+                         进度条 / 一个按钮）+ 下次开机 + 插没插电 + 三块学习图。
+                         全部北京时间。旧的详细控制台在 /full
+  gui/server.py          HTTP 服务。标准库 ThreadingHTTPServer，零第三方依赖。
+                         Windows 上端口独占（SO_EXCLUSIVEADDRUSE），双击图标会顶掉旧控制台
   gui/ui.py              单页界面（HTML/CSS/JS 都在这个字符串里）
   gui/jobs.py            子进程任务：启动一条流程，把输出实时喂给界面
   gui/status.py          状态汇总：流程 / 同步 / 排期 / 面板四类信号
