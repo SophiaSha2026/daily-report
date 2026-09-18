@@ -1,74 +1,82 @@
 [
   {
-    "code":"688004",
-    "name":"博汇科技",
-    "score":97.0,
-    "streak":3,
-    "close":37.1,
-    "board":"star"
-  },
-  {
     "code":"300741",
     "name":"华宝股份",
     "score":98.0,
-    "streak":1,
-    "close":27.17,
+    "streak":2,
+    "close":25.15,
     "board":"chinext"
-  },
-  {
-    "code":"300592",
-    "name":"华凯易佰",
-    "score":98.0,
-    "streak":1,
-    "close":20.87,
-    "board":"chinext"
-  },
-  {
-    "code":"920016",
-    "name":"中草香料",
-    "score":97.0,
-    "streak":1,
-    "close":15.43,
-    "board":"bj"
-  },
-  {
-    "code":"301282",
-    "name":"金禄电子",
-    "score":97.0,
-    "streak":1,
-    "close":45.8,
-    "board":"chinext"
-  },
-  {
-    "code":"600121",
-    "name":"郑州煤电",
-    "score":97.0,
-    "streak":1,
-    "close":5.07,
-    "board":"main"
-  },
-  {
-    "code":"605058",
-    "name":"澳弘电子",
-    "score":97.0,
-    "streak":1,
-    "close":48.76,
-    "board":"main"
   },
   {
     "code":"301251",
     "name":"威尔高",
     "score":97.0,
-    "streak":1,
-    "close":75.32,
+    "streak":2,
+    "close":77.08,
     "board":"chinext"
   },
   {
-    "code":"001326",
-    "name":"联域股份",
+    "code":"301282",
+    "name":"金禄电子",
+    "score":97.0,
+    "streak":2,
+    "close":45.35,
+    "board":"chinext"
+  },
+  {
+    "code":"605058",
+    "name":"澳弘电子",
+    "score":97.0,
+    "streak":2,
+    "close":47.4,
+    "board":"main"
+  },
+  {
+    "code":"301390",
+    "name":"经纬股份",
+    "score":98.0,
+    "streak":1,
+    "close":54.0,
+    "board":"chinext"
+  },
+  {
+    "code":"001216",
+    "name":"华瓷股份",
+    "score":98.0,
+    "streak":1,
+    "close":21.87,
+    "board":"main"
+  },
+  {
+    "code":"688137",
+    "name":"近岸蛋白",
     "score":97.0,
     "streak":1,
-    "close":92.55,
+    "close":99.03,
+    "board":"star"
+  },
+  {
+    "code":"603353",
+    "name":"和顺石油",
+    "score":97.0,
+    "streak":1,
+    "close":48.55,
     "board":"main"
+  },
+  {
+    "code":"002285",
+    "name":"世联行",
+    "score":97.0,
+    "streak":1,
+    "close":2.89,
+    "board":"main"
+  },
+  {
+    "code":"920088",
+    "name":"科力股份",
+    "score":97.0,
+    "streak":1,
+    "close":42.79,
+    "board":"bj"
   }
 ]
