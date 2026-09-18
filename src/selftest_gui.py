@@ -227,12 +227,15 @@ def check_windows() -> None:
         ("evening", 22, 0, True), ("evening", 22, 1, False),
     ]
     # 自动开跑时刻：在这之前计划任务只等手动。跨午夜的线午夜后也算到点（补跑）。
+    # 自动时刻前 AUTO_GRACE_MIN（2）分钟内也算到点：2026-09-18 计划任务
+    # 08:29:56 敲门、早 4 秒，按整分钟判就跳过了，早盘晚起 15 分钟。
+    # 所以 08:28/08:29 现在是「到点」，08:27 才是「等手动」。
     auto_cases = [
-        ("morning", 8, 29, False), ("morning", 8, 30, True), ("morning", 9, 16, True),
-        ("morning", 9, 17, False),
-        ("breakout", 16, 29, False), ("breakout", 16, 30, True),
+        ("morning", 8, 27, False), ("morning", 8, 28, True), ("morning", 8, 29, True),
+        ("morning", 8, 30, True), ("morning", 9, 16, True), ("morning", 9, 17, False),
+        ("breakout", 16, 27, False), ("breakout", 16, 29, True), ("breakout", 16, 30, True),
         ("breakout", 2, 0, True), ("breakout", 8, 30, True), ("breakout", 8, 31, False),
-        ("learn", 16, 39, False), ("learn", 16, 40, True),
+        ("learn", 16, 37, False), ("learn", 16, 39, True), ("learn", 16, 40, True),
     ]
     try:
         for flow, h, m, want in cases:
@@ -1269,6 +1272,16 @@ def check_http() -> None:
         ck(server.TOKEN.encode() in body and b"__TOKEN__" not in body,
            "页面里的 token 占位符被真 token 替换了")
 
+        code, body = call("/full")
+        ck(code == 200 and server.TOKEN.encode() in body, "GET /full（详细控制台）返回 200")
+        code, body = call("/api/simple")
+        try:
+            so = json.loads(body)
+        except Exception:  # noqa: BLE001
+            so = {}
+        ck(code == 200 and len(so.get("lines", [])) == 3,
+           "GET /api/simple 返回三条线（git 是死的也出得来）")
+
         code, body = call("/api/status")
         ck(code == 200, "GET /api/status 返回 200")
         try:
@@ -2001,6 +2014,126 @@ def check_docs() -> None:
        "auction.yml 的注释不再写 2026-08 的八入口/五 cron 旧排期")
 
 
+
+def check_simple_page() -> None:
+    """首页傻瓜页（2026-09-18）：北京时间、多久没跑、失败原因、下次开机、进度。"""
+    print("\n[首页·傻瓜页]")
+    import datetime as dt
+    import tempfile
+    from gui import simple as S
+
+    now = dt.datetime(2026, 9, 18, 8, 17)
+    ck(S.ago(None, now) == "从没跑通", "没跑过显示「从没跑通」")
+    ck(S.ago(now - dt.timedelta(minutes=8), now) == "8 分钟前", "8 分钟前")
+    ck(S.ago(now - dt.timedelta(hours=22, minutes=50), now) == "22 小时 50 分前",
+       "22 小时 50 分前")
+    ck(S.ago(now - dt.timedelta(days=3), now) == "3 天前", "超过两天按天数")
+
+    # 下次开机：交易日表用假的（周五 09-18 是交易日、周末不是）
+    import local_run as L
+    real = L.trade_dates
+    L.trade_dates = lambda: {"2026-09-18", "2026-09-21"}
+    try:
+        w = S.next_window(dt.datetime(2026, 9, 18, 8, 17))
+        ck(not w["now"] and w["start"] == "今天 08:30" and w["in"] == "13 分钟",
+           f"08:17 -> 今天 08:30、还有 13 分钟（{w}）")
+        w = S.next_window(dt.datetime(2026, 9, 18, 8, 45))
+        ck(w["now"] and w["end"] == "09:30", f"08:45 在早盘窗口里（{w}）")
+        w = S.next_window(dt.datetime(2026, 9, 18, 18, 0))
+        ck(w["start"].startswith("9-21") and "周一" in w["start"],
+           f"周五 18:00 -> 跳过周末到下周一（{w}）")
+    finally:
+        L.trade_dates = real
+
+    # 失败原因从日志最后一次**真正开跑**的那一段取，秒退的敲门不算
+    log = """[2026-09-17T04:30:02] === run_local breakout ===
+04:30:09 本地全流程 breakout 启动 @ 16:30:09
+04:39:50 补不上目标日的票 74 只，超过 50 只的上限，不出清单
+[2026-09-17T04:39:50] === run_local breakout exit=1 ===
+[2026-09-17T04:45:00] === run_local breakout ===
+04:45:01 起涨预测 正在跑，这次不拉远端
+[2026-09-17T04:45:01] === run_local breakout exit=0 ===
+"""
+    with tempfile.TemporaryDirectory() as td:
+        real_root = S.ROOT
+        try:
+            S.ROOT = Path(td)
+            (Path(td) / "tools").mkdir()
+            (Path(td) / "tools" / "local_flow_breakout.log").write_text(
+                log, encoding="utf-8")
+            rc, why = S.last_run_block("breakout")
+            ck(rc == 1 and "不出清单" in why,
+               f"失败原因取到了，秒退的敲门被跳过（rc={rc}，{why}）")
+        finally:
+            S.ROOT = real_root
+
+    # 进度：起涨预测第 2 步占九成，第 2 步做到一半时总进度应在 45% 上下
+    with tempfile.TemporaryDirectory() as td:
+        real_root = S.ROOT
+        try:
+            S.ROOT = Path(td)
+            (Path(td) / "state" / "lock").mkdir(parents=True)
+            (Path(td) / "state" / "lock" / "progress_breakout.json").write_text(
+                json.dumps({"running": True, "step": 2, "total": 4, "sub": 0.5,
+                            "text": "补 2026-09-17 日线 + 重算特征表"}),
+                encoding="utf-8")
+            pr = S.progress("breakout", {"pid": 1}, now)
+            ck(45 <= pr["pct"] <= 47, f"第 2 步做一半 -> {pr['pct']:.1f}%")
+            ck(S.progress("breakout", None, now) == {}, "没在跑就没有进度")
+        finally:
+            S.ROOT = real_root
+
+    snap = S.snapshot()
+    ck({"now", "date", "wd", "power", "window", "lines", "learn"} <= set(snap),
+       "snapshot 字段齐")
+    ck([x["name"] for x in snap["lines"]] == ["早盘选股", "起涨预测", "参数自学"],
+       "三条线，顺序固定")
+    ck(all({"state", "ago", "can_run", "key"} <= set(x) for x in snap["lines"]),
+       "每条线都有 状态 / 多久没跑 / 能不能点 / 按钮键")
+    ck("__TOKEN__" in S.PAGE and "/full" in S.PAGE, "页面有 token 占位符和详细控制台入口")
+
+
+def check_progress_file() -> None:
+    """local_run 的进度文件和细进度（首页进度条的数据源）。不碰生产目录。"""
+    print("\n[local_run·进度]")
+    import tempfile
+    import local_run as L
+    with tempfile.TemporaryDirectory() as td:
+        real = (L.PROGRESS_DIR, L._FLOW)
+        try:
+            L.PROGRESS_DIR = Path(td)
+            L._FLOW = "selftest"
+            L._PROG.clear()
+            L._PROG.update({"flow": "selftest", "running": True})
+            L.step(2, 4, "补日线 + 重算特征表")
+            f = Path(td) / "progress_selftest.json"
+            j = json.loads(f.read_text(encoding="utf-8"))
+            ck(j["step"] == 2 and j["total"] == 4 and j["sub"] is None,
+               "step() 写进度文件，换步时细进度清零")
+            L._PROG_LAST[0] = 0
+            L._scan_sub("12:00:01   逐只处理 2500/5000  用时 3 分钟\n".encode("utf-8"))
+            j = json.loads(f.read_text(encoding="utf-8"))
+            ck(abs(j["sub"] - 0.475) < 1e-6, f"认出「逐只处理 2500/5000」-> {j['sub']}")
+            L._PROG_LAST[0] = 0
+            L._scan_sub("逐只处理 1000/5000\n".encode("utf-8"))
+            j = json.loads(f.read_text(encoding="utf-8"))
+            ck(abs(j["sub"] - 0.475) < 1e-6, "细进度只增不减（晚到的旧行不会把进度条往回拉）")
+            # py() 透传 + 认进度：起一个真的子进程
+            L._PROG["sub"] = None
+            L._PROG_LAST[0] = 0
+            code = ("import sys;print('逐只处理 4000/5000', flush=True);"
+                    "sys.stderr.write('stderr 也要透传\\n');sys.exit(3)")
+            src = Path(td) / "child.py"
+            src.write_text(code, encoding="utf-8")
+            rc = L.py(str(src))
+            j = json.loads(f.read_text(encoding="utf-8"))
+            ck(rc == 3, f"py() 原样返回子进程退出码（{rc}）")
+            ck(abs(j["sub"] - 0.73) < 1e-6, f"py() 从子进程输出里认出进度 -> {j['sub']}")
+        finally:
+            L.PROGRESS_DIR, L._FLOW = real
+            L._PROG.clear()
+
+
 def main() -> int:
     import time
     t0 = time.time()
@@ -2030,6 +2163,8 @@ def main() -> int:
     check_pages_checkout_guard()
     check_workflow_push()
     check_docs()
+    check_simple_page()
+    check_progress_file()
     check_panels()
     check_task_sentinel()
     check_http()

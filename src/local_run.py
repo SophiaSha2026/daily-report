@@ -62,6 +62,7 @@ import datetime as dt
 import json
 import logging
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -142,8 +143,84 @@ def target_date(flow: str) -> str:
     return today() if flow == "morning" else last_closed_trade_day()
 
 
+# ---------------------------------------------------------------------
+#  进度（控制台首页的进度条读它，2026-09-18 用户要「一个进度条」）
+# ---------------------------------------------------------------------
+# 写在 state/lock/ 下：那个目录不进仓库（.gitignore），进度是本机的瞬时状态，
+# 推到远端只会让云端和别的机器看见一个不属于它们的「在跑」。
+_FLOW = ""                  # 这个进程在跑哪条线，main 拿到锁之后设
+_PROG: dict = {}
+_PROG_LAST = [0.0]          # 上次落盘的时刻，细进度按 2 秒一次节流
+PROGRESS_DIR = ROOT / "state" / "lock"
+
+# 子阶段输出里认得出「做到第几个了」的几种行 -> 这一步完成了多少（0~1）。
+# 起涨预测第 2 步（补日线 + 重算特征）要十几分钟，只按步数算的话进度条会
+# 在同一格停十几分钟，看着像卡死。
+_SUB = [
+    (re.compile(r"逐只处理 (\d+)/(\d+)"),
+     lambda m: 0.05 + 0.85 * int(m.group(1)) / max(1, int(m.group(2)))),
+    (re.compile(r"三层变换完成"), lambda m: 0.93),
+    (re.compile(r"训练表 \d+ 行"), lambda m: 0.97),
+    (re.compile(r"学习会诊开跑"), lambda m: 0.35),
+    (re.compile(r"视角完成 (\d+)/(\d+)"),
+     lambda m: 0.35 + 0.45 * int(m.group(1)) / max(1, int(m.group(2)))),
+    (re.compile(r"视角 chair 完成"), lambda m: 0.85),
+]
+
+
+def _write_progress(force: bool = False) -> None:
+    if not _FLOW:
+        return
+    now = time.time()
+    if not force and now - _PROG_LAST[0] < 2.0:
+        return
+    _PROG_LAST[0] = now
+    try:
+        PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
+        f = PROGRESS_DIR / f"progress_{_FLOW}.json"
+        tmp = f.with_suffix(".tmp")
+        _PROG["updated_at"] = now_bj().isoformat(timespec="seconds")
+        tmp.write_text(json.dumps(_PROG, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(f)
+    except Exception:  # noqa: BLE001
+        pass            # 进度写不出来不许影响流程本身
+
+
+def _scan_sub(tail: bytes) -> None:
+    """在子阶段最近的输出里找最后一条认得出的进度行，更新这一步的完成度。"""
+    txt = tail.decode("utf-8", errors="ignore")
+    best_pos, best = -1, None
+    for rx, fn in _SUB:
+        for m in rx.finditer(txt):
+            if m.start() > best_pos:
+                best_pos, best = m.start(), fn(m)
+    if best is not None and best > float(_PROG.get("sub") or 0):
+        _PROG["sub"] = round(min(0.99, best), 3)
+        _write_progress()
+
+
 def step(i: int, n: int, text: str) -> None:
     print(f"##STEP {i}/{n} {text}", flush=True)
+    _PROG.update({"step": i, "total": n, "text": text, "sub": None})
+    _write_progress(force=True)
+
+
+def keep_awake(on: bool) -> None:
+    """跑流程时不让电脑因为**闲置**睡着（SetThreadExecutionState）。
+
+    只管闲置。没插电、电量低到阈值的保护性休眠拦不住，也不该拦：
+    2026-09-17 17:02 起涨预测跑到一半停了 15 小时，事件日志写的是
+    Sleep Reason: Battery。那种情况只能插电，控制台首页会亮「没插电」。
+    """
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        es_continuous, es_system_required = 0x80000000, 0x00000001
+        ctypes.windll.kernel32.SetThreadExecutionState(
+            es_continuous | (es_system_required if on else 0))
+    except Exception:  # noqa: BLE001
+        pass
 
 
 # ---------------------------------------------------------------------
@@ -162,8 +239,41 @@ def load_env() -> None:
 
 
 def py(*args: str) -> int:
-    """跑一个子阶段，stdout/stderr 直接透传（TUI 靠这个显示实时进度）。"""
-    return subprocess.run([PY, *args], cwd=ROOT).returncode
+    """跑一个子阶段，输出原样透传，顺带认出细进度写进进度文件。
+
+    以前是 subprocess.run 直接继承 stdout。现在读管道再原样写出去（按字节、
+    不按行，tqdm 的回车刷新照样实时），同时在输出里认「做到第几个了」
+    （_SUB），控制台首页的进度条读它。stderr 并进 stdout：计划任务那条路本来
+    就是 `>> log 2>&1`，控制台那条路本来就 stderr=STDOUT，最终落点不变。
+    """
+    try:
+        sys.stdout.flush()
+    except Exception:  # noqa: BLE001
+        pass
+    proc = subprocess.Popen([PY, *args], cwd=ROOT, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+    out = getattr(sys.stdout, "buffer", None)
+    tail = b""
+    try:
+        while True:
+            chunk = (proc.stdout.read1(65536) if hasattr(proc.stdout, "read1")
+                     else proc.stdout.read(4096))
+            if not chunk:
+                break
+            if out is not None:
+                try:
+                    out.write(chunk)
+                    out.flush()
+                except Exception:  # noqa: BLE001
+                    pass
+            tail = (tail + chunk)[-8192:]
+            try:
+                _scan_sub(tail)
+            except Exception:  # noqa: BLE001
+                pass
+    finally:
+        rc = proc.wait()
+    return rc
 
 
 # ---------------------------------------------------------------------
@@ -1040,6 +1150,9 @@ def in_window(flow: str) -> bool:
     return hm >= lo or hm <= hi          # 跨午夜
 
 
+AUTO_GRACE_MIN = 2    # 自动开跑时刻的宽限（分钟），见 auto_due
+
+
 def auto_due(flow: str) -> bool:
     """到没到自动开跑时刻。窗口内且过了 FLOWS 第五项。
 
@@ -1049,10 +1162,15 @@ def auto_due(flow: str) -> bool:
     if not in_window(flow):
         return False
     lo, hi, auto = FLOWS[flow][2:5]
-    hm = (now_bj().hour, now_bj().minute)
+    # 提前几分钟也算到点。计划任务的触发时刻会有秒级抖动，而且偏早：
+    # 2026-09-18 早盘那次是 08:29:56 敲门，比自动时刻 08:30 早 4 秒，
+    # 按「到没到 08:30」判就跳过了，要等下一次 08:45 才起 —— 每天都晚 15 分钟。
+    # 触发间隔最短 15 分钟，宽限 2 分钟吃掉抖动，又不会把上一次敲门算进来。
+    t = now_bj() + dt.timedelta(minutes=AUTO_GRACE_MIN)
+    hm = (t.hour, t.minute)
     if lo <= hi:
         return hm >= auto
-    return hm >= auto or hm <= hi
+    return hm >= auto or (now_bj().hour, now_bj().minute) <= hi
 
 
 # 哪条线真发信之后写哪个 sent 标记（state/sent/<名字>_<目标日>.json）
@@ -1280,6 +1398,15 @@ def main() -> int:
 
     if not acquire_lock(a.flow):
         return 0
+    global _FLOW
+    _FLOW = a.flow
+    _PROG.clear()
+    _PROG.update({"flow": a.flow, "running": True, "pid": os.getpid(),
+                  "dry": bool(a.dry), "step": 0, "total": 0, "text": "启动",
+                  "started_at": now_bj().isoformat(timespec="seconds")})
+    _write_progress(force=True)
+    keep_awake(True)
+    rc = 1
     try:
         load_env()
         if a.dry:
@@ -1293,6 +1420,10 @@ def main() -> int:
                  (now_bj() - t0).total_seconds(), rc)
         return rc
     finally:
+        keep_awake(False)
+        _PROG.update({"running": False, "rc": rc,
+                      "finished_at": now_bj().isoformat(timespec="seconds")})
+        _write_progress(force=True)
         release_lock(a.flow)
 
 

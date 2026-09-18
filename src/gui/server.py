@@ -33,7 +33,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-from . import status
+from . import simple, status
 from .jobs import ACTIONS, Registry
 from .ui import PAGE
 
@@ -154,8 +154,16 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(u.query)
         p = u.path
 
+        # 首页是傻瓜页（2026-09-18 用户要求：一个按钮、跑了没、多久没跑、
+        # 进度条，字越少越好，全部北京时间）。原来那个详细控制台挪到 /full。
         if p == "/":
+            return self._html(simple.PAGE.replace("__TOKEN__", TOKEN))
+
+        if p == "/full":
             return self._html(PAGE.replace("__TOKEN__", TOKEN))
+
+        if p == "/api/simple":
+            return self._json(simple.snapshot())
 
         if p == "/api/status":
             return self._json(status.overview())
