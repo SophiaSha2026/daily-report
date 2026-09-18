@@ -1,7 +1,7 @@
 {
-  "date": "2026-09-16",
+  "date": "2026-09-17",
   "dry": false,
-  "n_days": 414,
+  "n_days": 415,
   "days": [
     "2025-01-03",
     "2025-01-06",
@@ -416,24 +416,26 @@
     "2026-09-11",
     "2026-09-14",
     "2026-09-15",
-    "2026-09-16"
+    "2026-09-16",
+    "2026-09-17"
   ],
   "theta_version": "基线",
   "metrics": {
-    "days": 414,
-    "ic_mean": -0.02256871283399002,
-    "ic_std": 0.2525327858261145,
-    "icir": -0.08936943676505461,
-    "top_excess": 0.0001257355250737004,
-    "hit_rate": 0.43629307007355783,
-    "avg_pool": 42.15942028985507,
-    "avg_sent": 8.753623188405797
+    "days": 415,
+    "ic_mean": -0.022947421390660666,
+    "ic_std": 0.2523414555188904,
+    "icir": -0.09093797665339538,
+    "top_excess": 0.00016667700757072533,
+    "hit_rate": 0.43644807476924263,
+    "avg_pool": 42.091566265060244,
+    "avg_sent": 8.751807228915663
   },
   "source_days_weighted": {
     "2026-09-02": 1.0,
     "2026-09-14": 1.0,
     "2026-09-15": 1.0,
-    "2026-09-16": 1.0
+    "2026-09-16": 1.0,
+    "2026-09-17": 1.0
   },
   "verdict": {
     "accepted": false,
@@ -446,17 +448,17 @@
       {
         "name": "最少天数",
         "passed": true,
-        "detail": "414 天 / 要求 >= 60"
+        "detail": "415 天 / 要求 >= 60"
       },
       {
         "name": "样本外改善",
         "passed": false,
-        "detail": "Ĝ_oos +0.0135 -> +0.0067 （-0.0068）；分块 1/3 改善（要求 >= 2）"
+        "detail": "Ĝ_oos +0.0123 -> +0.0083 （-0.0039）；分块 1/3 改善（要求 >= 2）"
       },
       {
         "name": "按天自助显著",
         "passed": false,
-        "detail": "P(更好)=0.373 / 要求 >= 0.9；配对 ΔĜ=-0.0023"
+        "detail": "P(更好)=0.489 / 要求 >= 0.9；配对 ΔĜ=+0.0002"
       },
       {
         "name": "步长与改动个数",
@@ -476,25 +478,25 @@
       {
         "name": "在线稳健性",
         "passed": true,
-        "detail": "真值快照 17 天上 P(更好)=0.86 / 否决线 0.25"
+        "detail": "真值快照 18 天上 P(更好)=0.90 / 否决线 0.25"
       }
     ],
     "moved": {
       "scoring.weights.gap": [
         0.2,
-        0.20452800133404953
+        0.20446415716265437
       ],
       "scoring.weights.position": [
         0.15,
-        0.15380352112060153
+        0.15374989201662964
       ],
       "scoring.weights.sector": [
         0.15,
-        0.13931391685164318
+        0.13946458909613568
       ],
       "scoring.weights.continuity": [
         0.05,
-        0.05235456069370575
+        0.052321361724580275
       ],
       "screen.gap_pct_peak": [
         3.5,
@@ -502,36 +504,36 @@
       ]
     },
     "evidence": {
-      "oos_old": 0.013470792763871758,
-      "oos_new": 0.006657115876367459,
-      "bootstrap_p": 0.3735,
-      "paired_delta": -0.0022910442048891,
+      "oos_old": 0.012264614678963151,
+      "oos_new": 0.008343183468523464,
+      "bootstrap_p": 0.4895,
+      "paired_delta": 0.00019076207232994707,
       "block_delta": [
-        -0.022124847792037494,
-        -0.01923466034069994,
-        0.01398203054014846
+        -0.017253234101018616,
+        -0.018339107872733164,
+        0.021337267881245126
       ],
-      "n_days": 414,
+      "n_days": 415,
       "worst_churn": 0.25,
-      "online_p": 0.857,
-      "online_days": 17,
+      "online_p": 0.898,
+      "online_days": 18,
       "intents": [
         "screen.gap_pct_peak",
         "scoring.weights.sector"
       ]
     }
   },
-  "train_source": "backfill:backfill_2025-01-03_2026-09-02.parquet+online:17天",
+  "train_source": "backfill:backfill_2025-01-03_2026-09-02.parquet+online:18天",
   "intents": [
     "screen.gap_pct_peak",
     "scoring.weights.sector"
   ],
-  "lambda_anchor": 0.06651884700665188,
+  "lambda_anchor": 0.06637168141592921,
   "run_at": "16:30:00",
   "n_nonfinite": 0,
   "accepted_total": 0,
-  "generated_at": "2026-09-16T19:41:23",
-  "regime_today": "正常",
+  "generated_at": "2026-09-17T04:52:04",
+  "regime_today": "板块轮动",
   "daily": [
     {
       "date": "2026-08-24",
@@ -651,6 +653,13 @@
       "top_excess": -0.0076658251478838564,
       "pool": 12,
       "sent_n": 6
+    },
+    {
+      "date": "2026-09-17",
+      "ic": -0.17821792962562585,
+      "top_excess": 0.01695268483135094,
+      "pool": 14,
+      "sent_n": 8
     }
   ],
   "daily_now": [
@@ -772,19 +781,37 @@
       "top_excess": -0.0076658251478838564,
       "pool": 12,
       "sent_n": 6
+    },
+    {
+      "date": "2026-09-17",
+      "ic": -0.17821792962562585,
+      "top_excess": 0.01695268483135094,
+      "pool": 14,
+      "sent_n": 8
     }
   ],
-  "online_days": 17,
-  "shadow": [],
+  "online_days": 18,
+  "shadow": [
+    {
+      "date": "2026-09-17",
+      "base_n": 8,
+      "shadow_n": 10,
+      "base_ic": -0.17821792962562585,
+      "base_top_excess": 0.01695268483135094,
+      "shadow_ic": 0.20462058586645934,
+      "shadow_top_excess": 0.01900971165810103,
+      "overlap": 0.6
+    }
+  ],
   "shadow_stat": {
-    "days": 0,
+    "days": 1,
     "min_days": 30,
     "p_req": 0.9,
-    "need_days": 30,
-    "p_better": null,
-    "mean_diff": null,
-    "wins": 0,
-    "ic_wins": 0,
+    "need_days": 29,
+    "p_better": 1.0,
+    "mean_diff": 0.002057026826750092,
+    "wins": 1,
+    "ic_wins": 1,
     "ready": false
   }
 }

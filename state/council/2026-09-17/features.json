@@ -1,0 +1,216 @@
+{
+ "lens": "features",
+ "summary": "早盘：六维合成分在 415 天上没有排序力（日相关性 −0.023，t −1.85），10 次裁决全挂在样本外，问题在特征内容不在权重；量能维回填正在线负是口径造成的。起涨：44% 的 gain 来自 4 个当天所有票都一样的列，它们是每天出几只的唯一来源，而满员日精度 7.6% 反低于非满员日 18.6%；股票层面选出来的是高换手宽振幅的票，更像波动率筛。",
+ "findings": [
+  {
+   "line": "morning",
+   "claim": "六个维度合起来在 415 天上没有排序力，重调权重救不回来",
+   "evidence": "基线 θ 在 415 训练日上日相关性 −0.0229（std 0.252，t≈−1.85），top_excess≈0.0002，命中 43.6%；10 次裁决全部倒在「样本外改善」+「按天自助」两闸",
+   "magnitude": "日相关性 −0.023±0.012，n=415 天；在线 18 天排序增益 −0.344±0.213/天",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "量能维「回填正、在线负」是口径差，不是市场变了",
+   "evidence": "回填按量比分档超额 +0.549/+0.711/+0.731 单调升（n=5878/8218/4327），在线 −0.12/+0.06/−0.659；回填竞价额含 09:30 后成交，中位高 25~33%，那部分和开盘后涨跌同向",
+   "magnitude": "同一维度两套数据符号相反，回填三档跨度 +0.18 vs 在线 −0.54",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "板块维是拥挤度加分，同一主题崩的时候前 10 一起崩",
+   "evidence": "09-15 分数前三名全是软件开发（sector_members=4，73.1/71.7/69.4），当日 −6.97/−7.07/−3.27%；09-11 前 10 里油气+煤炭+燃气四只全在 −8.9~−10.7%",
+   "magnitude": "sector 维按天价差 −0.67±0.727（t −0.92，18 天），10 个切片做多重比较需 |t|>3.2，无一过关",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "pos_pct_60d 的回填/在线对照不是同口径，0.5 是填充值",
+   "evidence": "对照表在线中位数正好 0.5、均值 0.512，回填 0.645；但 09-17 过准入 14 行实际值是 0.158~1.0，没有一行等于 0.5，说明 0.5 只出现在未过准入的行上",
+   "magnitude": "中位数差 0.145，受填充行污染；过准入行本身无此问题",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "「低分票反而更好」主要由两只重复出现的票撑着",
+   "evidence": "近岸蛋白 09-14 ytil +4.72（分 28.2）、09-17 +5.14（分 27.9），万邦医药 09-14 +4.72、09-17 +3.54，两只都卡在 gap 2.0~2.3% 的下沿；09-17 两只最好的票 y 都被 q99 缩尾到同一个 0.117",
+   "magnitude": "18 天里 2 只票占了最好组的 4 个名额，切片的有效样本远小于 n=465",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "4 个日级列是「今天出几只」的唯一来源，其余特征日分布天然平稳",
+   "evidence": "regime 组 44.33%，其中 mkt_ret5 三个变换 31.23% + mkt_breadth__last 9.55% = 40.78% 是当天所有票同值；其余入模列都是横截面百分位中性化后的残差，跨日分布不变",
+   "magnitude": "日级 gain 占比 40.8%（51 列里 4 列）；空榜 61 天、非满员 125 天、满员 21 天全由它们决定",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "模型说「今天是好日子」的那些天，清单精度反而砍半",
+   "evidence": "满员日 16/210=7.6%（Wilson 4.7~12.0，21 天）vs 非满员 71/381=18.6%（15.0~22.9，125 天）；名次效应解释不了：近5日均值前1名 13.8% vs 前10名 11.7%",
+   "magnitude": "−11.0 个百分点，21 天 vs 125 天；按天聚类后差距仍约 3 个标准误",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "日常量列的训练 gain 天然虚高，叶子约束按行数拦不住",
+   "evidence": "一天约 5500 行同值，树用 mkt_* 一刀就能切出个别日子把当天基准率背下来，min_data_in_leaf 按行数算永远满足；池化对数损失奖励这种按日记忆",
+   "magnitude": "训练约 880 天可被单独记忆；gain 占比 40.8% 未经样本外检验",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "清单选的是已经在动、振幅大的票，不是收敛待变的票",
+   "evidence": "09-16 十只残差（量级 ±0.5）：dist_52w_low 0.358~0.494、boll_width 0.329~0.555、turn_pct__mean 0.30~0.596、rs20 0.426~0.568 全部接近饱和，chip_peak 十只全负",
+   "magnitude": "10/10 同向；验证集命中票第 3 根已 +22.4%、未命中 +7.0%，命中里 41% 在第 3 根就 ≥25%",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "「成交量组」几乎没用，模型用的活跃度是换手",
+   "evidence": "volume 组合计 3.44%：vol_ratio5 两列 0.10%、vol_ratio20__last 0.25%、up_vol_share20 0.57%、amt_ma20 2.61%；turn_pct__mean 9.81% + turn_std20 1.60% + turn_pct__slope 0.64%",
+   "magnitude": "换手三列 12.05% vs 成交量组 3.44%（按组求和反推，换手被归在 position 组）",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "x_light_top__last 就是 chip_win__last 取负号，共线筛没拦住",
+   "evidence": "09-16 清单 10 行逐位相反：0.448/−0.448、0.559/−0.559、−0.094/+0.094、0.517/−0.517、0.599/−0.599……两列都在模型里（0.46% 和 0.41%）",
+   "magnitude": "10/10 行 ρ=−1；共线一步丢了 26 列却留下这一对，判据大概是带符号的 ρ",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "三个已知问题里，薄截面日和均线暖机填 0 影响最大，筹码 NaN 当前没影响",
+   "evidence": "薄日 96 天（最少 69 只，2023-01-03）：板块×市值分箱几乎每箱一只，股票层面残差塌向 0，那些天只剩 4 个日级列能解释标签；above_ma60__last 是第 2 重要（10.32%），填 0 把「还没有 MA60」和「正好踩在 MA60」混成同一个数；最新清单 NaN 特征为空，筹码组共 7%",
+   "magnitude": "薄日占训练 96 天；暖机填 0 影响的是 10.3% gain 的头部列；筹码 NaN 当前清单 0 个",
+   "confidence": "中"
+  }
+ ],
+ "proposals": [
+  {
+   "kind": "feature_modify",
+   "line": "breakout",
+   "target": "mkt_ret5__mean / __last / __slope、mkt_breadth__last 的消融协议",
+   "change": "消融前先跑一个安慰剂臂：把这 4 列按天整体打乱（保持当天同值、换成别的日子的值）重训；同时规定消融臂和基线必须按 per_day 对齐比较，不比原始命中率",
+   "rationale": "这 4 列是日级信息的唯一来源，去掉后每天够格数会趋于常数、空榜消失，per_day 从 2.86 变成接近 10，直接比命中率是拿两种清单规模对比。安慰剂臂能分清 40.8% 的 gain 是市场状态还是按日记忆",
+   "expected_effect": "安慰剂臂若仍拿到 ≥25% gain，说明是记忆；消融臂在 per_day 对齐后命中率不掉，即可安全去掉",
+   "test_plan": "逐月滚动测试 + 消融；两臂都报 per_day、空榜天数、满员天数和 Wilson 区间；先断言入模列数真的变了（教训 32）",
+   "priority": "P0",
+   "params": {
+    "features": [
+     "mkt_ret5__mean",
+     "mkt_ret5__last",
+     "mkt_ret5__slope",
+     "mkt_breadth__last"
+    ],
+    "placebo": "day_shuffle",
+    "match_on": "per_day"
+   }
+  },
+  {
+   "kind": "process",
+   "line": "morning",
+   "target": "会诊证据包：每个维度在回填 404 天上的单独相关性",
+   "change": "证据包补一张表：六个维度各自的得分与 ytil 的按天相关性均值、按天聚类标准误和 t，回填 404 天和在线 18 天并排；量能/趋势两维标注「口径钉死，仅供参考」",
+   "rationale": "合成分 415 天相关性 −0.023（t −1.85）说明问题在维度本身，但现在只有 18 天的三分位价差能看维度方向，t 全在 ±1.7 以内，谁在拖后腿看不出来。回填的 gap 已按撮合价 open 修好，位置和板块两维在回填上可信",
+   "expected_effect": "把「哪个维度方向反了」从 18 天的噪声判断换成 404 天的判断；为后续权重或形状提案提供依据",
+   "test_plan": "人工实现；实现后用现成 θ⁰ 复算一次，六维 t 值写进面板和邮件",
+   "priority": "P0",
+   "params": {
+    "add": [
+     "dim_daily_corr_backfill",
+     "dim_corr_se_day_clustered",
+     "dim_corr_t"
+    ],
+    "n_days": 404
+   }
+  },
+  {
+   "kind": "feature_modify",
+   "line": "breakout",
+   "target": "均线类特征的暖机填充（above_ma60__last / ma_align / ma20_slope5）",
+   "change": "暖机期（历史不足 60 根）改填 NaN，交给树自己学缺失分支；另加一列 bars_since_listing（上市/有数据以来的根数）",
+   "rationale": "填 0 把两件事混成同一个值：一只正好贴着 MA60 的老票，和一只根本没有 MA60 的次新票。above_ma60__last 是第二重要的列（10.32%），这种混淆直接落在它身上；次新票的起涨基准率本来就和老票不同，应该用显式的一列表达",
+   "expected_effect": "above_ma60__last 的 gain 份额变动可见；清单里历史不足 60 根的票占比与其命中率可单独统计",
+   "test_plan": "逐月滚动测试对比命中率与 per_day；另报验证集里历史 <60 根的名额数和命中率",
+   "priority": "P1",
+   "params": {
+    "warmup_fill": "nan",
+    "add_feature": "bars_since_listing"
+   }
+  },
+  {
+   "kind": "feature_modify",
+   "line": "breakout",
+   "target": "薄截面日（当日代码数过少）的中性化与训练权重",
+   "change": "当天参与横截面的代码数低于 1000 时，板块×市值分箱中性化退回只做全市场百分位；同时这些天的训练行降权或整体剔除，作为两个对照臂",
+   "rationale": "96 个薄日最少只有 69 只票，分箱后几乎每箱一只，中性化残差整体塌向 0，股票层面特征在那些天没有区分度，树只能靠 4 个日级列解释标签，这是 regime 占比虚高的一个来源",
+   "expected_effect": "regime 组 gain 份额下降；逐月滚动测试的命中率与 per_day 不劣于基线",
+   "test_plan": "消融：基线 / 分箱回退 / 剔除薄日 三臂重训，各报 regime 组 gain、W5 命中、per_day；先断言三臂入模行数确实不同",
+   "priority": "P1",
+   "params": {
+    "min_codes_per_day": 1000,
+    "arms": [
+     "bin_fallback",
+     "drop_thin_days"
+    ],
+    "n_thin_days": 96
+   }
+  },
+  {
+   "kind": "feature_add",
+   "line": "morning",
+   "target": "两列候选：近 5 日涨幅 ret_5d、按自身波动归一的高开 gap_pct/atr20_pct",
+   "change": "先只在回填 404 天上算这两列与 ytil 的按天相关性和按天聚类 t，不进打分器、不改准入区间；符号和在线 18 天一致且 |t|>2 才提下一步",
+   "rationale": "现有六维没有一维刻画「这波涨了多久」和「这个高开相对自身振幅算不算大」。在线四个标志里两个强势标志都是负的（突破平台 −1.057，t −2.35；昨日涨停 −0.688），和 T+1 隔夜获利盘在开盘兑现的机制一致；同一 3% 高开对低波动大盘股是异动、对高波动票是常态",
+   "expected_effect": "若 ret_5d 在回填上按天 t < −2，可解释目前合成分相关性为负的一部分",
+   "test_plan": "回填 404 天算相关性；通过后再做加权臂并走七道闸",
+   "priority": "P1",
+   "params": {
+    "candidates": [
+     "ret_5d",
+     "gap_pct_over_atr20"
+    ],
+    "stage": "corr_only"
+   }
+  },
+  {
+   "kind": "feature_drop",
+   "line": "breakout",
+   "target": "近零贡献的五列",
+   "change": "vol_ratio5__last、vol_ratio5__mean、vol_ratio20__last、x_squeeze_burst__last、x_squeeze_burst__mean 移出入模集合",
+   "rationale": "五列训练 gain 合计 0.42%，其中 vol_ratio5 两列 0.10%。成交量比值在横截面百分位加中性化之后和换手的斜率重叠；x_squeeze_burst 刻画「先收敛再爆量」，而模型实际选的是宽振幅高换手的票，这个交互几乎不落在它用的区域",
+   "expected_effect": "逐月滚动测试命中率变动在 ±1 个百分点内（基线 14.72%，se 1.46），列数 51 → 46",
+   "test_plan": "消融；先断言入模列数变了且成绩不是逐位相同（教训 32），再看命中率与 per_day",
+   "priority": "P2",
+   "params": {
+    "features": [
+     "vol_ratio5__last",
+     "vol_ratio5__mean",
+     "vol_ratio20__last",
+     "x_squeeze_burst__last",
+     "x_squeeze_burst__mean"
+    ]
+   }
+  }
+ ],
+ "questions": [
+  "特征筛选丢掉的 51 列具体是哪些名字？证据包只给了 ic_too_weak 23 / ic_unstable 2 / collinear 26 三个计数，没有名单就判断不了「该留的被丢了」，也没法核实共线筛用的是 ρ 还是 |ρ|",
+  "tools/council_query.py feature-ic 对 chip_conc90、x_light_top 都返回 {}，逐月相关性查不到。是缓存没生成还是工具坏了？这条路不通就没法验证单个特征的稳定性",
+  "验证集里 21 个满员日分布在哪几个月？如果集中在一两段行情，7.6% vs 18.6% 就只是两段行情之差，而不是日级判断反了",
+  "训练集里 mkt_ret5 最高的那几段（例如 2024-09 那轮）贡献了多少正例？日级列的 gain 是不是主要来自少数几段行情",
+  "96 个薄截面日具体是哪些日期，那些天的正例比例和中性化后各箱内的样本数是多少？"
+ ],
+ "_meta": {
+  "lens": "features",
+  "model": "claude-opus-5",
+  "effort": "max",
+  "seconds": 54555.0,
+  "turns": 2,
+  "cost_usd": 0.406538,
+  "n_tool_calls": 18,
+  "denials": 0,
+  "error": ""
+ }
+}

@@ -1,0 +1,199 @@
+{
+ "lens": "data_quality",
+ "summary": "最大的假差距在真值本身。起涨的 8 份清单没有一份是实发的：09-07~09-15 在 09-16 早上被整体重算，09-16 那份被审批后的试跑重写并提交，实发 10 只只剩 2 只还在跟踪。被跟踪的 80 个名额 61% 是科创，而印在邮件上的 14.7% 那一跑科创只占 4.2%、0 命中；8/8 天满员（验证集满员日只有 7.6%），同期基准又只有一半，合理期望是 3~6 个不是 11.8 个。早盘：回填竞价额虚高三成却直接拿去套准入带（训练 45.6 只/天 vs 在线 23.8），08-28 整天缺失、08-24 板块全是占位符，证据包一个字没记。",
+ "findings": [
+  {
+   "line": "breakout",
+   "claim": "真值表里 8 份清单没有一份是当天真发出去的那份",
+   "evidence": "commit 65f6017（09-16 07:08 BJT）「重算 2026-09-07..2026-09-15」整体重写；9181348（09-17 07:26）连同 e2e 试跑重写并提交 09-16 的清单、A 池、run_meta（dry=true）。list_a.json 的 diff：09-16 实发的 920028/688046/603879/002811/605162/603023/600186/600722 全被换掉",
+   "magnitude": "09-16 十个名额换掉 8 个，只剩 688137/688004 重合；8 份清单 100% 是重算版",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "被评估的名额 61% 是科创，成绩表那一跑只有 4.2%",
+   "evidence": "逐份清单科创只数 5/6/6/8/9/6/6/3 合计 49/80，创业板 0/80；收缩臂验证 591 个名额里科创 25 个（4.2%）、0 命中、创业板 14.2%。09-07~09-15 用 star=1.27，09-16 那份重写时 star=1.0，现在生产是收缩臂 star=0.858",
+   "magnitude": "科创占比 61% vs 4.2%（14 倍）；三套板块系数分属不同清单，邮件的成绩表属于第四套",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "97 分门槛在生产上从没卡住，8/8 天满员",
+   "evidence": "验证集 207 天里满员只有 21 天（10.1%），满员日命中 7.6%（n=210，Wilson 4.4~11.5%），非满员日 18.6%（n=381）；09-16 run_meta 够格 19 只、过风险 18 只、砍到 10",
+   "magnitude": "该对照的期望是 7.6%：80 个名额期望 6.1 个，而不是 14.7% 对应的 11.8 个",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "同期基准只有验证集一半，期望还要再打对折",
+   "evidence": "验证集 base 2.93%；最近能算满 20 根的日子 base20 = 1.13~1.62%（08-07~08-20 均值 1.43%）。满员日相对基准的倍数 7.6/2.93=2.6，乘 1.43% 约 3.7%",
+   "magnitude": "80 个名额的合理期望约 3 个；和印出去的 11.8 个差 4 倍，不需要模型变坏就能解释",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "回填的竞价额虚高，却直接拿去套准入带，对手集合不是同一个",
+   "evidence": "全池 auc_ratio 中位：回填 0.0081 vs 在线 0.0061（+33%），known_biases 已写明含 09:30 之后的成交；过准入 回填 45.6 只/天 vs 在线 23.8 只/天；量比 7-10 档占 23.5% vs 在线 15.4%，2.5-4 档 31.9% vs 44.9%",
+   "magnitude": "日均过准入 1.9×；按 1.33 倍虚高倒推，粗估 15~25% 的训练行按生产口径根本进不来",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "板块维有 7/18 天是常数，spread 却按 18 天算",
+   "evidence": "09-16 过准入 12 只、最大板块 2 只（门槛 3），金丹科技 parts.sector=0.25 常数底；过准入≤15 只的天有 6 个（08-25/09-02/09-11/09-14/09-16/09-17），加 08-24 整天 sector=未分类、members=0。六个维度 spread_n_days 全写 18，连 evaluable=false 的连续性也写 18",
+   "magnitude": "板块 spread −0.67±0.727 里 39% 的天切的是并列值，靠 tie-break 随机分组",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "08-28 整个交易日在早盘真值里缺失，且没有任何记录",
+   "evidence": "morning-day 查询返回「2026-08-28 没有快照或标签」；同日全市场 5512 只、成交 20866 亿、涨跌中位 +0.23%，是正常交易日。证据包 morning.note 为空，days 直接写 18",
+   "magnitude": "19 个交易日只算了 18 天（缺 5.3%），缺口静默",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "剔除原因里混着已废弃的口径",
+   "evidence": "规则表里硬剔除是「涨幅区间外」（gap_pct 绝对值），gap_norm 自 08-24 起不参与筛选；18 天的原因表里却有 1004 行「高开归一 超出区间」（约等于一整天的剔除量）和 444 行「其他/无原因」",
+   "magnitude": "约 1/18 的天准入是按废弃规则判的，1448 行进了分档统计",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "重算清单用的模型见过它真值窗口里的价格",
+   "evidence": "模型 train_cut 2026-08-13，训练行 08-08~08-12 的标签要看 20 根到 09-05~09-09；09-07/09-08 两份清单的真值窗口恰好从 09-08 起算。重算发生在 09-16，不是这些日期当天会给出的东西",
+   "magnitude": "20 根窗口里重叠 1~2 根，涉及 09-07~09-10 四份清单",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "09-17 的横截面少了 16 只，之前 30 天日间变化不超过 4 只",
+   "evidence": "codes_per_day：09-15 5502、09-16 5502、09-17 5486；09-17 这根是腾讯快照增量追加的，前面的是新浪历史，两条路径的覆盖不一样",
+   "magnitude": "−16 只（0.3%），影响这些票的真值根数和当日全市场基准的分母",
+   "confidence": "中"
+  }
+ ],
+ "proposals": [
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "truth.py 取清单的来源",
+   "change": "真值只读实发快照：state/sent/breakout_<日>.json 落 10 个代码 + board_adj + SCORE_MIN/CAP_A/MIN_STREAK + 模型指纹；重算/重放的清单写 out_breakout/replay/<日>.json，面板和证据包分「实发」「重放」两栏",
+   "rationale": "09-07~09-15 被 65f6017 重算、09-16 被 9181348 重写，现在统计的 80 个名额里至少 8 个从没发给用户，而实发的 8 只没人跟踪。「预测 vs 实际」统计的不是这个产品",
+   "expected_effect": "09-16 的真值名单与实发 10/10 一致（现在 2/10）；hit_rate、by.board、streak 三张表全部换成实发口径",
+   "test_plan": "人工实现：git show 0b77c9e:out_breakout/list_a.json 与 truth 的 09-16 名单对账，必须逐只一致；selftest_breakout 加一条断言，truth 读不到实发快照时抛错而不是回落到清单文件",
+   "priority": "P0",
+   "params": {
+    "truth_source": "state/sent/breakout_<date>.json",
+    "replay_dir": "out_breakout/replay/"
+   }
+  },
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "--dry 的产物写盘路径",
+   "change": "dry 模式把 data/breakout/*.parquet、out_breakout/list_a.json、state/breakout/a_pool.json 全部重定向到临时目录，run_meta 的 dry 字段作为唯一开关",
+   "rationale": "commit 9181348 的 e2e 试跑把 09-16 的清单、A 池、run_meta 一起重写并提交，和教训 17（自测写进生产目录）同型；A 池被改还会顺带改掉之后每天的连续天数",
+   "expected_effect": "试跑之后 git status 与跑之前一模一样；连续天数不再被试跑重置",
+   "test_plan": "tools/e2e_check.py 跑前跑后比 git status（现在会多出三处改动）；selftest_breakout 加一条断言：dry=True 时写盘路径必须在临时目录下",
+   "priority": "P0",
+   "params": {
+    "redirect_on_dry": [
+     "data/breakout",
+     "out_breakout/list_a.json",
+     "state/breakout/a_pool.json"
+    ]
+   }
+  },
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "每份清单的规则指纹",
+   "change": "清单落盘时存 board_adj 四个系数 + SCORE_MIN + CAP_A + MIN_STREAK + 模型指纹；真值、面板、邮件按指纹分组，指纹不同的清单不许并成一个命中率，也不许和另一套指纹的成绩表并排",
+   "rationale": "教训 35 已经把 board_adj 加进 export 的指纹，但历史清单自己身上没有指纹：现在这 8 份跨 star=1.27 / 1.0 两套，成绩表又是收缩臂（star=0.858）出的，科创占比 61% vs 4.2%",
+   "expected_effect": "这 8 份自动分成两组显示，并且都不与收缩臂 14.7% 并排；之后换系数不会再产生跨规则的混合命中率",
+   "test_plan": "人工实现 + selftest_breakout 加断言：把两份指纹不同的清单聚合时必须抛错",
+   "priority": "P1",
+   "params": {
+    "fingerprint_fields": [
+     "board_adj",
+     "SCORE_MIN",
+     "CAP_A",
+     "MIN_STREAK",
+     "model_fingerprint"
+    ]
+   }
+  },
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "邮件和面板里印的期望值",
+   "change": "期望按当天是不是满员取 cap_perf 对应那一档（满员 7.6%、非满员 18.6%），再乘基准比例（最近可算的 base20 / 验证集 2.93%）给一个区间",
+   "rationale": "8/8 天满员而验证集里满员只占 10.1% 的天，且当期基准 1.43% 只有验证集 2.93% 的一半。拿 14.7% 当期望，清单成熟时会凭空多出约 9 个「没兑现」的名额",
+   "expected_effect": "这 8 份清单的期望从 11.8 个降到 3~6 个；实际落在区间内不再被判成模型退化",
+   "test_plan": "人工实现：清单满 20 根后对账实际命中是否落在区间；用 exp_window 的满员/非满员两组数复核区间端点",
+   "priority": "P1",
+   "params": {
+    "expected_source": "cap_perf",
+    "base_scale": "base20_recent/0.0293"
+   }
+  },
+  {
+   "kind": "data_fix",
+   "line": "morning",
+   "target": "回填表的 auc_amount / auc_ratio",
+   "change": "用只含 09:25 撮合的量重算竞价额；拿不到就用 7 个重叠日估出的缩放系数（按板块分别估）校正后，再套准入带 [0.0104, 0.0417] 和 300 万下限",
+   "rationale": "把 volume 维钉死只挡住了「用这一列去学」，没挡住「当天的对手集合不一样」：训练日均过准入 45.6 只、在线 23.8 只，量比分布整体右移。这是教训 34 候选池那件事的同一个病",
+   "expected_effect": "重叠日上回填与在线的过准入集合 Jaccard ≥ 0.85、日均过准入只数比值落到 0.9~1.1（现在约 1.9）",
+   "test_plan": "selftest_train 加哨兵：重叠日过准入不一致率 > 10% 就抛；重建训练表后跑七道闸，看「样本外改善」和按天自助的数是否改号",
+   "priority": "P1",
+   "params": {
+    "cols": [
+     "auc_amount",
+     "auc_ratio"
+    ],
+    "overlap_days": 7,
+    "band": [
+     0.0104,
+     0.0417
+    ],
+    "min_auc_amount_wan": 300
+   }
+  },
+  {
+   "kind": "process",
+   "line": "both",
+   "target": "证据包的数据完整性表",
+   "change": "补一张 data_health：窗口内缺的交易日、板块占位符日（未分类占比）、每个维度按天的可评估性；spread 只在该维度当天真有方差的日子上算，n_days 写真实天数",
+   "rationale": "08-28 整天缺失、08-24 板块全是占位符，证据包里 note 为空、days 照写 18；六个维度的 spread_n_days 一律 18，连常数维也是，下一轮分析会被这两处再骗一次",
+   "expected_effect": "板块的 spread_n_days 降到 ≤11、连续性接近 0；morning.note 列出 08-28 和 08-24",
+   "test_plan": "重跑证据包人工核对；selftest_learn 加断言：带 se_day_clustered 的记录，其 n_days 必须等于该维度真正可评估的天数",
+   "priority": "P2",
+   "params": {
+    "add": [
+     "missing_trading_days",
+     "placeholder_sector_days",
+     "per_day_dim_evaluable"
+    ]
+   }
+  }
+ ],
+ "questions": [
+  "09-16 实发的那 10 只（688137/688004/920028/688046/603879/002811/605162/603023/600186/600722）现在没有真值跟踪，能不能用 git 里 0b77c9e 版的 list_a.json 把 09-07~09-16 的实发清单回灌成真值？",
+  "在线全池 pos_pct_60d 中位数恰好 0.500（回填 0.645），是不是有缺 60 日线时填 0.5 的行？占多少？这一维的 spread 还站得住吗？",
+  "「高开归一 超出区间」1004 行和「其他/无原因」444 行分别来自哪几天？那几天的准入是按哪一版规则判的，要不要整天排除？",
+  "09-17 的全市场代码数比 09-16 少 16 只，是停牌还是腾讯快照增量漏采？漏的这些票在不在 A 池里？",
+  "生产每天够格 19 只、验证集平均 2.9 只：是分位表（训练集再平衡样本）和逐月滚动各自映射造成的口径差，还是当下全市场特征真的把所有票的预测值抬高了？"
+ ],
+ "_meta": {
+  "lens": "data_quality",
+  "model": "claude-opus-5",
+  "effort": "max",
+  "seconds": 54318.7,
+  "turns": 21,
+  "cost_usd": 5.4362645,
+  "n_tool_calls": 20,
+  "denials": 3,
+  "error": ""
+ }
+}

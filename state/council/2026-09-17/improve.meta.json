@@ -1,0 +1,11 @@
+{
+ "lens": "improve",
+ "model": "claude-opus-5",
+ "effort": "max",
+ "seconds": 54555.6,
+ "turns": 2,
+ "cost_usd": 0.48308450000000003,
+ "n_tool_calls": 16,
+ "denials": 0,
+ "error": ""
+}

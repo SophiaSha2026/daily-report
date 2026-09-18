@@ -1,0 +1,2916 @@
+{
+ "date": "2026-09-17",
+ "generated_at": "2026-09-17T04:52:40",
+ "morning": {
+  "days": 18,
+  "note": "",
+  "first": "2026-08-24",
+  "last": "2026-09-17",
+  "daily": [
+   {
+    "date": "2026-08-24",
+    "pool": 1059,
+    "admitted": 37,
+    "market_median_pct": -2.31,
+    "top_excess_pct": 0.883,
+    "top_hits": 5,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 59.4,
+    "admitted_excess_pct": 0.57,
+    "rank_gain_pct": 0.313,
+    "rank_evaluable": true,
+    "ic": 0.025,
+    "regime": ""
+   },
+   {
+    "date": "2026-08-25",
+    "pool": 1140,
+    "admitted": 8,
+    "market_median_pct": 1.36,
+    "top_excess_pct": 4.027,
+    "top_hits": 6,
+    "top_n": 7,
+    "sent_n": 7,
+    "top_mean_score": 60.2,
+    "admitted_excess_pct": 4.014,
+    "rank_gain_pct": 0.013,
+    "rank_evaluable": true,
+    "ic": -0.452,
+    "regime": ""
+   },
+   {
+    "date": "2026-08-26",
+    "pool": 1207,
+    "admitted": 20,
+    "market_median_pct": -0.11,
+    "top_excess_pct": -0.961,
+    "top_hits": 4,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 63.5,
+    "admitted_excess_pct": -0.202,
+    "rank_gain_pct": -0.76,
+    "rank_evaluable": true,
+    "ic": -0.165,
+    "regime": ""
+   },
+   {
+    "date": "2026-08-27",
+    "pool": 1108,
+    "admitted": 34,
+    "market_median_pct": 2.18,
+    "top_excess_pct": 1.19,
+    "top_hits": 7,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 69.7,
+    "admitted_excess_pct": 1.538,
+    "rank_gain_pct": -0.347,
+    "rank_evaluable": true,
+    "ic": -0.0,
+    "regime": ""
+   },
+   {
+    "date": "2026-08-31",
+    "pool": 1246,
+    "admitted": 26,
+    "market_median_pct": 2.16,
+    "top_excess_pct": -1.935,
+    "top_hits": 4,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 63.4,
+    "admitted_excess_pct": -1.049,
+    "rank_gain_pct": -0.885,
+    "rank_evaluable": true,
+    "ic": -0.211,
+    "regime": ""
+   },
+   {
+    "date": "2026-09-01",
+    "pool": 1395,
+    "admitted": 24,
+    "market_median_pct": -0.68,
+    "top_excess_pct": -3.25,
+    "top_hits": 1,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 69.0,
+    "admitted_excess_pct": -2.871,
+    "rank_gain_pct": -0.379,
+    "rank_evaluable": true,
+    "ic": 0.062,
+    "regime": ""
+   },
+   {
+    "date": "2026-09-02",
+    "pool": 1330,
+    "admitted": 13,
+    "market_median_pct": -0.37,
+    "top_excess_pct": -2.61,
+    "top_hits": 2,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 61.6,
+    "admitted_excess_pct": -2.326,
+    "rank_gain_pct": -0.284,
+    "rank_evaluable": true,
+    "ic": -0.121,
+    "regime": "板块轮动"
+   },
+   {
+    "date": "2026-09-03",
+    "pool": 1257,
+    "admitted": 36,
+    "market_median_pct": -1.35,
+    "top_excess_pct": -0.329,
+    "top_hits": 3,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 69.0,
+    "admitted_excess_pct": 0.36,
+    "rank_gain_pct": -0.689,
+    "rank_evaluable": true,
+    "ic": -0.165,
+    "regime": ""
+   },
+   {
+    "date": "2026-09-04",
+    "pool": 1148,
+    "admitted": 47,
+    "market_median_pct": -1.94,
+    "top_excess_pct": 0.37,
+    "top_hits": 6,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 65.2,
+    "admitted_excess_pct": -0.668,
+    "rank_gain_pct": 1.038,
+    "rank_evaluable": true,
+    "ic": 0.189,
+    "regime": ""
+   },
+   {
+    "date": "2026-09-07",
+    "pool": 1334,
+    "admitted": 48,
+    "market_median_pct": 0.9,
+    "top_excess_pct": 2.456,
+    "top_hits": 7,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 73.6,
+    "admitted_excess_pct": 2.111,
+    "rank_gain_pct": 0.346,
+    "rank_evaluable": true,
+    "ic": 0.061,
+    "regime": ""
+   },
+   {
+    "date": "2026-09-08",
+    "pool": 1270,
+    "admitted": 33,
+    "market_median_pct": -0.48,
+    "top_excess_pct": 0.343,
+    "top_hits": 6,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 65.2,
+    "admitted_excess_pct": -0.647,
+    "rank_gain_pct": 0.99,
+    "rank_evaluable": true,
+    "ic": 0.049,
+    "regime": ""
+   },
+   {
+    "date": "2026-09-09",
+    "pool": 1259,
+    "admitted": 47,
+    "market_median_pct": -0.8,
+    "top_excess_pct": -0.752,
+    "top_hits": 3,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 68.0,
+    "admitted_excess_pct": -0.589,
+    "rank_gain_pct": -0.163,
+    "rank_evaluable": true,
+    "ic": 0.093,
+    "regime": ""
+   },
+   {
+    "date": "2026-09-10",
+    "pool": 1175,
+    "admitted": 21,
+    "market_median_pct": -1.24,
+    "top_excess_pct": -1.722,
+    "top_hits": 4,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 56.4,
+    "admitted_excess_pct": -2.229,
+    "rank_gain_pct": 0.507,
+    "rank_evaluable": true,
+    "ic": 0.107,
+    "regime": ""
+   },
+   {
+    "date": "2026-09-11",
+    "pool": 1012,
+    "admitted": 10,
+    "market_median_pct": -1.06,
+    "top_excess_pct": -5.786,
+    "top_hits": 0,
+    "top_n": 5,
+    "sent_n": 5,
+    "top_mean_score": 62.2,
+    "admitted_excess_pct": -5.826,
+    "rank_gain_pct": 0.04,
+    "rank_evaluable": true,
+    "ic": 0.35,
+    "regime": ""
+   },
+   {
+    "date": "2026-09-14",
+    "pool": 1120,
+    "admitted": 15,
+    "market_median_pct": 0.63,
+    "top_excess_pct": -2.235,
+    "top_hits": 1,
+    "top_n": 8,
+    "sent_n": 8,
+    "top_mean_score": 52.8,
+    "admitted_excess_pct": -0.055,
+    "rank_gain_pct": -2.18,
+    "rank_evaluable": true,
+    "ic": -0.266,
+    "regime": "板块轮动"
+   },
+   {
+    "date": "2026-09-15",
+    "pool": 1096,
+    "admitted": 20,
+    "market_median_pct": -0.96,
+    "top_excess_pct": -1.542,
+    "top_hits": 4,
+    "top_n": 10,
+    "sent_n": 10,
+    "top_mean_score": 63.1,
+    "admitted_excess_pct": 0.579,
+    "rank_gain_pct": -2.121,
+    "rank_evaluable": true,
+    "ic": -0.475,
+    "regime": "正常"
+   },
+   {
+    "date": "2026-09-16",
+    "pool": 1008,
+    "admitted": 12,
+    "market_median_pct": 1.75,
+    "top_excess_pct": -0.507,
+    "top_hits": 2,
+    "top_n": 6,
+    "sent_n": 6,
+    "top_mean_score": 57.6,
+    "admitted_excess_pct": 0.91,
+    "rank_gain_pct": -1.417,
+    "rank_evaluable": true,
+    "ic": -0.364,
+    "regime": "正常"
+   },
+   {
+    "date": "2026-09-17",
+    "pool": 1170,
+    "admitted": 14,
+    "market_median_pct": -0.27,
+    "top_excess_pct": 1.245,
+    "top_hits": 4,
+    "top_n": 8,
+    "sent_n": 8,
+    "top_mean_score": 54.1,
+    "admitted_excess_pct": 1.458,
+    "rank_gain_pct": -0.213,
+    "rank_evaluable": true,
+    "ic": -0.178,
+    "regime": "板块轮动"
+   }
+  ],
+  "summary": {
+   "top_excess_mean_pct": -0.617,
+   "top_excess_se_pct": 0.531,
+   "top_win_days": 7,
+   "n_days": 18,
+   "rank_gain_mean_pct": -0.344,
+   "rank_gain_se_pct": 0.213,
+   "rank_gain_days": 18,
+   "rank_gain_win_days": 7,
+   "days_to_detect_0p5": 26,
+   "admitted_excess_mean_pct": -0.116,
+   "rejected_excess_mean_pct": 0.377,
+   "n_admitted": 465,
+   "n_rejected": 20869,
+   "ic_mean": -0.081
+  },
+  "by": {
+   "score": [
+    {
+     "bucket": "<40",
+     "n": 125,
+     "excess_pct": 0.311,
+     "excess_pct_pooled": 0.329,
+     "se_day_clustered": 0.819,
+     "n_days": 18,
+     "t": 0.38,
+     "hit_rate": 0.464
+    },
+    {
+     "bucket": "40-50",
+     "n": 103,
+     "excess_pct": 0.292,
+     "excess_pct_pooled": 0.084,
+     "se_day_clustered": 0.743,
+     "n_days": 17,
+     "t": 0.39,
+     "hit_rate": 0.437
+    },
+    {
+     "bucket": "50-60",
+     "n": 125,
+     "excess_pct": -0.953,
+     "excess_pct_pooled": -0.631,
+     "se_day_clustered": 0.551,
+     "n_days": 18,
+     "t": -1.73,
+     "hit_rate": 0.44
+    },
+    {
+     "bucket": "60-70",
+     "n": 73,
+     "excess_pct": -0.411,
+     "excess_pct_pooled": -0.008,
+     "se_day_clustered": 0.756,
+     "n_days": 15,
+     "t": -0.54,
+     "hit_rate": 0.521
+    },
+    {
+     "bucket": "70+",
+     "n": 39,
+     "excess_pct": -0.866,
+     "excess_pct_pooled": -0.626,
+     "se_day_clustered": 1.159,
+     "n_days": 14,
+     "t": -0.75,
+     "hit_rate": 0.385
+    }
+   ],
+   "gap_pct": [
+    {
+     "bucket": "2-3",
+     "n": 252,
+     "excess_pct": 0.034,
+     "excess_pct_pooled": -0.032,
+     "se_day_clustered": 0.501,
+     "n_days": 18,
+     "t": 0.07,
+     "hit_rate": 0.452
+    },
+    {
+     "bucket": "3-4",
+     "n": 135,
+     "excess_pct": -0.595,
+     "excess_pct_pooled": 0.118,
+     "se_day_clustered": 0.684,
+     "n_days": 18,
+     "t": -0.87,
+     "hit_rate": 0.489
+    },
+    {
+     "bucket": "4-5",
+     "n": 78,
+     "excess_pct": -0.865,
+     "excess_pct_pooled": -0.795,
+     "se_day_clustered": 0.837,
+     "n_days": 18,
+     "t": -1.03,
+     "hit_rate": 0.397
+    }
+   ],
+   "liangbi": [
+    {
+     "bucket": "2.5-4",
+     "n": 192,
+     "excess_pct": -0.12,
+     "excess_pct_pooled": 0.273,
+     "se_day_clustered": 0.747,
+     "n_days": 17,
+     "t": -0.16,
+     "hit_rate": 0.495
+    },
+    {
+     "bucket": "4-7",
+     "n": 170,
+     "excess_pct": 0.06,
+     "excess_pct_pooled": -0.418,
+     "se_day_clustered": 0.616,
+     "n_days": 17,
+     "t": 0.1,
+     "hit_rate": 0.406
+    },
+    {
+     "bucket": "7-10",
+     "n": 66,
+     "excess_pct": -0.659,
+     "excess_pct_pooled": -0.857,
+     "se_day_clustered": 0.755,
+     "n_days": 17,
+     "t": -0.87,
+     "hit_rate": 0.409
+    }
+   ],
+   "rejected_by_reason": [
+    {
+     "reason": "竞价涨幅 超出区间",
+     "n": 17173,
+     "excess_pct": 0.462,
+     "hit_rate": 0.511
+    },
+    {
+     "reason": "竞价量能",
+     "n": 2055,
+     "excess_pct": -0.171,
+     "hit_rate": 0.436
+    },
+    {
+     "reason": "高开归一 超出区间",
+     "n": 1004,
+     "excess_pct": 0.337,
+     "hit_rate": 0.5
+    },
+    {
+     "reason": "假涨停撤单",
+     "n": 91,
+     "excess_pct": 0.025,
+     "hit_rate": 0.473
+    },
+    {
+     "reason": "尾盘跳水 pct",
+     "n": 57,
+     "excess_pct": -1.257,
+     "hit_rate": 0.316
+    },
+    {
+     "reason": "隔夜公告黑名单",
+     "n": 33,
+     "excess_pct": 0.351,
+     "hit_rate": 0.485
+    },
+    {
+     "reason": "竞价量能 超出区间",
+     "n": 9,
+     "excess_pct": 0.881,
+     "hit_rate": 0.556
+    },
+    {
+     "reason": "竞价额 万不足 万",
+     "n": 3,
+     "excess_pct": -1.692,
+     "hit_rate": 0.333
+    },
+    {
+     "reason": "其他/无原因",
+     "n": 444,
+     "excess_pct": 0.044,
+     "hit_rate": 0.448
+    }
+   ]
+  },
+  "dims": [
+   {
+    "dim": "gap",
+    "weight": 0.2,
+    "high_third_excess_pct": -0.714,
+    "low_third_excess_pct": 0.241,
+    "spread_pct": -0.954,
+    "spread_pct_pooled": -0.371,
+    "spread_se_day_clustered": 0.582,
+    "spread_t": -1.64,
+    "spread_n_days": 18,
+    "n_high": 160,
+    "n_low": 149,
+    "top_value_share": 0.019,
+    "evaluable": true
+   },
+   {
+    "dim": "volume",
+    "weight": 0.25,
+    "high_third_excess_pct": -0.962,
+    "low_third_excess_pct": -0.19,
+    "spread_pct": -0.772,
+    "spread_pct_pooled": -0.795,
+    "spread_se_day_clustered": 0.534,
+    "spread_t": -1.44,
+    "spread_n_days": 18,
+    "n_high": 160,
+    "n_low": 149,
+    "top_value_share": 0.006,
+    "evaluable": true
+   },
+   {
+    "dim": "trend",
+    "weight": 0.2,
+    "high_third_excess_pct": -0.2,
+    "low_third_excess_pct": -0.434,
+    "spread_pct": 0.233,
+    "spread_pct_pooled": 0.51,
+    "spread_se_day_clustered": 0.593,
+    "spread_t": 0.39,
+    "spread_n_days": 18,
+    "n_high": 160,
+    "n_low": 149,
+    "top_value_share": 0.222,
+    "evaluable": true
+   },
+   {
+    "dim": "position",
+    "weight": 0.15,
+    "high_third_excess_pct": -0.376,
+    "low_third_excess_pct": -0.462,
+    "spread_pct": 0.087,
+    "spread_pct_pooled": -0.161,
+    "spread_se_day_clustered": 0.466,
+    "spread_t": 0.19,
+    "spread_n_days": 18,
+    "n_high": 160,
+    "n_low": 149,
+    "top_value_share": 0.217,
+    "evaluable": true
+   },
+   {
+    "dim": "sector",
+    "weight": 0.15,
+    "high_third_excess_pct": -0.625,
+    "low_third_excess_pct": 0.045,
+    "spread_pct": -0.67,
+    "spread_pct_pooled": 0.008,
+    "spread_se_day_clustered": 0.727,
+    "spread_t": -0.92,
+    "spread_n_days": 18,
+    "n_high": 160,
+    "n_low": 149,
+    "top_value_share": 0.394,
+    "evaluable": true
+   },
+   {
+    "dim": "continuity",
+    "weight": 0.05,
+    "high_third_excess_pct": -0.375,
+    "low_third_excess_pct": -0.428,
+    "spread_pct": 0.053,
+    "spread_pct_pooled": 0.014,
+    "spread_se_day_clustered": 0.52,
+    "spread_t": 0.1,
+    "spread_n_days": 18,
+    "n_high": 160,
+    "n_low": 149,
+    "top_value_share": 0.884,
+    "evaluable": false
+   }
+  ],
+  "groups": {
+   "A": {
+    "n": 337,
+    "excess_pct": -0.325,
+    "excess_pct_pooled": -0.312,
+    "se_day_clustered": 0.51,
+    "n_days": 18
+   },
+   "B": {
+    "n": 128,
+    "excess_pct": 0.236,
+    "excess_pct_pooled": 0.4,
+    "se_day_clustered": 0.615,
+    "n_days": 16
+   }
+  },
+  "flags": {
+   "昨日涨停": {
+    "yes_n": 54,
+    "yes_excess_pct": -0.987,
+    "no_n": 411,
+    "no_excess_pct": -0.171,
+    "diff_pct": -0.688,
+    "diff_se_day_clustered": 0.763,
+    "diff_t": -0.9,
+    "diff_n_days": 16
+   },
+   "突破平台": {
+    "yes_n": 90,
+    "yes_excess_pct": -1.442,
+    "no_n": 375,
+    "no_excess_pct": -0.141,
+    "diff_pct": -1.057,
+    "diff_se_day_clustered": 0.45,
+    "diff_t": -2.35,
+    "diff_n_days": 17
+   },
+   "均线多头": {
+    "yes_n": 227,
+    "yes_excess_pct": -0.097,
+    "no_n": 238,
+    "no_excess_pct": -0.34,
+    "diff_pct": 0.243,
+    "diff_se_day_clustered": 0.473,
+    "diff_t": 0.51,
+    "diff_n_days": 18
+   },
+   "稳步抬升": {
+    "yes_n": 285,
+    "yes_excess_pct": -0.28,
+    "no_n": 180,
+    "no_excess_pct": -0.522,
+    "diff_pct": 0.242,
+    "diff_se_day_clustered": 0.523,
+    "diff_t": 0.46,
+    "diff_n_days": 18
+   }
+  },
+  "worst_best": {
+   "2026-09-11": {
+    "worst": [
+     {
+      "code": "600121",
+      "name": "郑州煤电",
+      "score": 43.2,
+      "rank": 7,
+      "gap_pct": 2.51,
+      "ret_pct": -10.66,
+      "ytil": -3.08,
+      "sector": "煤炭开采加工"
+     },
+     {
+      "code": "300191",
+      "name": "潜能恒信",
+      "score": 31.2,
+      "rank": 9,
+      "gap_pct": 2.0,
+      "ret_pct": -10.39,
+      "ytil": -3.08,
+      "sector": "油气开采及服务"
+     },
+     {
+      "code": "001299",
+      "name": "美能能源",
+      "score": 29.3,
+      "rank": 10,
+      "gap_pct": 2.03,
+      "ret_pct": -9.69,
+      "ytil": -3.08,
+      "sector": "燃气"
+     },
+     {
+      "code": "300164",
+      "name": "通源石油",
+      "score": 58.6,
+      "rank": 4,
+      "gap_pct": 4.98,
+      "ret_pct": -8.86,
+      "ytil": -2.85,
+      "sector": "油气开采及服务"
+     },
+     {
+      "code": "300369",
+      "name": "绿盟科技",
+      "score": 72.6,
+      "rank": 1,
+      "gap_pct": 3.83,
+      "ret_pct": -7.14,
+      "ytil": -2.22,
+      "sector": "软件开发"
+     }
+    ],
+    "best": [
+     {
+      "code": "603353",
+      "name": "和顺石油",
+      "score": 42.3,
+      "rank": 8,
+      "gap_pct": 2.5,
+      "ret_pct": 0.64,
+      "ytil": 0.62,
+      "sector": "石油加工贸易"
+     }
+    ]
+   },
+   "2026-09-14": {
+    "worst": [
+     {
+      "code": "603619",
+      "name": "中曼石油",
+      "score": 54.9,
+      "rank": 3,
+      "gap_pct": 3.36,
+      "ret_pct": -6.04,
+      "ytil": -2.46,
+      "sector": "油气开采及服务"
+     },
+     {
+      "code": "000533",
+      "name": "顺钠股份",
+      "score": 26.1,
+      "rank": 14,
+      "gap_pct": 3.95,
+      "ret_pct": -5.12,
+      "ytil": -2.12,
+      "sector": "电网设备"
+     },
+     {
+      "code": "300183",
+      "name": "东软载波",
+      "score": 29.0,
+      "rank": 11,
+      "gap_pct": 2.02,
+      "ret_pct": -3.53,
+      "ytil": -1.53,
+      "sector": "通信设备"
+     },
+     {
+      "code": "600026",
+      "name": "中远海能",
+      "score": 56.5,
+      "rank": 1,
+      "gap_pct": 3.55,
+      "ret_pct": -3.24,
+      "ytil": -1.43,
+      "sector": "港口航运"
+     },
+     {
+      "code": "601872",
+      "name": "招商轮船",
+      "score": 51.5,
+      "rank": 6,
+      "gap_pct": 2.75,
+      "ret_pct": -2.68,
+      "ytil": -1.22,
+      "sector": "港口航运"
+     }
+    ],
+    "best": [
+     {
+      "code": "688137",
+      "name": "近岸蛋白",
+      "score": 28.2,
+      "rank": 12,
+      "gap_pct": 2.08,
+      "ret_pct": 17.56,
+      "ytil": 4.72,
+      "sector": "生物制品"
+     },
+     {
+      "code": "301520",
+      "name": "万邦医药",
+      "score": 15.4,
+      "rank": 15,
+      "gap_pct": 2.45,
+      "ret_pct": 17.13,
+      "ytil": 4.72,
+      "sector": "医疗服务"
+     },
+     {
+      "code": "603626",
+      "name": "科森科技",
+      "score": 38.6,
+      "rank": 9,
+      "gap_pct": 2.81,
+      "ret_pct": 6.97,
+      "ytil": 2.33,
+      "sector": "消费电子"
+     }
+    ]
+   },
+   "2026-09-15": {
+    "worst": [
+     {
+      "code": "300311",
+      "name": "任子行",
+      "score": 71.7,
+      "rank": 2,
+      "gap_pct": 2.85,
+      "ret_pct": -7.08,
+      "ytil": -2.17,
+      "sector": "软件开发"
+     },
+     {
+      "code": "001896",
+      "name": "豫能控股",
+      "score": 62.3,
+      "rank": 5,
+      "gap_pct": 3.54,
+      "ret_pct": -7.06,
+      "ytil": -2.16,
+      "sector": "电力"
+     },
+     {
+      "code": "688225",
+      "name": "亚信安全",
+      "score": 73.1,
+      "rank": 1,
+      "gap_pct": 4.82,
+      "ret_pct": -6.97,
+      "ytil": -2.13,
+      "sector": "软件开发"
+     },
+     {
+      "code": "688137",
+      "name": "近岸蛋白",
+      "score": 39.1,
+      "rank": 20,
+      "gap_pct": 4.96,
+      "ret_pct": -4.35,
+      "ytil": -1.2,
+      "sector": "生物制品"
+     },
+     {
+      "code": "002855",
+      "name": "捷荣技术",
+      "score": 56.0,
+      "rank": 10,
+      "gap_pct": 3.15,
+      "ret_pct": -4.3,
+      "ytil": -1.18,
+      "sector": "消费电子"
+     }
+    ],
+    "best": [
+     {
+      "code": "002487",
+      "name": "大金重工",
+      "score": 44.2,
+      "rank": 17,
+      "gap_pct": 2.65,
+      "ret_pct": 7.17,
+      "ytil": 2.88,
+      "sector": "风电设备"
+     },
+     {
+      "code": "301373",
+      "name": "凌玮科技",
+      "score": 39.8,
+      "rank": 19,
+      "gap_pct": 4.42,
+      "ret_pct": 6.8,
+      "ytil": 2.75,
+      "sector": "化学制品"
+     },
+     {
+      "code": "300868",
+      "name": "杰美特",
+      "score": 47.8,
+      "rank": 14,
+      "gap_pct": 2.26,
+      "ret_pct": 5.06,
+      "ytil": 2.13,
+      "sector": "消费电子"
+     },
+     {
+      "code": "000657",
+      "name": "中钨高新",
+      "score": 52.8,
+      "rank": 12,
+      "gap_pct": 2.38,
+      "ret_pct": 2.72,
+      "ytil": 1.3,
+      "sector": "小金属"
+     },
+     {
+      "code": "301520",
+      "name": "万邦医药",
+      "score": 48.0,
+      "rank": 13,
+      "gap_pct": 4.47,
+      "ret_pct": 2.08,
+      "ytil": 1.07,
+      "sector": "医疗服务"
+     }
+    ]
+   },
+   "2026-09-16": {
+    "worst": [
+     {
+      "code": "301520",
+      "name": "万邦医药",
+      "score": 51.5,
+      "rank": 6,
+      "gap_pct": 3.24,
+      "ret_pct": -2.58,
+      "ytil": -1.67,
+      "sector": "医疗服务"
+     },
+     {
+      "code": "300829",
+      "name": "金丹科技",
+      "score": 55.9,
+      "rank": 3,
+      "gap_pct": 2.96,
+      "ret_pct": -2.24,
+      "ytil": -1.53,
+      "sector": "化学制品"
+     },
+     {
+      "code": "002753",
+      "name": "永东股份",
+      "score": 55.6,
+      "rank": 4,
+      "gap_pct": 4.72,
+      "ret_pct": -1.45,
+      "ytil": -1.23,
+      "sector": "橡胶制品"
+     },
+     {
+      "code": "300313",
+      "name": "天山生物",
+      "score": 41.0,
+      "rank": 9,
+      "gap_pct": 2.9,
+      "ret_pct": -0.74,
+      "ytil": -0.96,
+      "sector": "养殖业"
+     },
+     {
+      "code": "601919",
+      "name": "中远海控",
+      "score": 40.7,
+      "rank": 10,
+      "gap_pct": 2.07,
+      "ret_pct": 0.43,
+      "ytil": -0.51,
+      "sector": "港口航运"
+     }
+    ],
+    "best": [
+     {
+      "code": "301373",
+      "name": "凌玮科技",
+      "score": 29.5,
+      "rank": 12,
+      "gap_pct": 2.99,
+      "ret_pct": 13.39,
+      "ytil": 3.89,
+      "sector": "化学制品"
+     },
+     {
+      "code": "000993",
+      "name": "闽东电力",
+      "score": 33.7,
+      "rank": 11,
+      "gap_pct": 2.5,
+      "ret_pct": 7.32,
+      "ytil": 2.14,
+      "sector": "电力"
+     },
+     {
+      "code": "003006",
+      "name": "百亚股份",
+      "score": 41.5,
+      "rank": 8,
+      "gap_pct": 2.81,
+      "ret_pct": 3.91,
+      "ytil": 0.83,
+      "sector": "美容护理"
+     }
+    ]
+   },
+   "2026-09-17": {
+    "worst": [
+     {
+      "code": "600206",
+      "name": "有研新材",
+      "score": 50.6,
+      "rank": 5,
+      "gap_pct": 2.65,
+      "ret_pct": -4.62,
+      "ytil": -1.91,
+      "sector": "半导体"
+     },
+     {
+      "code": "688035",
+      "name": "德邦科技",
+      "score": 41.3,
+      "rank": 10,
+      "gap_pct": 2.43,
+      "ret_pct": -3.65,
+      "ytil": -1.48,
+      "sector": "电子化学品"
+     },
+     {
+      "code": "688478",
+      "name": "晶升股份",
+      "score": 58.2,
+      "rank": 3,
+      "gap_pct": 2.34,
+      "ret_pct": -3.52,
+      "ytil": -1.43,
+      "sector": "半导体"
+     },
+     {
+      "code": "000428",
+      "name": "华天酒店",
+      "score": 30.4,
+      "rank": 12,
+      "gap_pct": 2.46,
+      "ret_pct": -3.12,
+      "ytil": -1.25,
+      "sector": "旅游及酒店"
+     },
+     {
+      "code": "300903",
+      "name": "科翔股份",
+      "score": 44.4,
+      "rank": 9,
+      "gap_pct": 2.73,
+      "ret_pct": -1.88,
+      "ytil": -0.71,
+      "sector": "元件"
+     }
+    ],
+    "best": [
+     {
+      "code": "688137",
+      "name": "近岸蛋白",
+      "score": 27.9,
+      "rank": 13,
+      "gap_pct": 2.27,
+      "ret_pct": 16.11,
+      "ytil": 5.14,
+      "sector": "生物制品"
+     },
+     {
+      "code": "301520",
+      "name": "万邦医药",
+      "score": 24.5,
+      "rank": 14,
+      "gap_pct": 2.05,
+      "ret_pct": 7.79,
+      "ytil": 3.54,
+      "sector": "医疗服务"
+     },
+     {
+      "code": "603629",
+      "name": "利通电子",
+      "score": 45.7,
+      "rank": 8,
+      "gap_pct": 2.21,
+      "ret_pct": 1.65,
+      "ytil": 0.85,
+      "sector": "IT服务"
+     }
+    ]
+   }
+  },
+  "learning": {
+   "status_date": "2026-09-17",
+   "n_train_days": 415,
+   "train_source": "backfill:backfill_2025-01-03_2026-09-02.parquet+online:18天",
+   "theta_version": "基线",
+   "metrics": {
+    "days": 415,
+    "ic_mean": -0.022947421390660666,
+    "ic_std": 0.2523414555188904,
+    "icir": -0.09093797665339538,
+    "top_excess": 0.00016667700757072533,
+    "hit_rate": 0.43644807476924263,
+    "avg_pool": 42.091566265060244,
+    "avg_sent": 8.751807228915663
+   },
+   "last_verdict": {
+    "accepted": false,
+    "checks": [
+     {
+      "name": "权重和为 1",
+      "passed": true,
+      "detail": "Σw=1.0000（6 个权重）"
+     },
+     {
+      "name": "最少天数",
+      "passed": true,
+      "detail": "415 天 / 要求 >= 60"
+     },
+     {
+      "name": "样本外改善",
+      "passed": false,
+      "detail": "Ĝ_oos +0.0123 -> +0.0083 （-0.0039）；分块 1/3 改善（要求 >= 2）"
+     },
+     {
+      "name": "按天自助显著",
+      "passed": false,
+      "detail": "P(更好)=0.489 / 要求 >= 0.9；配对 ΔĜ=+0.0002"
+     },
+     {
+      "name": "步长与改动个数",
+      "passed": true,
+      "detail": "意图 2 个: ['screen.gap_pct_peak', 'scoring.weights.sector']（上限 2，实际触及 5 个含权重再归一）"
+     },
+     {
+      "name": "行为回放换手",
+      "passed": true,
+      "detail": "最大单日前 K 变动 25%（2026-08-21） / 上限 40%（回放 20 天）"
+     },
+     {
+      "name": "冷却期",
+      "passed": true,
+      "detail": "从未接受过变更"
+     },
+     {
+      "name": "在线稳健性",
+      "passed": true,
+      "detail": "真值快照 18 天上 P(更好)=0.90 / 否决线 0.25"
+     }
+    ],
+    "moved": {
+     "scoring.weights.gap": [
+      0.2,
+      0.20446415716265437
+     ],
+     "scoring.weights.position": [
+      0.15,
+      0.15374989201662964
+     ],
+     "scoring.weights.sector": [
+      0.15,
+      0.13946458909613568
+     ],
+     "scoring.weights.continuity": [
+      0.05,
+      0.052321361724580275
+     ],
+     "screen.gap_pct_peak": [
+      3.5,
+      3.3
+     ]
+    },
+    "evidence": {
+     "oos_old": 0.012264614678963151,
+     "oos_new": 0.008343183468523464,
+     "bootstrap_p": 0.4895,
+     "paired_delta": 0.00019076207232994707,
+     "block_delta": [
+      -0.017253234101018616,
+      -0.018339107872733164,
+      0.021337267881245126
+     ],
+     "n_days": 415,
+     "worst_churn": 0.25,
+     "online_p": 0.898,
+     "online_days": 18,
+     "intents": [
+      "screen.gap_pct_peak",
+      "scoring.weights.sector"
+     ]
+    }
+   },
+   "recent_verdicts": [
+    {
+     "date": "2026-09-04",
+     "accepted": false,
+     "failed": [
+      "样本外改善",
+      "按天自助显著"
+     ],
+     "moved": {
+      "scoring.weights.gap": [
+       0.2,
+       0.1986908268814362
+      ],
+      "scoring.weights.volume": [
+       0.25,
+       0.24836353360179522
+      ],
+      "scoring.weights.trend": [
+       0.2,
+       0.2052366924742551
+      ],
+      "scoring.weights.position": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.sector": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.continuity": [
+       0.05,
+       0.04967270672035901
+      ],
+      "screen.gap_pct_peak": [
+       3.5,
+       3.5927910192953876
+      ]
+     }
+    },
+    {
+     "date": "2026-09-07",
+     "accepted": false,
+     "failed": [
+      "样本外改善",
+      "按天自助显著"
+     ],
+     "moved": {
+      "scoring.weights.gap": [
+       0.2,
+       0.1986908268814362
+      ],
+      "scoring.weights.volume": [
+       0.25,
+       0.24836353360179522
+      ],
+      "scoring.weights.trend": [
+       0.2,
+       0.2052366924742551
+      ],
+      "scoring.weights.position": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.sector": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.continuity": [
+       0.05,
+       0.04967270672035901
+      ],
+      "screen.gap_pct_peak": [
+       3.5,
+       3.5927910192953876
+      ]
+     }
+    },
+    {
+     "date": "2026-09-08",
+     "accepted": false,
+     "failed": [
+      "样本外改善",
+      "按天自助显著"
+     ],
+     "moved": {
+      "scoring.weights.gap": [
+       0.2,
+       0.1986908268814362
+      ],
+      "scoring.weights.volume": [
+       0.25,
+       0.24836353360179522
+      ],
+      "scoring.weights.trend": [
+       0.2,
+       0.2052366924742551
+      ],
+      "scoring.weights.position": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.sector": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.continuity": [
+       0.05,
+       0.04967270672035901
+      ],
+      "screen.gap_pct_peak": [
+       3.5,
+       3.5927910192953876
+      ]
+     }
+    },
+    {
+     "date": "2026-09-09",
+     "accepted": false,
+     "failed": [
+      "样本外改善",
+      "按天自助显著"
+     ],
+     "moved": {
+      "scoring.weights.gap": [
+       0.2,
+       0.1986908268814362
+      ],
+      "scoring.weights.volume": [
+       0.25,
+       0.24836353360179522
+      ],
+      "scoring.weights.trend": [
+       0.2,
+       0.2052366924742551
+      ],
+      "scoring.weights.position": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.sector": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.continuity": [
+       0.05,
+       0.04967270672035901
+      ],
+      "screen.gap_pct_peak": [
+       3.5,
+       3.5927910192953876
+      ]
+     }
+    },
+    {
+     "date": "2026-09-10",
+     "accepted": false,
+     "failed": [
+      "样本外改善",
+      "按天自助显著"
+     ],
+     "moved": {
+      "scoring.weights.gap": [
+       0.2,
+       0.1986908268814362
+      ],
+      "scoring.weights.volume": [
+       0.25,
+       0.24836353360179522
+      ],
+      "scoring.weights.trend": [
+       0.2,
+       0.2052366924742551
+      ],
+      "scoring.weights.position": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.sector": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.continuity": [
+       0.05,
+       0.04967270672035901
+      ],
+      "screen.gap_pct_peak": [
+       3.5,
+       3.5927910192953876
+      ]
+     }
+    },
+    {
+     "date": "2026-09-11",
+     "accepted": false,
+     "failed": [
+      "样本外改善",
+      "按天自助显著"
+     ],
+     "moved": {
+      "scoring.weights.gap": [
+       0.2,
+       0.1986908268814362
+      ],
+      "scoring.weights.volume": [
+       0.25,
+       0.24836353360179522
+      ],
+      "scoring.weights.trend": [
+       0.2,
+       0.2052366924742551
+      ],
+      "scoring.weights.position": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.sector": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.continuity": [
+       0.05,
+       0.04967270672035901
+      ],
+      "screen.gap_pct_peak": [
+       3.5,
+       3.5927910192953876
+      ]
+     }
+    },
+    {
+     "date": "2026-09-14",
+     "accepted": false,
+     "failed": [
+      "样本外改善",
+      "按天自助显著"
+     ],
+     "moved": {
+      "scoring.weights.gap": [
+       0.2,
+       0.1986908268814362
+      ],
+      "scoring.weights.volume": [
+       0.25,
+       0.24836353360179522
+      ],
+      "scoring.weights.trend": [
+       0.2,
+       0.2052366924742551
+      ],
+      "scoring.weights.position": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.sector": [
+       0.15,
+       0.14901812016107713
+      ],
+      "scoring.weights.continuity": [
+       0.05,
+       0.04967270672035901
+      ],
+      "screen.gap_pct_peak": [
+       3.5,
+       3.5927910192953876
+      ]
+     }
+    },
+    {
+     "date": "2026-09-15",
+     "accepted": false,
+     "failed": [
+      "样本外改善",
+      "按天自助显著"
+     ],
+     "moved": {
+      "scoring.weights.gap": [
+       0.2,
+       0.2070588235294118
+      ],
+      "scoring.weights.volume": [
+       0.25,
+       0.2588235294117647
+      ],
+      "scoring.weights.trend": [
+       0.2,
+       0.2070588235294118
+      ],
+      "scoring.weights.position": [
+       0.15,
+       0.12000000000000001
+      ],
+      "scoring.weights.sector": [
+       0.15,
+       0.15529411764705883
+      ],
+      "scoring.weights.continuity": [
+       0.05,
+       0.051764705882352956
+      ],
+      "screen.auc_ratio_score_hi": [
+       0.03,
+       0.027499999999999997
+      ]
+     }
+    },
+    {
+     "date": "2026-09-16",
+     "accepted": false,
+     "failed": [
+      "样本外改善",
+      "按天自助显著"
+     ],
+     "moved": {
+      "scoring.weights.gap": [
+       0.2,
+       0.20452800133404953
+      ],
+      "scoring.weights.position": [
+       0.15,
+       0.15380352112060153
+      ],
+      "scoring.weights.sector": [
+       0.15,
+       0.13931391685164318
+      ],
+      "scoring.weights.continuity": [
+       0.05,
+       0.05235456069370575
+      ],
+      "screen.gap_pct_peak": [
+       3.5,
+       3.3
+      ]
+     }
+    },
+    {
+     "date": "2026-09-17",
+     "accepted": false,
+     "failed": [
+      "样本外改善",
+      "按天自助显著"
+     ],
+     "moved": {
+      "scoring.weights.gap": [
+       0.2,
+       0.20446415716265437
+      ],
+      "scoring.weights.position": [
+       0.15,
+       0.15374989201662964
+      ],
+      "scoring.weights.sector": [
+       0.15,
+       0.13946458909613568
+      ],
+      "scoring.weights.continuity": [
+       0.05,
+       0.052321361724580275
+      ],
+      "screen.gap_pct_peak": [
+       3.5,
+       3.3
+      ]
+     }
+    }
+   ],
+   "theta_history": [],
+   "shadow_stat": {
+    "days": 1,
+    "min_days": 30,
+    "p_req": 0.9,
+    "need_days": 29,
+    "p_better": 1.0,
+    "mean_diff": 0.002057026826750092,
+    "wins": 1,
+    "ic_wins": 1,
+    "ready": false
+   },
+   "shadow_recent": [
+    {
+     "date": "2026-09-17",
+     "base_n": 8,
+     "shadow_n": 10,
+     "base_ic": -0.17821792962562585,
+     "base_top_excess": 0.01695268483135094,
+     "shadow_ic": 0.20462058586645934,
+     "shadow_top_excess": 0.01900971165810103,
+     "overlap": 0.6
+    }
+   ],
+   "accepted_total": 0
+  },
+  "backfill_vs_online": {
+   "backfill_file": "backfill_2025-01-03_2026-09-02.parquet",
+   "backfill_days": 404,
+   "online_days": 18,
+   "rows": [
+    {
+     "col": "gap_pct",
+     "online_median": -0.29,
+     "backfill_median": -0.1599,
+     "online_mean": -0.3447,
+     "backfill_mean": -0.1615
+    },
+    {
+     "col": "auc_ratio",
+     "online_median": 0.0061,
+     "backfill_median": 0.0081,
+     "online_mean": 0.0114,
+     "backfill_mean": 0.017
+    },
+    {
+     "col": "auc_amount",
+     "online_median": 4000000.0,
+     "backfill_median": 4861382.08,
+     "online_mean": 10741684.8552,
+     "backfill_mean": 15261411.9051
+    },
+    {
+     "col": "pos_pct_60d",
+     "online_median": 0.5,
+     "backfill_median": 0.6453,
+     "online_mean": 0.5122,
+     "backfill_mean": 0.6222
+    },
+    {
+     "col": "slope",
+     "online_median": 0.0,
+     "backfill_median": 0.0,
+     "online_mean": -0.0042,
+     "backfill_mean": 0.0
+    },
+    {
+     "col": "dive",
+     "online_median": -0.05,
+     "backfill_median": 0.0,
+     "online_mean": -0.3872,
+     "backfill_mean": 0.0
+    },
+    {
+     "col": "board_height",
+     "online_median": 0.0,
+     "backfill_median": 0.0,
+     "online_mean": 0.0598,
+     "backfill_mean": 0.0635
+    },
+    {
+     "col": "sector_members",
+     "online_median": 0.0,
+     "backfill_median": 0.0,
+     "online_mean": 1.1249,
+     "backfill_mean": 1.1537
+    },
+    {
+     "col": "t1_chg",
+     "online_median": -0.05,
+     "backfill_median": -0.1599,
+     "online_mean": -0.3405,
+     "backfill_mean": -0.1615
+    },
+    {
+     "col": "t3_chg",
+     "online_median": -0.29,
+     "backfill_median": -0.1599,
+     "online_mean": -0.3447,
+     "backfill_mean": -0.1615
+    },
+    {
+     "col": "monotonic",
+     "online_rate": 0.373,
+     "backfill_rate": 0.0
+    },
+    {
+     "col": "prev_limit_up",
+     "online_rate": 0.048,
+     "backfill_rate": 0.047
+    },
+    {
+     "col": "breakout",
+     "online_rate": 0.029,
+     "backfill_rate": 0.041
+    },
+    {
+     "col": "ma_bull",
+     "online_rate": 0.408,
+     "backfill_rate": 0.481
+    },
+    {
+     "col": "one_word",
+     "online_rate": 0.0,
+     "backfill_rate": 0.005
+    },
+    {
+     "col": "prev_broken_board",
+     "online_rate": 0.025,
+     "backfill_rate": 0.019
+    },
+    {
+     "col": "blacklisted",
+     "online_rate": 0.002,
+     "backfill_rate": 0.0
+    }
+   ],
+   "backfill_by_liangbi": [
+    {
+     "bucket": "2.5-4",
+     "n": 5878,
+     "excess_pct": 0.549,
+     "hit_rate": 0.495
+    },
+    {
+     "bucket": "4-7",
+     "n": 8218,
+     "excess_pct": 0.711,
+     "hit_rate": 0.508
+    },
+    {
+     "bucket": "7-10",
+     "n": 4327,
+     "excess_pct": 0.731,
+     "hit_rate": 0.505
+    }
+   ],
+   "backfill_y_note": "回填 y = r 减当日（涨幅 2~5% 池）中位数，未缩尾，口径和在线 y 近似",
+   "known_biases": "2026-09-16 那批审计之后：撮合价改取 stk_auction_o 的 open（以前取的 close 是 09:30 之后的价，只有 44% 对得上）；竞价轨迹回填表给不出，一律按「没有证据」（t1=t2=t3=gap_pct、slope=dive=0、monotonic=False），和线上 T1 漏采同口径，trend 维在回填上不可学、已从可学集合里钉死；竞价额含 09:30 之后的成交（中位高 25~33%），volume 维同样钉死；候选池两边已统一走 premarket.include_mask；one_word / limit_pct 已统一走 datasource。仍然存在的：假涨停规则在回填表上不可观测（在线 1.34% 触发、回填 0.001%），现金分红那种小除息判不出来。"
+  },
+  "definitions": {
+   "y": "开盘买收盘卖的收益，减去当日全池中位数，按 q1/q99 缩尾（单位：%）",
+   "ytil": "y 再除以当日 MAD，跨天可比",
+   "top_excess_pct": "**当天真发出去的那张榜**（过准入 且 分数 >= output.min_score，再取前 10）的 y 均值。一只都发不出去的天是 null，不是 0",
+   "sent_n": "当天真发出去几只（生产口径），可能少于 10",
+   "rank_gain_pct": "前 10 的 y 均值 − 过准入全部的 y 均值。过准入不足 10 只的天为 null（那天前 10 就是全部，排序没起作用）",
+   "se_day_clustered": "按天聚类的标准误：先按天求均值再对天求 se。同一天的票不独立，按票数算的 se 会虚高",
+   "excess_pct / spread_pct": "**按天**的均值（每天算一个数，再对天平均），和它旁边的 se_day_clustered 是同一个估计量，所以 t = 点估计 / se 才有意义（t 已经算好放在 t / spread_t 里）。带 _pooled 后缀的是把所有行池化的均值，回答的是「这一档的票平均表现如何」，**不要**拿它去除按天的 se —— 2026-09-16 之前就是这么混着算的，六个维度里三个的符号是反的",
+   "dims 的高/低三分之一": "**按天**各切各的（每天在自己当天的票里取该维度得分最高 1/3 和最低 1/3），不是在全样本上切。按全样本切会出现某天只有 hi 没有 lo，配对天数掉到 6~12 天",
+   "days_to_detect_0p5": "以 80% 把握分辨 ±0.5 个百分点/天的排序增益，还需要多少个真值日",
+   "ic": "当日 Spearman(分数, ytil)，只算过准入的票",
+   "groups": "A 组 = 昨日涨停 / 连板 / 突破平台（接力、强势）；B 组 = 60 日位置 <= 0.4（低位首板预备）；其余归 A",
+   "rejected_by_reason": "被硬剔除的票按原因分组的 y（只有「涨幅区间外」「量比区间外」才是准入差一点的近邻，其余是风险剔除）"
+  }
+ },
+ "breakout": {
+  "window": 20,
+  "threshold": 0.5,
+  "n_lists": 8,
+  "n_final_lists": 0,
+  "lists": [
+   {
+    "date": "2026-09-07",
+    "n": 10,
+    "bars": 8,
+    "final": false,
+    "n_final": 0,
+    "hits_final": 0,
+    "hit_rate": null,
+    "ci_lo": null,
+    "ci_hi": null,
+    "hits_sofar": 0,
+    "base_final": null,
+    "base_sofar": 0.0022,
+    "max_rise": 0.2971
+   },
+   {
+    "date": "2026-09-08",
+    "n": 10,
+    "bars": 7,
+    "final": false,
+    "n_final": 0,
+    "hits_final": 0,
+    "hit_rate": null,
+    "ci_lo": null,
+    "ci_hi": null,
+    "hits_sofar": 0,
+    "base_final": null,
+    "base_sofar": 0.0011,
+    "max_rise": 0.4195
+   },
+   {
+    "date": "2026-09-09",
+    "n": 10,
+    "bars": 6,
+    "final": false,
+    "n_final": 0,
+    "hits_final": 0,
+    "hit_rate": null,
+    "ci_lo": null,
+    "ci_hi": null,
+    "hits_sofar": 0,
+    "base_final": null,
+    "base_sofar": 0.0005,
+    "max_rise": 0.4068
+   },
+   {
+    "date": "2026-09-10",
+    "n": 10,
+    "bars": 5,
+    "final": false,
+    "n_final": 0,
+    "hits_final": 0,
+    "hit_rate": null,
+    "ci_lo": null,
+    "ci_hi": null,
+    "hits_sofar": 0,
+    "base_final": null,
+    "base_sofar": 0.0004,
+    "max_rise": 0.4468
+   },
+   {
+    "date": "2026-09-11",
+    "n": 10,
+    "bars": 4,
+    "final": false,
+    "n_final": 0,
+    "hits_final": 0,
+    "hit_rate": null,
+    "ci_lo": null,
+    "ci_hi": null,
+    "hits_sofar": 1,
+    "base_final": null,
+    "base_sofar": 0.0004,
+    "max_rise": 0.575
+   },
+   {
+    "date": "2026-09-14",
+    "n": 10,
+    "bars": 3,
+    "final": false,
+    "n_final": 0,
+    "hits_final": 0,
+    "hit_rate": null,
+    "ci_lo": null,
+    "ci_hi": null,
+    "hits_sofar": 0,
+    "base_final": null,
+    "base_sofar": 0.0002,
+    "max_rise": 0.3129
+   },
+   {
+    "date": "2026-09-15",
+    "n": 10,
+    "bars": 2,
+    "final": false,
+    "n_final": 0,
+    "hits_final": 0,
+    "hit_rate": null,
+    "ci_lo": null,
+    "ci_hi": null,
+    "hits_sofar": 0,
+    "base_final": null,
+    "base_sofar": 0.0,
+    "max_rise": 0.3692
+   },
+   {
+    "date": "2026-09-16",
+    "n": 10,
+    "bars": 1,
+    "final": false,
+    "n_final": 0,
+    "hits_final": 0,
+    "hit_rate": null,
+    "ci_lo": null,
+    "ci_hi": null,
+    "hits_sofar": 0,
+    "base_final": null,
+    "base_sofar": 0.0,
+    "max_rise": 0.2
+   }
+  ],
+  "by": {
+   "streak": [],
+   "score": [],
+   "board": []
+  },
+  "expected": {
+   "streak_perf": [
+    {
+     "streak_ge": 5,
+     "hit_pct": 0.0,
+     "lift": 0.0,
+     "n": 24
+    },
+    {
+     "streak_ge": 4,
+     "hit_pct": 4.8,
+     "lift": 1.6,
+     "n": 42
+    },
+    {
+     "streak_ge": 3,
+     "hit_pct": 8.2,
+     "lift": 2.8,
+     "n": 73
+    },
+    {
+     "streak_ge": 2,
+     "hit_pct": 17.3,
+     "lift": 5.9,
+     "n": 162
+    },
+    {
+     "streak_ge": 1,
+     "hit_pct": 14.7,
+     "lift": 5.0,
+     "n": 591
+    }
+   ],
+   "base_pct": 2.93,
+   "score_bins": [
+    {
+     "lo": 0,
+     "hi": 50,
+     "n": 621199,
+     "hit": 0.021184837709011122,
+     "lift": 0.7237686868403255
+    },
+    {
+     "lo": 50,
+     "hi": 70,
+     "n": 213857,
+     "hit": 0.03370476533384458,
+     "lift": 1.151505339857367
+    },
+    {
+     "lo": 70,
+     "hi": 80,
+     "n": 98392,
+     "hit": 0.03881413123018131,
+     "lift": 1.3260641019386743
+    },
+    {
+     "lo": 80,
+     "hi": 90,
+     "n": 90784,
+     "hit": 0.04852176594994713,
+     "lift": 1.6577202670676552
+    },
+    {
+     "lo": 90,
+     "hi": 95,
+     "n": 30697,
+     "hit": 0.06384988761116721,
+     "lift": 2.1813973723093483
+    },
+    {
+     "lo": 95,
+     "hi": 99,
+     "n": 6167,
+     "hit": 0.08026593157126642,
+     "lift": 2.742242762928518
+    },
+    {
+     "lo": 99,
+     "hi": 101,
+     "n": 189,
+     "hit": 0.08994708994708994,
+     "lift": 3.0729943778810633
+    }
+   ],
+   "cap_perf": {
+    "full_cap": [
+     7.6,
+     210,
+     21
+    ],
+    "not_full": [
+     18.6,
+     381,
+     125
+    ],
+    "note": "满员日（够格超过上限、被截断）vs 门槛卡得住的日子，格式 (准确率%, 名额数, 天数)"
+   },
+   "window": "验证集 207 个交易日"
+  },
+  "model": {
+   "fit_date": "2026-09-17",
+   "train_cut": "2026-08-13",
+   "n_feats": 51,
+   "fingerprint": "28d0fb539ceaa459ec8a163badf718d3",
+   "importance": [
+    {
+     "feat": "mkt_ret5__mean",
+     "gain_share": 0.1441
+    },
+    {
+     "feat": "above_ma60__last",
+     "gain_share": 0.1032
+    },
+    {
+     "feat": "turn_pct__mean",
+     "gain_share": 0.0981
+    },
+    {
+     "feat": "mkt_breadth__last",
+     "gain_share": 0.0955
+    },
+    {
+     "feat": "mkt_ret5__last",
+     "gain_share": 0.0889
+    },
+    {
+     "feat": "mkt_ret5__slope",
+     "gain_share": 0.0793
+    },
+    {
+     "feat": "boll_width__last",
+     "gain_share": 0.0467
+    },
+    {
+     "feat": "dist_52w_low__last",
+     "gain_share": 0.0338
+    },
+    {
+     "feat": "chip_conc90__last",
+     "gain_share": 0.0325
+    },
+    {
+     "feat": "gdhs_level__slope",
+     "gain_share": 0.0282
+    },
+    {
+     "feat": "gdhs_level__last",
+     "gain_share": 0.0209
+    },
+    {
+     "feat": "gdhs_chg3__mean",
+     "gain_share": 0.0204
+    },
+    {
+     "feat": "amt_ma20__last",
+     "gain_share": 0.02
+    },
+    {
+     "feat": "rs60__last",
+     "gain_share": 0.0193
+    },
+    {
+     "feat": "chip_conc_chg20__last",
+     "gain_share": 0.0185
+    },
+    {
+     "feat": "dist_52w_high__last",
+     "gain_share": 0.0182
+    },
+    {
+     "feat": "turn_std20__last",
+     "gain_share": 0.016
+    },
+    {
+     "feat": "atr_ratio__last",
+     "gain_share": 0.0093
+    },
+    {
+     "feat": "chip_dev__mean",
+     "gain_share": 0.0089
+    },
+    {
+     "feat": "rs20__last",
+     "gain_share": 0.0078
+    },
+    {
+     "feat": "ma_align__mean",
+     "gain_share": 0.0072
+    },
+    {
+     "feat": "dist_52w_high__slope",
+     "gain_share": 0.0068
+    },
+    {
+     "feat": "turn_pct__slope",
+     "gain_share": 0.0064
+    },
+    {
+     "feat": "amt_ma20__slope",
+     "gain_share": 0.0061
+    },
+    {
+     "feat": "x_holder_chip__last",
+     "gain_share": 0.0059
+    },
+    {
+     "feat": "up_vol_share20__last",
+     "gain_share": 0.0057
+    },
+    {
+     "feat": "dist_52w_low__slope",
+     "gain_share": 0.0054
+    },
+    {
+     "feat": "ma20_slope5__mean",
+     "gain_share": 0.0053
+    },
+    {
+     "feat": "rs_accel__mean",
+     "gain_share": 0.0052
+    },
+    {
+     "feat": "chip_win__last",
+     "gain_share": 0.0046
+    },
+    {
+     "feat": "x_light_top__last",
+     "gain_share": 0.0041
+    },
+    {
+     "feat": "ma_align__slope",
+     "gain_share": 0.0035
+    },
+    {
+     "feat": "boll_width__slope",
+     "gain_share": 0.0025
+    },
+    {
+     "feat": "vol_ratio20__last",
+     "gain_share": 0.0025
+    },
+    {
+     "feat": "range_compress__last",
+     "gain_share": 0.0023
+    },
+    {
+     "feat": "rs60__slope",
+     "gain_share": 0.0021
+    },
+    {
+     "feat": "chip_dev__slope",
+     "gain_share": 0.002
+    },
+    {
+     "feat": "vol_compress__last",
+     "gain_share": 0.0018
+    },
+    {
+     "feat": "chip_peak__slope",
+     "gain_share": 0.0016
+    },
+    {
+     "feat": "range_compress__mean",
+     "gain_share": 0.0015
+    },
+    {
+     "feat": "chip_peak__last",
+     "gain_share": 0.0013
+    },
+    {
+     "feat": "vol_compress__mean",
+     "gain_share": 0.0013
+    },
+    {
+     "feat": "rs20__slope",
+     "gain_share": 0.0011
+    },
+    {
+     "feat": "ma20_slope5__slope",
+     "gain_share": 0.0009
+    },
+    {
+     "feat": "vol_ratio5__last",
+     "gain_share": 0.0008
+    },
+    {
+     "feat": "atr_ratio__slope",
+     "gain_share": 0.0006
+    },
+    {
+     "feat": "chip_win__slope",
+     "gain_share": 0.0006
+    },
+    {
+     "feat": "x_squeeze_burst__mean",
+     "gain_share": 0.0004
+    },
+    {
+     "feat": "x_light_top__slope",
+     "gain_share": 0.0004
+    },
+    {
+     "feat": "x_squeeze_burst__last",
+     "gain_share": 0.0003
+    },
+    {
+     "feat": "vol_ratio5__mean",
+     "gain_share": 0.0002
+    }
+   ],
+   "importance_by_group": {
+    "regime": 0.4433,
+    "structure": 0.1916,
+    "position": 0.1844,
+    "holders": 0.0695,
+    "compression": 0.0659,
+    "volume": 0.0344,
+    "other": 0.011
+   },
+   "feature_select": {
+    "start": 102,
+    "end": 51,
+    "fingerprint": "28d0fb539ceaa459ec8a163badf718d3",
+    "fit_date": "2026-09-17",
+    "dropped": {
+     "ic_too_weak": 23,
+     "ic_unstable": 2,
+     "collinear": 26
+    },
+    "matches_model": true
+   },
+   "walk_forward_w5": [
+    {
+     "kind": "W5",
+     "label": "生产口径 ≥97分且前10名 连续≥2天",
+     "n": 162,
+     "empty": 118,
+     "per_day": 0.782608695652174,
+     "hit": 0.17283950746059418,
+     "se": 0.02970700670991271,
+     "lift": 5.904969528723093,
+     "per_month": 2.8405797313088956
+    },
+    {
+     "kind": "W5",
+     "label": "生产口径 ≥97分且前10名 连续≥1天",
+     "n": 591,
+     "empty": 61,
+     "per_day": 2.8550724637681157,
+     "hit": 0.14720812439918518,
+     "se": 0.014574500395442374,
+     "lift": 5.0292870057839645,
+     "per_month": 8.826087110716363
+    },
+    {
+     "kind": "W5",
+     "label": "生产口径 ≥97分且前10名 连续≥3天",
+     "n": 73,
+     "empty": 157,
+     "per_day": 0.3526570048309179,
+     "hit": 0.08219178020954132,
+     "se": 0.03214613282852461,
+     "lift": 2.808038305475386,
+     "per_month": 0.608695647638777
+    },
+    {
+     "kind": "W5",
+     "label": "生产口径 ≥97分且前10名 连续≥4天",
+     "n": 42,
+     "empty": 173,
+     "per_day": 0.2028985507246377,
+     "hit": 0.0476190485060215,
+     "se": 0.032860265021321604,
+     "lift": 1.626879378136115,
+     "per_month": 0.2028985545039177
+    },
+    {
+     "kind": "W5",
+     "label": "生产口径 ≥97分且前10名 连续≥5天",
+     "n": 24,
+     "empty": 184,
+     "per_day": 0.11594202898550725,
+     "hit": 0.0,
+     "se": 0.0,
+     "lift": 0.0,
+     "per_month": 0.0
+    }
+   ],
+   "validation_w5": {
+    "n_picks": 591,
+    "hit_rate": 0.1472,
+    "by_board": [
+     {
+      "board": "bj",
+      "n": 119,
+      "hits": 17,
+      "hit_rate": 0.1429,
+      "share_of_picks": 0.201
+     },
+     {
+      "board": "chinext",
+      "n": 84,
+      "hits": 11,
+      "hit_rate": 0.131,
+      "share_of_picks": 0.142
+     },
+     {
+      "board": "main",
+      "n": 363,
+      "hits": 59,
+      "hit_rate": 0.1625,
+      "share_of_picks": 0.614
+     },
+     {
+      "board": "star",
+      "n": 25,
+      "hits": 0,
+      "hit_rate": 0.0,
+      "share_of_picks": 0.042
+     }
+    ],
+    "pace": {
+     "bar3": {
+      "n": 591,
+      "mean_rise_all": 0.0923,
+      "mean_rise_hits": 0.2237,
+      "mean_rise_misses": 0.0696,
+      "share_hits_already_ge25": 0.414,
+      "p_hit_given_ge25": 0.632,
+      "n_ge25": 57,
+      "share_all_ge15": 0.23
+     },
+     "bar5": {
+      "n": 591,
+      "mean_rise_all": 0.1231,
+      "mean_rise_hits": 0.3403,
+      "mean_rise_misses": 0.0856,
+      "share_hits_already_ge25": 0.621,
+      "p_hit_given_ge25": 0.628,
+      "n_ge25": 86,
+      "share_all_ge15": 0.274
+     },
+     "bar7": {
+      "n": 591,
+      "mean_rise_all": 0.1525,
+      "mean_rise_hits": 0.4545,
+      "mean_rise_misses": 0.1003,
+      "share_hits_already_ge25": 0.805,
+      "p_hit_given_ge25": 0.614,
+      "n_ge25": 114,
+      "share_all_ge15": 0.33
+     },
+     "bar10": {
+      "n": 591,
+      "mean_rise_all": 0.1851,
+      "mean_rise_hits": 0.6133,
+      "mean_rise_misses": 0.1111,
+      "share_hits_already_ge25": 0.897,
+      "p_hit_given_ge25": 0.574,
+      "n_ge25": 136,
+      "share_all_ge15": 0.362
+     },
+     "bar15": {
+      "n": 591,
+      "mean_rise_all": 0.2323,
+      "mean_rise_hits": 0.8404,
+      "mean_rise_misses": 0.1273,
+      "share_hits_already_ge25": 0.943,
+      "p_hit_given_ge25": 0.526,
+      "n_ge25": 156,
+      "share_all_ge15": 0.415
+     }
+    },
+    "note": "pace.barK：验证集名额在第 K 根时的最高涨幅；进行中的清单拿同一根数对照。p_hit_given_ge25 = 第 K 根已涨 25% 的票最终命中的比例"
+   }
+  },
+  "data_health": {
+   "codes_per_day_recent": [
+    {
+     "date": "2026-08-07",
+     "n": 5512
+    },
+    {
+     "date": "2026-08-10",
+     "n": 5515
+    },
+    {
+     "date": "2026-08-11",
+     "n": 5513
+    },
+    {
+     "date": "2026-08-12",
+     "n": 5512
+    },
+    {
+     "date": "2026-08-13",
+     "n": 5513
+    },
+    {
+     "date": "2026-08-14",
+     "n": 5513
+    },
+    {
+     "date": "2026-08-17",
+     "n": 5511
+    },
+    {
+     "date": "2026-08-18",
+     "n": 5511
+    },
+    {
+     "date": "2026-08-19",
+     "n": 5510
+    },
+    {
+     "date": "2026-08-20",
+     "n": 5509
+    },
+    {
+     "date": "2026-08-21",
+     "n": 5510
+    },
+    {
+     "date": "2026-08-24",
+     "n": 5512
+    },
+    {
+     "date": "2026-08-25",
+     "n": 5512
+    },
+    {
+     "date": "2026-08-26",
+     "n": 5513
+    },
+    {
+     "date": "2026-08-27",
+     "n": 5513
+    },
+    {
+     "date": "2026-08-28",
+     "n": 5512
+    },
+    {
+     "date": "2026-08-31",
+     "n": 5510
+    },
+    {
+     "date": "2026-09-01",
+     "n": 5509
+    },
+    {
+     "date": "2026-09-02",
+     "n": 5509
+    },
+    {
+     "date": "2026-09-03",
+     "n": 5510
+    },
+    {
+     "date": "2026-09-04",
+     "n": 5508
+    },
+    {
+     "date": "2026-09-07",
+     "n": 5507
+    },
+    {
+     "date": "2026-09-08",
+     "n": 5507
+    },
+    {
+     "date": "2026-09-09",
+     "n": 5506
+    },
+    {
+     "date": "2026-09-10",
+     "n": 5504
+    },
+    {
+     "date": "2026-09-11",
+     "n": 5504
+    },
+    {
+     "date": "2026-09-14",
+     "n": 5504
+    },
+    {
+     "date": "2026-09-15",
+     "n": 5502
+    },
+    {
+     "date": "2026-09-16",
+     "n": 5502
+    },
+    {
+     "date": "2026-09-17",
+     "n": 5486
+    }
+   ],
+   "codes_per_day_min_all": {
+    "n": 69,
+    "date": "2023-01-03"
+   },
+   "thin_days": 96,
+   "date_range": [
+    "2023-01-03",
+    "2026-09-17"
+   ],
+   "latest_list_nan_feats": {},
+   "run_meta": {
+    "date": "2026-09-16",
+    "n_a": 10,
+    "n_b": 0,
+    "score_min": 97,
+    "cap_a": 10,
+    "min_streak": 1,
+    "board_adj": {
+     "main": 1.19,
+     "star": 1.0,
+     "bj": 0.9,
+     "chinext": 0.59
+    },
+    "n_streak3": 1,
+    "pool": 48,
+    "model_date": "2026-09-17",
+    "rejected": 1,
+    "n_qualified": 19,
+    "n_ok": 18,
+    "dry": true
+   }
+  },
+  "definitions": {
+   "rise": "上榜日收盘到之后 min(20, 已走) 根 K 线最高价的涨幅",
+   "hit": "rise > 50%（和训练标签 y_up 同口径）",
+   "final": "20 根已走满，命中才算最终",
+   "base_final/base_sofar": "同一天全市场随便买一只、同一窗口的命中比例（分别按已满/到目前为止）",
+   "expected.streak_perf": "邮件里印的验证集成绩（207 个交易日走向前）"
+  }
+ },
+ "regime": {
+  "recent": [
+   {
+    "date": "2026-08-07",
+    "n": 5512,
+    "turnover_yi": 26406.8,
+    "adv_share": 0.5169,
+    "limit_up": 76,
+    "limit_down": 4,
+    "ret_median_pct": 0.126,
+    "ret_mean_pct": 0.897,
+    "base20": 0.01617,
+    "base20_final": true,
+    "turnover_ma5_yi": 23874.9,
+    "turnover_chg5": 0.0566
+   },
+   {
+    "date": "2026-08-10",
+    "n": 5515,
+    "turnover_yi": 25001.8,
+    "adv_share": 0.736,
+    "limit_up": 103,
+    "limit_down": 7,
+    "ret_median_pct": 1.263,
+    "ret_mean_pct": 1.37,
+    "base20": 0.01435,
+    "base20_final": true,
+    "turnover_ma5_yi": 24928.3,
+    "turnover_chg5": 0.2669
+   },
+   {
+    "date": "2026-08-11",
+    "n": 5513,
+    "turnover_yi": 22987.8,
+    "adv_share": 0.2917,
+    "limit_up": 60,
+    "limit_down": 4,
+    "ret_median_pct": -0.682,
+    "ret_mean_pct": -0.423,
+    "base20": 0.01435,
+    "base20_final": true,
+    "turnover_ma5_yi": 25153.8,
+    "turnover_chg5": 0.0516
+   },
+   {
+    "date": "2026-08-12",
+    "n": 5512,
+    "turnover_yi": 21233.0,
+    "adv_share": 0.7464,
+    "limit_up": 97,
+    "limit_down": 0,
+    "ret_median_pct": 0.84,
+    "ret_mean_pct": 1.209,
+    "base20": 0.01344,
+    "base20_final": true,
+    "turnover_ma5_yi": 24134.7,
+    "turnover_chg5": -0.1935
+   },
+   {
+    "date": "2026-08-13",
+    "n": 5513,
+    "turnover_yi": 25269.0,
+    "adv_share": 0.2062,
+    "limit_up": 64,
+    "limit_down": 6,
+    "ret_median_pct": -1.474,
+    "ret_mean_pct": -1.044,
+    "base20": 0.01617,
+    "base20_final": true,
+    "turnover_ma5_yi": 24179.7,
+    "turnover_chg5": 0.009
+   },
+   {
+    "date": "2026-08-14",
+    "n": 5513,
+    "turnover_yi": 21243.6,
+    "adv_share": 0.4333,
+    "limit_up": 64,
+    "limit_down": 16,
+    "ret_median_pct": -0.201,
+    "ret_mean_pct": 0.126,
+    "base20": 0.01492,
+    "base20_final": true,
+    "turnover_ma5_yi": 23147.0,
+    "turnover_chg5": -0.1955
+   },
+   {
+    "date": "2026-08-17",
+    "n": 5511,
+    "turnover_yi": 23555.1,
+    "adv_share": 0.7832,
+    "limit_up": 110,
+    "limit_down": 1,
+    "ret_median_pct": 1.349,
+    "ret_mean_pct": 1.78,
+    "base20": 0.01275,
+    "base20_final": true,
+    "turnover_ma5_yi": 22857.7,
+    "turnover_chg5": -0.0579
+   },
+   {
+    "date": "2026-08-18",
+    "n": 5511,
+    "turnover_yi": 23737.3,
+    "adv_share": 0.3821,
+    "limit_up": 81,
+    "limit_down": 9,
+    "ret_median_pct": -0.473,
+    "ret_mean_pct": -0.034,
+    "base20": 0.0113,
+    "base20_final": true,
+    "turnover_ma5_yi": 23007.6,
+    "turnover_chg5": 0.0326
+   },
+   {
+    "date": "2026-08-19",
+    "n": 5510,
+    "turnover_yi": 24636.0,
+    "adv_share": 0.0806,
+    "limit_up": 38,
+    "limit_down": 155,
+    "ret_median_pct": -3.92,
+    "ret_mean_pct": -4.109,
+    "base20": 0.01604,
+    "base20_final": true,
+    "turnover_ma5_yi": 23688.2,
+    "turnover_chg5": 0.1603
+   },
+   {
+    "date": "2026-08-20",
+    "n": 5509,
+    "turnover_yi": 20562.1,
+    "adv_share": 0.741,
+    "limit_up": 85,
+    "limit_down": 15,
+    "ret_median_pct": 1.187,
+    "ret_mean_pct": 1.36,
+    "base20": 0.01355,
+    "base20_final": true,
+    "turnover_ma5_yi": 22746.8,
+    "turnover_chg5": -0.1863
+   },
+   {
+    "date": "2026-08-21",
+    "n": 5510,
+    "turnover_yi": 18606.2,
+    "adv_share": 0.4521,
+    "limit_up": 58,
+    "limit_down": 16,
+    "ret_median_pct": -0.116,
+    "ret_mean_pct": -0.08,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 22219.3,
+    "turnover_chg5": -0.1242
+   },
+   {
+    "date": "2026-08-24",
+    "n": 5512,
+    "turnover_yi": 19895.2,
+    "adv_share": 0.2632,
+    "limit_up": 49,
+    "limit_down": 20,
+    "ret_median_pct": -1.217,
+    "ret_mean_pct": -1.156,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 21487.4,
+    "turnover_chg5": -0.1554
+   },
+   {
+    "date": "2026-08-25",
+    "n": 5512,
+    "turnover_yi": 18150.4,
+    "adv_share": 0.7642,
+    "limit_up": 70,
+    "limit_down": 4,
+    "ret_median_pct": 1.472,
+    "ret_mean_pct": 1.483,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 20370.0,
+    "turnover_chg5": -0.2354
+   },
+   {
+    "date": "2026-08-26",
+    "n": 5513,
+    "turnover_yi": 17925.6,
+    "adv_share": 0.5309,
+    "limit_up": 56,
+    "limit_down": 2,
+    "ret_median_pct": 0.158,
+    "ret_mean_pct": 0.25,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 19027.9,
+    "turnover_chg5": -0.2724
+   },
+   {
+    "date": "2026-08-27",
+    "n": 5513,
+    "turnover_yi": 21049.7,
+    "adv_share": 0.6106,
+    "limit_up": 78,
+    "limit_down": 4,
+    "ret_median_pct": 0.521,
+    "ret_mean_pct": 1.182,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 19125.4,
+    "turnover_chg5": 0.0237
+   },
+   {
+    "date": "2026-08-28",
+    "n": 5512,
+    "turnover_yi": 20866.1,
+    "adv_share": 0.545,
+    "limit_up": 83,
+    "limit_down": 3,
+    "ret_median_pct": 0.23,
+    "ret_mean_pct": 0.268,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 19577.4,
+    "turnover_chg5": 0.1215
+   },
+   {
+    "date": "2026-08-31",
+    "n": 5510,
+    "turnover_yi": 21118.7,
+    "adv_share": 0.5753,
+    "limit_up": 89,
+    "limit_down": 13,
+    "ret_median_pct": 0.456,
+    "ret_mean_pct": 0.77,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 19822.1,
+    "turnover_chg5": 0.0615
+   },
+   {
+    "date": "2026-09-01",
+    "n": 5509,
+    "turnover_yi": 20239.7,
+    "adv_share": 0.6128,
+    "limit_up": 86,
+    "limit_down": 0,
+    "ret_median_pct": 0.583,
+    "ret_mean_pct": 0.504,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 20240.0,
+    "turnover_chg5": 0.1151
+   },
+   {
+    "date": "2026-09-02",
+    "n": 5509,
+    "turnover_yi": 17921.6,
+    "adv_share": 0.2754,
+    "limit_up": 54,
+    "limit_down": 10,
+    "ret_median_pct": -0.948,
+    "ret_mean_pct": -0.668,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 20239.2,
+    "turnover_chg5": -0.0002
+   },
+   {
+    "date": "2026-09-03",
+    "n": 5510,
+    "turnover_yi": 17563.2,
+    "adv_share": 0.333,
+    "limit_up": 46,
+    "limit_down": 19,
+    "ret_median_pct": -0.676,
+    "ret_mean_pct": -0.413,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 19541.9,
+    "turnover_chg5": -0.1656
+   },
+   {
+    "date": "2026-09-04",
+    "n": 5508,
+    "turnover_yi": 20267.8,
+    "adv_share": 0.4426,
+    "limit_up": 42,
+    "limit_down": 12,
+    "ret_median_pct": -0.162,
+    "ret_mean_pct": -0.284,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 19422.2,
+    "turnover_chg5": -0.0287
+   },
+   {
+    "date": "2026-09-07",
+    "n": 5507,
+    "turnover_yi": 19307.6,
+    "adv_share": 0.5711,
+    "limit_up": 95,
+    "limit_down": 3,
+    "ret_median_pct": 0.337,
+    "ret_mean_pct": 0.938,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 19060.0,
+    "turnover_chg5": -0.0858
+   },
+   {
+    "date": "2026-09-08",
+    "n": 5507,
+    "turnover_yi": 19549.2,
+    "adv_share": 0.6192,
+    "limit_up": 76,
+    "limit_down": 2,
+    "ret_median_pct": 0.553,
+    "ret_mean_pct": 0.686,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 18921.9,
+    "turnover_chg5": -0.0341
+   },
+   {
+    "date": "2026-09-09",
+    "n": 5506,
+    "turnover_yi": 18501.0,
+    "adv_share": 0.3246,
+    "limit_up": 50,
+    "limit_down": 10,
+    "ret_median_pct": -0.667,
+    "ret_mean_pct": -0.454,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 19037.8,
+    "turnover_chg5": 0.0323
+   },
+   {
+    "date": "2026-09-10",
+    "n": 5504,
+    "turnover_yi": 16399.7,
+    "adv_share": 0.1715,
+    "limit_up": 39,
+    "limit_down": 16,
+    "ret_median_pct": -1.491,
+    "ret_mean_pct": -1.358,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 18805.1,
+    "turnover_chg5": -0.0662
+   },
+   {
+    "date": "2026-09-11",
+    "n": 5504,
+    "turnover_yi": 19560.9,
+    "adv_share": 0.1146,
+    "limit_up": 39,
+    "limit_down": 24,
+    "ret_median_pct": -2.209,
+    "ret_mean_pct": -2.0,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 18663.7,
+    "turnover_chg5": -0.0349
+   },
+   {
+    "date": "2026-09-14",
+    "n": 5504,
+    "turnover_yi": 16168.8,
+    "adv_share": 0.5612,
+    "limit_up": 56,
+    "limit_down": 19,
+    "ret_median_pct": 0.276,
+    "ret_mean_pct": 0.515,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 18035.9,
+    "turnover_chg5": -0.1626
+   },
+   {
+    "date": "2026-09-15",
+    "n": 5502,
+    "turnover_yi": 16001.4,
+    "adv_share": 0.2019,
+    "limit_up": 32,
+    "limit_down": 35,
+    "ret_median_pct": -1.504,
+    "ret_mean_pct": -1.371,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 17326.4,
+    "turnover_chg5": -0.1815
+   },
+   {
+    "date": "2026-09-16",
+    "n": 5502,
+    "turnover_yi": 18233.4,
+    "adv_share": 0.7515,
+    "limit_up": 91,
+    "limit_down": 5,
+    "ret_median_pct": 0.98,
+    "ret_mean_pct": 1.415,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 17272.8,
+    "turnover_chg5": -0.0145
+   },
+   {
+    "date": "2026-09-17",
+    "n": 5486,
+    "turnover_yi": 17929.1,
+    "adv_share": 0.4654,
+    "limit_up": 49,
+    "limit_down": 2,
+    "ret_median_pct": -0.068,
+    "ret_mean_pct": 0.122,
+    "base20": null,
+    "base20_final": false,
+    "turnover_ma5_yi": 17578.7,
+    "turnover_chg5": 0.0933
+   }
+  ],
+  "definitions": {
+   "turnover_yi": "沪深京全市场成交额（亿元），只统计日线表里有的票",
+   "adv_share": "上涨家数占比",
+   "limit_up/limit_down": "按板块涨跌停幅度近似计数（ST 未单列）",
+   "base20": "那一天全市场随便买一只，之后 20 根 K 线内最高价涨超 50% 的比例。起涨预测的命中率要和它比，不是和验证集的 2.93% 比；不满 20 根的日子是 null",
+   "ret_median_pct": "全市场当日涨跌幅中位数"
+  }
+ }
+}

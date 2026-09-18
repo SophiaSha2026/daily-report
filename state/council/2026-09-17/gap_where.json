@@ -1,0 +1,214 @@
+{
+ "lens": "gap_where",
+ "summary": "早盘的差距分两段且各自集中在少数几天：准入段 18 天按天 −0.273，去掉 09-11 一天就变 +0.053；排序段 18 天合计 −6.19，其中 09-14~09-17 四天占 −5.93（96%）。这四天失分有两个具体来源：被缩尾成 +12.8pp 的 20cm 票落在发信名额之外（09-14 两只占当天 −1.98/−2.18），以及同板块簇占据前几名后整簇下跌（09-15 软件 4 只 −3.48、09-14 油气 3 只 −3.90）。分数倒挂：<50 两档 +0.30、≥50 三档 −0.77。起涨预测 8 份清单一份都没满 20 根，同根数节奏对照不落后（50 席 13.05% vs 验证 12.78%），但 60 席只有 39 只不同的票，688137 一只占 7 席、4 个「≥25%」席位和唯一一次命中；这 8 份还跨了三套板块系数，和邮件里印的期望不是同一条规则。",
+ "findings": [
+  {
+   "line": "morning",
+   "claim": "排序失分 96% 集中在最近四天，前 14 天排序基本无损",
+   "evidence": "rank_gain 逐日合计 −6.19（18 天）；09-14 −2.18、09-15 −2.12、09-16 −1.42、09-17 −0.21 合计 −5.93；其余 14 天合计 −0.26",
+   "magnitude": "−1.48 个百分点/天（最近 4 天）vs −0.019/天（前 14 天），n=18 天",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "09-14 的排序失分几乎全部来自两只落在名额外的 20cm 票",
+   "evidence": "688137 近岸蛋白（分 28.2、名次 12）与 301520 万邦医药（分 15.4、名次 15）当天 y 都被 q99 缩尾成 +12.82pp；发信 8 只均值 −2.235，过准入 15 只 −0.055",
+   "magnitude": "去掉这两只，当天排序增益 −2.18 → −0.20，即 −1.98 由 2/15 只票造成",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "同板块簇占据前几名后整簇下跌，是另两天的主因",
+   "evidence": "09-15 软件开发 4 只（sector_members=4）占 1/2/3/6 名，当天 y 均值 −3.48，其余 16 只过准入 +1.59；09-14 油气 3 只 −3.90 vs 其余 12 只 +0.91；sector 维 18 天 spread −0.67（t −0.92，权重 0.15，sector_min_members=3）",
+   "magnitude": "簇内 vs 当天其余：09-15 −5.07、09-14 −4.81 个百分点，n=7 只/2 天",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "准入段的差距是一天砸出来的，不是天天在漏",
+   "evidence": "过准入按天均值 −0.273（18 天）；09-11 单日 −5.826（当天全市场上涨家数占比 11.5%、中位 −2.21%），去掉这一天为 +0.053，按天中位数 −0.13",
+   "magnitude": "单日 −5.83 个百分点 vs 其余 17 天 +0.05/天",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "分数和收益倒挂，而发信门槛正好切在正负分界上",
+   "evidence": "按天分档：<40 +0.311（n=125）、40-50 +0.292（103）、50-60 −0.953（125，t −1.73）、60-70 −0.411（73）、70+ −0.866（39）；output.min_score=45；18 天 IC 均值 −0.081，最近 4 天 −0.321",
+   "magnitude": "<50（228 只）+0.30 vs ≥50（237 只）−0.77，落差约 1.07 个百分点/天",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "打分给「强度」付钱的两个维度同时为负，占 45% 权重",
+   "evidence": "gap 维 spread −0.954（t −1.64，w 0.20）、volume 维 −0.772（t −1.44，w 0.25）；分档单调：gap 2-3 +0.034 / 3-4 −0.595 / 4-5 −0.865（各 18 天）；量比 7-10 −0.659（17 天）。打分峰值在 gap 3.5% 与量比 7.2",
+   "magnitude": "两维加权贡献约 −0.38 个百分点/天（0.2×−0.954 + 0.25×−0.772），n=18 天",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "单切片差距最大的是「突破平台」旗标，方向为负",
+   "evidence": "yes n=90 −1.442 vs no n=375 −0.141，diff −1.057，按天聚类 se 0.45，t −2.35，17 天；同期 A 组 337 只 −0.325 vs B 组 128 只 +0.236",
+   "magnitude": "−1.06 个百分点/天，n=90 只/17 天（台账 20260916 已有消融提案）",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "415 天训练集上这套打分本来就没有边际，在线 18 天不是新情况",
+   "evidence": "learning.metrics：ic_mean −0.0229、ic_std 0.2523（t≈−1.85）、top_excess +0.0002、hit_rate 0.436；十次裁决全部倒在「样本外改善」和「按天自助显著」，accepted_total=0",
+   "magnitude": "415 天相关性 −0.023，t≈−1.85",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "没有一份清单能判成绩，同根数节奏对照目前不落后",
+   "evidence": "8 份清单 bars 1~8，final 全 false；按验证集 pace 同根数比：09-08 第7根 17.0% vs 15.25%、09-10 第5根 12.35% vs 12.31%、09-14 第3根 9.66% vs 9.23%、09-07 第8根 13.6% vs ≈16.3%、09-11 第4根 12.66% vs ≈10.8%",
+   "magnitude": "5 份清单 50 个名额平均涨幅 13.05% vs 验证 12.78%；已涨 ≥25% 7 个 vs 期望 7.6 个",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "名额数远大于独立事件数，成绩将由三四只票的走势决定",
+   "evidence": "查到的 6 份清单 60 个名额只有 39 只不同的票；688137 近岸蛋白占 8 份里的 7 席（连续 1→7），是 7 个「≥25%」席位里的 4 个，也是唯一一次命中（09-11 席位 +57.5%）；迅捷兴 6 席、奥浦迈 4 席",
+   "magnitude": "3 只票占 80 席中的 17 席（21%）；688137 再到 107.5 元（现峰值 100.8）会让 09-08/09-09/09-10 三份同时记命中",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "8 份清单跨了三套板块系数，和邮件里印的期望不是同一条规则",
+   "evidence": "09-07~09-15 是 star=1.27 时期的产物（查到的 6 份科创 37/60=62%）；09-16 run_meta 记 main 1.19/star 1.0/bj 0.9/chinext 0.59；今天 rules 打印的生产系数是收缩估计 main 1.0735/star 0.8581/bj 0.987/chinext 0.9606。而 expected.streak_perf 14.7%、validation_w5 科创 25 席 0 命中来自最后那套",
+   "magnitude": "科创席位占比 62%（查到的 60 席）vs 验证集 4.2%（25/591）",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "8 份都是满员 10 只，对照的应该是满员日那档成绩",
+   "evidence": "lists 每份 n=10；09-16 run_meta n_qualified=19、cap_a=10；cap_perf 满员日 7.6%（210 席/21 天）vs 非满员日 18.6%（381 席/125 天），总体 14.7%",
+   "magnitude": "80 席的期望命中 6.1 只（满员日档）vs 11.8 只（总体档），差近一倍",
+   "confidence": "中"
+  }
+ ],
+ "proposals": [
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "run_meta.board_adj 与 export._same_rule 的规则指纹",
+   "change": "run_meta 落的 board_adj 必须直接来自实际生效的 state/breakout/board_adj.json（含覆盖表），落盘时断言两者逐键相等，不等就拒绝出清单；每份清单的发信戳同时记 board_adj / SCORE_MIN / CAP_A / 模型指纹，真值表按指纹分组",
+   "rationale": "今天同一台机器上 rules 打印的生产系数是收缩估计（main 1.0735/star 0.8581/bj 0.987/chinext 0.9606），而 09-16 run_meta 记的是 main 1.19/star 1.0/bj 0.9/chinext 0.59。教训 35 的指纹比的就是 run_meta.board_adj，源头对不上时防呆等于没有",
+   "expected_effect": "规则指纹不再可能指向没跑过的系数；8 份清单能按「哪套规则产的」分组，不再和 14.7% 硬比",
+   "test_plan": "人工实现 + 自测：造一份 board_adj.json 与 run_meta 不一致的场景，断言出清单被拒；回补 09-07~09-16 每份清单的实际系数",
+   "priority": "P0",
+   "params": {
+    "assert": "run_meta.board_adj == state/breakout/board_adj.json",
+    "record_per_list": [
+     "board_adj",
+     "SCORE_MIN",
+     "CAP_A",
+     "model_fingerprint"
+    ]
+   }
+  },
+  {
+   "kind": "param",
+   "line": "morning",
+   "target": "scoring.weights.sector",
+   "change": "0.15 → 0.075 一臂（其余权重按比例归一），同时在证据包加「sector_members>=3 是否」的按天配对切片",
+   "rationale": "09-15 软件 4 只占 1/2/3/6 名、当天 −3.48（其余 +1.59），09-14 油气 3 只 −3.90（其余 +0.91）；18 天 sector 维 spread −0.67（t −0.92）方向一致但没有单独切片能看。板块共振把整簇推进前 10，是最近四天排序失分的两个来源之一",
+   "expected_effect": "回放 18 个在线真值日，排序增益按天均值从 −0.344 升到 ≥ −0.15；证据包出现可直接判显著性的簇切片",
+   "test_plan": "走七道闸（权重是可学项）；另在 18 天上按天配对回放「簇内 vs 当天其余」，报点估计、按天聚类 se 与 t",
+   "priority": "P1",
+   "params": {
+    "scoring.weights.sector": 0.075
+   }
+  },
+  {
+   "kind": "process",
+   "line": "both",
+   "target": "证据包所有按天汇总指标（learn/council/evidence.py）",
+   "change": "每个按天均值同时给「去掉影响最大那一天」的值和被去掉的日期（jackknife 极值），至少覆盖 top_excess_mean_pct / rank_gain_mean_pct / admitted_excess / dims.spread_pct / 各分档 excess",
+   "rationale": "准入段 −0.273 去掉 09-11 变 +0.053，排序段 −0.344 里 96% 来自最近四天：同一个均值在「天天在漏」和「一天砸的」两种世界里长得一模一样，现在要人工逐日加总才看得出来",
+   "expected_effect": "面板和会诊输入能一眼分辨集中失分与系统性失分，下一轮不再把单日事件当成参数问题",
+   "test_plan": "人工实现 + selftest_learn 加一条：构造 17 天为 0、1 天为 −10 的序列，断言 jackknife 值为 0",
+   "priority": "P1",
+   "params": {
+    "add": [
+     "jackknife_drop1_mean",
+     "jackknife_drop1_date"
+    ],
+    "apply_to": [
+     "morning.summary.top_excess_mean_pct",
+     "morning.summary.rank_gain_mean_pct",
+     "morning.summary.admitted_excess",
+     "morning.dims.spread_pct",
+     "morning.by.*"
+    ]
+   }
+  },
+  {
+   "kind": "param",
+   "line": "morning",
+   "target": "screen.gap_pct_peak",
+   "change": "3.5 → 3.0 一臂（与参数自学自己提的 3.3 并列跑）",
+   "rationale": "按天分档 gap 2-3 +0.034、3-4 −0.595、4-5 −0.865 单调向下，而打分峰值正落在 3-4 档；gap 维 spread −0.954（t −1.64，18 天）同向。区间边界不动，只动曲线形状",
+   "expected_effect": "18 天回放里前 10 的平均 gap_pct 下移约 0.3 个百分点，排序增益按天均值改善 ≥0.1；回填 404 天前 10 超额不降",
+   "test_plan": "七道闸 + 18 天在线按天配对；与 3.3 臂并列报，两臂都不过就撤",
+   "priority": "P2",
+   "params": {
+    "screen.gap_pct_peak": 3
+   }
+  },
+  {
+   "kind": "process",
+   "line": "morning",
+   "target": "证据包 morning.by.score 的对照组",
+   "change": "把「过准入但分数 < output.min_score(45)」的票单列成一个按天序列（均值 + 按天聚类 se + t），预先登记跟踪 30 个真值日再判",
+   "rationale": "<40 和 40-50 两档按天 +0.31/+0.29（n=228），≥50 三档 −0.77（n=237）；门槛 45 正切在正负之间。这件事要么是真倒挂要么是 18 天的噪声，现在没有一条预注册的序列能在未来回答它",
+   "expected_effect": "30 天后能用一条按天配对序列直接回答「低分组是否真的更好」，不必再从分档表事后拼",
+   "test_plan": "人工实现；先回填现有 18 天的该序列作为起点，不据此改门槛",
+   "priority": "P2",
+   "params": {
+    "group": "admitted & score < output.min_score",
+    "metric": [
+     "mean_by_day",
+     "se_day_clustered",
+     "t"
+    ],
+    "preregister_days": 30
+   }
+  },
+  {
+   "kind": "process",
+   "line": "both",
+   "target": "早盘逐日表与 worst_best 的交叉列",
+   "change": "每只过准入的票加一列「当天是否在起涨预测清单上 / 连续第几天」，数据取 state/sent/breakout_*.json",
+   "rationale": "最近四天早盘分数最低、收益最高的票里，688137 近岸蛋白同时是起涨清单连续 7 天的票（也是唯一一次命中）；两条线现在各看各的，这种交叉只能靠人一只只查",
+   "expected_effect": "能直接统计「起涨清单上的票在早盘打分里排第几」，为「早盘缺多日动量信息」这个猜测提供可算的切片",
+   "test_plan": "人工实现；先回补 18 个在线真值日，报「在清单上的票」按天平均名次与 y",
+   "priority": "P2",
+   "params": {
+    "add_col": [
+     "on_breakout_list",
+     "breakout_streak"
+    ],
+    "source": "state/sent/breakout_*.json"
+   }
+  }
+ ],
+ "questions": [
+  "09-09 和 09-15 两份起涨清单的逐只明细没查（板块构成、连续档、同根数节奏），60 席的统计缺这 20 席",
+  "除 09-16 外各份清单当天的 n_qualified 不知道，无法确认 8 份是否全是满员日（满员档 7.6% 与总体 14.7% 差近一倍）",
+  "证据包只给了被剔除票的池化超额 +0.377（n=20869），没有按天序列，没法和过准入的按天 −0.273 相减得出口径一致的「准入这一步值多少」",
+  "「突破平台」的加分落在哪个维度、加多少，rules 没打印；tools/platform_evidence.py 已有的结论没读",
+  "09-16 run_meta 里的 board_adj（main 1.19/star 1.0/bj 0.9/chinext 0.59）与今天 rules 打印的收缩系数不一致，不知道是 dry 跑的残留还是 09-16 清单真用的系数；09-16/09-17 早盘逐只表也没查"
+ ],
+ "_meta": {
+  "lens": "gap_where",
+  "model": "claude-opus-5",
+  "effort": "max",
+  "seconds": 54727.2,
+  "turns": 3,
+  "cost_usd": 0.964448,
+  "n_tool_calls": 21,
+  "denials": 0,
+  "error": ""
+ }
+}

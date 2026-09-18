@@ -1,0 +1,11 @@
+{
+ "lens": "gap_where",
+ "model": "claude-opus-5",
+ "effort": "max",
+ "seconds": 54727.2,
+ "turns": 3,
+ "cost_usd": 0.964448,
+ "n_tool_calls": 21,
+ "denials": 0,
+ "error": ""
+}

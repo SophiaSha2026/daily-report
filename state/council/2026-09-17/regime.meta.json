@@ -1,0 +1,11 @@
+{
+ "lens": "regime",
+ "model": "claude-opus-5",
+ "effort": "max",
+ "seconds": 54358.3,
+ "turns": 22,
+ "cost_usd": 5.787897,
+ "n_tool_calls": 21,
+ "denials": 2,
+ "error": ""
+}
