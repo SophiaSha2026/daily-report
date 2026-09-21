@@ -1,82 +1,82 @@
 [
   {
+    "code":"301282",
+    "name":"金禄电子",
+    "score":98.0,
+    "streak":3,
+    "close":45.75,
+    "board":"chinext"
+  },
+  {
     "code":"300741",
     "name":"华宝股份",
     "score":98.0,
-    "streak":2,
-    "close":25.15,
+    "streak":3,
+    "close":26.0,
     "board":"chinext"
   },
   {
     "code":"301251",
     "name":"威尔高",
     "score":97.0,
-    "streak":2,
-    "close":77.08,
-    "board":"chinext"
-  },
-  {
-    "code":"301282",
-    "name":"金禄电子",
-    "score":97.0,
-    "streak":2,
-    "close":45.35,
-    "board":"chinext"
-  },
-  {
-    "code":"605058",
-    "name":"澳弘电子",
-    "score":97.0,
-    "streak":2,
-    "close":47.4,
-    "board":"main"
-  },
-  {
-    "code":"301390",
-    "name":"经纬股份",
-    "score":98.0,
-    "streak":1,
-    "close":54.0,
+    "streak":3,
+    "close":80.78,
     "board":"chinext"
   },
   {
     "code":"001216",
     "name":"华瓷股份",
-    "score":98.0,
-    "streak":1,
-    "close":21.87,
-    "board":"main"
-  },
-  {
-    "code":"688137",
-    "name":"近岸蛋白",
     "score":97.0,
-    "streak":1,
-    "close":99.03,
-    "board":"star"
-  },
-  {
-    "code":"603353",
-    "name":"和顺石油",
-    "score":97.0,
-    "streak":1,
-    "close":48.55,
+    "streak":2,
+    "close":24.06,
     "board":"main"
   },
   {
     "code":"002285",
     "name":"世联行",
     "score":97.0,
-    "streak":1,
-    "close":2.89,
+    "streak":2,
+    "close":3.18,
     "board":"main"
   },
   {
-    "code":"920088",
-    "name":"科力股份",
+    "code":"920060",
+    "name":"万源通",
+    "score":98.0,
+    "streak":1,
+    "close":31.29,
+    "board":"bj"
+  },
+  {
+    "code":"300829",
+    "name":"金丹科技",
+    "score":98.0,
+    "streak":1,
+    "close":25.72,
+    "board":"chinext"
+  },
+  {
+    "code":"301529",
+    "name":"福赛科技",
     "score":97.0,
     "streak":1,
-    "close":42.79,
+    "close":137.9,
+    "board":"chinext"
+  },
+  {
+    "code":"920478",
+    "name":"峆一药业",
+    "score":97.0,
+    "streak":1,
+    "close":12.38,
     "board":"bj"
+  },
+  {
+    "code":"600127",
+    "name":"金健米业",
+    "score":97.0,
+    "streak":1,
+    "close":15.75,
+    "board":"main"
   }
 ]
