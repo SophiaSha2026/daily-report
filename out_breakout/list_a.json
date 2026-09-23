@@ -1,82 +1,82 @@
 [
   {
-    "code":"301282",
-    "name":"金禄电子",
-    "score":98.0,
-    "streak":4,
-    "close":46.33,
-    "board":"chinext"
-  },
-  {
     "code":"300741",
     "name":"华宝股份",
     "score":97.0,
-    "streak":4,
-    "close":29.49,
+    "streak":5,
+    "close":29.59,
+    "board":"chinext"
+  },
+  {
+    "code":"301282",
+    "name":"金禄电子",
+    "score":97.0,
+    "streak":5,
+    "close":47.72,
     "board":"chinext"
   },
   {
     "code":"300829",
     "name":"金丹科技",
-    "score":98.0,
-    "streak":2,
-    "close":27.6,
-    "board":"chinext"
-  },
-  {
-    "code":"920478",
-    "name":"峆一药业",
     "score":97.0,
-    "streak":2,
-    "close":12.77,
-    "board":"bj"
+    "streak":3,
+    "close":28.72,
+    "board":"chinext"
   },
   {
     "code":"000560",
     "name":"我爱我家",
-    "score":97.0,
-    "streak":1,
-    "close":3.51,
+    "score":98.0,
+    "streak":2,
+    "close":3.86,
     "board":"main"
-  },
-  {
-    "code":"301047",
-    "name":"义翘神州",
-    "score":97.0,
-    "streak":1,
-    "close":136.22,
-    "board":"chinext"
-  },
-  {
-    "code":"300464",
-    "name":"星徽股份",
-    "score":97.0,
-    "streak":1,
-    "close":12.22,
-    "board":"chinext"
-  },
-  {
-    "code":"688655",
-    "name":"迅捷兴",
-    "score":97.0,
-    "streak":1,
-    "close":77.21,
-    "board":"star"
   },
   {
     "code":"688137",
     "name":"近岸蛋白",
     "score":97.0,
-    "streak":1,
-    "close":124.5,
+    "streak":2,
+    "close":122.84,
     "board":"star"
   },
   {
-    "code":"605577",
-    "name":"龙版传媒",
+    "code":"300464",
+    "name":"星徽股份",
+    "score":97.0,
+    "streak":2,
+    "close":12.0,
+    "board":"chinext"
+  },
+  {
+    "code":"600825",
+    "name":"新华传媒",
+    "score":99.0,
+    "streak":1,
+    "close":7.06,
+    "board":"main"
+  },
+  {
+    "code":"301251",
+    "name":"威尔高",
+    "score":98.0,
+    "streak":1,
+    "close":90.8,
+    "board":"chinext"
+  },
+  {
+    "code":"301132",
+    "name":"满坤科技",
     "score":97.0,
     "streak":1,
-    "close":17.69,
-    "board":"main"
+    "close":74.56,
+    "board":"chinext"
+  },
+  {
+    "code":"920060",
+    "name":"万源通",
+    "score":97.0,
+    "streak":1,
+    "close":31.8,
+    "board":"bj"
   }
 ]
