@@ -1,0 +1,60 @@
+{
+  "date": "2026-09-24",
+  "day_regime": "情绪退潮",
+  "day_note": "高标集体崩塌：沈鼓集团跌停、次新凯达重工一字跌停，4100只下跌",
+  "items": [
+    {
+      "code": "301150",
+      "cause": "情绪退潮",
+      "evidence": "未查到公司公告；当日创业板指跌2.68%"
+    },
+    {
+      "code": "301047",
+      "cause": "形态失效",
+      "evidence": "未查到当日消息"
+    },
+    {
+      "code": "688783",
+      "cause": "形态失效",
+      "evidence": "未查到当日消息"
+    },
+    {
+      "code": "300434",
+      "cause": "形态失效",
+      "evidence": "未查到当日消息"
+    },
+    {
+      "code": "603216",
+      "cause": "形态失效",
+      "evidence": "未查到当日消息"
+    },
+    {
+      "code": "603065",
+      "cause": "形态失效",
+      "evidence": "未查到当日消息"
+    },
+    {
+      "code": "920961",
+      "cause": "形态失效",
+      "evidence": "未查到当日消息"
+    },
+    {
+      "code": "601579",
+      "cause": "形态失效",
+      "evidence": "未查到当日消息"
+    },
+    {
+      "code": "001326",
+      "cause": "形态失效",
+      "evidence": "未查到当日消息"
+    },
+    {
+      "code": "300164",
+      "cause": "板块轮动",
+      "evidence": "当日银行、油气、煤炭ETF逆势走强"
+    }
+  ],
+  "param_proposal": {},
+  "feature_proposal": [],
+  "source": "local-cli"
+}

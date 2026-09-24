@@ -48,5 +48,15 @@
   "shadow_ic": -0.2517482517482518,
   "shadow_top_excess": 0.015560242764956581,
   "overlap": 0.6
+ },
+ {
+  "date": "2026-09-24",
+  "base_n": 4,
+  "shadow_n": 10,
+  "base_ic": -0.7342657342657343,
+  "base_top_excess": -0.03549307713660633,
+  "shadow_ic": 0.6923076923076924,
+  "shadow_top_excess": 0.014432820485901336,
+  "overlap": 0.3
  }
 ]

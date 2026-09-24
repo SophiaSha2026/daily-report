@@ -1,0 +1,229 @@
+{
+ "lens": "data_quality",
+ "summary": "三件事在制造假差距。一、T1/T2 快照失效：09-24 的 603216 撮合价 +2.12% 而 t1_chg=0.00（就是昨收）、t2_chg=−0.98，slope 被算成 2.12、trend 子分 0.853；价格 09:25 起锁定，monotonic 只 37.7%。靠 T1 的假涨停撤单剔了 100 只、超额 +0.003pp。二、起涨 12/13 天名额用满，验证集满员日只占 14%、准确率 7.6%，邮件印 14.7% 高了近一倍。三、影子对比不等名额，6 天 +1.16pp 里 72% 来自 base 4 只 vs shadow 10 只那一天。另外没有一份清单走满 20 根。",
+ "findings": [
+  {
+   "line": "morning",
+   "claim": "T1/T2 竞价快照失效，slope/dive 测的是行情推送延迟",
+   "evidence": "603216 于 09-24：昨收 23.53、撮合价 24.03（+2.12%），t1_chg=0.00（恰好是昨收）、t2_chg=−0.98、t3_chg=+2.12，slope 算成 2.12、dive −3.10，parts.trend=0.853。全池 t1_chg 中位数 0.00，t3_chg 中位数 −0.18=gap_pct",
+   "magnitude": "09:25 起价格锁定，三次快照本应逐位相同，实测 monotonic 只有 37.7%（62.3% 不单调）；trend 权重 0.20，该只贡献 0.171 分",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "假涨停撤单这条硬剔除没有区分力，等于白剔",
+   "evidence": "剔除 100 只（4.3 只/天），超额 +0.003pp、命中 0.48，和全池一模一样。它的判据只吃 T1（T1≥涨停×0.9 且 T3<涨停×0.5）。对照吃 T2/T3 的尾盘跳水：n=63、超额 −1.217、命中 0.317",
+   "magnitude": "100 只/23 天，超额落在 ±0 附近；同类规则里尾盘跳水差 1.22 个百分点，差距悬殊",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "12/13 天名额用满，邮件印的期望是另一种日子的成绩",
+   "evidence": "09-23 确证被截断：够格 13 只、风险剔除后 12、上限 10。验证集满员日只有 21/146=14%，准确率 7.6%（n=210）；非满员日 18.6%（n=381）。邮件印 streak_perf 的 14.7%/17.3%",
+   "magnitude": "适用值 7.6% vs 印出来 14.7%，差 7.1 个百分点（近 2 倍）。Wilson 95%：[4.7,11.9] vs [15.0,22.8]，不重叠",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "清单的板块构成和验证集反着来，按板块加权的期望不成立",
+   "evidence": "验证集 591 个名额：main 61.4%、bj 20.1%、chinext 14.2%、star 4.2%，且 star 0/25 命中。生产 09-10 那份 8/10 是科创，09-23 那份 6/10 是创业板。板块系数已把 star 压到 0.8581",
+   "magnitude": "按验证集的板块命中率加权，09-10 那份期望 ≈3.3%（8×0% + 2×16.25%）而不是 14.7%；但 star 只有 25 个样本",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "没有一份清单走满 20 根，现在任何命中率都不能和期望比",
+   "evidence": "13 份清单最早 09-07 才走 13 根，n_final_lists=0，base_final 全是 null；regime.base20 从 2026-08-28 起全是 null。hits_sofar 合计 9/129，可窗口长度是 1~13 根不等",
+   "magnitude": "0 份可定论；第一份要到 2026-10-13 前后（含国庆）才满 20 根。同期基准现在一个数都算不出来",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "已核对：bars 和交易日历对得上，停牌没有拉长窗口",
+   "evidence": "09-07→13 根、09-08→12、09-10→10、09-23→1，逐日递减无跳格，和 09-25 至 09-24 的交易日数一致。picks 里同一份清单的 avail 全相等（09-10 十只都是 10）",
+   "magnitude": "13 份清单 0 处错位；停牌导致真值窗口拉长这件事目前没有发生",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "影子排序器的对比不等名额，它的优势 72% 来自一天",
+   "evidence": "6 天 shadow_n 全是 10，base_n 4~10。09-24 base 4 只 −3.55pp、shadow 10 只 +1.44pp，而 12 只过准入的池均值是 +1.37pp——拿 10/12 必然逼近池均值，不是排序变好",
+   "magnitude": "mean_diff +1.16pp 里 +4.99pp（72%）来自 09-24；剔掉它只剩 +0.39pp。p_better 已 0.932>0.9，只差天数（6/30）就转正",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "min_score=45 是绝对分数线，分数刻度随大盘漂",
+   "evidence": "09-24 过准入 12 只、≥45 的只有 4 只（top_mean_score 61.3）；第 5 名 002321 得 44.69（差 0.31 分）当天 r=+7.58%、ytil=+4.24。23 天里 7 天 sent_n 只有 4~8",
+   "magnitude": "sent_n 在 4~10 之间跳，按天等权时 4 只和 10 只同权；而 <40 分档反而是最好的一档（+0.61pp）",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "回填量能偏高，候选池每天比生产多 55%",
+   "evidence": "回填 auc_ratio 中位 0.0081 vs 线上 0.0061（+33%）、均值 0.0170 vs 0.0115（+48%）；auc_amount 中位 +21.5%、均值 +43%。准入闸门 2.5~10 直接吃这个数",
+   "magnitude": "回填 admitted 45.6/天（18423/404，avg_pool 42.1）vs 线上 29.5（678/23），多 55%；softTopK 切点从 30 分位挪到 19 分位",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "pos_pct_60d 两边差 0.145，而 position 维还在可学集合里",
+   "evidence": "回填中位 0.6453 vs 线上 0.50（+0.145），均值 0.6222 vs 0.5266。B 组定义就是 pos≤0.4，线上 B 占 29.5%（200/678），回填分布整体上移后 B 会稀得多",
+   "magnitude": "+0.145 的位移落在 0.15 权重、且仍可学的维度上；trend/volume 已钉死，position 没有",
+   "confidence": "中"
+  },
+  {
+   "line": "both",
+   "claim": "会诊读到的起涨状态永远落后一天",
+   "evidence": "evidence 生成于 04:45（本机），run_meta.date=2026-09-23，13 份清单最新也是 09-23。起涨预测 04:30 起跑、学习线 04:40 起跑，只隔 10 分钟，起涨跑不完",
+   "magnitude": "规则指纹（board_adj/score_min）、清单构成、latest_list_nan_feats 全部差一天；当天那份清单不在证据包里",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "232 只的薄日进了训练集，当日全市场排名不是同一个变量",
+   "evidence": "横截面最少 232 只（2023-01-03），96 个薄日；训练窗口从 2023-01-03 起（train_cut 2026-08-13）。近 30 天 5506~5518 很稳，波动只有 12 只",
+   "magnitude": "96 个薄日全在训练集里；特征第一层是当日全市场排名，232 只和 5500 只上算出来的分位不可比",
+   "confidence": "中"
+  }
+ ],
+ "proposals": [
+  {
+   "kind": "data_fix",
+   "line": "morning",
+   "target": "竞价轨迹 T1/T2 的有效性判据（采样与 score.py 的 slope/dive/monotonic）",
+   "change": "t1_chg==0 且 |gap_pct|>0.05 判 T1 无效（T2 同理）；无效时 slope=dive=0、monotonic=False、traj_ok=False，和回填「没有证据」同口径；逐日落 traj_valid_rate",
+   "rationale": "09:25 撮合后价格锁定到 09:30，T1/T2/T3 本应逐位相同。603216 实测 t1=0.00（昨收）、t2=−0.98、t3=+2.12，slope 被算成整段 gap、trend 子分 0.853。t1_chg 中位数 0.00 说明有一大块恰好为 0 的质量，monotonic 只 37.7%。",
+   "expected_effect": "trend 维（w=0.20）的 spread_t 从 +1.14 变成有效行上的真实值；假涨停撤单 的 100 只剔除量大幅下降；monotonic 从 37.7% 变成有效行里的真实比例",
+   "test_plan": "selftest 加一条：t1_chg=0 且 gap 非 0 的样本 slope 必须为 0、traj_ok 为 False；再拿 23 天真值重算 trend 维 spread 和 假涨停撤单 的超额（现在 +0.003pp）",
+   "priority": "P0",
+   "params": {
+    "invalid_rule": "t1_chg==0 and abs(gap_pct)>0.05",
+    "on_invalid": {
+     "slope": 0,
+     "dive": 0,
+     "monotonic": false,
+     "traj_ok": false
+    },
+    "emit": [
+     "morning.daily[].traj_valid_rate"
+    ]
+   }
+  },
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "export.py 邮件/面板印的期望命中率（STREAK_PERF）",
+   "change": "改按当天是否名额用满取那一档：用满印 7.6%（n=210, 21 天），没用满印 18.6%（n=381, 125 天），不再印混出来的 14.7%/17.3%",
+   "rationale": "生产 12/13 天名额用满（09-23 确证：够格 13、剔除后 12、上限 10），而验证集满员日只占 21/146=14%。邮件印的是以非满员日为主体的混合平均，对当前制度高了近一倍，Wilson 区间都不重叠。",
+   "expected_effect": "邮件里的期望从 14.7% 降到 7.6%，和当前 12/13 天适用的那一档对齐；用户看到的数不再系统性偏高 7.1 个百分点",
+   "test_plan": "update_perf.cap_split() 已经从同一份缓存算这两个数，直接接线；selftest_breakout 断言「n_a==CAP_A 时邮件里出现 full_cap 那一档」；顺带把 n_qualified / cap_binding 写进 run_meta 以便逐日核对",
+   "priority": "P0",
+   "params": {
+    "full_cap_hit_pct": 7.6,
+    "not_full_hit_pct": 18.6,
+    "switch_on": "n_a >= CAP_A",
+    "emit_run_meta": [
+     "n_qualified",
+     "cap_binding"
+    ]
+   }
+  },
+  {
+   "kind": "process",
+   "line": "morning",
+   "target": "learn/shadow.py 的双榜对比（shadow_n vs base_n）",
+   "change": "shadow 榜也走 optimize.production_order（过准入 + score>=min_score + top_n），或两边都截到 min(base_n, shadow_n)；名额不等的天不计入 p_better",
+   "rationale": "6 天 shadow_n 全是 10、base_n 4~10。09-24 shadow 拿 10/12 只过准入的票，必然逼近池均值 +1.37pp（实测 +1.44pp），base 只有 4 只 −3.55pp。这一天贡献了 6 天总优势 6.94pp 里的 4.99pp。",
+   "expected_effect": "mean_diff 从 +1.16pp 回到约 +0.39pp；p_better 0.932 重算后大概率掉到 0.9 以下，转正推迟到真有等名额证据时",
+   "test_plan": "用同样六天重算等名额版本的 mean_diff / p_better；selftest_learn 加一条断言「base_n != shadow_n 的天不进 shadow_stat」",
+   "priority": "P0",
+   "params": {
+    "equalize": "min(base_n, shadow_n)",
+    "exclude_unequal_days": true,
+    "recompute_days": [
+     "2026-09-17",
+     "2026-09-18",
+     "2026-09-21",
+     "2026-09-22",
+     "2026-09-23",
+     "2026-09-24"
+    ]
+   }
+  },
+  {
+   "kind": "process",
+   "line": "both",
+   "target": "学习线（含会诊）的自动开跑时刻，setup_tasks.ps1 的 Learn 08:40Z",
+   "change": "Learn 进场先核 state/breakout/run_meta.json 的日期是否等于目标日；不等就重试等待，不要拿上一天的起涨状态开会诊",
+   "rationale": "起涨 04:30 起跑、学习 04:40 起跑，只隔 10 分钟，起涨那条跑不完。于是会诊看到的 run_meta、清单构成、NaN 体检全是前一天的，规则指纹（教训 35 那道防呆比的就是 board_adj）也停在旧的一天。",
+   "expected_effect": "下一次会诊的 evidence.run_meta.date 等于会诊日期，lists 里有当天那份清单（现在 13 份最新是 09-23）",
+   "test_plan": "e2e_check 加一条：breakout 没跑完时 learn 应跳过会诊的起涨部分并留下能被界面查询的原因，而不是静默用旧状态",
+   "priority": "P1",
+   "params": {
+    "gate": "breakout run_meta.date == target_day",
+    "current_gap_minutes": 10,
+    "observed": {
+     "evidence_generated_at": "2026-09-24T04:45:23",
+     "run_meta_date": "2026-09-23"
+    }
+   }
+  },
+  {
+   "kind": "data_fix",
+   "line": "morning",
+   "target": "回填表的 auc_amount / auc_ratio（准入闸门的输入）",
+   "change": "回填竞价额只取 09:25 撮合那一笔；取不到就按天把 auc_ratio 分位映射到线上分布，并断言两边 admitted/天 的差 < 20%",
+   "rationale": "回填竞价额含 09:30 之后的成交（中位 +21.5%、均值 +43%），auc_ratio 跟着高 33%~48%。volume 维已经钉死不可学，但准入闸门本身还在吃这个被抬高的量能，决定「当天有哪些竞争对手」，优化器的 softTopK 切点因此从 30 分位挪到 19 分位。",
+   "expected_effect": "回填 admitted 从 45.6/天 回到 30 左右，auc_ratio 中位差从 +33% 收到 10% 以内，softTopK 切点回到生产的 30 分位",
+   "test_plan": "selftest_train 加 check_pool_size（回填 admitted/天 和线上差 >20% 就红）；重跑一次拟合，看闸门「样本外改善」的分块个数（现在 1/3）和按天自助 P（现在 0.764）有没有变",
+   "priority": "P1",
+   "params": {
+    "assert": "abs(backfill_admitted_per_day - online_admitted_per_day) / online_admitted_per_day < 0.20",
+    "current": {
+     "backfill_per_day": 45.6,
+     "online_per_day": 29.5,
+     "auc_ratio_median_gap_pct": 33
+    }
+   }
+  },
+  {
+   "kind": "process",
+   "line": "both",
+   "target": "evidence 证据包缺的健康字段",
+   "change": "补六个：早盘逐日 dirty 行占比和 T1/T2 有效率；起涨逐日 n_qualified 和 cap_binding；薄日的逐年分布和「薄」的阈值",
+   "rationale": "这三件事现在只能靠单只抽查：满员日只确证了 09-23 一天（其余 11 天 n=10 是推断的）；dirty 标志每只都有、却没有任何聚合数，撮合价和开盘价对不上多少行谁都看不见；96 个薄日只有一个计数和一个最小值 232。",
+   "expected_effect": "满员日、撮合价脏行、薄日三件事能直接从证据包读出来，下一轮不用再靠抽查推断",
+   "test_plan": "下一份 evidence_slim 里六个字段都在；selftest_learn 会诊那组加一条字段存在性断言，缺字段就红",
+   "priority": "P1",
+   "params": {
+    "add": [
+     "morning.daily[].dirty_rate",
+     "morning.daily[].traj_valid_rate",
+     "breakout.lists[].n_qualified",
+     "breakout.lists[].cap_binding",
+     "breakout.data_health.thin_days_by_year",
+     "breakout.data_health.thin_threshold"
+    ]
+   }
+  }
+ ],
+ "questions": [
+  "线上 t1_chg 恰好等于 0 的行占多少？逐日的 T1/T2 漏采率有没有落盘过？证据包只给了中位数 0.00，推不出确切比例",
+  "validation_w5.by_board 那 591 个名额是用现在这套板块系数（star 0.8581）算的，还是 star=1.27/1.0 的旧系数？这决定「科创 0/25 命中」能不能外推到今天的清单",
+  "data_health 里「薄」的阈值是多少？96 个薄日集中在哪几个月，还是散在三年里？",
+  "早盘每只都带 dirty 标志（撮合价 vs 开盘价 mismatch），23 天里逐日占比是多少，有没有超 0.5% 的天？",
+  "起涨清单逐日的 n_qualified 是多少？12/13 天名额用满里，有几天是真被上限截断，有几天恰好只有 10 只够格？"
+ ],
+ "_meta": {
+  "lens": "data_quality",
+  "model": "claude-opus-5",
+  "effort": "max",
+  "seconds": 647.5,
+  "turns": 16,
+  "cost_usd": 2.8695205,
+  "n_tool_calls": 15,
+  "denials": 2,
+  "error": ""
+ }
+}

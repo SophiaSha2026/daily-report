@@ -1,0 +1,193 @@
+{
+ "lens": "gap_where",
+ "summary": "早盘差距能干净分解：相对池内随机买 −1.04 个百分点/天，准入 −0.40、排序 −0.64（t=−2.53）。排序是反的：分数五档单调倒挂（最高档比最低档差 1.74），六维只有 trend 正，gap（t=−2.0）、volume、sector 负，权重合计 0.60；最近 9 天 rank_gain −1.61，之前 14 天 −0.02。起涨预测 13 份清单 0 份满窗，9 次命中里 ≥5 次来自同一只票；生产每天出 9.9 只而逐月滚动只有 2.86 只，满员日命中 7.6% vs 非满员 18.6%，邮件印的 14.7% 不是生产口径。",
+ "findings": [
+  {
+   "line": "morning",
+   "claim": "全流程比池内随机买差 1.04 个百分点/天，准入占 0.40、排序占 0.64",
+   "evidence": "y 减的是当日中位数、收益右偏，所以全池 27704 行的 y 均值是 +0.383 不是 0。过准入按天 −0.02（n=678），前10 −0.66。rank_gain −0.64 恰好等于两者之差，分解闭合。",
+   "magnitude": "−1.04 个百分点/天；排序段 −0.64±0.25（t=−2.53），n=23 天",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "9 次命中里至少 5 次是同一只票 688137，独立事件不到 5 个",
+   "evidence": "688137 从 09-08 连上到 09-11、09-14，这五天 hit 全为 true；09-07 那次是 688655。80 个名额里最多来自 5 只不同的票，Wilson 区间按 n=80 算是假的。",
+   "magnitude": "命中 9/80=11.25%，独立票 ≤5 只，8 份清单",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "生产每天出 9.9 只，逐月滚动测试只有 2.86 只，密度 3.5 倍",
+   "evidence": "13 份清单 129 只、12 份正好卡在 CAP_A=10、0 天空榜；验证集 591 名额散在 207 天（146 个出榜日）。满员日命中 7.6%（210 名额/21 天）vs 非满员 18.6%（381/125），生产几乎全落在满员那一侧。",
+   "magnitude": "密度 3.5 倍；生产对应期望 7.6% 而非邮件印的 14.7%，差 7.1 个百分点",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "分数五档单调倒挂，最高档比最低档差 1.74 个百分点",
+   "evidence": "<40 +0.612(n=174)、40-50 +0.464(165)、50-60 −0.639(171)、60-70 −0.480(112)、70+ −1.128(56)，无一档打破单调；命中率同向 0.46→0.375。单档 |t| 都 <1.3，靠的是五档一致。",
+   "magnitude": "−1.74 个百分点/天（70+ vs <40），n=678，23 天",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "六维只有 trend 正，gap 是唯一 |t|≥2 的负维，负维权重合计 0.60",
+   "evidence": "trend +0.638(w0.20)；gap −1.027±0.512(t=−2.0,w0.20)、sector −0.685(0.15)、volume −0.662(0.25) 负；position −0.107(t=−0.23) 无信息；continuity 89% 的票取同值、标 evaluable=false。gap 的 top_value_share 0.018，不是分辨度问题。",
+   "magnitude": "正维权重 0.20 vs 负维 0.60，无信息 0.15，不可评 0.05；n=23 天配对",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "排序增益最近 9 天 −1.61，之前 14 天只有 −0.02",
+   "evidence": "09-14 起逐日 rank_gain −2.18/−2.12/−1.42/−0.21/−0.82/−1.79/+0.12/−1.67/−4.37，均值 −1.61±0.44；08-24~09-11 十四天 −0.019±0.16。两段差 t=−3.39，但分段点是事后挑的。",
+   "magnitude": "两段差 −1.59 个百分点/天，n=9 天 vs 14 天",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "模型 44% 的判别力来自当天对所有票相同的市场环境特征",
+   "evidence": "importance_by_group regime 0.4433：mkt_ret5 三个变体合计 0.312、mkt_breadth__last 0.0955。真正区分个股的 structure 0.192+position 0.184+holders 0.070+compression 0.066+volume 0.034=0.546。这解释了为什么分数会整天集体越线或集体不够格。",
+   "magnitude": "regime 44.3% vs 个股维度 54.6%，51 个特征",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "被「涨幅区间外」剔掉的 2.3 万只比留下的好 0.49 个百分点",
+   "evidence": "剔除 22951 只 +0.471、命中率 0.511；过准入 678 只 −0.02、全池 +0.383。同一张表里尾盘跳水（−1.217，n=63，命中率 0.317）和竞价量能（−0.205，n=2331）两条剔除是有效的，负贡献只出在涨幅区间这一条。",
+   "magnitude": "+0.49 个百分点（对过准入）、+0.09（对全池），n=22951",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "「突破平台」标志和接力强势的 A 组在拖后腿",
+   "evidence": "突破平台 yes 136 只 −0.944 vs no 542 只 +0.105，按天价差 −0.872±0.435（t=−2.01，22 天）。A 组（昨日涨停/连板/突破平台）478 只 −0.027 vs B 组（60 日位置≤0.4）200 只 +0.298。昨日涨停单独看 −0.911 但 t 只有 −1.18。",
+   "magnitude": "−0.87 个百分点/天（t=−2.01，22 天）；A 组比 B 组低 0.33",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "生产清单板块构成和验证集反着来，两周内还整体切换了一次",
+   "evidence": "抽查 5 天：09-07/09-10/09-14 科创占 5~7 成，09-18/09-23 创业板占 4~6 成。验证集 main 61.4%、bj 20.1%、chinext 14.2%、star 4.2%，而 star 25 只 0 命中、chinext 13.1% 正是最低两档。board_adj.star 已压到 0.8581，没压住。",
+   "magnitude": "star 占比 4.2% → 50~70%，抽查 5 天；star 命中 0/25，Wilson 上界 10.7%",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "准入区间内越靠上沿越差，而打分峰值正好设在那里",
+   "evidence": "gap_pct 分档 2-3 +0.187(n=376)、3-4 −0.369(204)、4-5 −0.620(98) 单调下降，gap_pct_peak=3.5 落在后两档交界。09-24 当天复现：分数前二 gap 3.48/3.17，ytil −2.86/−0.60；表现最好的两只 gap 2.10/2.43，ytil +4.31/+4.24。",
+   "magnitude": "档间跨度 −0.81 个百分点（2-3 vs 4-5），n=678",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "参数自学 420 天一次都没改成过，训练集上相关性本身是负的",
+   "evidence": "n_train_days 420、ic_mean −0.0255、icir −0.10、top_excess 4.5e−05、accepted_total 0。最近 10 次裁决全部倒在「样本外改善」和「按天自助显著」同两道闸，本次 P=0.764/要求 0.9、分块 1/3 改善/要求 2。影子排序器 6 天 p=0.932，还差 24 天。",
+   "magnitude": "0 次接受 / 10 次连续否决；420 天相关性 −0.026",
+   "confidence": "高"
+  }
+ ],
+ "proposals": [
+  {
+   "kind": "param",
+   "line": "morning",
+   "target": "scoring.weights.gap",
+   "change": "scoring.weights.gap 0.20 -> 0.05，腾出的 0.15 加到 scoring.weights.trend（0.20 -> 0.35）",
+   "rationale": "gap 维按天价差 −1.027±0.512（t=−2.0，23 天）是六维里唯一 |t|≥2 的负维，trend +0.638 是唯一正维。gap_pct 分档 2-3→4-5 单调 +0.187→−0.620，两处独立证据指向同一方向。权重在 learnable 白名单里，准入区间一个字不动。",
+   "expected_effect": "rank_gain 从 −0.64 往 0 靠，预期改善 0.2~0.4 个百分点/天；同时看 by.score 的五档单调性有没有翻正",
+   "test_plan": "先在 23 个在线真值日上按新权重回放前 10 算 rank_gain；再走七道闸（420 天逐月滚动 + 按天自助 + 行为回放换手）",
+   "priority": "P0",
+   "params": {
+    "scoring.weights.gap": 0.05,
+    "scoring.weights.trend": 0.35
+   }
+  },
+  {
+   "kind": "threshold",
+   "line": "breakout",
+   "target": "CAP_A（满员日）",
+   "change": "n_qualified > CAP_A 的日子把 CAP_A 从 10 降到 4，不满员的日子维持 10",
+   "rationale": "验证集满员日命中 7.6%（210 名额/21 天）vs 非满员 18.6%（381/125），差 11 个百分点；生产 13 天 129 只、12 份卡在 10、0 天空榜，几乎全是满员日，对应期望是 7.6% 而不是邮件印的 14.7%。密度 9.9 只/天 vs 逐月滚动 2.86 只/天。",
+   "expected_effect": "出榜密度从 9.9 只/天降到约 5 只/天；满员日那一档的命中率往 18.6% 靠，邮件期望和生产口径对齐",
+   "test_plan": "exp_window.py 加一臂按 n_qualified 是否超 cap 分组重跑逐月滚动，和现有 fixed 臂并排；规则一改要连带 update_perf + truth.validation_by_board(refresh=True) + 六条自测（教训 36）",
+   "priority": "P0",
+   "params": {
+    "CAP_A_WHEN_FULL": 4,
+    "CAP_A": 10
+   }
+  },
+  {
+   "kind": "process",
+   "line": "morning",
+   "target": "排序增益的零分布",
+   "change": "在 23 个在线真值日上，每天从过准入池随机抽 min(10, n) 只，重复 1000 次，给出 rank_gain 的零分布和实测 −0.64 落在哪个分位",
+   "rationale": "rank_gain −0.64±0.25（t=−2.53）和分数五档单调倒挂都指向排序反向，但每天只有 10 个名额、23 天，现在没有一条「比随机差多少」的基准线可比，下一轮判波动还是真差距缺这个数。",
+   "expected_effect": "给出 P(随机 ≤ −0.64)，把「排序是否真的比随机还差」变成一个可引用的数",
+   "test_plan": "online_eval.py 加一臂，产物进证据包；selftest_learn 钉住字段存在",
+   "priority": "P0",
+   "params": {
+    "n_boot": 1000,
+    "days": 23,
+    "evidence_key": "morning.rank_gain_null"
+   }
+  },
+  {
+   "kind": "threshold",
+   "line": "morning",
+   "target": "screen.gap_pct_peak",
+   "change": "3.5 -> 2.5",
+   "rationale": "gap_pct 三档里只有 2-3 是正的（+0.187，n=376），3-4 −0.369、4-5 −0.620。峰值 3.5 把 f_gap 的满分给了表现最差的两档。学习线连续 10 次提 3.5->3.3，方向对但幅度不够。准入区间 2~5% 不动，只动曲线形状。",
+   "expected_effect": "前 10 的 gap_pct 均值从约 3.3 降到约 2.7，按 gap_pct 分档加权的超额从 −0.16 转正",
+   "test_plan": "selftest.py check_curves 钉住 min<peak<max，2.5 在 [2,5] 内合法；七道闸 + 23 天在线回放，注意两臂归一的跨度会从 1.5/1.5 变成 0.5/2.5，check_curves 的分臂断言要过",
+   "priority": "P1",
+   "params": {
+    "screen.gap_pct_peak": 2.5
+   }
+  },
+  {
+   "kind": "feature_modify",
+   "line": "morning",
+   "target": "「突破平台」标志在打分里的加分",
+   "change": "把突破平台的加分置 0，先作为反事实臂跑，不直接进生产",
+   "rationale": "突破平台 yes 136 只 −0.944 vs no 542 只 +0.105，按天价差 −0.872±0.435（t=−2.01，22 天）；含这个标志的 A 组 −0.027 vs B 组 +0.298。tools/platform_evidence.py 已经有前10/过准入两个口径、两个反事实臂、按天聚类的接线，直接复用。",
+   "expected_effect": "前 10 里带这个标志的占比从约 20% 降下来，rank_gain 改善 0.1~0.2 个百分点/天",
+   "test_plan": "tools/platform_evidence.py 按天聚类重跑两个反事实臂，过闸再谈生产；t=−2.01 在六维多重比较下要打折，只凭这一条不足以直接改",
+   "priority": "P1",
+   "params": {
+    "flag": "突破平台",
+    "bonus": 0
+   }
+  },
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "生产清单 vs 逐月滚动验证的并排统计",
+   "change": "证据包加一张并排表：逐日 n_qualified / n_a / 板块分布 / 是否满员，和验证集同名统计并列",
+   "rationale": "出榜密度（9.9 vs 2.86 只/天）和板块构成（star 4.2% vs 50~70%）两处漂移都是靠人工抽查 5 天才看出来的，run_meta 只留最新一天，历史拿不到。教训 34 的同一个病：同一个概念生产和验收各算一遍。",
+   "expected_effect": "下一轮会诊直接读到密度和板块的差，不用抽查；满员日判定从推断变成实测",
+   "test_plan": "evidence.py 加字段并回填 13 天的 run_meta；selftest_learn 加一条钉住字段存在",
+   "priority": "P1",
+   "params": {
+    "evidence_key": "breakout.production_vs_validation"
+   }
+  }
+ ],
+ "questions": [
+  "13 份起涨清单里到底有几天 n_qualified > CAP_A（真满员）？run_meta 只留了最新一天，历史拿不到，「生产几乎全是满员日」目前是从 12/13 份正好 10 只推断的。",
+  "早盘 09-14 前后排序增益的断点有没有对应的改动？在线打分口径、min_score=45、候选池规则这段时间动过吗？证据包里看不到配置的时间线。",
+  "「突破平台」这个标志进的是哪个维度、加多少分？证据包只给了标志分组的 y，没给它在打分里的通路，提案的 params 只能写成占位。",
+  "起涨预测第一份满 20 根的清单要到 10 月中旬才有。在那之前用什么口径做在线判定？现在 hit_rate 全是 null，hits_sofar 又被同一只票重复计数。",
+  "全池 y 均值 +0.383 这个基准要不要写进证据包？现在 admitted_excess / rejected_excess 都拿 0 当参照，会把「过准入 −0.02」读成中性，实际上它比池内随机低 0.40。"
+ ],
+ "_meta": {
+  "lens": "gap_where",
+  "model": "claude-opus-5",
+  "effort": "max",
+  "seconds": 466.3,
+  "turns": 17,
+  "cost_usd": 2.6893645,
+  "n_tool_calls": 16,
+  "denials": 1,
+  "error": ""
+ }
+}

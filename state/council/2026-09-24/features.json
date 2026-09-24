@@ -1,0 +1,219 @@
+{
+ "lens": "features",
+ "summary": "起涨预测最大的特征问题：44.3% 的增益压在市场环境组，其中四个日级常量（mkt_ret5 三项 + mkt_breadth）就占 40.8%。分数是全局分位映射不是当日排名，这四列不区分票，只决定当天几只过 97 分，而且方向是反的——满员日命中 7.6%（21 天）对非满员日 18.6%（125 天）。同时 51 个入选特征里没有任何行业级变量，19 个尾巴特征只贡献 2.4%。早盘六维里只有趋势维为正，偏偏它是回填表钉死不可学的那一维；高开维（权重 0.20）方向相反，量能维在回填上的正相关来自 09:30 之后成交的前视。",
+ "findings": [
+  {
+   "line": "breakout",
+   "claim": "四个日级常量特征吃掉 40.8% 增益，却一分排序力都不提供",
+   "evidence": "mkt_ret5__mean .1441 + mkt_breadth__last .0955 + mkt_ret5__last .0889 + mkt_ret5__slope .0793 = .4078。分数是「训练集再平衡样本上的预测值分位数」（全局映射，非当日横截面）。这两个名字在整份 evidence.json 里各只出现 1 次（仅重要性表），10 只最新清单票各 20 个特征分位里一个都没有。增益还被高估：约 900 个独立交易日的信息在 106 万行上算 gain（教训 33 搬到特征重要性上）",
+   "magnitude": "40.8% 增益份额 / 0 横截面区分度；独立观测约 900 对行数 1.06M",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "日级抬升方向是反的：模型越觉得今天是好日子，清单越差",
+   "evidence": "cap_perf：满员日（够格超 10 只被截断）7.6%，210 个名额 / 21 天；非满员日 18.6%，381 个名额 / 125 天。满员日贡献了 591 个名额里的 35.5%，命中率只有另一组的 4 成",
+   "magnitude": "−11.0 个百分点（7.6% vs 18.6%），2.4 倍，21 天 vs 125 天",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "清单在门槛处没有分辨率，榜内排序基本是并列",
+   "evidence": "09-23 清单看到的 6 只分数是 97/97/97/98/97/97；整数分位在 ≥97 只剩 97~100 四个可用值。当天 13 只够格、风险剔除 1 只剩 12、CAP_A=10 砍掉 2 只，砍谁由无信息的并列决定",
+   "magnitude": "门槛以上 4 个可用分档；10 只里至少 5 只同分",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "一天的清单是同一个模板的 10 份拷贝，有效样本量接近 1",
+   "evidence": "09-23 六只票的特征分位高度雷同：rs60__last 0.50~0.66、above_ma60__last 0.33~0.44、ma_align__mean 0.24~0.43、ma20_slope5__mean 0.44~0.54、x_light_top__last −0.23~−0.60，没有一只在任何一维上取极端值。13 份在跑的清单 hits_sofar 全部落在 0~2",
+   "magnitude": "6 只票在 20 个特征上的取值区间宽度普遍 <0.25",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "2026-09-15 加的成交量组几乎没进模型",
+   "evidence": "成交量组整组 gain 3.44%，其中 amt_ma20 两项（.0200+.0061=.0261）就占 76%。真正新加的量能比率类合计：up_vol_share20 .0057 + vol_ratio20 .0025 + vol_compress .0031 + vol_ratio5 .0010 = .0123",
+   "magnitude": "新增量能比率类合计 1.23% 增益；vol_ratio5 两项合计 0.10%",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "51 个入选特征里 19 个是纯长尾，占 37% 的列数、2.4% 的增益",
+   "evidence": "gain_share ≤ .0025 的有 19 个：boll_width__slope .0025 起到 vol_ratio5__mean .0002，逐项累加 = .0242。其中 6 个是 __slope，而对应的 __last 已在表内",
+   "magnitude": "19/51 列 = 37%，合计 2.42% 增益",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "模型里一个行业级变量都没有，板块只以四档常数事后相乘",
+   "evidence": "按 feat 名 grep sect/ind/hy/board/north/lhb/flow 在整份 evidence.json 零命中。板块信息只有 BOARD_ADJ（main 1.0735 / star 0.8581 / bj 0.987 / chinext 0.9606）乘在预测值上，是交易所板块不是行业，且当天对同板块所有票取同一值",
+   "magnitude": "行业维特征数 = 0 / 102 起始列",
+   "confidence": "高"
+  },
+  {
+   "line": "breakout",
+   "claim": "筹码组占 7.0% 增益；网格越界目前没影响出榜票，但训练端没被覆盖",
+   "evidence": "chip_conc90 .0325 + chip_conc_chg20 .0185 + chip_dev .0109 + chip_win .0052 + chip_peak .0029 = .0700。latest_list_nan_feats 是空字典，说明最新清单没有 NaN 特征；证据包里没有训练表的 NaN 统计",
+   "magnitude": "7.0% 增益暴露在网格口径上；生产端 NaN 特征 0 个",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "训练数据有 96 个薄日，最薄一天横截面只有 232 只",
+   "evidence": "data_health：thin_days 96，codes_per_day_min_all 232（2023-01-03），日期范围 2023-01-03~2026-09-24（约 900 个交易日）。近 30 天稳定在 5506~5518。三层变换第一层是当日全市场排名，232 只上的排名和 5500 只上的不是同一个特征",
+   "magnitude": "96/约900 天 ≈ 10.6%，且集中在样本最早端",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "六维里只有趋势维为正，而它恰好是回填表钉死不可学的那一维",
+   "evidence": "按天配对价差：trend +0.638（t=1.14）；gap −1.027（t=−2.00）、volume −0.662（t=−1.34）、sector −0.685（t=−1.17）、position −0.107、continuity +0.146。按权重加总 = −0.355 个百分点/天，和实测 top_excess −0.66±0.44 同号。而 monotonic 在线 37.7%、回填 0%，slope/dive 回填一律 0",
+   "magnitude": "唯一正向维权重 0.20；加权和 −0.355 个百分点/天，n=23 天",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "高开维方向反了，钟形峰值 3.5 正好压在最差的一档上",
+   "evidence": "分档按天均值单调递减：2-3 +0.187（n=376）/ 3-4 −0.369（n=204）/ 4-5 −0.620（n=98）。09-18 最差五只高开 3.65/3.59/3.73/2.99/3.80，最好五只 2.01/2.41/2.69/2.90/2.84；09-24 最差三只 3.48/3.33/3.17，最好三只 2.10/2.15/2.42。优化器连续 8 天把 gap_pct_peak 从 3.5 推到 3.3",
+   "magnitude": "维度价差 −1.027±0.512（t=−2.0，23 天）；六维多重比较后 Bonferroni p≈0.35",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "回填表教不了量能，还会教反：它的正相关来自 09:30 之后的成交",
+   "evidence": "回填按量比分档 +0.549 / +0.711 / +0.731（n=5878/8218/4327，三档全正且单调上升）；在线 +0.117 / +0.231 / −0.435（n=310/243/88），最高档是唯一负值。known_biases 已写明回填竞价额含 09:30 之后成交、中位高 25~33%",
+   "magnitude": "回填最高档 +0.731 对在线 −0.435，差 1.17 个百分点；权重 0.25 是六维里最大的",
+   "confidence": "高"
+  }
+ ],
+ "proposals": [
+  {
+   "kind": "feature_drop",
+   "line": "breakout",
+   "target": "市场环境组的四个日级常量：mkt_ret5__mean / mkt_ret5__last / mkt_ret5__slope / mkt_breadth__la",
+   "change": "从入模特征里删掉这四列，入模列数 51 -> 47",
+   "rationale": "它们同一天对所有票取同一个值，而分数是全局分位映射不是当日横截面排名，所以不提供排序力，只整体抬高压低当天分数、决定几只过 97。验证集上这个抬高是反向的：满员日 7.6%（210/21 天）对非满员日 18.6%（381/125 天）。44% 的增益份额本身也虚——约 900 个独立观测在 106 万行上算 gain。",
+   "expected_effect": "满员日名额从 210 降到接近 0；W5 生产口径连续≥1 的命中率从 14.7%±1.5% 往 18.6% 走。判据取「不比基线差」，若命中率不升但月间方差下降也算合格。",
+   "test_plan": "会诊自动消融：先断言入模列数 51→47 且成绩不和基线逐位相同（教训 32），再 exp_window --refit -> tools/update_perf.py --from fixed -> truth.validation_by_board(refresh=True) -> 六条自测。改了「谁上榜」必须连带重算成绩常量和按板块缓存（教训 35/36）。",
+   "priority": "P0",
+   "params": {
+    "features": [
+     "mkt_ret5__mean",
+     "mkt_ret5__last",
+     "mkt_ret5__slope",
+     "mkt_breadth__last"
+    ]
+   }
+  },
+  {
+   "kind": "feature_add",
+   "line": "breakout",
+   "target": "行业板块动量（横截面，逐票不同）：sector_ret20__last / sector_breadth__last",
+   "change": "新增两列行业级特征：行业成分等权 20 日收益的当日全市场排名、行业内站上 60 日线的成分比例",
+   "rationale": "51 个入选特征里没有任何行业级变量，板块只以四档交易所系数事后相乘。机制：20 根内 +50% 在 A 股高度由行业主题驱动，同一天不同行业的概率差很多；关键是它逐票不同，正好补上 mkt_* 占掉那 44% 里缺的横截面分量。数据本机已有，不新增数据源。",
+   "expected_effect": "市场环境组份额从 44.3% 下降；满员日占比下降；W5 连续≥1 命中率至少不降，目标 +3 个百分点以上（现 14.7%，se 1.5%）。",
+   "test_plan": "先查 cache/sector_map.parquet 有没有历史版本——拿当前成分往回套三年是成分变更前视（教训 25 同型）。没有历史版本就只用一级行业（个股一级行业一年内几乎不变）并在训练表记一列成分表版本日。然后 build -> refit -> exp_window 逐月滚动，和不加这两列的臂并排比。",
+   "priority": "P1",
+   "params": {
+    "features": [
+     "sector_ret20__last",
+     "sector_breadth__last"
+    ],
+    "source": "cache/sector_map.parquet + 日线表",
+    "group": "sector"
+   }
+  },
+  {
+   "kind": "feature_drop",
+   "line": "breakout",
+   "target": "19 个 gain_share ≤ 0.0025 的长尾特征",
+   "change": "入模列数 51 -> 32",
+   "rationale": "这 19 个占 37% 的列数、2.42% 的增益，其中 6 个的 __last 版本已经在表里。列数是拟合面积：树模型在 102 列起筛到 51 列之后，尾巴主要贡献分裂机会而不是信息。这是降方差提案，不是提准确率提案。",
+   "expected_effect": "W5 连续≥1 命中率变化落在 ±2se（±2.9 个百分点）内，逐月滚动的月间方差下降，重训时间缩短。",
+   "test_plan": "自动消融：断言入模列数 51→32、成绩不逐位相同，再看逐月滚动曲线的月间标准差是否下降。过闸判据用「不比基线差」。",
+   "priority": "P1",
+   "params": {
+    "features": [
+     "boll_width__slope",
+     "vol_ratio20__last",
+     "range_compress__last",
+     "rs60__slope",
+     "chip_dev__slope",
+     "vol_compress__last",
+     "chip_peak__slope",
+     "range_compress__mean",
+     "chip_peak__last",
+     "vol_compress__mean",
+     "rs20__slope",
+     "ma20_slope5__slope",
+     "vol_ratio5__last",
+     "atr_ratio__slope",
+     "chip_win__slope",
+     "x_squeeze_burst__mean",
+     "x_light_top__slope",
+     "x_squeeze_burst__last",
+     "vol_ratio5__mean"
+    ]
+   }
+  },
+  {
+   "kind": "feature_modify",
+   "line": "morning",
+   "target": "screen.gap_pct_peak（高开打分曲线的峰值，在 learnable 白名单里）",
+   "change": "3.5 -> 2.5，准入区间 2~5% 一个字不动",
+   "rationale": "在线 23 天分档单调递减（2-3 +0.187 / 3-4 −0.369 / 4-5 −0.620），高开维按天配对价差 −1.027（t=−2.0，六维里唯一 |t|≥2），钟形峰值 3.5 正好压在最差那一档。峰值移到 2.5 后 f_gap 在区间内单调递减；两臂跨度 0.5 与 2.5 悬殊，分臂归一的代码正是为这种情况写的。区间边界是用户定的规则，曲线形状是偏好强度，这里只动后者。",
+   "expected_effect": "dims.gap 的 spread 从 −1.027 往 0 走；按权重折算 top_excess 改善约 0.20×1.03 ≈ 0.2 个百分点/天。",
+   "test_plan": "先跑 selftest.py::check_curves（两臂跨度悬殊正是那几条断言要钉的），再走逐月滚动 + 按天自助，并在 23 天在线子集上单独算一遍。days_to_detect_0p5=47，23 天还分辨不了 0.5 个百分点，所以先挂台账等更多真值日，不要直接改 config.yaml。",
+   "priority": "P1",
+   "params": {
+    "screen.gap_pct_peak": 2.5
+   }
+  },
+  {
+   "kind": "feature_modify",
+   "line": "morning",
+   "target": "「突破平台」这个二值标志在趋势维里的加分",
+   "change": "加分置 0（A/B 组定义暂不动），验证通过后再考虑从 A 组定义里摘掉",
+   "rationale": "四个二值标志里它负得最狠也最稳：是 −0.944 对 否 +0.105，差 −0.872，按天聚类 se 0.435，t=−2.01（22 天，yes_n=136，占 678 张过准入票的 20%）。昨日涨停 −0.911 但 t 只有 −1.18，均线多头 +0.236、稳步抬升 +0.109 都在噪声里。仓库里已有 tools/platform_evidence.py 做两个口径 + 两个反事实臂、全部按天聚类，直接能验。",
+   "expected_effect": "A 组 excess 从 −0.027 往 B 组的 +0.298 靠；top_excess 改善 0.1~0.2 个百分点/天。",
+   "test_plan": "先跑 tools/platform_evidence.py 的「前 10 / 过准入」两个口径 + 两个反事实臂。四个标志多重比较后 p≈0.18，所以要求反事实臂上 t 仍 ≤ −1.5 才提交七道闸，否则只记台账不动代码。",
+   "priority": "P2",
+   "params": {
+    "flag": "breakout",
+    "trend_bonus": 0
+   }
+  },
+  {
+   "kind": "data_fix",
+   "line": "breakout",
+   "target": "训练表里横截面过薄的交易日",
+   "change": "训练、特征筛选、中性化、正交时剔除当日代码数 < 2000 的交易日（现共 96 天，最薄 2023-01-03 只有 232 只）",
+   "rationale": "三层变换第一层是当日全市场排名。232 只上算出来的排名和 5500 只上算出来的不是同一个特征，中性化和正交在 232 行上拟合也是噪音。这批天占约 10.6%，而且集中在样本最早端，正好是逐月滚动测试的训练起点，会让早期月份的成绩既不可比也不可复现。",
+   "expected_effect": "训练行数减少约 10%；逐月滚动的月间命中率方差下降；早期月份成绩不再虚高虚低。整体命中率变化应在 ±2se 内。",
+   "test_plan": "先打印 codes_per_day 分布确认 2000 这条线切到的是什么——证据包只给了 thin_days=96 和最小值 232，没给判据。再 build -> refit -> exp_window，和不剔除的臂并排比逐月曲线。",
+   "priority": "P2",
+   "params": {
+    "min_codes_per_day": 2000
+   }
+  }
+ ],
+ "questions": [
+  "pos_pct_60d 回填均值 0.622 / 在线 0.527（中位 0.645 / 0.50）是 backfill_vs_online 里唯一没进 known_biases 的大口径差，位置维权重 0.15。这是这 23 天市场偏弱的真实结果，还是口径不一致？需要把在线这 23 个交易日在回填表里也算一遍再比。",
+  "满员日 7.6% 对非满员日 18.6%，要用同期 base20 校正后才能确认是模型的问题而不是那 21 天本身基准率低。cap_perf 不带日期，从证据包里拿不到。",
+  "训练表里筹码网格越界产生的 NaN 有多少行、集中在哪类票（高倍数股票）？latest_list_nan_feats 只覆盖生产端最新清单，不能推断训练端。",
+  "cache/sector_map.parquet 有没有历史版本？没有的话行业动量特征只能用一级行业并接受一个已知的成分变更前视，需要先拍板能不能接受。",
+  "council_query feature-ic 对 mkt_ret5 和 chip_conc90 都返回空字典，逐月相关性表是没生成还是命令坏了？这条路断了就没法查单个特征的符号稳定性。"
+ ],
+ "_meta": {
+  "lens": "features",
+  "model": "claude-opus-5",
+  "effort": "max",
+  "seconds": 516.2,
+  "turns": 14,
+  "cost_usd": 2.6214500000000003,
+  "n_tool_calls": 13,
+  "denials": 0,
+  "error": ""
+ }
+}

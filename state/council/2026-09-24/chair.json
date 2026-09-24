@@ -1,0 +1,369 @@
+{
+ "gap": [
+  {
+   "line": "morning",
+   "where": "排序段：真发出去的前 10 的 y 均值 − 过准入全部的 y 均值（rank_gain）",
+   "expected": 0.0,
+   "actual": -0.64,
+   "unit": "百分点/天",
+   "ci_lo": -1.14,
+   "ci_hi": -0.14,
+   "n": 23,
+   "baseline": NaN
+  },
+  {
+   "line": "morning",
+   "where": "前 10 相对当日全池中位数的超额（top_excess，23 天按天均值）",
+   "expected": 0.0,
+   "actual": -0.66,
+   "unit": "百分点/天",
+   "ci_lo": -1.52,
+   "ci_hi": 0.2,
+   "n": 23,
+   "baseline": NaN
+  },
+  {
+   "line": "morning",
+   "where": "准入段：过准入 678 只的 y 均值 vs 池内随机买（全池 27704 行 y 均值 +0.383）",
+   "expected": 0.383,
+   "actual": -0.016,
+   "unit": "百分点",
+   "ci_lo": NaN,
+   "ci_hi": NaN,
+   "n": 678,
+   "baseline": NaN
+  },
+  {
+   "line": "morning",
+   "where": "分数最高档 70+（n=56）vs 最低档 <40（n=174）的超额差，五档单调倒挂",
+   "expected": 0.0,
+   "actual": -1.74,
+   "unit": "百分点/天",
+   "ci_lo": -4.05,
+   "ci_hi": 0.57,
+   "n": 23,
+   "baseline": NaN
+  },
+  {
+   "line": "morning",
+   "where": "六维中 gap 维：当天得分最高 1/3 vs 最低 1/3 的超额差",
+   "expected": 0.0,
+   "actual": -1.027,
+   "unit": "百分点/天",
+   "ci_lo": -2.03,
+   "ci_hi": -0.02,
+   "n": 23,
+   "baseline": NaN
+  },
+  {
+   "line": "morning",
+   "where": "高开分档 2-3%（+0.187，n=376）vs 4-5%（−0.620，n=98），打分峰值 3.5 压在差的那一侧",
+   "expected": 0.0,
+   "actual": -0.807,
+   "unit": "百分点/天",
+   "ci_lo": -2.42,
+   "ci_hi": 0.81,
+   "n": 23,
+   "baseline": NaN
+  },
+  {
+   "line": "morning",
+   "where": "竞价轨迹三次快照的一致率：09:25 起价格锁定，T1/T2/T3 本应逐位相同，monotonic 应为 100%",
+   "expected": 100.0,
+   "actual": 37.7,
+   "unit": "%",
+   "ci_lo": NaN,
+   "ci_hi": NaN,
+   "n": 678,
+   "baseline": NaN
+  },
+  {
+   "line": "morning",
+   "where": "参数自学 420 天训练集上的当日相关性（同期接受变更 0 次 / 10 次裁决）",
+   "expected": 0.0,
+   "actual": -0.0255,
+   "unit": "相关系数",
+   "ci_lo": NaN,
+   "ci_hi": NaN,
+   "n": 420,
+   "baseline": NaN
+  },
+  {
+   "line": "breakout",
+   "where": "邮件印的期望命中率 14.7% vs 生产实际适用的满员日档（生产 12/13 天名额用满）",
+   "expected": 14.7,
+   "actual": 7.6,
+   "unit": "%",
+   "ci_lo": 4.7,
+   "ci_hi": 12.0,
+   "n": 210,
+   "baseline": 2.93
+  },
+  {
+   "line": "breakout",
+   "where": "出榜密度：生产 13 份清单 129 个名额 vs 逐月滚动同口径（W5 连续≥1）",
+   "expected": 2.86,
+   "actual": 9.92,
+   "unit": "只/天",
+   "ci_lo": NaN,
+   "ci_hi": NaN,
+   "n": 13,
+   "baseline": NaN
+  },
+  {
+   "line": "breakout",
+   "where": "当期滚动 20 根全市场基准 base20（8 月 10 个已定稿日）vs 验证集那 207 天",
+   "expected": 2.93,
+   "actual": 1.53,
+   "unit": "%",
+   "ci_lo": 1.16,
+   "ci_hi": 1.86,
+   "n": 10,
+   "baseline": 2.93
+  },
+  {
+   "line": "breakout",
+   "where": "前 6 份清单相对同期全市场基准的倍数（同根数口径，7/60 名额去重成 3 个独立起点）",
+   "expected": 5.03,
+   "actual": 17.8,
+   "unit": "倍",
+   "ci_lo": 3.7,
+   "ci_hi": 28.4,
+   "n": 3,
+   "baseline": 0.655
+  }
+ ],
+ "why": [
+  {
+   "cause": "口径不一致",
+   "weight": 0.25,
+   "evidence": "邮件印 14.7%（以非满员日为主体的混合）而生产 12/13 天满员、适用档 7.6%，两 Wilson 区间不重叠；出榜密度 9.9 对 2.86 只/天；命中计数不去重（在线 9 个命中=3 只票，验证集 591 名额含 162 个续榜名额，se 至少低估 1.6 倍）；影子对比 base_n 4~10 对 shadow_n 恒 10，6 天优势的 72% 来自 09-24 一天；回填竞价额中位比在线高 33%，同一个量能维回填单调正、在线倒挂。"
+  },
+  {
+   "cause": "模型偏差",
+   "weight": 0.2,
+   "evidence": "排序段 −0.64±0.253（t=−2.53），分数五档单调倒挂 −1.74，420 天训练集 icir −0.10、top_excess 4.5e−05：排序不是弱，是反的。起涨侧 44.3% 增益来自市场环境组，其中四列日级常量占 40.8%，同日对所有票同值，配跨天固定的 97 分线制造满员日，而满员日命中 7.6% 对非满员 18.6%。"
+  },
+  {
+   "cause": "样本不足",
+   "weight": 0.2,
+   "evidence": "早盘只有 23 个真值日，days_to_detect_0p5=47；六个维度和四个标志无一过多重比较（最极端 t=−2.01，6 选 1 出现 |t|>2 的概率 24%，Bonferroni 后 gap p≈0.28）。起涨 13 份清单 0 份走满 20 根、base_final 全空，9 个命中只有 3 个独立起点；star 0/25 的 Wilson 上界 13% 与 14.7% 重叠。"
+  },
+  {
+   "cause": "特征失效",
+   "weight": 0.15,
+   "evidence": "在线按天配对：gap −1.027、sector −0.685、volume −0.662 三维为负，权重合计 0.60；唯一为正的 trend +0.638（t=1.14）；「突破平台」是 −0.944 对 否 +0.105（t=−2.01）；continuity 89% 的票同值、标 evaluable=false。起涨侧 51 列里 0 个行业级变量，19 个长尾列占 37% 列数只贡献 2.4% 增益。"
+  },
+  {
+   "cause": "数据质量",
+   "weight": 0.12,
+   "evidence": "603216（09-24）撮合价 +2.12% 而 t1_chg=0.00 恰是昨收，slope 被算成整段高开、trend 子分 0.853；全池 t1_chg 中位数 0.00、monotonic 只 37.7%，说明 T1/T2 有一大块拿到的是昨收。靠 T1 的假涨停撤单剔 100 只、超额 +0.003、命中 0.48，零区分力。96 个薄日（最薄 232 只）进了训练集的当日全市场排名。会诊读到的起涨 run_meta 是 09-23，永远落后一天。"
+  },
+  {
+   "cause": "市场环境",
+   "weight": 0.08,
+   "evidence": "成交额 5~6 月 31600 亿/日 → 9 月 18524（−41%），涨停 90→62/日，base20 2.93%→1.53%。但 y 已减掉当日池中位数，方向性涨跌进不了 y，只能走横截面：4 个上涨占比<21% 的日子 top_excess 均值 −3.01，占 23 天总损失的 79%，而滞后一日的广度只命中其中 1 天，09:25 时点躲不掉。"
+  }
+ ],
+ "noise_or_real": {
+  "verdict": "混合",
+  "p_real": 0.88,
+  "reasoning": "口径和机制类差距近乎确定，不依赖统计：邮件 14.7% 对适用档 7.6%（区间不重叠）、密度 9.9 对 2.86、T1 快照拿到昨收、影子榜不等名额。早盘排序为负 p≈0.85：t=−2.53，去掉最差一天 −2.39、两天 −2.07，符号检验 p=0.21，但分数五档倒挂和 420 天训练集同号是第二、第三处独立测量。起涨预测的水平判不了：0 份满 20 根，9 个命中只有 3 个独立起点，第一份要 10 月中旬才定。"
+ },
+ "proposals": [
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "breakout/export.py 印的期望命中率（STREAK_PERF）",
+   "change": "按当天名额是否用满取档：用满印 7.6%（n=210 / 21 天），没用满印 18.6%（n=381 / 125 天），不再印混出来的 14.7%；同时印最近可定稿的同期全市场 base20 和「命中率/基准」倍数；run_meta 落 n_qualified / cap_binding",
+   "rationale": "生产 12/13 天名额用满（09-23 确证：够格 13、剔除后 12、上限 10），验证集满员日只占 21/146；两档 Wilson 区间 [4.7,12.0] 对 [15.1,22.9] 不重叠。当期 base20 1.53% 又只有验证集 2.93% 的一半，分档和折基准两条路都落到 7.5% 附近。cap_split() 已从同一份缓存算这两个数。",
+   "expected_effect": "邮件期望从 14.7% 降到 7.6%，用户看到的数不再系统性高 7.1 个百分点；倍数口径在基准腰斩时仍可比",
+   "test_plan": "接 tools/update_perf.py 的 cap_split()；selftest_breakout 断言「n_a>=CAP_A 时取 full_cap 档」「base20 为空时不印倍数」；注意 export._same_rule 的规则指纹（教训 35）",
+   "priority": "P0",
+   "params": {
+    "full_cap_hit_pct": 7.6,
+    "not_full_hit_pct": 18.6,
+    "switch_on": "n_a >= CAP_A",
+    "emit_run_meta": [
+     "n_qualified",
+     "cap_binding"
+    ],
+    "emit": [
+     "base20_latest_final",
+     "lift",
+     "wilson_ci"
+    ]
+   }
+  },
+  {
+   "kind": "data_fix",
+   "line": "morning",
+   "target": "竞价轨迹 T1/T2 的有效性判据（采样 + score.py 的 slope / dive / monotonic）",
+   "change": "t1_chg==0 且 |gap_pct|>0.05 判 T1 无效（T2 同理）；无效时 slope=dive=0、monotonic=False、traj_ok=False，和回填「没有证据」同口径；逐日落 traj_valid_rate",
+   "rationale": "09:25 撮合后价格锁定到 09:30，三次快照本应逐位相同，实测 monotonic 只 37.7%。603216（09-24）撮合价 +2.12% 而 t1_chg=0.00 恰是昨收，slope 被算成整段高开、trend 子分 0.853；全池 t1_chg 中位数 0.00 说明有一大块恰为 0 的质量。trend 是六维里唯一为正的一维，整个建在这上面。",
+   "expected_effect": "trend 维价差 +0.638 在有效行上重算（可能翻负）；假涨停撤单的 100 只剔除量下降（现超额 +0.003、命中 0.48、零区分力）；monotonic 变成有效行里的真实比例",
+   "test_plan": "selftest 加断言：t1_chg=0 且 gap 非 0 的样本 slope 必须为 0、traj_ok=False；再拿 23 天真值重算 trend 维 spread 与假涨停撤单的超额。修完再谈给 trend 加权",
+   "priority": "P0",
+   "params": {
+    "invalid_rule": "t1_chg==0 and abs(gap_pct)>0.05",
+    "on_invalid": {
+     "slope": 0,
+     "dive": 0,
+     "monotonic": false,
+     "traj_ok": false
+    },
+    "emit": [
+     "morning.daily[].traj_valid_rate"
+    ]
+   }
+  },
+  {
+   "kind": "feature_drop",
+   "line": "breakout",
+   "target": "市场环境组的四个日级常量特征",
+   "change": "从入模特征里删掉 mkt_ret5__mean / mkt_ret5__last / mkt_ret5__slope / mkt_breadth__last，入模列数 51 -> 47",
+   "rationale": "四列合计 40.8% 增益（regime 组 44.3%），但同一天对所有票取同一个值，而分数是全局分位映射不是当日排名，所以不提供排序力，只整体抬高压低当天分数、决定几只过 97 分。这个抬高方向是反的：满员日 7.6%（210/21 天）对非满员 18.6%（381/125 天）。择时该决定今天出不出票，不该决定出哪十只。",
+   "expected_effect": "满员日名额从 210 明显下降、名额在天之间更均匀；W5 连续≥1 命中率不降即合格。若明显下降，说明模型真靠它们择时，该把择时和排序拆成两段，另记台账",
+   "test_plan": "自动消融：先断言入模列数 51→47 且成绩不和基线逐位相同（教训 32），再 exp_window --refit -> tools/update_perf.py --from fixed -> truth.validation_by_board(refresh=True) -> 六条自测（教训 35/36）",
+   "priority": "P0",
+   "params": {
+    "features": [
+     "mkt_ret5__mean",
+     "mkt_ret5__last",
+     "mkt_ret5__slope",
+     "mkt_breadth__last"
+    ]
+   }
+  },
+  {
+   "kind": "param",
+   "line": "morning",
+   "target": "screen.gap_pct_peak",
+   "change": "3.5 -> 2.5（准入区间 2%~5% 一个字不动，只动打分钟形曲线的峰值）",
+   "rationale": "高开分档按天单调递减：2-3 +0.187(n=376) / 3-4 −0.369(204) / 4-5 −0.620(98)，峰值 3.5 把满分发给最差的两档；gap 维价差 −1.027（t=−2.0）是六维唯一 |t|≥2。学习线连续 8 次自己提 3.5→3.3，方向一致、步子被卡住。区间边界是准入条件，曲线形状是偏好强度（教训 10）。",
+   "expected_effect": "前 10 的 gap_pct 均值从约 3.3 降到约 2.7；rank_gain 从 −0.64 往 −0.2 收（se 0.253，0.4 个百分点约 1.6σ）；连带看 by.score 五档单调性有没有翻正",
+   "test_plan": "param 类走七道闸 + 23 天在线回放。必跑 selftest.py::check_curves（左臂跨度从 1.5 收到 0.5，分臂归一那几条断言正是为这种情况写的）。额外核对 gap 2.0~2.3 的票会不会被打到接近 0 分 —— 那一段属最好的一档，若是，左臂改平台是下一轮的代码改动，不在本条",
+   "priority": "P0",
+   "params": {
+    "screen.gap_pct_peak": 2.5
+   }
+  },
+  {
+   "kind": "process",
+   "line": "morning",
+   "target": "learn/shadow.py 的双榜对比（base 榜 vs 影子榜）",
+   "change": "影子榜也走 optimize.production_order（过准入 + score>=min_score + top_n），或两边都截到 min(base_n, shadow_n)；名额不等的天不计入 p_better",
+   "rationale": "6 天里 shadow_n 恒为 10、base_n 4~10。09-24 影子拿了 12 只过准入里的 10 只，必然逼近池均值 +1.37（实测 +1.44），base 只有 4 只 −3.55，这一天贡献 6 天总优势的 72%。p_better 已 0.932>0.9，只差天数（6/30），再等 24 天就会靠这个假优势转正。",
+   "expected_effect": "mean_diff 从 +1.16 回到约 +0.39；p_better 重算后大概率掉到 0.9 以下，转正推迟到真有等名额证据时",
+   "test_plan": "用同样六天重算等名额版本的 mean_diff / p_better；selftest_learn 加断言「base_n != shadow_n 的天不进 shadow_stat」",
+   "priority": "P0",
+   "params": {
+    "equalize": "min(base_n, shadow_n)",
+    "exclude_unequal_days": true,
+    "recompute_days": [
+     "2026-09-17",
+     "2026-09-18",
+     "2026-09-21",
+     "2026-09-22",
+     "2026-09-23",
+     "2026-09-24"
+    ]
+   }
+  },
+  {
+   "kind": "feature_modify",
+   "line": "breakout",
+   "target": "清单A 的筛选键与排序键：连续上榜天数 -> 近 5 日内够格次数",
+   "change": "从「score>=97 且当天前 10 且连续>=MIN_STREAK 天」改为「score>=95 且近 5 日内够格>=4 次」，排序键同步换成够格次数",
+   "rationale": "同一个「持续强势」概念两种聚合方向相反：同为 3 次，近 5 日内够格 19.30%(n=114) 对连续 8.22%(n=73)；近 5 日档单调 8.96→19.53%，连续档在 ≥3 崩塌、≥5 归零。生产既拿连续天数筛又拿它排序（教训 34 同型）。前提：那张表的 se 是按票还是按天聚类没核过，≥5 天的 24 个名额高度重复。",
+   "expected_effect": "W5 生产口径 14.72%(n=591) -> 17.19%(n=448)，+2.5 个百分点（现 se 1.46，去重后约 2.3，约 1 个 se）；名额 2.86 -> 2.16 只/天",
+   "test_plan": "先把两个家族按「票-连续段」去重成独立起点、se 按天聚类各重算一遍，差若掉进 1 个 se 内就只记台账不动代码。过了再走 exp_window --refit -> update_perf --from fixed -> truth.validation_by_board(refresh=True) -> 六条自测；规则指纹要把聚合方式也算进去（教训 35）",
+   "priority": "P0",
+   "params": {
+    "rule": "count_qualified_in_window",
+    "window": 5,
+    "min_count": 4,
+    "SCORE_MIN": 95
+   }
+  },
+  {
+   "kind": "threshold",
+   "line": "breakout",
+   "target": "CAP_A",
+   "change": "10 -> 6（先作为实验臂，和四列常量消融分开跑）",
+   "rationale": "满员日 7.6%（210 名额/21 天）对非满员 18.6%（381/125），而生产 12/13 天满员，全落在差的那一档。这一臂真正回答的是「97 分以上还有没有区分度」：砍掉后 4 个名额若把满员日抬到 12% 以上，就是分数有序；纹丝不动就证明门槛机制本身坏了，该改的是四列日级常量而不是名额数，本条作废。",
+   "expected_effect": "满员日名额 210 -> 约 126。判据：满员日命中升到 12% 以上 = 砍名额有效；停在 7~9% = 97 分以上无区分度",
+   "test_plan": "threshold 类自动实验，用缓存的逐月滚动分数重算命中率表；先断言名额数真的变了（210→约 126）且成绩不逐位相同（教训 32）。和 mkt_* 消融那臂并排、不同时改两处",
+   "priority": "P1",
+   "params": {
+    "CAP_A": 6
+   }
+  },
+  {
+   "kind": "data_fix",
+   "line": "morning",
+   "target": "回填表的 auc_amount / auc_ratio，以及 sources.restrict_box 里 volume 维的冻结",
+   "change": "回填竞价额只取 09:25 撮合那一段（取不到就按天把 auc_ratio 分位映射到线上分布），改完把 scoring.weights.volume 从冻结集合放出来",
+   "rationale": "回填竞价额含 09:30 之后成交，auc_ratio 中位 0.0081 对在线 0.0061（+33%）、均值 +48%，于是量能维回填单调正（+0.549/+0.711/+0.731）、在线倒挂（+0.117/+0.231/−0.435），只能整维钉死。后果是 volume 0.25 + trend 0.20 合计 0.45 的权重从没被学过，优化器只能在剩下 0.55 里挪 0.004~0.009，十次裁决零接受、失败永远是同两条闸。",
+   "expected_effect": "回填 auc_ratio 中位回到 0.0061 附近，回填 admitted 从 45.6/天 回到 30 左右（线上 29.5）；有效搜索空间 0.55→0.80，看闸门 3 的分块改善能否从 1/3 上到 2/3",
+   "test_plan": "selftest_train 加哨兵：回填竞价额与在线同名列分布差超阈值就抛（照 check_auction_price 的写法），另加 check_pool_size（回填 admitted/天 与线上差 >20% 就红）；重跑一次拟合看闸门 3/4 的数",
+   "priority": "P1",
+   "params": {
+    "col": "auc_amount",
+    "current_bias_pct": 33,
+    "unfreeze": [
+     "scoring.weights.volume"
+    ]
+   }
+  },
+  {
+   "kind": "param",
+   "line": "morning",
+   "target": "learn/gate.py 闸门 4「按天自助显著」的过闸条件",
+   "change": "从「当日 P(更好) >= 0.9」改成「连续 3 个交易日 P >= 0.9」",
+   "rationale": "bootstrap_p 从 09-18 的 0.486 爬到 09-24 的 0.7645，5 个交易日 +0.28，而 n_days 只从 416 到 420 —— 它被最近几天主导。每天敲一次 0.9 的门是择优停止：10 次裁决是同一份 420 天数据算了 10 遍，不是 10 倍证据，名义 10% 的假阳性被抬到约 20~35%。",
+   "expected_effect": "假阳性率回到名义 10% 附近；代价是接受一次变更平均晚 2~3 天。看 verdict_log 里 P 越线后能否连续保持",
+   "test_plan": "拿现有裁决记录回放，统计「当日过线」与「连续 3 天过线」各触发几次；再用打乱标签的假数据跑 60 次裁决，量实际假阳性率",
+   "priority": "P1",
+   "params": {
+    "gate.bootstrap_consecutive_days": 3
+   }
+  },
+  {
+   "kind": "process",
+   "line": "both",
+   "target": "会诊证据包的缺失字段 + 学习线进场对起涨状态的核对",
+   "change": "证据包补：早盘逐日 traj_valid_rate / dirty_rate、morning.by.regime 三分档（按 adv_share 与 turnover_ma5）、全池 y 均值、rejected_by_reason 与 flags 的 se_day_clustered/n_days/t、起涨逐日 n_qualified/cap_binding 与「生产 vs 逐月滚动」并排表、薄日",
+   "rationale": "本轮六个视角有四个结论靠抽查推断：满员日只确证了 09-23 一天，T1 失效靠 603216 一只，板块漂移靠抽查 5 天。regime_daily 里成交额/广度/涨停/base20 全是现成的却从没进证据包；admitted/rejected 现在都拿 0 当参照，而全池 y 均值是 +0.383。起涨 04:30 起跑、学习 04:40 起跑，会诊读到的 run_meta 永远是前一天。",
+   "expected_effect": "下一轮会诊能直接读到满员日、轨迹有效率、环境分档、板块漂移和池内基准，不用抽查；evidence.run_meta.date 等于会诊日期，lists 里有当天那份清单",
+   "test_plan": "断言字段齐全、by.regime ≥3 档且每档 n_days>=5、各档 n 之和等于 n_admitted；selftest_learn 会诊那组加字段存在性断言并沿用 check_estimator_pairing；e2e_check 加一条：起涨没跑完时会诊的起涨部分应跳过并留下能被界面查询的原因，而不是静默用旧状态",
+   "priority": "P1",
+   "params": {
+    "add": [
+     "morning.daily[].traj_valid_rate",
+     "morning.daily[].dirty_rate",
+     "morning.by.regime",
+     "morning.summary.pool_excess_mean",
+     "breakout.lists[].n_qualified",
+     "breakout.lists[].cap_binding",
+     "breakout.production_vs_validation",
+     "breakout.data_health.thin_days_by_year"
+    ],
+    "gate": "breakout run_meta.date == target_day"
+   }
+  }
+ ],
+ "dissent": "三处分歧。一，gap_where 要 trend 加到 0.35、regime 要 0.27，都不采纳：trend 是唯一为正的维，但它的 slope/dive 建在失真的 T1/T2 上（monotonic 只 37.7%），先修数据再谈加权。二，起涨好不好两派相反，取 regime/improve 的方向（对同期基准 17.8 倍 > 验证集 5.0 倍）、gap_where 和 data_quality 的口径（印的 14.7% 不适用），合起来是模型没失灵、印的数错了。三，star 0/25 不能当证据（n=25，Wilson 上界 13%，与 14.7% 重叠），board_adj 本轮不动；auc_ratio_score_hi 0.03→0.02 也不动，三档 |t| 全 <1。",
+ "narrative": "一句话：早盘选股的排序现在是负贡献，起涨预测大概率有效但还不能定级，两条线印给用户的数都偏乐观。\n\n早盘。23 天里过准入 678 只整体 −0.02 个百分点/天，排成前 10 变 −0.66，中间的排序段 −0.64±0.25（t=−2.53），是全部证据里唯一到 2.5 个标准误的。分数五档单调倒挂（<40 +0.61 → 70+ −1.13），420 天训练集相关性 −0.026、icir −0.10，同向。打分不是不够准，是反的。最集中一处是高开：分档 2-3 +0.19 / 3-4 −0.37 / 4-5 −0.62 单调递减，打分峰值 3.5 正压在差的那一侧，学习线自己连续 8 次提 3.5→3.3。单个维度都过不了六选一的多重比较（gap t=−2.0，校正后 p≈0.28），但五档倒挂、峰值位置、训练集同号是三处不同的测量，所以排序为负我判是真的（p≈0.85），幅度定不了。\n\n起涨预测。13 份清单 0 份走满 20 根，9 个命中实为 3 只票（688137 占 7 个），水平判不了。能定的是口径：生产 12/13 天名额用满、9.9 只/天，逐月滚动 2.86 只/天、满员日只占 14%；满员档 7.6%[4.7,12.0] 对非满员 18.6%[15.1,22.9]，区间不重叠。邮件印的 14.7% 属于另一种日子，当期全市场基准又从 2.93% 掉到 1.53%，两条路都落到 7.5% 附近。而按倍数看模型反而强于验证集（17.8 对 5.0）。问题在印出去的数，不在模型。\n\n下一步。先做四件不动生产排序的：邮件期望按满员分档、修 T1/T2 有效性判据、影子对比等名额、四列大盘常量消融；再动一个参数 gap_pct_peak 3.5→2.5。清单A 改「近 5 日内够格次数」预期 +2.5 个百分点，先按去重和按天聚类重算一遍再谈。薄日剔除、19 列长尾消融、行业动量特征本轮不提，留台账。",
+ "_meta": {
+  "lens": "chair",
+  "model": "claude-opus-5",
+  "effort": "max",
+  "seconds": 563.7,
+  "turns": 10,
+  "cost_usd": 2.662584,
+  "n_tool_calls": 9,
+  "denials": 0,
+  "error": ""
+ }
+}

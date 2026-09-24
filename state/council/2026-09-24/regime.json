@@ -1,0 +1,194 @@
+{
+ "lens": "regime",
+ "summary": "这段是缩量轮动市：成交额 31,600→18,524亿/日（-41%），09-15 的 1.61万亿创年内新低，涨停 90→62/日。但环境解释不了早盘的 -0.66pp：y 已减掉当日池中位数，市场方向在定义上被差掉，只剩横截面通道——09-18 医药十五五规划把资金从电子链抽向 CRO，而 f_sector 按「板块内昨日涨停数」给分，正把清单往昨日最热板块集中（09-21 前 4 名 3 只同属元件，当日 -1.46pp）。同日广度与超额同向（ρ=+0.30），滞后一日无预测力，这部分躲不掉。起涨预测相反：对同期基准 lift 18 倍 > 验证集 5 倍，真问题是邮件印的 12.6% 是绝对数、不可检验。",
+ "findings": [
+  {
+   "line": "both",
+   "claim": "缩量创年内新低，涨停家数掉三成，环境摆动半周期只有 14~20 个交易日",
+   "evidence": "state/regime_daily.jsonl：两市成交额 5~6 月 31,600亿/日 → 9 月 18,524亿/日；09-15 16,018亿（外部核实 16,127亿，跌破 4-7 的 16,143亿年内低点）。涨停 5~6 月均 90/日 → 9 月 61.5/日。23 天全市场中位个股累计 -3.1%。base20 实测 06-08 6.49% → 07-06 0.58%（20 天）→ 07-30 5.86%（18 天）→ 08-18 1.16%（14 天）",
+   "magnitude": "成交额 -41%，涨停 -33%，n=23 天；base20 半周期 14~20 个交易日（n=3 个周期）",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "环境无法直接解释 top_excess：市场方向在 y 的定义里已被差掉",
+   "evidence": "definitions：y = 开盘买收盘卖收益 − 当日全池中位数。指数涨跌、全市场普涨普跌对 23 天里每一天的前 10 和池子同时生效，相减为零。所以 -0.66pp/天只能来自「同一个池子里选错了哪只」，环境只能通过「哪一类票当天赢」这一条横截面通道传导",
+   "magnitude": "定义级结论，对全部 23 天成立；池内 open→close 中位数 -0.19±0.27pp/天（t=-0.70）本身也不进 y",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "归因用的 day_regime 标签零区分度，解释不了任何方差",
+   "evidence": "council_query regimes：23 个真值日里只有 11 天有归因，其中 10 天写「板块轮动」。唯一两个「正常」日 09-15/09-16 的 top_excess 是 -1.54 / -0.51，和轮动日（均值约 -0.6）没有可区分的差别；12 天 regime 字段为空",
+   "magnitude": "10/11 天同一取值，12/23 天无值",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "09-18 的医药十五五规划是这轮轮动的可定日期源头，前 10 站在被抽水的一侧",
+   "evidence": "2026-09-18 工信部等十部门发《医药工业发展十五五规划》点名 CRO/CDMO，09-18、09-21 CRO/创新药涨停潮（09-21 沪指+0.55%、超4300只上涨，本仓 adv_share 0.819、涨停 106）。同两日 worst_best：09-18 最差 5 只 4 只电子链、最好 2 只医药；09-21 最差 5 只 4 只电子链、最好 2 只医药；09-22 最差 5 只全在半导体/通信设备",
+   "magnitude": "09-18/21/22 三天最差 15 只里 12 只属电子/通信链；三天 top_excess -1.26 / -1.46 / +0.26",
+   "confidence": "高"
+  },
+  {
+   "line": "morning",
+   "claim": "f_sector 是把清单按「昨日最热板块」成块集中的那只手，在轮动 tape 里直接反向",
+   "evidence": "council_query rules：sector 维权重 0.15，常量 sector_min_members=3、concept_prev_limitup_min=2，即读板块成员数和板块内昨日涨停数。morning-day 09-21：前 4 名的 达利凯普/风华高科/三环集团 sector 全是「元件」、sector_members=5，当日 day_note 正是「MLCC元件早盘冲高回落，资金切向CRO医药」。dims.sector 高低三分之一价差 -0.685pp（se 0.587）",
+   "magnitude": "-0.685pp/天，t=-1.17，n=23 天；09-21 前 4 名 3 只同一板块，当日 -1.46pp",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "三个「追强」信号全是负的，突破平台是六个旗标里唯一 |t|>2 的",
+   "evidence": "flags：突破平台 是 -0.944 / 否 +0.105，差 -0.872pp（se 0.435，t=-2.01，22 天）；昨日涨停 差 -0.911（se 0.769，t=-1.18，21 天）。groups：A 组（昨日涨停/连板/突破平台）-0.027 vs B 组（60 日位置≤0.4 低位）+0.298。对照 flags 里方向为正的两个（均线多头 +0.236 t=0.49、稳步抬升 +0.109 t=0.25）都不显著",
+   "magnitude": "突破平台 -0.872pp/天，t=-2.01，n=22 天；A 组 n=478 vs B 组 n=200",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "环境效应是同日的，滞后一日毫无预测力，所以 09:25 时点躲不掉",
+   "evidence": "同日 Spearman(全市场上涨占比, top_excess)=+0.30（n=23，se≈0.21，t≈1.4，不显著）。4 个上涨占比<21% 的日子 09-10/11/15/24 的 top_excess 是 -1.72/-5.79/-1.54/-3.00（均值 -3.01），其余 19 天均值 -0.17（Welch t=-2.67，但 21% 这条线是看了数据才划的）。换成前一日的广度只命中这 4 天里的 1 天（09-11）；前一日成交额<17,000亿 只有 3 天（t≈-1.3）",
+   "magnitude": "同日 4 天 -3.01pp vs 19 天 -0.17pp；滞后一日命中率 1/4",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "环境最多解释「额外恶化」，解释不了底子：训练窗口里这套打分本来就约等于零",
+   "evidence": "learning.metrics：420 天训练样本 ic_mean -0.0255、icir -0.10、hit_rate 0.435、top_excess 4.5e-05。在线 23 天 ic_mean -0.115，按训练 ic_std 0.254 算 se=0.053，t≈-2.2（显著为负）；但和 -0.0255 的差只有 1.7σ",
+   "magnitude": "在线 IC -0.115 vs 训练 -0.026，差 -0.089 = 1.7σ（未证实）；负值本身 2.2σ（证实）",
+   "confidence": "中"
+  },
+  {
+   "line": "morning",
+   "claim": "高开越大越差，而打分曲线的峰值恰好压在最差那一档",
+   "evidence": "by.gap_pct 按天：2~3% +0.187（n=376，23 天）、3~4% -0.369（n=204）、4~5% -0.620（n=98，22 天），单调递减。dims.gap 高低三分之一价差 -1.027pp（se 0.512，t=-2.00），六维里唯一 |t|≥2。rules：screen.gap_pct_peak 现为 3.5。学习线连续 8 次裁决都提 3.5→3.3，全部被「样本外改善」和「按天自助显著」两闸挡下",
+   "magnitude": "2~3% 档比 4~5% 档高 0.81pp/天；gap 维 -1.027pp，t=-2.00，n=23 天",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "当前清单形态和验证集完全不是一回事，该对账的是满员档 7.6% 而不是 12.6%",
+   "evidence": "13 份清单里 12 份正好 10 个名额（只有 09-17 是 9 个），平均 9.9 个/天；验证集 146 天出 591 个名额、4.05 个/天，出满 10 个的只有 21 天（14.4%）。expected.cap_perf：满员日 7.6%（16/210，Wilson 95% [4.3,11.6]）、非满员日 18.6%（71/381，[15.0,22.9]），两个区间不重叠",
+   "magnitude": "9.9 vs 4.05 名额/天（2.4 倍）；满员档 7.6% vs 非满员档 18.6%，n=21 天 vs 125 天",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "全市场的「原料」比验证集少一半，而且这个量四个月内摆了 11 倍，固定期望值没有意义",
+   "evidence": "regime_daily 最近可定稿的 base20（滚动 20 根全市场涨超 50% 比例）08-17~08-27 是 1.16%~1.86%，均值 1.53%；expected.base_pct 验证集 207 天平均 2.93%。同一列在 2026-05-13 以来的定稿区间是 0.58%（07-06）到 6.49%（06-08）",
+   "magnitude": "当前 1.53% vs 验证集 2.93%（-48%）；四个月内 11 倍摆幅，n=76 个定稿日",
+   "confidence": "中"
+  },
+  {
+   "line": "breakout",
+   "claim": "按同期基准量，起涨预测跑在验证集之上，不是变差了——绝对数和 lift 给出相反结论",
+   "evidence": "09-07~09-11 五份清单 50 个名额，走到第 9~13 根已命中 6 只（12.0%，Wilson 95% [5.6,24.0]），同根数全市场 base_sofar 0.60%~0.80%（均 0.68%），lift≈18 倍；验证集 W5 streak≥1 的 lift 是 5.03。validation_w5.pace：第 10 根时 89.7% 的最终命中已涨过 25%、平均已涨 61%，说明第 11 根的计数不是「还太早」",
+   "magnitude": "12.0%（6/50）vs 同期基准 0.68%，lift≈18x vs 验证集 5.0x；n=5 份清单",
+   "confidence": "中"
+  }
+ ],
+ "proposals": [
+  {
+   "kind": "data_fix",
+   "line": "both",
+   "target": "证据包 morning.daily / morning.by（会诊 evidence.py）",
+   "change": "每天带上 regime_daily 已经在算的连续量 turnover_yi / turnover_ma5_yi / turnover_chg5 / adv_share / limit_up / limit_down / base20，并新增 morning.by.regime 切片（按同日 adv_share 三分档、按 turnover_ma5 三分档），逐档给 excess_pct、se_d",
+   "rationale": "现在唯一的环境标签 day_regime 只有 11/23 天有值、10 个是「板块轮动」，一个几乎只有一个取值的标签解释不了任何方差；而 regime_daily.jsonl 里成交额、广度、涨停数、base20 全都现成，从来没进过证据包。没有这一步，下一轮会诊还是只能靠眼看逐日表",
+   "expected_effect": "下一轮会诊能直接回答「环境解释了多少方差」；具体看 morning.by.regime 各档的 excess_pct 差和 t 值是否比现在六个维度的 |t|≤2.0 更大",
+   "test_plan": "生成证据包后断言 by.regime 有 ≥3 档、每档 n_days ≥5，且各档 n 之和等于 n_admitted（不能有票掉出去）；selftest_learn 按现有 check_estimator_pairing 的写法，钉住每个带 se_day_clustered 的记录其点估计取自按天序列",
+   "priority": "P0",
+   "params": {
+    "fields": [
+     "turnover_yi",
+     "turnover_ma5_yi",
+     "turnover_chg5",
+     "adv_share",
+     "limit_up",
+     "limit_down",
+     "base20"
+    ],
+    "slice": "morning.by.regime",
+    "bins": 3
+   }
+  },
+  {
+   "kind": "process",
+   "line": "breakout",
+   "target": "run_meta 的清单元数据 + export.py 的期望文案",
+   "change": "run_meta 落一个 eligible_n（过 SCORE_MIN=97、被 CAP_A=10 截断之前的只数）；邮件和面板把单一的「期望命中率 12.6%」换成三项：当日满员/非满员及对应档成绩（7.6% / 18.6%）、最近可定稿的同期全市场 base20、以及 lift 与 Wilson 区间",
+   "rationale": "13 份清单里 12 份正好 10 只，但证据包查不到究竟是「正好 10 只够格」还是「几十只被截成 10」，而验证集上这两种状态的准确率是 18.6% 和 7.6%、Wilson 区间不重叠。同时 base20 四个月摆了 11 倍（0.58%~6.49%），绝对期望值本身不可检验：当前 5 份清单用绝对数看是「才 12%、不到 12.6%」，用 lift 看是 18 倍远高于验证集的 5 倍，两个结论相反",
+   "expected_effect": "邮件里的期望和当天清单形态对得上；能第一次判定「当前是不是长期满员」这个问题，并把对账口径统一成 lift",
+   "test_plan": "跑 tools/update_perf.py 的 cap_split() 对账 eligible_n；truth.py 里用 base_sofar 和 base_final 各算一次 lift，断言同期基准不为空才输出 lift；改文案后跑 selftest_breakout（注意 export._same_rule 的规则指纹，教训 35）",
+   "priority": "P0",
+   "params": {
+    "run_meta_field": "eligible_n",
+    "expect_fields": [
+     "cap_state",
+     "cap_perf_row",
+     "base20_latest_final",
+     "lift",
+     "wilson_ci"
+    ]
+   }
+  },
+  {
+   "kind": "param",
+   "line": "morning",
+   "target": "scoring.weights.sector / scoring.weights.trend",
+   "change": "scoring.weights.sector 0.15 -> 0.08，差额 0.07 给 trend：0.20 -> 0.27（其余四维不动，Σw 仍为 1.00）",
+   "rationale": "sector 是把清单按「板块内昨日涨停数」成块集中的那一维（常量 concept_prev_limitup_min=2、sector_min_members=3），而 11 个有归因的日子里 10 个是板块轮动：09-21 前 4 名里 3 只同属元件、当日 -1.46pp，09-18/21/22 最差 15 只里 12 只是电子链。sector 维价差 -0.685（t=-1.17），trend 是六维里唯一价差为正的（+0.638，t=1.14）",
+   "expected_effect": "23 天回放的 top_excess 从 -0.66pp 抬到 -0.3pp 以上，前 10 的单板块最大占比从 09-21 的 3/4 下降；ic_mean 从 -0.115 向 0 靠",
+   "test_plan": "先做消融再谈闸门：把 sector 权重置 0 重算这 23 天，先断言入选名单确实变了（换手率 >0，教训 32），否则说明什么都没测。再走七道闸，重点看「行为回放换手」（上限 40%，砍半可能触顶）和「在线稳健性」。注意 trend 维在回填上被钉死不可学，学习线自己提不出这条，只能人工提案；且本条已占满 2 个意图，不能和 P4 同一轮",
+   "priority": "P1",
+   "params": {
+    "scoring.weights.sector": 0.08,
+    "scoring.weights.trend": 0.27
+   }
+  },
+  {
+   "kind": "param",
+   "line": "morning",
+   "target": "screen.gap_pct_peak",
+   "change": "3.5 -> 2.5（准入区间 2%~5% 一个字不动，只动打分钟形曲线的峰值位置）",
+   "rationale": "按天分档单调递减：gap 2~3% +0.187（n=376）、3~4% -0.369（n=204）、4~5% -0.620（n=98）；gap 维高低三分之一价差 -1.027pp（t=-2.00）是六维里唯一 |t|≥2 的。峰值 3.5 正压在中间那档。在缩量退潮的 tape 里高开幅度越大越像拥挤的接力盘，和突破平台 t=-2.01、A 组<B 组是同一个方向。学习线连续 8 次提 3.5→3.3，方向一致但步子太小，每次都被两道闸挡下",
+   "expected_effect": "23 天回放 rank_gain 从 -0.64pp 回到 -0.2pp 以上（当前 se 0.253，改善 0.4pp 约 1.6σ，够看出方向）；by.gap_pct 三档的得分序和收益序重新同向",
+   "test_plan": "跑 selftest.py::check_curves 的 9 条形状断言（min<peak<max、两臂各自归一、衰减速率与 auc_ratio_max 无关）；再按天自助 + 在线 23 天 P(更好) 过闸。区间边界是用户定的准入条件不许动，只改曲线形状（教训 10）",
+   "priority": "P1",
+   "params": {
+    "screen.gap_pct_peak": 2.5
+   }
+  },
+  {
+   "kind": "scope",
+   "line": "morning",
+   "target": "参数寻优的目标函数（learn/objective.py 的按天权重）",
+   "change": "把同日上涨占比进入最低档的日子按天降权（不是剔除），并在证据包里单列成一档；同时在会诊结论里明确把这类日子的损失记成「09:25 时点不可规避」，不再往参数上找解释",
+   "rationale": "4 个上涨占比<21% 的日子 top_excess 均值 -3.01pp，其余 19 天 -0.17pp，这 4 天占了 23 天总损失 -15.2pp 里的 -12.05pp（79%）。但换成前一日的广度只命中其中 1 天、前一日成交额那组只有 3 天（t≈-1.3），同日广度在 09:25 拿不到。不降权的话优化器会为 4 个躲不掉的日子扭曲权重",
+   "expected_effect": "加权后 Ĝ_oos 的分块改善从现在的 1/3 提到 2/3 以上（当前「样本外改善」闸就卡在这里），并且十次裁决全挂同两道闸的局面有机会打破",
+   "test_plan": "加权与不加权各拟合一次，并排比 Ĝ_oos、bootstrap_p、分块 delta；先断言两次的入模天权重确实不同、拟合出的 θ 不是逐位相同（教训 32）。21% 这条线是事后划的，正式用之前要在 P0 拿到的 by.regime 三分档上重定，不要沿用",
+   "priority": "P2",
+   "params": {
+    "day_weight_key": "adv_share",
+    "low_bin_weight": 0.5
+   }
+  }
+ ],
+ "questions": [
+  "起涨预测每天的「够格数」（过 97 分、被 CAP_A=10 截断之前的只数）现在任何地方都没记录。13 天里 12 天正好 10 只，究竟是「正好 10 只够格」还是「几十只截成 10」？这两种状态在验证集上的准确率是 18.6% 和 7.6%。",
+  "regime_daily.jsonl 只回溯到 2026-05-13，而起涨预测的验证集是 2025-03~2025-12，两段完全没有重叠，无法直接比较两段的 base20 / 成交额 / 涨停家数。日线表在本机，能不能把 regime_daily 往前回填到 2025-01？",
+  "早盘归因的 day_regime 标签是谁写的、按什么判据？11 天里 10 天写「板块轮动」，如果是 LLM 自由填，建议改成由 regime_daily 的连续量机器判定，否则它永远解释不了方差。",
+  "09:25 采样时点能拿到的同日环境量有哪些？竞价阶段的全市场高开家数、竞价总成交额在采样时就是现成的，它们可能比「前一日广度」更接近同日广度——现在这个信息有没有被落盘？",
+  "起涨预测的 97 分是全局校准还是当日横截面分位？如果是全局校准，当前近乎天天满员说明分数分布相对训练期整体抬高了，需要查校准漂移；如果是当日分位，那验证集里只有 14% 的日子满员这件事就解释不通。"
+ ],
+ "_meta": {
+  "lens": "regime",
+  "model": "claude-opus-5",
+  "effort": "max",
+  "seconds": 628.7,
+  "turns": 19,
+  "cost_usd": 3.234048,
+  "n_tool_calls": 18,
+  "denials": 2,
+  "error": ""
+ }
+}

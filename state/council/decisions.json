@@ -867,5 +867,291 @@
    },
    "note": "缓存分数来自上次逐月滚动测试，和当前特征表可能差一天数据"
   }
+ },
+ "20260924-a69fc0": {
+  "status": "needs_human",
+  "at": "2026-09-24T05:05:53",
+  "by": "system",
+  "note": "要写代码或改流程，等人做"
+ },
+ "20260924-d87faa": {
+  "status": "needs_human",
+  "at": "2026-09-24T05:05:53",
+  "by": "system",
+  "note": "要写代码或改流程，等人做"
+ },
+ "20260924-f872fb": {
+  "status": "needs_human",
+  "at": "2026-09-24T05:05:53",
+  "by": "system",
+  "note": "要写代码或改流程，等人做"
+ },
+ "20260924-32fdf0": {
+  "status": "needs_human",
+  "at": "2026-09-24T05:05:53",
+  "by": "system",
+  "note": "要写代码或改流程，等人做"
+ },
+ "20260924-e78ae6": {
+  "status": "needs_human",
+  "at": "2026-09-24T05:05:53",
+  "by": "system",
+  "note": "要写代码或改流程，等人做"
+ },
+ "20260924-14225e": {
+  "status": "needs_human",
+  "at": "2026-09-24T05:05:53",
+  "by": "system",
+  "note": "要写代码或改流程，等人做"
+ },
+ "20260924-e8c84e": {
+  "status": "needs_human",
+  "at": "2026-09-24T05:05:53",
+  "by": "system",
+  "result": {
+   "status": "needs_human",
+   "detail": "参数不在可学白名单里（['scoring.weights.continuity', 'scoring.weights.gap', 'scoring.weights.position', 'scoring.weights.sector', 'scoring.weights.trend', 'scoring.weights.volume', 'screen.auc_ratio_decay', 'screen.auc_ratio_score_hi', 'screen.gap_pct_peak']），或没给 params"
+  }
+ },
+ "20260924-7e523c": {
+  "status": "passed",
+  "at": "2026-09-24T05:05:53",
+  "by": "system",
+  "result": {
+   "status": "passed",
+   "detail": "全部上榜 17.3% vs 基线 14.7%（−1SE 线 13.3%），样本 479/591",
+   "base": {
+    "SCORE_MIN": 97,
+    "CAP_A": 10,
+    "MIN_STREAK": 1,
+    "ge1": {
+     "n": 591,
+     "hit": 0.14720812439918518,
+     "se": 0.014574500395442374,
+     "per_day": 2.8550724637681157
+    },
+    "ge2": {
+     "n": 162,
+     "hit": 0.17283950746059418,
+     "se": 0.02970700670991271,
+     "per_day": 0.782608695652174
+    },
+    "ge3": {
+     "n": 73,
+     "hit": 0.08219178020954132,
+     "se": 0.03214613282852461,
+     "per_day": 0.3526570048309179
+    },
+    "empty_days": 61
+   },
+   "cand": {
+    "SCORE_MIN": 97,
+    "CAP_A": 6,
+    "MIN_STREAK": 1,
+    "ge1": {
+     "n": 479,
+     "hit": 0.17327766120433807,
+     "se": 0.01729351872341013,
+     "per_day": 2.314009661835749
+    },
+    "ge2": {
+     "n": 132,
+     "hit": 0.19696970283985138,
+     "se": 0.03461614606227545,
+     "per_day": 0.6376811594202898
+    },
+    "ge3": {
+     "n": 57,
+     "hit": 0.08771929889917374,
+     "se": 0.037469197524828066,
+     "per_day": 0.2753623188405797
+    },
+    "empty_days": 61
+   },
+   "note": "缓存分数来自上次逐月滚动测试，和当前特征表可能差一天数据"
+  }
+ },
+ "20260924-05415d": {
+  "status": "failed",
+  "at": "2026-09-24T05:06:01",
+  "by": "system",
+  "result": {
+   "status": "failed",
+   "detail": "权重和为 1过；最少天数过；样本外改善过；按天自助显著不过；步长与改动个数不过；行为回放换手不过；冷却期过；在线稳健性过",
+   "moved": {
+    "screen.gap_pct_peak": [
+     3.5,
+     2.5
+    ]
+   },
+   "asked": {
+    "screen.gap_pct_peak": 2.5
+   },
+   "verdict": {
+    "accepted": false,
+    "checks": [
+     {
+      "name": "权重和为 1",
+      "passed": true,
+      "detail": "Σw=1.0000（6 个权重）"
+     },
+     {
+      "name": "最少天数",
+      "passed": true,
+      "detail": "420 天 / 要求 >= 60"
+     },
+     {
+      "name": "样本外改善",
+      "passed": true,
+      "detail": "Ĝ_oos -0.0028 -> +0.0457 （+0.0484）；分块 2/3 改善（要求 >= 2）"
+     },
+     {
+      "name": "按天自助显著",
+      "passed": false,
+      "detail": "P(更好)=0.838 / 要求 >= 0.9；配对 ΔĜ=+0.0335"
+     },
+     {
+      "name": "步长与改动个数",
+      "passed": false,
+      "detail": "意图 1 个: ['screen.gap_pct_peak']（上限 2，实际触及 1 个含权重再归一）；超步长: ['screen.gap_pct_peak']"
+     },
+     {
+      "name": "行为回放换手",
+      "passed": false,
+      "detail": "最大单日前 K 变动 50%（2026-09-04） / 上限 40%（回放 20 天）"
+     },
+     {
+      "name": "冷却期",
+      "passed": true,
+      "detail": "从未接受过变更"
+     },
+     {
+      "name": "在线稳健性",
+      "passed": true,
+      "detail": "真值快照 23 天上 P(更好)=0.83 / 否决线 0.25"
+     }
+    ],
+    "moved": {
+     "screen.gap_pct_peak": [
+      3.5,
+      2.5
+     ]
+    },
+    "evidence": {
+     "oos_old": -0.0027717685394139254,
+     "oos_new": 0.04565757837204851,
+     "bootstrap_p": 0.838,
+     "paired_delta": 0.03351626613689578,
+     "block_delta": [
+      0.10190111468443164,
+      -0.10370586747748123,
+      0.11109854525959459
+     ],
+     "n_days": 420,
+     "worst_churn": 0.5,
+     "online_p": 0.8315,
+     "online_days": 23,
+     "intents": [
+      "screen.gap_pct_peak"
+     ]
+    }
+   },
+   "metrics": {
+    "prev": {
+     "days": 420,
+     "ic_mean": -0.025502297178683853,
+     "ic_std": 0.25362790625216963,
+     "icir": -0.10055004417900365,
+     "top_excess": 4.4853076943601276e-05,
+     "hit_rate": 0.43497977716727715,
+     "avg_pool": 42.09761904761905,
+     "avg_sent": 8.745238095238095
+    },
+    "new": {
+     "days": 420,
+     "ic_mean": -0.010491848826732006,
+     "ic_std": 0.25607124775953016,
+     "icir": -0.040972381392012536,
+     "top_excess": 0.0015121368942717676,
+     "hit_rate": 0.4477718918508392,
+     "avg_pool": 42.09761904761905,
+     "avg_sent": 9.157142857142857
+    }
+   },
+   "theta": {
+    "scoring.weights.gap": 0.19999999999999998,
+    "scoring.weights.volume": 0.25,
+    "scoring.weights.trend": 0.2,
+    "scoring.weights.position": 0.14999999999999997,
+    "scoring.weights.sector": 0.14999999999999997,
+    "scoring.weights.continuity": 0.04999999999999999,
+    "screen.gap_pct_peak": 2.5,
+    "screen.auc_ratio_score_hi": 0.03,
+    "screen.auc_ratio_decay": 0.4
+   }
+  }
+ },
+ "20260924-9388cc": {
+  "status": "failed",
+  "at": "2026-09-24T05:23:51",
+  "by": "system",
+  "result": {
+   "status": "failed",
+   "detail": "全部上榜 8.0% vs 基线 13.5%，样本 1970/527；连续≥2天 8.2% vs 16.4%；入模列数 None -> None",
+   "base": {
+    "ge2": {
+     "n": 134,
+     "hit": 0.16417910158634186,
+     "se": 0.03200097062294787,
+     "per_day": 0.6473429951690821
+    },
+    "ge3": {
+     "n": 65,
+     "hit": 0.1538461595773697,
+     "se": 0.044751883288375385,
+     "per_day": 0.3140096618357488
+    },
+    "ge1": {
+     "n": 527,
+     "hit": 0.13472485542297363,
+     "se": 0.014872900407000988,
+     "per_day": 2.5458937198067635
+    }
+   },
+   "cand": {
+    "ge2": {
+     "n": 794,
+     "hit": 0.08186397701501846,
+     "se": 0.009729481172292472,
+     "per_day": 3.8357487922705316
+    },
+    "ge1": {
+     "n": 1970,
+     "hit": 0.0796954333782196,
+     "se": 0.006101679525667331,
+     "per_day": 9.516908212560386
+    },
+    "ge3": {
+     "n": 415,
+     "hit": 0.07951807230710983,
+     "se": 0.01328056361154041,
+     "per_day": 2.004830917874396
+    }
+   },
+   "dropped": [
+    "mkt_ret5__mean",
+    "mkt_ret5__last",
+    "mkt_ret5__slope",
+    "mkt_breadth__last"
+   ],
+   "kept": [
+    null,
+    98
+   ],
+   "selected": [
+    null,
+    null
+   ]
+  }
  }
 }
