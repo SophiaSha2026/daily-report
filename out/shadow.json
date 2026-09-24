@@ -1,85 +1,82 @@
 {
- "date": "2026-09-23",
+ "date": "2026-09-24",
  "rows": [
   {
-   "code": "300785",
-   "name": "值得买",
-   "gap_pct": 3.21,
-   "liangbi": 3.2,
-   "sscore": -0.066
+   "code": "601579",
+   "name": "会稽山",
+   "gap_pct": 2.42,
+   "liangbi": 4.4,
+   "sscore": 0.079
   },
   {
-   "code": "688525",
-   "name": "佰维存储",
-   "gap_pct": 2.19,
-   "liangbi": 5.0,
-   "sscore": -0.206
+   "code": "603065",
+   "name": "宿迁联盛",
+   "gap_pct": 2.1,
+   "liangbi": 4.1,
+   "sscore": -0.093
   },
   {
-   "code": "603773",
-   "name": "沃格光电",
-   "gap_pct": 3.03,
-   "liangbi": 2.9,
-   "sscore": -0.215
+   "code": "002321",
+   "name": "华英农业",
+   "gap_pct": 2.43,
+   "liangbi": 5.7,
+   "sscore": -0.128
   },
   {
-   "code": "603580",
-   "name": "艾艾精工",
-   "gap_pct": 2.95,
-   "liangbi": 10.0,
-   "sscore": -0.242
+   "code": "603216",
+   "name": "梦天家居",
+   "gap_pct": 2.12,
+   "liangbi": 7.7,
+   "sscore": -0.162
   },
   {
-   "code": "600418",
-   "name": "江淮汽车",
-   "gap_pct": 3.05,
-   "liangbi": 9.1,
-   "sscore": -0.307
+   "code": "920961",
+   "name": "创远信科",
+   "gap_pct": 2.15,
+   "liangbi": 5.1,
+   "sscore": -0.167
   },
   {
-   "code": "002827",
-   "name": "高争民爆",
-   "gap_pct": 2.32,
-   "liangbi": 3.9,
-   "sscore": -0.313
+   "code": "300164",
+   "name": "通源石油",
+   "gap_pct": 2.35,
+   "liangbi": 4.1,
+   "sscore": -0.205
   },
   {
-   "code": "301080",
-   "name": "百普赛斯",
-   "gap_pct": 3.45,
+   "code": "300568",
+   "name": "星源材质",
+   "gap_pct": 2.47,
    "liangbi": 2.5,
-   "sscore": -0.345
+   "sscore": -0.277
   },
   {
-   "code": "300776",
-   "name": "帝尔激光",
-   "gap_pct": 4.1,
-   "liangbi": 5.3,
-   "sscore": -0.345
+   "code": "301150",
+   "name": "中一科技",
+   "gap_pct": 3.48,
+   "liangbi": 6.7,
+   "sscore": -0.28
   },
   {
-   "code": "301188",
-   "name": "力诺药包",
-   "gap_pct": 4.65,
-   "liangbi": 3.9,
-   "sscore": -0.351
+   "code": "300434",
+   "name": "金石亚药",
+   "gap_pct": 2.07,
+   "liangbi": 4.0,
+   "sscore": -0.311
   },
   {
-   "code": "603903",
-   "name": "中持股份",
-   "gap_pct": 2.88,
-   "liangbi": 8.9,
-   "sscore": -0.377
+   "code": "688783",
+   "name": "西安奕材-U",
+   "gap_pct": 3.17,
+   "liangbi": 7.6,
+   "sscore": -0.333
   }
  ],
- "overlap": 6,
+ "overlap": 3,
  "base_top": [
-  "603903",
-  "688628",
-  "300776",
-  "600418",
-  "603580",
-  "300785",
-  "301188"
+  "301150",
+  "688783",
+  "301047",
+  "603216"
  ]
 }
