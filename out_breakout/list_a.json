@@ -1,82 +1,82 @@
 [
   {
-    "code":"300741",
-    "name":"华宝股份",
-    "score":97.0,
-    "streak":5,
-    "close":29.59,
+    "code":"301282",
+    "name":"金禄电子",
+    "score":98.0,
+    "streak":6,
+    "close":43.6,
     "board":"chinext"
   },
   {
-    "code":"301282",
-    "name":"金禄电子",
+    "code":"300741",
+    "name":"华宝股份",
     "score":97.0,
-    "streak":5,
-    "close":47.72,
+    "streak":6,
+    "close":26.6,
     "board":"chinext"
   },
   {
     "code":"300829",
     "name":"金丹科技",
-    "score":97.0,
-    "streak":3,
-    "close":28.72,
-    "board":"chinext"
-  },
-  {
-    "code":"000560",
-    "name":"我爱我家",
     "score":98.0,
-    "streak":2,
-    "close":3.86,
-    "board":"main"
+    "streak":4,
+    "close":27.56,
+    "board":"chinext"
   },
   {
     "code":"688137",
     "name":"近岸蛋白",
     "score":97.0,
-    "streak":2,
-    "close":122.84,
+    "streak":3,
+    "close":125.25,
     "board":"star"
-  },
-  {
-    "code":"300464",
-    "name":"星徽股份",
-    "score":97.0,
-    "streak":2,
-    "close":12.0,
-    "board":"chinext"
   },
   {
     "code":"600825",
     "name":"新华传媒",
     "score":99.0,
-    "streak":1,
-    "close":7.06,
+    "streak":2,
+    "close":7.77,
     "board":"main"
   },
   {
-    "code":"301251",
-    "name":"威尔高",
+    "code":"300691",
+    "name":"联合光电",
     "score":98.0,
     "streak":1,
-    "close":90.8,
+    "close":21.68,
     "board":"chinext"
   },
   {
-    "code":"301132",
-    "name":"满坤科技",
+    "code":"688655",
+    "name":"迅捷兴",
     "score":97.0,
     "streak":1,
-    "close":74.56,
-    "board":"chinext"
+    "close":73.8,
+    "board":"star"
   },
   {
-    "code":"920060",
-    "name":"万源通",
+    "code":"688209",
+    "name":"英集芯",
     "score":97.0,
     "streak":1,
-    "close":31.8,
-    "board":"bj"
+    "close":35.0,
+    "board":"star"
+  },
+  {
+    "code":"001326",
+    "name":"联域股份",
+    "score":97.0,
+    "streak":1,
+    "close":110.15,
+    "board":"main"
+  },
+  {
+    "code":"301183",
+    "name":"东田微",
+    "score":97.0,
+    "streak":1,
+    "close":306.6,
+    "board":"chinext"
   }
 ]
