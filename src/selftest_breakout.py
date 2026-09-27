@@ -2618,6 +2618,11 @@ def check_evening_decide() -> None:
        "两条都缺时合成一封，主题和正文里两条都在")
     ck(msrc.index("_origin_json(") < msrc.index("_origin_has(f\"state/sent"),
        "_origin_has 不自己 fetch，必须排在 _origin_json 之后")
+    sys.path.insert(0, str(ROOT / "src"))
+    import local_run as _L
+    ck(ec.start_dates() == dict(_L.START) and "start_dates()" in msrc
+       and msrc.index("start_dates()") < msrc.index("decide("),
+       "上线日之前的目标日不提醒：读 local_run.START（和计划任务同一份下界）")
 
 
 def check_rerun_pool_seed() -> None:

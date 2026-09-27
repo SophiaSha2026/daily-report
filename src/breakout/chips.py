@@ -16,7 +16,7 @@ push2his/kline 路径被掐，但那只挡住了**抄现成结果**这条路，
       3. 新筹码 = 衰减后的历史 + 当日分配
 
 decay 是唯一的自由参数，各家取 0.8~1.0，差别在老筹码衰减的快慢。
-本项目取 1.0（模块常量 DECAY；改它要重建特征表并重训，见 tools/rebuild_all.py）。
+本项目取 1.0（config.yaml 可调，将来可由学习线提案）。
 
 正确性怎么保证
 --------------
@@ -32,6 +32,10 @@ decay 是唯一的自由参数，各家取 0.8~1.0，差别在老筹码衰减的
 
 这六条同时成立的实现基本不可能是错的。
 """
+# 更正上面 docstring 的一句（2026-09-27）：decay 不在 config.yaml，是模块常量 DECAY；
+# 「学习线提案」随早盘系统归档了。改 DECAY 要重建特征表并重训（tools/rebuild_all.py）。
+# 这里用注释不改 docstring：本文件的 AST 进起涨预测的模型指纹（daily.feature_fingerprint），
+# 改 docstring 也会触发一次重训。
 from __future__ import annotations
 
 import numpy as np

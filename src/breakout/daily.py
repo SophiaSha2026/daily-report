@@ -223,7 +223,10 @@ def feature_fingerprint(df: pd.DataFrame,
 
     features.py 的 rolling(250/60/20/14/5) 和 chips 的网格范围都是字面量，
     常量列表钉不住，所以再加一层四个特征侧模块的 AST 摘要兜底。
-    ast.dump 不含注释和空白，只改注释不会白白触发一次重训。
+    ast.dump 不含 # 注释和空白，只改注释不会白白触发一次重训；但 **docstring
+    是 AST 的一部分**，任何一行代码（哪怕只是日志格式）也是：2026-09-27 清理时
+    改了 chips.py 一句 docstring、给 build.py 加了一行日志设置，试跑当场重训了
+    模型（已撤回）。这四个文件只在真要改特征口径时动，更正说明用 # 注释。
     """
     import ast
     import hashlib

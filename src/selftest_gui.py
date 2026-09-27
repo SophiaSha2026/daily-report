@@ -1383,14 +1383,20 @@ def check_log_time_bj() -> None:
     print("\n[日志时间是北京时间]")
     import logging
     import time as _time
+    # 例外：breakout/build.py 的 AST 进起涨预测的模型指纹（daily.feature_fingerprint），
+    # 往里加一行代码就会触发一次重训，它的日志时间留本机时间
+    exempt = {"src/breakout/build.py"}
     bad, n = [], 0
     for p in list((ROOT / "src").rglob("*.py")) + list((ROOT / "tools").glob("*.py")):
+        rel = p.relative_to(ROOT).as_posix()
         s = p.read_text(encoding="utf-8")
-        if "logging.basicConfig(" in s and "%(asctime)s" in s:
+        if "logging.basicConfig(" in s and "%(asctime)s" in s and rel not in exempt:
             n += 1
             if "Formatter.converter = staticmethod(" not in s:
-                bad.append(p.relative_to(ROOT).as_posix())
+                bad.append(rel)
     ck(n >= 8 and not bad, f"带时间戳的 {n} 个入口都把日志换成北京时间（漏了：{bad}）")
+    ck("Formatter.converter" not in (ROOT / "src/breakout/build.py").read_text(encoding="utf-8"),
+       "build.py 不动（它的源码进模型指纹，改一行就重训）")
     # 直接赋 lambda 会被绑成方法：每条日志 TypeError，logging 吞掉异常、消息丢失
     keep = logging.Formatter.converter
     try:

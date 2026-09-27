@@ -84,6 +84,19 @@ def _origin_has(path: str) -> bool:
     return r.returncode == 0
 
 
+def start_dates() -> dict:
+    """每条线从哪个交易日起才有清单：local_run.START，唯一的一份（教训 38）。
+
+    本机的计划任务不补上线前的日子，这里也不能为那些日子发「本机没跑」的提醒。
+    local_run 顶层只 import 标准库，云端 import 它没有负担；拿不到就当都没设。
+    """
+    try:
+        import local_run
+        return dict(getattr(local_run, "START", {}) or {})
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 SENT_FAILED = "sent_failed"     # 清单算出来了、邮件没发出去
 NOT_RUN = "not_run"             # 本机根本没跑
 
@@ -171,7 +184,11 @@ def main() -> int:
         return 0
 
     items = []
+    start = start_dates()
     for key, ln in LINES.items():
+        if start.get(key) and date < start[key]:
+            print(f"{ln['name']}：{start[key]} 起才发清单，{date} 不查")
+            continue
         # _origin_json 负责 fetch，_origin_has 自己不 fetch，顺序不能反
         meta = _origin_json(ln["meta"])
         need, why = decide(meta, _origin_has(f"state/sent/{key}_{date}.json"), date)
