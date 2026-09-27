@@ -354,7 +354,7 @@ function renderHome(s) {
             mo.exists ? "ok" : "warn",
             mo.exists ? mo.age_days + " 天前" : "没训练",
             mo.exists ? mo.days_to_refit + " 天后重学" : "点 1-2 训练"),
-    sysItem("1-3", "长期调整突破", "横盘 3 个月 -> 倍量大阳线 -> 缩量调整 -> 二次进攻的那一天发给你",
+    sysItem("1-3", "长期调整突破", "清单 A：二次进攻那天发给你；清单 B：缩量调整完、还在等二次进攻的",
             ps, pbb, pm),
   ]);
   // 口径必须和邮件/面板里印的一致（export.STREAK_PERF）。之前这里挂的是

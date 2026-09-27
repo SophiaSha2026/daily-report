@@ -297,7 +297,7 @@ def charts() -> dict:
     h = meta.get("hist") or {}
     return {"lists": lists,
             "pattern": {"recent": recent, "per_month": h.get("per_month"),
-                        "n": h.get("n"), "n_today": meta.get("n"),
+                        "n": h.get("n"), "n_today": meta.get("n"), "n_b": meta.get("n_b"),
                         "date": meta.get("date", "")}}
 
 
@@ -426,7 +426,8 @@ function pattern(p){
     :'<div class="dim">还没有</div>';
   const bits=[];
   if(p.per_month!=null) bits.push(`三年同口径 ${p.n} 次，约每月 ${p.per_month} 次，空榜是常态`);
-  if(p.n_today!=null) bits.push(`${esc((p.date||"").slice(5))} 清单 ${p.n_today} 只`);
+  if(p.n_today!=null) bits.push(`${esc((p.date||"").slice(5))} 清单 A ${p.n_today} 只`
+    +(p.n_b!=null?` · B（二次进攻前）${p.n_b} 只`:""));
   $("#pm").textContent=bits.join(" · ");
 }
 async function load(){

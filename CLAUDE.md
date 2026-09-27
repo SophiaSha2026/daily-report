@@ -90,7 +90,7 @@ src/
   ── 长期调整突破（2026-09-27）──
   pullback.py            主流程 --stage scan / send。prepare -> find_events（回测和生产
                          同一个判定函数）-> rank。规则和每个阈值的来历在模块 docstring
-  pullback_export.py     面板（今日清单 + 剔了谁 + 以前成立过的，收起来）+ 邮件
+  pullback_export.py     面板（清单 A + 清单 B + 剔了谁 + 以前成立过的，收起来）+ 邮件
   corp_events.py         股东减持 / 定向增发（东财公告 + 减持记录 + 预案正文的定价方式），
                          按公告日判不偷看；缓存 data/pullback/corp/（gitignore）。
                          减持判据 reduce_hits 两条线共用：长期调整突破逐只查（要回看定增），
@@ -147,10 +147,12 @@ tools/dump_st.py         当前 ST 名单 -> cache/st_codes.json（回测剔 ST 
 cache/                   codes.csv（代码表）、st_codes.json
 data/breakout/           daily.parquet（三年日线，gitignore）、train.parquet（特征表，
                          gitignore）、YYYY-MM/breakout_*.parquet（每日清单 A，入库）
-data/pullback/YYYY-MM/   长期调整突破每日清单 pullback_<日>.parquet（空榜也落空文件）
+data/pullback/YYYY-MM/   长期调整突破每日清单 pullback_<日>.parquet（A）/ pullback_b_<日>.parquet（B），
+                         空榜也落空文件
 out_breakout/            起涨预测当日产物
-out_pullback/            长期调整突破当日产物：panel.html stamp.txt selected.json
-                         history.json run_meta.json mail_sent.json 长期调整突破.txt
+out_pullback/            长期调整突破当日产物：panel.html stamp.txt selected.json（清单 A）
+                         list_b.json（清单 B）history.json run_meta.json mail_sent.json
+                         长期调整突破.txt / 长期调整突破B.txt（同花顺自选股，GBK + CRLF）
                          （watch.json「调整中」观察名单 2026-09-28 起不再出）
 state/                   breakout/（模型、overrides、board_adj、update_status）、
                          claim/ sent/ alert/ 标记、regime_daily.jsonl、
@@ -750,6 +752,7 @@ GitHub cron 实测连续两天严重延迟或整段丢失（08-24 延迟 97 分�
 | 二次进攻 | 再来一根倍量大阳线突破前高（量最好超过首阳），收盘超过首阳最高价 | 调整后**第一次**收盘站上首阳最高价那天：同样的大阳线定义 + 量 ≥ 前一日 × 1.5 |
 | 剔除（2026-09-28） | 剔除近期有股东减持或者定向增发的股票（定增价格已经确定的除外） | 往前 90 天有减持公告 / 减持记录；往前两年有没发完、没终止、竞价定价的定增。按公告日判 |
 | 清单（2026-09-28） | 只有满足条件时才列入，否则宁可为空；入选的加上前期调整的天数 | 「调整中」观察名单去掉；每只带前期调整天数（首阳前收盘价待在 30% 振幅里的交易日数） |
+| 两份清单（2026-09-28 下午） | 清单 A 走完横盘 → 首阳 → 缩量调整 → 二次进攻；清单 B 二次进攻前，走完横盘 → 首阳 → 缩量调整 | B：缩量调整满 2 天、均量 ≤ 首阳 80%、到目标日还在 10 天窗口里、没收盘站上首阳最高价；剔除同 A |
 
 几处必须由我们来定、而用户可能会问的：
 
@@ -776,6 +779,9 @@ GitHub cron 实测连续两天严重延迟或整段丢失（08-24 延迟 97 分�
 2023-08 ~ 2026-09（749 个交易日）按默认口径、剔除减持 / 定增之后回看 54 次，有成立的
 交易日 50 天，平均每月约 1.5 次；板块分布 创业板 20 / 北交所 14 / 主板 11 / 科创板 9。
 剔除前是 66 次：10 次近 90 天有股东减持，2 次有竞价中的定增（2026-09-28）。
+**清单 B 大多走不到清单 A**：三年里进过 B 的 1133 次只有 66 次（5.8%）后来走完二次进攻，
+其余多是跌破首阳最低价（446）或 10 天到期（274）。这个比例印在清单 B 下面，别让人把 B 当 A。
+09-24 那天 A 0 只、B 6 只；每天新进 B 的约 1.5 只，在榜几天，所以 B 一般是个位数。
 日线表更早那段（2023-01 起）只有两三百只票有数据，频率的分母从全市场覆盖齐了
 那天起算（`pullback.coverage_start`），以前按全表 905 天算是每月 1.6 次，摊薄了两成。
 主板少，是因为主板两根都要涨停，另外三个板块只要 ≥10%。

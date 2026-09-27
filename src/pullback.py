@@ -18,8 +18,17 @@
 2026-09-28 追加：
   4. 剔除近期有股东减持或者定向增发的股票（定增价格已经确定的除外）。
   5. 只有走完二次进攻的才进清单，别的一只都不列，宁可为空（以前面板里还有一张
-     「调整中」观察名单，21 只，用户看着像清单太长、没筛过，去掉了）。
+     「调整中」观察名单，21 只，连首阳当天的都列，用户看着像清单太长、没筛过，去掉了）。
   6. 入选的票加上前期调整的天数。
+  7. 同一天下午：每天同时给两份清单。清单 A = 走完横盘 -> 首阳 -> 缩量调整 -> 二次进攻
+     （就是上面的推荐日）；清单 B = 二次进攻前，走完横盘 -> 首阳 -> 缩量调整三步的。
+
+清单 B 的口径（opens 里 b_ok 为真、最后一根 == 目标日）：缩量调整已满 adjust.min_days
+（2）天、每天量都低于首阳、这段均量 ≤ 首阳 × vol_mean_max（80%）、不破首阳最低价、收盘
+没超过首阳最高价，还在 max_days（10）天的窗口里。剔除规则和清单 A 一样。之后哪天收盘
+站上首阳最高价、是同样的倍量大阳线，就进清单 A。进过 B 的大多走不到 A：三年里 1133 次
+只有 66 次（5.8%），其余多是跌破首阳最低价（446 次）或 10 天到期没突破（274 次），
+这个比例印在面板和邮件的清单 B 下面（b_stats，形态口径）。
 
 量化口径（全部阈值在 config.yaml 的 pullback 段）
 ------------------------------------------------
@@ -248,7 +257,9 @@ EVENT_COLS = ["code", "board", "date", "launch_date", "adjust_days", "close", "g
               "bonus_open", "_s", "_t"]
 OPEN_COLS = ["code", "board", "last_date", "launch_date", "adjust_days", "close",
              "launch_high", "launch_low", "launch_open", "launch_gain_pct",
-             "launch_vol_ratio", "base_amp_pct", "adj_vol_min", "adj_vol_mean", "to_high_pct"]
+             "launch_vol_ratio", "base_amp_pct", "base_run", "base_run_full",
+             "adj_vol_min", "adj_vol_mean", "adj_low", "adj_drawdown_pct",
+             "bonus_half", "bonus_open", "to_high_pct", "wait_left", "b_ok"]
 
 
 def base_run(c: np.ndarray, s: int, first: int, amp_max: float) -> tuple[int, bool]:
@@ -269,14 +280,20 @@ def base_run(c: np.ndarray, s: int, first: int, amp_max: float) -> tuple[int, bo
     return s - k, True
 
 
-def find_events(x: pd.DataFrame, pb: dict) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+def find_events(x: pd.DataFrame, pb: dict,
+                b_hist: list | None = None) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     """在 prepare() 过的日线上扫出全部「二次进攻」事件和仍在进行中的形态。
 
     返回 (events, opens, diag)：
       events  每行一个完整三段（首阳 S、调整 S+1..T-1、二次进攻 T）
-      opens   每只票最后一根 K 线时还没走完的形态（首阳已出、调整中），
-              生产拿「最后一根 == 目标日」的那些当观察名单
+      opens   每只票最后一根 K 线时还没走完的形态（首阳已出、调整中）。b_ok 为真的
+              （缩量调整够 adjust.min_days 天、均量不超 vol_mean_max）就是清单 B 的候选，
+              生产取「最后一根 == 目标日」的那些
       diag    各环节淘汰计数，空榜时用来说清楚「是没有首阳还是调整不合格」
+
+    b_hist 给了一个 list：每个进过清单 B 的形态往里追加一条
+    {code, launch_date, b_date（第一次够格进 B 的那天）, status（最后怎么了，成立 = 走完
+    二次进攻进了清单 A）}，给「进过 B 的后来有多少走完」那个统计用。
     """
     bc, lc, ac, tc = pb["base"], pb["launch"], pb["adjust"], pb["trigger"]
     N = int(bc["days"])
@@ -347,6 +364,7 @@ def find_events(x: pd.DataFrame, pb: dict) -> tuple[pd.DataFrame, pd.DataFrame, 
             bump("首阳是复牌第一天")
             continue
         bump("首阳成立")
+        b_date = None                          # 第一次够格进清单 B 的那天
         vs, hs, ls, os_ = v[s], h[s], lo[s], o[s]
         floor = os_ if floor_kind == "open" else ls
         e = end_of[s]
@@ -418,6 +436,10 @@ def find_events(x: pd.DataFrame, pb: dict) -> tuple[pd.DataFrame, pd.DataFrame, 
             if close_cap and c[t] > hs:
                 status = f"调整不到{lmin}天就站上首阳高点"
                 break
+            # t 这天也是合格的调整日：调整够天数、这段均量也没超，就走完了三步（清单 B）
+            if (b_date is None and t - s >= lmin
+                    and float(v[s + 1:t + 1].mean()) <= vmean_max * vs):
+                b_date = date[t]
             t += 1
         if not status:
             L = t - s - 1
@@ -426,6 +448,9 @@ def find_events(x: pd.DataFrame, pb: dict) -> tuple[pd.DataFrame, pd.DataFrame, 
             else:
                 # 数据到头了还在调整：进行中的形态（明天那根还可能是二次进攻）
                 adj = slice(s + 1, t)
+                brun, bfull = base_run(c, s, int(starts[cid[s]]), amp_max)
+                alow = float(lo[adj].min()) if L else None
+                amean = float(v[adj].mean()) / vs if L else None
                 op.append({
                     "code": code[s], "board": brd[s],
                     "last_date": date[e - 1], "launch_date": date[s],
@@ -436,12 +461,24 @@ def find_events(x: pd.DataFrame, pb: dict) -> tuple[pd.DataFrame, pd.DataFrame, 
                     "launch_gain_pct": round(100 * float(gain[s]), 2),
                     "launch_vol_ratio": round(float(vr[s]), 2),
                     "base_amp_pct": round(100 * amp, 1),
+                    "base_run": int(brun), "base_run_full": bool(bfull),
                     "adj_vol_min": round(float(v[adj].min()) / vs, 3) if L else None,
-                    "adj_vol_mean": round(float(v[adj].mean()) / vs, 3) if L else None,
+                    "adj_vol_mean": round(amean, 3) if L else None,
+                    "adj_low": round(alow, 2) if L else None,
+                    "adj_drawdown_pct": (round(100 * (alow / float(c[s]) - 1), 2)
+                                         if L else None),
+                    "bonus_half": bool(L and float(v[adj].min()) <= half * vs),
+                    "bonus_open": bool(L and alow >= os_),
                     "to_high_pct": round(100 * (hs / float(c[e - 1]) - 1), 2),
+                    # 二次进攻最晚还能等几个交易日（调整期最多 lmax 天，下一根起算）
+                    "wait_left": int(lmax - L + 1),
+                    "b_ok": bool(L >= lmin and amean is not None and amean <= vmean_max),
                 })
                 status = "进行中"
         bump(status)
+        if b_hist is not None and b_date is not None:
+            b_hist.append({"code": code[s], "launch_date": date[s], "b_date": b_date,
+                           "status": status})
     # 空表也要带列：历史上一次都没成立时（换一段数据、自测），下游按列名取值不能炸
     evd = pd.DataFrame(ev, columns=EVENT_COLS) if not ev else pd.DataFrame(ev)
     if len(evd):
@@ -622,6 +659,18 @@ def mark_risk(ev: pd.DataFrame, pb: dict, fresh_date: str = "") -> pd.DataFrame:
     return ev.assign(risk=[m[0] for m in marks], risk_why=[m[1] for m in marks])
 
 
+def b_stats(b_hist: list, x: pd.DataFrame, st: set[str], base_days: int) -> dict:
+    """进过清单 B 的形态后来怎么样了：全市场覆盖齐了之后、已经有结果的（不算还在调整的），
+    剔今天的 ST 名单。形态口径，没剔减持 / 定增（那要逐只拉几百只票的公告）。"""
+    if not b_hist:
+        return {"n": 0, "to_a": 0, "rate": None}
+    b = pd.DataFrame(b_hist)
+    start = coverage_start(x, base_days)
+    b = b[(b["b_date"] >= start) & (b["status"] != "进行中") & ~b["code"].isin(st)]
+    n, to_a = int(len(b)), int((b["status"] == "成立").sum())
+    return {"n": n, "to_a": to_a, "rate": round(to_a / n, 3) if n else None, "from": start}
+
+
 def history_pool(evf: pd.DataFrame, st: set[str]) -> pd.DataFrame:
     """历史频率和「以前成立过的」数哪些事件：剔今天的 ST 名单（当时是不是 ST 拿不到），
     剔当时就有减持 / 价格没定的定增的（risk == out）。数据没拉到的（unknown）留着，
@@ -641,18 +690,24 @@ def scan(target: str, pb: dict, d: pd.DataFrame | None = None) -> dict:
     x = prepare(raw, pb)
     if not len(x) or str(x["date"].max()) != target:
         raise RuntimeError(f"日线表里没有 {target} 的行（最新 {x['date'].max() if len(x) else '无'}）")
-    ev, _, diag = find_events(x, pb)
+    bh: list = []
+    ev, opn, diag = find_events(x, pb, b_hist=bh)
     bars = int(pb.get("output", {}).get("forward_bars", 20))
     evf = mark_risk(forward(x, ev, bars), pb, fresh_date=target)
     today = x[x["date"] == target]
     todays = evf[evf["date"] == target] if len(evf) else evf
+    # 清单 B：走完横盘 -> 首阳 -> 缩量调整、到目标日还在等二次进攻的（用户 2026-09-28）
+    bl = opn[(opn["last_date"] == target) & opn["b_ok"]] if len(opn) else opn
+    bl = mark_risk(bl.assign(date=target) if len(bl) else bl.assign(date=pd.Series(dtype=str)),
+                   pb, fresh_date=target)
     st = st_cache()
     hist_n = int(pb.get("output", {}).get("history_n", 30))
     # 多取一些再按名称剔 ST，剔完才截到 hist_n 条（先截后剔，面板上会少几条）
     hp = history_pool(evf[evf["date"] < target], st) if len(evf) else evf
     hist = hp.sort_values(["date", "code"]).tail(hist_n + 20) if len(hp) else hp
     nm = names_for(sorted(set(todays["code"] if len(todays) else [])
-                          | set(hist["code"] if len(hist) else [])))
+                          | set(hist["code"] if len(hist) else [])
+                          | set(bl["code"] if len(bl) else [])))
 
     def attach(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         if not len(df):
@@ -671,12 +726,21 @@ def scan(target: str, pb: dict, d: pd.DataFrame | None = None) -> dict:
     hist, _ = attach(hist)
     hist = hist.tail(hist_n).reset_index(drop=True)
     todays = rank(todays)
+    blist, bad_b = attach(bl)
+    if len(blist):
+        bad_b.update({r.code: r.risk_why for r in blist.itertuples() if r.risk != "ok"})
+        blist = blist[(blist["risk"] == "ok") & ~blist["code"].isin(set(todays["code"]))]
+        # 离首阳最高价越近越靠前（再涨多少就到二次进攻的门槛）
+        blist = blist.sort_values(["to_high_pct", "code"]).reset_index(drop=True)
     evs = history_pool(evf, st)
     stats = history_stats(evs, x, bars, int(pb["base"]["days"]))
+    stats["b"] = b_stats(bh, x, st, int(pb["base"]["days"]))
     # 目标日当天的分项计数（邮件抬头那一行）
     big_today = int((today["big"] & (today["vr"] >= float(pb["launch"]["vol_ratio_min"]))).sum())
     info = {
         "date": target, "n": int(len(todays)), "n_pattern": n_pattern,
+        "n_b": int(len(blist)), "n_b_pattern": int(len(bl)),
+        "excluded_b": bad_b, "excluded_b_names": {c: nm.get(c, "") for c in bad_b},
         "n_stocks": int(len(today)), "n_big_today": big_today,
         "excluded": bad, "excluded_names": {c: nm.get(c, "") for c in bad},
         "diag_all": diag, "hist": stats,
@@ -684,10 +748,11 @@ def scan(target: str, pb: dict, d: pd.DataFrame | None = None) -> dict:
         "rules": rules_text(pb),
     }
     log.info("%s：全市场 %d 只，今日倍量大阳线 %d 只，今日二次进攻 %d 只，剔除 %d 只，"
-             "清单 %d 只 | 同口径 %d 次，约每月 %s 次 | %.1fs",
+             "清单 A %d 只；等二次进攻 %d 只，剔除 %d 只，清单 B %d 只 | 同口径 %d 次，"
+             "约每月 %s 次 | %.1fs",
              target, info["n_stocks"], big_today, n_pattern, len(bad), info["n"],
-             stats["n"], stats["per_month"], info["seconds"])
-    return {"info": info, "today": todays, "hist": hist, "all_events": evf}
+             len(bl), len(bad_b), len(blist), stats["n"], stats["per_month"], info["seconds"])
+    return {"info": info, "today": todays, "b": blist, "hist": hist, "all_events": evf}
 
 
 def rules_text(pb: dict) -> list[str]:
@@ -705,9 +770,12 @@ def rules_text(pb: dict) -> list[str]:
         f"首阳：{big}；成交量 ≥ 前一日 {lc['vol_ratio_min']:g} 倍",
         f"调整：首阳后 {ac['min_days']}~{ac['max_days']} 个交易日，每天量都低于首阳、"
         f"均量 ≤ 首阳 {ac['vol_mean_max'] * 100:.0f}%，不破首阳{floor}，收盘不超过首阳最高价",
-        f"二次进攻（今天）：{tbig}，量 ≥ 前一日 {tc['vol_ratio_min']:g} 倍，"
+        f"二次进攻（清单 A，今天）：{tbig}，量 ≥ 前一日 {tc['vol_ratio_min']:g} 倍，"
         f"收盘 > 首阳最高价（调整后第一次站上）",
-        f"剔除：ST；二次进攻那天往前 {rd} 天内有股东减持（减持公告或交易所减持记录，"
+        f"清单 B（二次进攻前）：走完前三步，到今天已经缩量调整 {ac['min_days']} 天以上、"
+        f"均量 ≤ 首阳 {ac['vol_mean_max'] * 100:.0f}%，还在 {ac['max_days']} 天的窗口里，"
+        f"还没收盘站上首阳最高价",
+        f"剔除（两份清单都剔）：ST；往前 {rd} 天内有股东减持（减持公告或交易所减持记录，"
         f"公司卖回购股不算）；有还在走流程、价格没定的定增（锁价的、已发完的、已终止的不算）",
         "加分项只排序不决定入选：量超首阳、调整最低量缩到首阳一半以下、不破首阳开盘价",
         "「量」是成交量（股），不是成交额；形态中途停过牌的不算",
@@ -749,21 +817,30 @@ def stage_scan(target: str, dry: bool = False) -> int:
                      "开" if e["bonus_open"] else "-")
         for c, why in info["excluded"].items():
             log.info("  剔除 %s %s：%s", c, info["excluded_names"].get(c, ""), why)
+        for _, w in r["b"].iterrows():
+            log.info("  清单 B %s %s 首阳 %s 已调整 %d 天，离首阳高点 %+.2f%%，还能等 %d 天",
+                     w["code"], w["name"], w["launch_date"], w["adjust_days"],
+                     w["to_high_pct"], w["wait_left"])
+        for c, why in info["excluded_b"].items():
+            log.info("  清单 B 剔除 %s %s：%s", c, info["excluded_b_names"].get(c, ""), why)
         log.info("命令行试扫：不落盘")
         return 0
     OUT.mkdir(exist_ok=True)
     (OUT / "selected.json").write_text(json.dumps(
         _records(r["today"]), ensure_ascii=False, indent=1), encoding="utf-8")
-    # watch.json（「调整中」观察名单）2026-09-28 起不再出：用户要的是只有走完二次进攻
-    # 的票才进清单，别的一只都不列（「宁可为空」）。旧文件删掉，免得面板读到过期的
+    # 清单 B（二次进攻前）。以前的 watch.json「调整中」观察名单连首阳当天、调整 1 天的
+    # 都列，2026-09-28 上午被用户嫌太长删掉；当天下午用户要回一份明确的清单 B：
+    # 只列走完横盘 -> 首阳 -> 缩量调整三步的
     (OUT / "watch.json").unlink(missing_ok=True)
+    (OUT / "list_b.json").write_text(json.dumps(
+        _records(r["b"]), ensure_ascii=False, indent=1), encoding="utf-8")
     (OUT / "history.json").write_text(json.dumps(
         _records(r["hist"]), ensure_ascii=False, indent=1), encoding="utf-8")
     # 同花顺自选股导入用的纯代码 txt。GBK + CRLF，同花顺只认这个。
     # 空榜写 0 字节：这个文件每天覆盖，「今天没有」必须是空的
-    (OUT / f"{NAME}.txt").write_bytes(("\r\n".join(r["today"]["code"])
-                                       + ("\r\n" if len(r["today"]) else "")
-                                       ).encode("gbk"))
+    for fn, df in ((f"{NAME}.txt", r["today"]), (f"{NAME}B.txt", r["b"])):
+        codes = list(df["code"]) if len(df) else []
+        (OUT / fn).write_bytes(("\r\n".join(codes) + ("\r\n" if codes else "")).encode("gbk"))
     info = {**info, "dry": bool(os.environ.get("DRY_RUN"))}
     (OUT / "run_meta.json").write_text(json.dumps(info, ensure_ascii=False, indent=1),
                                        encoding="utf-8")
@@ -774,6 +851,10 @@ def stage_scan(target: str, dry: bool = False) -> int:
     t = t[[c for c in t.columns if not c.startswith("_")]] if len(t) else \
         pd.DataFrame(columns=["code"])
     t.to_parquet(dd / f"pullback_{target}.parquet", index=False)
+    b = r["b"]
+    b = b[[c for c in b.columns if not c.startswith("_")]] if len(b) else \
+        pd.DataFrame(columns=["code"])
+    b.to_parquet(dd / f"pullback_b_{target}.parquet", index=False)
     log.info("产物已写：%s，清单 %d 只", OUT, info["n"])
     return 0
 
@@ -830,7 +911,7 @@ def stage_send(target: str, wait: bool = True) -> int:
                 r["code"] = str(r["code"]).zfill(6)   # 教训 29：前导零
         return rows
 
-    sel, hist = load("selected.json"), load("history.json")
+    sel, blist, hist = load("selected.json"), load("list_b.json"), load("history.json")
     due = send_time(target, pb)
     if wait:
         wait_until(due)
@@ -844,17 +925,18 @@ def stage_send(target: str, wait: bool = True) -> int:
     owner = os.environ.get("GH_OWNER", "")
     repo = os.environ.get("GH_REPO", "")
     page = f"https://{owner.lower()}.github.io/{repo}/pullback.html" if owner else ""
-    E.write_panel(sel, hist, meta, OUT, target, late_note)
+    E.write_panel(sel, blist, hist, meta, OUT, target, late_note)
     if muted:
         log.info("SKIP_MAIL 已设：面板已生成，邮件不发")
         return 0
-    att = [p for p in [OUT / f"{NAME}.txt"] if p.exists() and p.stat().st_size > 0]
-    E.send_mail(target, sel, meta, page_url=page, late_note=late_note,
+    att = [p for p in [OUT / f"{NAME}.txt", OUT / f"{NAME}B.txt"]
+           if p.exists() and p.stat().st_size > 0]
+    E.send_mail(target, sel, blist, meta, page_url=page, late_note=late_note,
                 attachments=att)
     # 真发出去才落这个戳（教训 27：退出码 0 不等于做了事）。local_run 只认它
     p = OUT / "mail_sent.json"
     tmp = p.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps({"date": target, "n": len(sel),
+    tmp.write_text(json.dumps({"date": target, "n": len(sel), "n_b": len(blist),
                                "at": now_bj().isoformat(timespec="seconds")},
                               ensure_ascii=False), encoding="utf-8")
     os.replace(tmp, p)

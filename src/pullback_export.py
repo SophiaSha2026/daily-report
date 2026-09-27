@@ -38,22 +38,32 @@ def _pct(x, digits: int = 1, sign: bool = True) -> str:
 
 
 def meta_line(meta: dict) -> str:
-    n, n_pat = meta.get("n", "?"), meta.get("n_pattern", meta.get("n", "?"))
-    drop = len(meta.get("excluded") or {})
-    tail = (f"今日二次进攻 {n_pat} 只，剔除 {drop} 只，清单 {n} 只" if drop
-            else f"今日二次进攻 {n_pat} 只，清单 {n} 只")
+    n = meta.get("n", "?")
+    tail = f"清单 A {n} 只"
+    if "n_b" in meta:
+        tail += f" · 清单 B {meta['n_b']} 只"
     return (f"{meta.get('date', '')} 收盘后扫描 · 全市场 {meta.get('n_stocks', '?')} 只 · "
             f"今日倍量大阳线 {meta.get('n_big_today', '?')} 只 · " + tail)
 
 
-def excluded_line(meta: dict) -> str:
-    """今天走完三步、但按规则剔掉的：代码 名称（原因）。没有就空串。"""
-    ex = meta.get("excluded") or {}
+def excluded_line(meta: dict, which: str = "") -> str:
+    """走完了该走的几步、但按规则剔掉的：代码 名称：原因。which="b" 是清单 B 的。"""
+    ex = meta.get(f"excluded{'_' + which if which else ''}") or {}
     if not ex:
         return ""
-    nm = meta.get("excluded_names") or {}
+    nm = meta.get(f"excluded{'_' + which if which else ''}_names") or {}
     return f"剔除 {len(ex)} 只：" + "；".join(
         f"{c}{' ' + nm[c] if nm.get(c) else ''}：{why}" for c, why in ex.items())
+
+
+def b_rate_line(meta: dict) -> str:
+    """清单 B 的历史转化率：进过 B 的后来有多少走完二次进攻。"""
+    b = (meta.get("hist") or {}).get("b") or {}
+    if not b.get("n"):
+        return ""
+    return (f"历史上进过清单 B 的 {b['n']} 次里，{b['to_a']} 次（{100 * b['rate']:.1f}%）"
+            f"之后走完了二次进攻、进了清单 A；其余大多跌破首阳最低价或窗口到期"
+            f"（{str(b.get('from', ''))[:7]} 起，形态口径，没剔减持 / 定增）")
 
 
 def hist_line(meta: dict) -> str:
@@ -132,10 +142,16 @@ details{margin-top:22px}summary{cursor:pointer;color:#c9d1d9;font-size:14px}
 <div class="sub">__SUB__</div>
 __LATE__
 <div class="bar">
-  <button onclick="cp(this)">复制今日代码</button>
+  <button onclick="cp(this,DA,'清单 A')">复制清单 A</button>
+  <button onclick="cp(this,DB,'清单 B')">复制清单 B</button>
 </div>
+<h2>清单 A · 今天二次进攻（走完横盘 → 首阳 → 缩量调整 → 二次进攻）· __NA__ 只</h2>
 __TODAY__
 __EXCL__
+<h2>清单 B · 二次进攻前（走完横盘 → 首阳 → 缩量调整）· __NB__ 只</h2>
+__BLIST__
+__EXCLB__
+<div class="excl">__BRATE__</div>
 <details><summary>以前成立过的 __NH__ 次（不是今天的清单，点开看之后怎么走的）</summary>
 __HIST__
 </details>
@@ -143,7 +159,7 @@ __HIST__
 <div class="tip">点代码即复制；切到同花顺，剪贴板识别框会自动弹出。</div>
 <div id="toast"></div>
 <script>
-const D=__DATA__;
+const DA=__DATA__, DB=__DATAB__;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;
   t.className='show';setTimeout(()=>t.className='',1300);}
 function put(txt,msg){
@@ -152,13 +168,49 @@ function put(txt,msg){
     document.body.appendChild(a);a.select();document.execCommand('copy');
     a.remove();toast(msg);});
 }
-function cp(btn){
-  if(!D.length){toast('今日没有');return;}
-  put(D.join('\\n'),'已复制 '+D.length+' 个代码');btn.classList.add('on');
+function cp(btn,D,nm){
+  if(!D.length){toast(nm+'今天没有');return;}
+  put(D.join('\\n'),'已复制'+nm+' '+D.length+' 个代码');btn.classList.add('on');
 }
 function one(c){put(c,'已复制 '+c);}
 """ + REFRESH_JS + """
 </script></body></html>"""
+
+
+def _b_cells(r: dict) -> tuple[str, str, str, str, str, str]:
+    """清单 B 一行：名称、前期调整、首阳、缩量调整、离突破、加分（到目前为止）。"""
+    name = (f'{_esc(r.get("name", ""))}'
+            f'<div class="dim">{BOARD.get(r.get("board"), "")}</div>')
+    launch = (f'{_esc(str(r["launch_date"])[5:])} <span class="up">'
+              f'{_pct(r.get("launch_gain_pct"))}</span>'
+              f'<div class="dim">量 {float(r["launch_vol_ratio"]):.1f} 倍 · 横盘振幅 '
+              f'{float(r["base_amp_pct"]):.0f}%</div>')
+    vm, va = r.get("adj_vol_min"), r.get("adj_vol_mean")
+    adj = (f'{int(r["adjust_days"])} 天'
+           f'<div class="dim">最低量 {100 * float(vm or 0):.0f}% · 均量 '
+           f'{100 * float(va or 0):.0f}% · 最深 {_pct(r.get("adj_drawdown_pct"))}</div>')
+    gap = (f'还差 {_pct(r.get("to_high_pct"), 2, sign=False)}'
+           f'<div class="dim">收盘站上 {float(r["launch_high"]):.2f} · '
+           f'还能等 {int(r.get("wait_left") or 0)} 天</div>')
+    items = [("缩到一半", r.get("bonus_half")), ("守开盘价", r.get("bonus_open"))]
+    bonus = " ".join(f'<span class="{"ok" if ok else "no"}">{"✓" if ok else "✗"}{nm}</span>'
+                     for nm, ok in items)
+    return name, base_text(r), launch, adj, gap, bonus
+
+
+def b_table(rows: list[dict], html_panel: bool = True) -> str:
+    if not rows:
+        return '<div class="empty">今天没有走完前三步、还在等二次进攻的。</div>'
+    tr = []
+    for i, r in enumerate(rows, 1):
+        name, base, launch, adj, gap, bonus = _b_cells(r)
+        code = (_code_td(r["code"]) if html_panel
+                else f'<td class="c">{_esc(str(r["code"]).zfill(6))}</td>')
+        tr.append(f"<tr><td>{i}</td>{code}<td>{name}</td><td>{base}</td><td>{launch}</td>"
+                  f"<td>{adj}</td><td>{gap}</td><td>{bonus}</td></tr>")
+    return ('<div class="tw"><table><thead><tr><th>#</th><th>代码</th><th>名称</th>'
+            "<th>前期调整</th><th>首阳</th><th>缩量调整</th><th>离突破</th><th>加分项</th>"
+            "</tr></thead><tbody>" + "".join(tr) + "</tbody></table></div>")
 
 
 def _code_td(code: str) -> str:
@@ -200,7 +252,7 @@ def hist_table(rows: list[dict], bars: int = 20) -> str:
             "<tbody>" + "".join(tr) + "</tbody></table></div>")
 
 
-def write_panel(sel: list[dict], hist: list[dict], meta: dict,
+def write_panel(sel: list[dict], blist: list[dict], hist: list[dict], meta: dict,
                 out_dir: Path, date: str, late_note: str = "") -> Path:
     out_dir.mkdir(exist_ok=True)
     stamp = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=8))).strftime("%Y%m%d-%H%M%S")
@@ -210,16 +262,22 @@ def write_panel(sel: list[dict], hist: list[dict], meta: dict,
     hl = hist_line(meta)
     if hl:
         rules += "<br>" + _esc(hl)
-    xl = excluded_line(meta)
+    xl, xb = excluded_line(meta), excluded_line(meta, "b")
     html = (_PANEL.replace("__DATE__", _esc(date))
             .replace("__SUB__", _esc(meta_line(meta)))
             .replace("__LATE__", f'<div id="late" class="warnt">{_esc(late_note)}</div>'
                      if late_note else "")
+            .replace("__NA__", str(len(sel)))
+            .replace("__NB__", str(len(blist)))
             .replace("__TODAY__", today_table(sel))
             .replace("__EXCL__", f'<div class="excl">{_esc(xl)}</div>' if xl else "")
+            .replace("__BLIST__", b_table(blist))
+            .replace("__EXCLB__", f'<div class="excl">{_esc(xb)}</div>' if xb else "")
+            .replace("__BRATE__", _esc(b_rate_line(meta)))
             .replace("__NH__", str(len(hist)))
             .replace("__HIST__", hist_table(hist, bars))
             .replace("__RULES__", rules)
+            .replace("__DATAB__", json.dumps([str(r["code"]).zfill(6) for r in blist]))
             .replace("__DATA__", json.dumps([str(r["code"]).zfill(6) for r in sel]))
             .replace("__STAMP__", stamp)
             # build_site.py 把 out_pullback/stamp.txt 发布成这个名字，
@@ -242,11 +300,12 @@ _MAIL_CSS = _CSS + """
 """
 
 
-def build_html(date: str, sel: list[dict], meta: dict,
+def build_html(date: str, sel: list[dict], blist: list[dict], meta: dict,
                page_url: str = "", late_note: str = "") -> str:
     parts = [f"<style>{_MAIL_CSS}</style>", f'<div class="meta">{_esc(meta_line(meta))}</div>']
     if late_note:
         parts.append(f'<div class="warn"><b>{_esc(late_note)}</b></div>')
+    parts.append(f'<h3>清单 A · 今天二次进攻 · {len(sel)} 只</h3>')
     if sel:
         tr = []
         for r in sel:
@@ -263,6 +322,11 @@ def build_html(date: str, sel: list[dict], meta: dict,
     xl = excluded_line(meta)
     if xl:
         parts.append(f'<div class="meta">{_esc(xl)}</div>')
+    parts.append(f'<h3>清单 B · 二次进攻前（走完横盘 → 首阳 → 缩量调整）· {len(blist)} 只</h3>')
+    parts.append(b_table(blist, html_panel=False))
+    for line in (excluded_line(meta, "b"), b_rate_line(meta)):
+        if line:
+            parts.append(f'<div class="meta">{_esc(line)}</div>')
     if page_url:
         parts.append(f'<div class="meta">在线面板：<a href="{_esc(page_url)}">'
                      f'{_esc(page_url)}</a></div>')
@@ -273,21 +337,23 @@ def build_html(date: str, sel: list[dict], meta: dict,
     return "".join(parts)
 
 
-def subject(date: str, sel: list[dict]) -> str:
+def subject(date: str, sel: list[dict], blist: list[dict] | None = None) -> str:
+    tail = f" · 清单B {len(blist)}只" if blist is not None else ""
     if not sel:
-        return f"[{NAME}] {date} · 今日 0 只"
-    return f"[{NAME}] {date} · {len(sel)}只 · 首位 {sel[0].get('name') or sel[0]['code']}"
+        return f"[{NAME}] {date} · 清单A 0只{tail}"
+    return (f"[{NAME}] {date} · 清单A {len(sel)}只{tail} · "
+            f"A 首位 {sel[0].get('name') or sel[0]['code']}")
 
 
-def send_mail(date: str, sel: list[dict], meta: dict,
+def send_mail(date: str, sel: list[dict], blist: list[dict], meta: dict,
               page_url: str = "", late_note: str = "",
               attachments: list[Path] | None = None) -> None:
     c = _conf()
     m = EmailMessage()
-    m["Subject"] = subject(date, sel)
+    m["Subject"] = subject(date, sel, blist)
     m["From"] = formataddr((NAME, c["user"]))
     m["To"] = ", ".join(c["to"])
-    lines = [f"{date} {NAME}：{len(sel)} 只。请用 HTML 视图查看。"]
+    lines = [f"{date} {NAME}：清单 A {len(sel)} 只，清单 B {len(blist)} 只。请用 HTML 视图查看。"]
     for r in sel:
         lines.append(f"{r['code']} {r.get('name', '')} 收 {float(r['close']):.2f} "
                      f"{float(r['gain_pct']):+.2f}% | 前期调整 {base_text(r, html=False)} | "
@@ -295,13 +361,19 @@ def send_mail(date: str, sel: list[dict], meta: dict,
                      f"{_bonus(r, html=False)}")
     if excluded_line(meta):
         lines.append(excluded_line(meta))
+    for r in blist:
+        lines.append(f"[B] {r['code']} {r.get('name', '')} 首阳 {r['launch_date']} | "
+                     f"前期调整 {base_text(r, html=False)} | 缩量调整 {r['adjust_days']} 天 | "
+                     f"离突破还差 {float(r['to_high_pct']):.2f}%（收盘站上 "
+                     f"{float(r['launch_high']):.2f}）| 还能等 {r['wait_left']} 天")
     if page_url:
         lines.append(f"在线面板：{page_url}")
     m.set_content("\n".join(lines))
-    m.add_alternative(build_html(date, sel, meta, page_url, late_note),
+    m.add_alternative(build_html(date, sel, blist, meta, page_url, late_note),
                       subtype="html")
     for p in (attachments or []):
         m.add_attachment(Path(p).read_bytes(), maintype="application",
                          subtype="octet-stream", filename=Path(p).name)
     _send(m, c)
-    log.info("%s邮件已发送（%d 只，%d 个附件）", NAME, len(sel), len(attachments or []))
+    log.info("%s邮件已发送（清单 A %d 只、B %d 只，%d 个附件）", NAME, len(sel), len(blist),
+             len(attachments or []))

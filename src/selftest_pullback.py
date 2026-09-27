@@ -344,6 +344,34 @@ def check_open_patterns() -> None:
     ev, op, _ = events_of(build(MAIN, adj=[(0.97, 1.01, 0.5)] * 11, t_gain=False))
     ck(len(op) == 0, "调整已经 11 天、数据到头：过期，不算进行中")
 
+    print("[清单 B：二次进攻前]")
+    ev, op, _ = events_of(build(MAIN, t_gain=False))
+    r = op.iloc[0]
+    ck(bool(r["b_ok"]) and int(r["wait_left"]) == pb()["adjust"]["max_days"] - 3 + 1,
+       "缩量调整 3 天、均量 48%：进清单 B，还能等 max_days - 3 + 1 天")
+    ck(r["launch_high"] > r["close"] and r["to_high_pct"] > 0 and r["base_run"] >= 60
+       and r["adj_vol_mean"] < 0.8, "清单 B 带突破价（首阳最高价）、离突破多少、前期调整天数、均量")
+    ev, op, _ = events_of(build(MAIN, adj=[(0.985, 1.01, 0.6)], t_gain=False))
+    ck(not bool(op.iloc[0]["b_ok"]), "只调整了 1 天：还没走完缩量调整，不进清单 B")
+    ev, op, _ = events_of(build(MAIN, adj=[(0.99, 1.01, 0.9), (0.99, 1.01, 0.85)], t_gain=False))
+    ck(not bool(op.iloc[0]["b_ok"]), "调整 2 天但均量 88% > 80%：不进清单 B")
+    bh: list = []
+    a = build(MAIN)
+    P.find_events(P.prepare(a, pb()), pb(), b_hist=bh)
+    ck(len(bh) == 1 and bh[0]["status"] == "成立" and bh[0]["b_date"] == a["date"].iloc[72],
+       "走完二次进攻的形态在 b_hist 里：第 2 个合格调整日进的 B，结局「成立」")
+    bh2: list = []
+    x2 = P.prepare(pd.concat([build(MAIN), build("600000", t_gain=False),
+                              build(CYB, adj=[(0.985, 1.01, 0.6), (0.97, 0.99, 0.4)],
+                                    t_gain=False)], ignore_index=True), pb())
+    P.find_events(x2, pb(), b_hist=bh2)
+    st_ = {r["code"]: r["status"] for r in bh2}
+    ck(st_.get(MAIN) == "成立" and st_.get("600000") == "进行中" and CYB not in st_,
+       "b_hist：成立 / 还在调整的都记；第 2 天就跌破首阳最低价的没进过 B，不记")
+    bs = P.b_stats(bh2, x2, set(), 60)
+    ck(bs["n"] == 1 and bs["to_a"] == 1 and bs["rate"] == 1.0,
+       "转化率只数已经有结果的（还在调整的不算分母）")
+
 
 def check_forward() -> None:
     print("[之后怎么走的]")
@@ -528,8 +556,9 @@ def check_rules_text() -> None:
     ck("2~7 个交易日" in t2 and "≤ 1.25" in t2, "改阈值文案跟着变，不用改代码")
     t3 = "\n".join(P.rules_text(pb(**{"trigger.big": "loose"})))
     ck("≥5% 的阳线" in t3, "trigger.big=loose 时文案说清楚放宽了")
-    ck("剔除：" in t and "90 天内有股东减持" in t and "价格没定的定增" in t,
-       "剔除规则（减持 / 定增）印在规则里，天数从 config 现拼")
+    ck("剔除（两份清单都剔）" in t and "90 天内有股东减持" in t and "价格没定的定增" in t,
+       "剔除规则（减持 / 定增）印在规则里，天数从 config 现拼，两份清单都剔")
+    ck("清单 B（二次进攻前）" in t and "2 天以上" in t, "清单 B 的口径印在规则里")
 
 
 def check_config() -> None:
@@ -564,7 +593,13 @@ def check_products() -> None:
         # 另外三只形态也成立，但按用户 2026-09-28 的规则要剔：近期减持 / 价格没定的定增 /
         # 数据没拉到（宁可为空）
         red, seo, unk = build("600004"), build("600006"), build("600007")
-        allx = pd.concat([a, b, st, red, seo, unk], ignore_index=True)
+        # 清单 B 的另两只：调整 4 天但近期有减持（要剔）；只调整了 1 天（不够格）。
+        # 两只的最后一根都要落在目标日，才是「当天还在等二次进攻」的候选
+        four = [(0.985, 1.01, 0.6), (0.975, 1.005, 0.45), (0.98, 1.008, 0.4), (0.97, 1.01, 0.35)]
+        b_red = build("600008", t_gain=False, adj=four)
+        b_one = build("600009", t_gain=False, adj=[(0.985, 1.01, 0.6)])
+        b_one["date"] = a["date"].iloc[-len(b_one):].to_numpy()
+        allx = pd.concat([a, b, st, red, seo, unk, b_red, b_one], ignore_index=True)
         dp = td / "daily.parquet"
         allx.to_parquet(dp, index=False)
         target = a["date"].iloc[-1]
@@ -595,6 +630,9 @@ def check_products() -> None:
                          "title": "公司:关于持股5%以上股东减持股份的预披露公告"}])
         fake("600006", [{"art": "s1", "date": day(-60), "node": "2", "cats": [CE.PLAN],
                          "title": "公司:2026年度向特定对象发行A股股票预案"}])
+        fake(CYB, [])
+        fake("600008", [{"art": "r2", "date": day(-3), "node": "7", "cats": [RED],
+                         "title": "公司:关于控股股东减持股份计划的公告"}])
         (corp / "_pricing.json").write_text(json.dumps({"s1": {"kind": "bid"}}), encoding="utf-8")
         keep = (P.OUT, P.DATA_DIR, P.DAILY, P.names_for, ds.trade_dates, E._send, E._conf,
                 CE.CACHE, CE.prefetch)
@@ -620,8 +658,14 @@ def check_products() -> None:
             ck(zero not in ex, "回购股减持、「未实施减持」、90 天前的减持、已发完的定增都不剔")
             ck(meta["n_pattern"] == 5 and meta["n"] == 1,
                "形态成立 5 只（ST 1 + 规则剔 3 + 入选 1），清单 1 只")
-            ck(not (P.OUT / "watch.json").exists() and CYB not in json.dumps(meta),
-               "「调整中」的票不落任何产物（只有走完二次进攻的才列）")
+            ck(not (P.OUT / "watch.json").exists(), "旧的 watch.json 不再出（清单 B 用 list_b.json）")
+            bl = json.loads((P.OUT / "list_b.json").read_text(encoding="utf-8"))
+            ck([r["code"] for r in bl] == [CYB] and meta["n_b"] == 1 and meta["n_b_pattern"] == 2,
+               "清单 B 只有走完前三步那只；调整 1 天的不够格，近期减持的剔掉")
+            ck("减持" in meta["excluded_b"].get("600008", ""), "清单 B 也按同样的规则剔，原因写明")
+            ck((P.OUT / f"{P.NAME}B.txt").read_bytes() == (CYB + "\r\n").encode("gbk")
+               and list(pd.read_parquet(P.DATA_DIR / target[:7] / f"pullback_b_{target}.parquet")
+                        ["code"]) == [CYB], "清单 B 的同花顺 txt 和每日清单也落盘")
             ck(sel[0].get("base_run", 0) >= 60, "入选的票带前期调整天数（>= 横盘检查的 60 根）")
             pq = pd.read_parquet(P.DATA_DIR / target[:7] / f"pullback_{target}.parquet")
             ck(list(pq["code"]) == [zero], "每日清单入库 data/pullback/YYYY-MM/")
@@ -649,13 +693,17 @@ def check_products() -> None:
             ck("调整中" not in html and "<details>" in html and "前期调整" in html
                and "缩量调整" in html and "剔除 4 只：" in html and "600004" in html,
                "面板：没有观察名单，历史收起来，有前期调整 / 缩量调整两列，剔了谁写一行")
+            ck("清单 B · 二次进攻前" in html and "复制清单 B" in html and CYB in html
+               and "离突破" in html and "历史上进过清单 B" in html,
+               "面板有清单 B：离突破多少、还能等几天、进过 B 的后来走完多少")
             os.environ.pop("SKIP_MAIL", None)
 
             ck(P.stage_send(target, wait=False) == 0 and len(sent) == 1, "真发信走 _send 一次")
             ms = json.loads((P.OUT / "mail_sent.json").read_text(encoding="utf-8"))
             ck(ms["date"] == target and ms["n"] == 1, "发出去之后才落 mail_sent.json，日期对得上")
             m = sent[0]
-            ck(m["Subject"].startswith(f"[{P.NAME}] {target} · 1只"), "邮件标题带线名、日期、只数")
+            ck(m["Subject"].startswith(f"[{P.NAME}] {target} · 清单A 1只 · 清单B 1只"),
+               "邮件标题带线名、日期、两份清单的只数")
             body = m.get_body(("html",)).get_content()
             ck(zero in body and "名<b>" not in body, "邮件正文前导零、名称转义")
             ck(not re.search(r"__[A-Z]+__", body) and "<script" not in body,
@@ -664,8 +712,10 @@ def check_products() -> None:
                and "调整中" not in body, "邮件：带前期调整天数、剔了谁，不提观察名单")
             plain = m.get_body(("plain",)).get_content()
             ck("前期调整" in plain and "缩量调整" in plain, "纯文本那份也带两个调整天数")
-            ck(any(p.get_filename() == f"{P.NAME}.txt" for p in m.iter_attachments()),
-               "非空清单附同花顺 txt")
+            ck("清单 B" in body and CYB in body and f"[B] {CYB}" in plain,
+               "邮件（HTML 和纯文本）都有清单 B")
+            names = {p.get_filename() for p in m.iter_attachments()}
+            ck({f"{P.NAME}.txt", f"{P.NAME}B.txt"} <= names, "两份非空清单各附一个同花顺 txt")
             # 补发说明：发信晚了 15 分钟以上邮件顶部写明
             sent.clear()
             real_now = P.now_bj
@@ -695,24 +745,31 @@ def check_products() -> None:
         dp = td / "daily.parquet"
         x.to_parquet(dp, index=False)
         target = x["date"].iloc[-1]
-        keep = (P.OUT, P.DATA_DIR, P.DAILY, P.names_for, ds.trade_dates)
+        keep = (P.OUT, P.DATA_DIR, P.DAILY, P.names_for, ds.trade_dates, CE.CACHE, CE.prefetch)
         try:
             P.OUT, P.DATA_DIR, P.DAILY = td / "out", td / "data", dp
+            # 这只调整了 3 天，是清单 B 的候选：也要不联网（空缓存 -> 没法核 -> 剔）
+            CE.CACHE, CE.prefetch = td / "corp", (lambda *a, **k: {})
             P.names_for = lambda cs: {}
             ds.trade_dates = lambda: set(x["date"])
             ck(P.stage_scan(target) == 0, "空榜也退出码 0")
             ck((P.OUT / f"{P.NAME}.txt").read_bytes() == b"", "空榜 txt 是 0 字节，不留上次的代码")
+            m0 = json.loads((P.OUT / "run_meta.json").read_text(encoding="utf-8"))
+            ck("没法核" in m0["excluded_b"].get(MAIN, "") and m0["n_b"] == 0
+               and (P.OUT / f"{P.NAME}B.txt").read_bytes() == b"",
+               "清单 B 的候选数据没拉到也剔（宁可为空），B 的 txt 也是 0 字节")
             pq = pd.read_parquet(P.DATA_DIR / target[:7] / f"pullback_{target}.parquet")
             ck(len(pq) == 0, "空榜也落一个空的每日清单")
-            html = E.build_html(target, [], json.loads(
+            html = E.build_html(target, [], [], json.loads(
                 (P.OUT / "run_meta.json").read_text(encoding="utf-8")))
-            ck("这是常态，不是故障" in html, "空榜邮件写明「这是常态，不是故障」")
-            ck(E.subject(target, []).endswith("今日 0 只"), "空榜标题写「今日 0 只」")
+            ck("这是常态，不是故障" in html and "今天没有走完前三步" in html,
+               "空榜邮件写明「这是常态，不是故障」，清单 B 空也写一句")
+            ck(E.subject(target, [], []).endswith("清单A 0只 · 清单B 0只"), "空榜标题写两份都是 0 只")
             ck(P.stage_scan("2000-01-03") == 0 and json.loads(
                 (P.OUT / "run_meta.json").read_text(encoding="utf-8"))["date"] == target,
                "非交易日 scan 直接退出 0，不动产物")
         finally:
-            (P.OUT, P.DATA_DIR, P.DAILY, P.names_for, ds.trade_dates) = keep
+            (P.OUT, P.DATA_DIR, P.DAILY, P.names_for, ds.trade_dates, CE.CACHE, CE.prefetch) = keep
 
 
 def check_wait() -> None:
