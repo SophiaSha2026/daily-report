@@ -1,35 +1,39 @@
 # CLAUDE.md
 
-A股集合竞价选股流水线。**本地为主，云端托底**（2026-09-15 起）：所有流水线
-首选在本机跑，云端 workflow 只在本机没跑的时候补位（协议见「本地为主、云端
-托底」一节）。每交易日 09:27:30（北京时间）把竞价强弱榜前 10 发到邮箱，
-17:00 后发起涨预测清单，GitHub Pages 面板由云端发布。
+A股晚间选股流水线。**本地为主，云端托底**（2026-09-15 起）：所有流水线在本机跑，
+云端只在本机没跑的时候发提醒（协议见「本地为主、云端托底」一节）。每个交易日
+收盘后发两封邮件：起涨预测（17:00 后）、长期调整突破（17:58），GitHub Pages 面板
+在本机推送后由 `pages.yml` 发布。
 
 主界面是本地控制台 `tools/gui.cmd`（桌面「A股流水线」），
 自动跑靠 Windows 计划任务 `DailyReport-Local-*`（定义在 `tools/setup_tasks.ps1`）。
 
-## 两个系统（仓库里就这两个，别再分出第三个）
+**2026-09-27 早盘系统（早盘选股 + 参数自学 + 学习会诊）整体归档**到
+`archive/morning/`（用户：「北京时间早上的这部分功能以后不再需要」）。它的代码、
+产物、配置、workflow 全在那里，不会被执行；恢复步骤和它专属的硬约束 / 领域知识见
+`archive/morning/RESTORE.md` 和 `archive/morning/CLAUDE_morning.md`。同一天
+形态线换成「长期调整突破」新规则，旧版在 `archive/pullback_v1/`。
+
+## 一个系统（仓库里就这一个，别再分出第二个）
 
 | 系统 | 包含 | 发信时间 | 计划任务 |
 |---|---|---|---|
-| **早盘系统** | 早盘选股 + 参数自学 | 每交易日 09:27:30 | `DailyReport-Local-Morning`（美东周日~周四 18:00 起 3h15m）<br>`DailyReport-Local-Learn`（美东周一~周五 04:40 起 16h） |
-| **晚间系统** | 起涨预测（+ 回调形态，自动已停） | 每交易日 17:00 后，最晚次日 08:30 | `DailyReport-Local-Evening`（美东周一~周五 04:30 起 16h） |
+| **晚间系统** | 起涨预测 | 每交易日 17:00 后，最晚次日 08:30 | `DailyReport-Local-Evening`（08:30Z 周一~周五起 16h，= 北京 16:30 起） |
+| | 长期调整突破 | 每交易日 **17:58**，没开机就开机后补发，最晚次日 08:30 | `DailyReport-Local-Pullback`（09:40Z 周一~周五起 15h，= 北京 17:40 起） |
 
-另有 `DailyReport-Local-Sync`（每 30 分钟只拉远端）。云端托底：`auction.yml`
-代跑早盘（本地发了信就只发布面板）、`evening_check.yml` 本地没跑起涨预测就
-发提醒（云端算不了这条线）。
-
-「参数自学」属于早盘系统（它调的是早盘选股的参数），只是运行时间在收盘后。
+另有 `DailyReport-Local-Sync`（每 30 分钟只拉远端）。云端：`pages.yml` 推送触发
+发布面板；`evening_check.yml` 北京 20:30 看两条线目标日发了没有，没发就一封提醒
+（云端算不了这两条线，数据都在本机）。
 
 ### 名称对照（界面上只用「统一名称」，别用代号）
 
 | 统一名称 | 内部代号 | 归属 |
 |---|---|---|
-| **早盘选股** | auction / morning / 竞价线 | 早盘系统 |
-| **参数自学** | learn / 学习线 | 早盘系统 |
 | **起涨预测** | breakout / 爆发线 | 晚间系统 |
-| **回调形态** | pullback / evening / 形态线 | 晚间系统（自动已停，只剩手动） |
+| **长期调整突破** | pullback / 形态线 | 晚间系统（2026-09-27 新规则，替换回调形态） |
 | **控制台** | GUI | 桌面「A股流水线」，所有东西的唯一入口 |
+| 早盘选股 / 参数自学 / 学习会诊 | auction / learn / council | 已归档（archive/morning/） |
+| 回调形态 | pullback v1 | 已归档（archive/pullback_v1/） |
 
 术语也统一，界面和对用户的说明里不许出现下面左边那列：
 
@@ -42,6 +46,7 @@ A股集合竞价选股流水线。**本地为主，云端托底**（2026-09-15 �
 | 横截面百分位 | 当日全市场排名 |
 | L0 / L1 / L2 | 线性模型 / 树模型 / 序列模型 |
 | 幂等 | 跑过就不再跑 |
+| S / T（形态代码里的变量名） | 首阳 / 二次进攻那天 |
 
 ## 沟通约定
 
@@ -56,209 +61,147 @@ A股集合竞价选股流水线。**本地为主，云端托底**（2026-09-15 �
 
 ## 文件地图
 
-仓库里跑着**两条互不相干的流水线**，共用数据源、邮件底层和 Pages 站点：
+仓库里跑着**两条互不相干的流水线**，共用数据源、日线表、邮件底层和 Pages 站点：
 
-- **竞价线**（早上）：09:25 集合竞价强弱榜，09:27:30 发信
-- **形态线**（收盘后）：启动-缩量回调-再启动。
-  **2026-09-12 用户取消了这份每日报告**，只剩控制台上的手动入口，
-  代码、面板、自测全部保留
+- **起涨预测**（收盘后）：模型打分 -> 清单 A（接近起涨）/ 清单 B（可能见顶）
+- **长期调整突破**（收盘后，17:58 发）：横盘 -> 首阳 -> 缩量调整 -> 二次进攻，纯规则
 
-改其中一条不要顺手动另一条。
+改其中一条不要顺手动另一条。两条线真正共用的只有 `data/breakout/daily.parquet`
+（起涨预测维护，长期调整突破只读）和它的写锁。
 
 ```
-config.yaml              所有阈值。竞价看 screen/scoring，形态看 pullback
-                         learning 段是学习系统自己的超参，不是被学的对象
-prompts/analyst.md       竞价的 LLM 指令
-prompts/pullback_analyst.md  形态的 LLM 指令
-prompts/council/*.md     学习会诊：公共说明 + 六个视角 + 主审的提纲
+config.yaml              长期调整突破的全部阈值（pullback 段）。起涨预测的常量在
+                         src/breakout/daily.py 和 state/breakout/，不在这里。
+                         早盘那些段原样在 archive/morning/config.yaml
 src/
-  datasource.py          数据源层。腾讯批量行情为主，东财单只日线为辅
-  ── 竞价线 ──
-  premarket.py           08:23 构建候选池（两阶段收缩）
-  run_auction.py         竞价主流程，--stage quick / enrich
-  score.py               竞价特征 + 打分排序（纯确定性）
-  ths_export.py          同花顺分层板块 + 竞价面板（PANEL_CSS/REFRESH_JS 共用）
-  selftest.py            竞价离线自测
-  ── 形态线 ──
-  pullback.py            形态主流程，--stage scan / send
-  pullback_export.py     形态面板 + 邮件
-  selftest_pullback.py   形态离线自测
-  ── 学习线（收盘后）──
-  eval_daily.py          入口 --stage intraday/label/brief/learn/race/backfill
-  learn/vscore.py        score.py 的**向量化孪生体**，被等价性断言钉住
-  learn/objective.py     损失函数：软TopK + Huber + 锚定 + L1
-  learn/optimize.py      拟合 + 走向前 + 按天自助
-  learn/gate.py          七道闸 + 「权重和为 1」守卫（八条 Check），全过才改参数
-  learn/backfill.py      历史日线+竞价 -> 训练表
-  learn/sources.py       回填源适配器（免费 / Tushare 运行时探测）
-  learn/intraday.py      盘中五时点采样，卖点研究
-  learn/model_select.py  模型擂台（传统 ML 横评，选出的模型不当排序器）
-  learn/shadow.py        影子排序器（RankHuber 线性，试运行；转正证据与提案）
-  learn/brief.py         归因输入「最差 / 最好」两组的唯一挑法（互斥 + 收益符号）
-  learn/online_eval.py   在线真值天：真发出去的榜 vs 按当前参数回放的榜，两个数
-  learn/panel.py         学习面板 learn.html（阶段进度、双榜对比、裁决时间线）
-  learn/report.py        学习邮件（变更 / 提案）+ state/learning_status.json
-  learn/council/         学习会诊（2026-09-16）：每次学习更新末尾，六个视角各起一个
-                         Opus 进程并行深挖「预测 vs 实际」，主审汇总，提案自动实验，
-                         过闸的等控制台批准。schemas / evidence / agents / experiments /
-                         run / panel。设计 docs/council.md
-  selftest_learn.py      学习线离线自测（含会诊 18 条）
-  selftest_train.py      训练表口径自测：回填的量必须等于生产的量（2026-09-16）
-  ── 爆发线（收盘后，2026-09-12 起）──
+  datasource.py          数据源层。腾讯批量行情为主，东财单只日线为辅；交易日历、
+                         limit_pct / limit_price（涨停价口径的唯一实现）
+  mailer.py              SMTP 发信底层 + send_alert + skip_mail（SKIP_MAIL 的唯一判定）
+  panel_style.py         两个面板共用的 PANEL_CSS / REFRESH_JS（2026-09-27 从已归档的
+                         ths_export.py 抽出来）
+  localenv.py            tools/local.env -> os.environ。本机每个入口先调一次，
+                         否则 SMTP 凭证静默缺失
+  local_run.py           本地一键全流程。--flow breakout / pullback / --sync，
+                         --if-needed 幂等（计划任务反复重试要靠它）。
+                         file_lock 一份实现：git_lock（git 工作区）、data_lock（日线表）
+  build_site.py          把两个面板打包成 _site（入口 index.html + 两个面板），pages.yml 调它
+  refresh_meta.py        刷新代码表 cache/codes.csv（行业板块那半随早盘归档）
+  smoke_test.py          联网冒烟测试（云端 0-冒烟测试 手动 dispatch 才跑）
+  ── 长期调整突破（2026-09-27）──
+  pullback.py            主流程 --stage scan / send。prepare -> find_events（回测和生产
+                         同一个判定函数）-> rank。规则和每个阈值的来历在模块 docstring
+  pullback_export.py     面板（今日 / 调整中 / 最近 30 次成立）+ 邮件
+  pullback_backtest.py   三年回看：频率、卡在哪一步、旋钮对比（--grid）。调 find_events，
+                         不另写判据（selftest_pullback 用 AST 钉住）
+  selftest_pullback.py   离线自测：每条硬规则一个用例 + 产物 / 发信接线
+  ── 起涨预测（2026-09-12 起）──
   breakout/backfill.py   回填三年日线。主源新浪（多进程），腾讯兜底。
-                         --stage update 每日增量（腾讯快照，秒级），refresh 全量重拉
+                         --stage update 每日增量（腾讯快照，秒级），refresh 全量重拉。
+                         写 daily.parquet 的入口全在 data_lock 里，合并后原子换名
   breakout/chips.py      筹码分布**自算**，六项一致性检验钉住
   breakout/label.py      起涨/见顶标注。和 features 物理隔离，防前视偏差
-  breakout/features.py   三层变换（横截面百分位->中性化->正交）+ 六组特征（成交量组 2026-09-15 加）
+  breakout/features.py   三层变换（横截面百分位->中性化->正交）+ 六组特征
   breakout/fselect.py    四道筛。**别改回 select.py**，和标准库冲突
   breakout/build.py      组装训练表
   breakout/model.py      L0 逻辑回归 / L1 LightGBM / L2 GRU / L3 集成
-  breakout/validate.py   走向前 + 验收表
+  breakout/validate.py   走向前 + 验收表；validate.pick 是选票规则的唯一实现
   breakout/arena.py      模型对比主脚本，封存数据的纪律在这里用代码强制
-  breakout/daily.py      每日流程：打分 -> 风险剔除 -> 清单A/B。晚间系统主脚本
-  breakout/export.py     起涨预测的面板 + 邮件
-  breakout/truth.py      历史清单的真值（之后 20 根涨没涨）+ 同期全市场基准，会诊读它
-  breakout/regime.py     每日市场环境指标 state/regime_daily.jsonl，含滚动 20 根的
-                         全市场 50% 基准率（清单命中率只有和它比才有意义）
-  breakout/board_adj.py  板块校正因子的经验贝叶斯收缩（只用过去的月份估，小样本
-                         板块自动拉回全市场，板块间没差异时因子恒为 1）。
-                         2026-09-16 起生产在用：exp_window --adj shrink --save-adj
-                         落 state/breakout/board_adj.json，daily.py 读它
-  breakout/exp_*.py      一次性实验脚本（window 逐月滚动 / calib 分档 / rank / …），
-                         成绩表 STREAK_PERF 来自 exp_window.py 的 window_grid.json
-  ── 控制台（GUI，2026-09-12）──
-  gui/simple.py          首页傻瓜页（2026-09-18）：三条线各一行（状态 / 多久没跑 /
-                         进度条 / 一个按钮）+ 下次开机 + 插没插电 + 三块学习图。
-                         全部北京时间。旧的详细控制台在 /full
+  breakout/daily.py      每日流程：打分 -> 风险剔除 -> 清单A/B
+  breakout/export.py     面板 + 邮件
+  breakout/truth.py      历史清单的真值（之后 20 根涨没涨）+ 同期全市场基准
+  breakout/regime.py     每日市场环境指标 state/regime_daily.jsonl（含滚动 20 根基准率）
+                         truth / regime 以前只有学习会诊在算，2026-09-27 起
+                         local_run.flow_breakout 每天发信前算（truth_and_regime）
+  breakout/board_adj.py  板块校正因子的经验贝叶斯收缩（生产在用，state/breakout/board_adj.json）
+  breakout/exp_*.py      一次性实验脚本，成绩表 STREAK_PERF 来自 exp_window.py
+  selftest_breakout.py   离线自测
+  ── 控制台（GUI）──
+  gui/simple.py          首页傻瓜页：两条线各一行（状态 / 多久没跑 / 进度条 / 一个按钮）
+                         + 下次开机 + 插没插电 + 两块小图。全部北京时间。详细控制台在 /full
   gui/server.py          HTTP 服务。标准库 ThreadingHTTPServer，零第三方依赖。
                          Windows 上端口独占（SO_EXCLUSIVEADDRUSE），双击图标会顶掉旧控制台
-  gui/ui.py              单页界面（HTML/CSS/JS 都在这个字符串里）
-  gui/jobs.py            子进程任务：启动一条流程，把输出实时喂给界面
+  gui/ui.py              详细控制台（HTML/CSS/JS 都在这个字符串里）
+  gui/jobs.py            按钮表 ACTIONS + 子进程任务
   gui/status.py          状态汇总：流程 / 同步 / 排期 / 面板四类信号
-  ── 共用 ──
-  local_run.py           本地一键全流程。--flow morning/evening/learn，
-                         --if-needed 幂等（计划任务反复重试要靠它）
-  localenv.py            tools/local.env -> os.environ。本机每个入口（local_run、
-                         breakout/daily、控制台直接跑的脚本）先调一次，
-                         否则 SMTP 凭证和 OAuth token 静默缺失
-  collect_llm.py         structured_output -> commentary.json（LLM_OUT_DIR 选目录）
-  build_site.py          把两个面板打包成 _site，两条线都调它
-  mailer.py              SMTP 发信
-  tdx_export.py          通达信自定义数据（可选，用户目前不用）
-  refresh_meta.py        每周刷新行业成分 + 代码表
-  refresh_sector.py      Playwright 抓同花顺板块成分
-  smoke_test.py          联网冒烟测试
-.github/workflows/       只有两条带 cron（云端托底），其余只留 workflow_dispatch
-  auction.yml            2-竞价选股 07:40 起四个入口，本地发了信就让位
-  evening_check.yml      8-晚间托底检查 20:30 BJT，本地没跑起涨预测就发提醒
+  selftest_gui.py        控制台和编排层的接线自测
+.github/workflows/       只有 evening_check 带 cron
+  pages.yml              9-发布面板：推送了 out_breakout / out_pullback 的面板就发布
+  evening_check.yml      8-晚间托底检查 20:30 BJT，两条线缺哪条就提醒哪条
   smoke_test.yml         0-冒烟测试（手动）
-  premarket.yml          1-盘前候选池（手动）
-  refresh_meta.yml       3-刷新缓存（手动）
-  refresh_sector.yml     4-刷新板块成分表（手动）
-  pullback.yml           5-形态扫描（手动，每日报告 09-12 已取消）
-  learn.yml              6-自评估与迭代（手动）
-  intraday.yml           7-盘中采样（手动）
-tools/external-trigger/  Cloudflare Worker：07:30 BJT 派发 auction、20:45 派发 evening_check。
-                         第三层触发。停一条线要连它一起停（历史教训 24）
-tools/setup_tasks.ps1    本机四个计划任务的唯一定义
+  refresh_meta.yml       3-刷新代码表（手动）
+tools/external-trigger/  Cloudflare Worker：20:45 BJT 派发 evening_check。第三层触发，
+                         停一条线要连它一起停（历史教训 24）
+tools/setup_tasks.ps1    本机三个计划任务的唯一定义
 tools/evening_check.py   晚间托底检查（只在云端跑）
-tools/yield_check.py     竞价线让位检查（只在云端跑）
-tools/council_query.py   会诊的只读查询工具，LLM 视角进程通过 Bash 白名单调它
-tools/rebuild_all.py     口径改动之后的重建重训流水：起涨 build -> refit ->
-                         exp_window（成绩常量），早盘 build-train。--only / --dry
-tools/update_perf.py     按实验产物改写 export.py 的成绩常量。**默认 --from fixed**
-                         （生产用的那一臂），产物的板块系数和生产对不上就拒绝写
-tools/platform_evidence.py 「突破平台」这个标志的证据：前 10 / 过准入两个口径 +
-                         两个反事实臂，全部按天聚类
-tools/e2e_check.py       端到端运行时测试：真起子进程跑每条线（--dry，不发不推），
-                         查退出码 / 产物日期 / 幂等 / 锁 / 两道防护 / 工作区干净
-cache/                   codes.csv, sector_map.parquet, universe.parquet
-data/YYYY-MM/            auction_*.parquet 竞价快照 / pullback_*.parquet 形态结果
-out/                     竞价当日产物：panel.html, stamp.txt, 竞价_*.txt, detail.csv,
-                         shadow.json（当日影子参考榜，TUI 和学习面板读它）
-out_pullback/            形态当日产物：同上结构
-out_learn/               学习产物：learn.html 和 council.html（两份都进 Pages，
-                         build_site.py 单独拷）、eval_brief.json、PDF
-state/                   学习系统状态：learning_status.json / verdict_log.jsonl /
-                         shadow_model.json / shadow_proposal.json / learned.yaml（接受变更后才有）
-                         push_status.json 上次推送成没成，控制台总览读它
-                         council/ 会诊产物 + proposals.jsonl 台账 + decisions.json
-                         breakout/overrides.json 会诊批准过的起涨常量覆盖
-                         breakout/board_adj.json 收缩估出来的板块系数（生产在用）
-                         breakout/truth.json 历史清单的真值；regime_daily.jsonl 市场环境
-                         lock/<flow>.json 进程锁（教训 23）
+tools/e2e_check.py       端到端运行时测试（联网、分钟级，试跑不发信不推送）
+tools/probe.py           数据源可达性探针（控制台「检查数据源」）
+tools/rebuild_all.py     起涨预测口径改动之后的重建重训流水
+tools/update_perf.py     按实验产物改写 export.py 的成绩常量（默认 --from fixed）
+tools/rerun_breakout.py / resend_breakout.py   起涨预测重算 / 补发历史清单
+tools/dump_st.py         当前 ST 名单 -> cache/st_codes.json（回测剔 ST 用）
+cache/                   codes.csv（代码表）、st_codes.json
+data/breakout/           daily.parquet（三年日线，gitignore）、train.parquet（特征表，
+                         gitignore）、YYYY-MM/breakout_*.parquet（每日清单 A，入库）
+data/pullback/YYYY-MM/   长期调整突破每日清单 pullback_<日>.parquet（空榜也落空文件）
+out_breakout/            起涨预测当日产物
+out_pullback/            长期调整突破当日产物：panel.html stamp.txt selected.json
+                         watch.json history.json run_meta.json mail_sent.json 长期调整突破.txt
+state/                   breakout/（模型、overrides、board_adj、update_status）、
+                         claim/ sent/ alert/ 标记、regime_daily.jsonl、
+                         push_status.json（gitignore）、lock/<线>.json 进程锁（gitignore）、
+                         lock/daily_update.json 日线写锁
+archive/morning/         早盘系统归档（不执行）。RESTORE.md 先读
+archive/pullback_v1/     回调形态 v1 归档（不执行）
 tools/gui.cmd            控制台入口（桌面快捷方式指向它）
 tools/run_local.cmd      计划任务调的本地流程入口，带 --if-needed
-tools/panel.cmd/.ps1     旧的 PowerShell TUI，保留作没有浏览器时的兜底
 ```
 
 ## 改动前必须跑
 
 ```bash
-python src/selftest.py            # 竞价：18 个打分用例（每条准入/剔除规则各一条）+ 17 组不变量
-                                  #   （曲线形状 9 条、规则 9 条、候选池、次新剔除、日线单位、
-                                  #    交易日历、代码表、产物渲染、孪生体、退出码…）+ 1000 压力样本
-python src/selftest_train.py      # 训练表口径：撮合价哨兵、轨迹、候选池、ST、除权、一字板、标签、可学维度（19 组，2026-09-16 加）
-python src/selftest_pullback.py   # 形态：13 条形态判定 + 打分单调性 + 工具函数
-python src/selftest_learn.py      # 学习：32 组，含向量化打分器等价性、闸门接线 AST、邮件接线、会诊
-python src/selftest_gui.py        # 控制台：29 组，按钮接线、流程表一致性、开跑窗口、两道防护
-python src/selftest_breakout.py   # 爆发线：53 组，筹码六项一致性、标签、前视偏差、横截面百分位、选票规则
+python src/selftest_pullback.py   # 长期调整突破：每条硬规则一个用例 + 产物 / 发信接线 + 单一实现的 AST 钉子
+python src/selftest_gui.py        # 控制台 + 编排层：按钮接线、流程表一致性、开跑窗口、计划任务排期、
+                                  #   两道防护、两条线的流程门、早盘归档停干净没有
+python src/selftest_breakout.py   # 起涨预测：筹码六项一致性、标签、前视偏差、横截面百分位、选票规则
 python -m pyflakes src tools      # 静态检查，必须零输出（pip install pyflakes）
 python tools/e2e_check.py         # 端到端运行时测试（联网、分钟级，不发信不推送）
 ```
 
-六条自测是**离线**的，钉的是接线和不变量；`tools/e2e_check.py` 是**运行时**的，
-真起子进程把每条线跑一遍（各条线走 `--dry`，跳过发信和推送），检查
-「跑起来会发生什么」：退出码、产物日期对不对得上目标日、`--if-needed` 的五道闸、
-进程锁挡不挡得住第二个进程、控制台两道防护、SKIP_MAIL 九个取值、
-跑完工作区有没有多出不该有的东西。改了流程编排（local_run / 各线主脚本 / 控制台）
-就该跑它一次。
+三条自测是**离线**的，钉的是接线和不变量；`tools/e2e_check.py` 是**运行时**的，
+真起子进程把每条线跑一遍（各条线走 `--dry`，跳过发信和推送），检查「跑起来会发生什么」：
+退出码、产物日期对不对得上目标日、`--if-needed` 的判定、进程锁挡不挡得住第二个进程、
+控制台两道防护、SKIP_MAIL 九个取值。改了流程编排（local_run / 各线主脚本 / 控制台）
+就该跑它一次。e2e 的试跑会把两条线的产物写成 `dry`，要提交的话先 `git checkout` 回去。
 
-「N 组」数的是各自 `main()` 里的 `check_*` 函数个数，一组里通常有好几条断言；
-每条自测跑完自己会打印「断言失败 N 个」，**以那一行为准**，别信这里的数。
+每条自测跑完自己会打印「断言失败 N 个」，**以那一行为准**。
 
-学习线要额外装 `scikit-learn scipy`，爆发线要 `lightgbm torch`
-（见 `requirements-breakout.txt`）。竞价线和形态线的 `requirements.txt`
-不许动 —— 依赖分线管理。
+起涨预测要额外装 `lightgbm torch`（见 `requirements-breakout.txt`）。
+`requirements.txt` 不许为某一条线乱加依赖 —— 依赖分线管理。
 
-六条自测都是离线的（不联网、不碰 `state/` 和生产目录，产物一律写临时目录），
-加起来十秒量级。**改哪条线就跑哪个，改共用代码全跑。**
+三条自测都是离线的（不联网、不碰 `state/` 和生产目录，产物一律写临时目录），
+加起来二十秒量级。**改哪条线就跑哪个，改共用代码全跑。**
 跑完 `git status` 必须和跑之前一模一样（历史教训 17）。
 
 `selftest_gui.py` 钉的是**接线**不是界面：`gui/status.py` 的 `LINES` 和
 `local_run.py` 的 `FLOWS` 是同一张表的两份副本，漂了的话总览页会长期显示
 「未完成」而流程其实跑完了；两道防护（Host 白名单、写操作 token）失效也是
-静默的，界面上完全看不出来。它还故意把 git 和 PowerShell 换成死实现，
-顺带证明外部命令全挂时页面照样出得来。
+静默的，界面上完全看不出来。
 pyflakes 报「赋值了没用」不是风格问题，是**接错线的信号**：2026-09-04 闸门 3
 那次就是 `bp` 算了没传、传的是阈值（历史教训 11）。
 
-联网测试在**本机**跑：控制台「运行 -> 自测 -> 体检」就是 `tools/probe.py`，
-逐个探行情源可达性。本机实测可达全部源（连 runner 上不通的新浪 vip 和东财都通）。
-云端的 `0-冒烟测试` 还在，手动 dispatch 才跑。
-写代码的沙箱访问不了国内行情源，那里只能跑上面六条离线自测。
+联网测试在**本机**跑：控制台「检查 -> 检查数据源」就是 `tools/probe.py`。
+写代码的沙箱访问不了国内行情源，那里只能跑上面三条离线自测。
 
 ## 硬约束（改代码时不要破坏）
 
-### 1. LLM 绝不参与排序
+编号沿用归档前的：2、3、7、8、9 是早盘系统专属，随归档搬到
+`archive/morning/CLAUDE_morning.md`，不重排，历史教训里引用的还是原编号。
 
-打分和排序必须 100% 确定性，`score.py` 里不许出现任何模型调用。
-LLM 只写 `reason` / `risk` 两句文案。理由：不可复现的排序无法回测、无法归因。
+### 1. 排序 100% 确定性，LLM 不参与
 
-### 2. LLM 失败不能阻断发信
-
-`collect_llm.py` 吞掉所有异常，退出码永远 0。`enrich` 阶段拿不到
-commentary 就在邮件顶部声明「本次无 LLM 分析」照发。已测三种失败场景
-（空输出 / 垃圾 JSON / 代码格式错）。
-
-### 3. 竞价数据窗口只有 09:25:00–09:29:59
-
-09:30 之后 `成交量` 字段开始累积连续竞价，竞价量就被污染了。
-`hard_deadline: 09:26:30` 是死线，超过就放弃并发告警邮件，
-**宁可不发也不发脏数据**。
-
-09:25 到 09:30 之间竞价价格是**固定不变**的。T4（09:25:40）的唯一作用是
-把 T3 漏采的票补回来，不是"复查价格"。别在注释或文档里写成复查。
+两条线都不用 LLM：长期调整突破是纯规则，起涨预测是模型分数 + 规则。
+不可复现的排序无法回测、无法归因。（早盘归档前 LLM 只写两句文案，那套约束在
+archive/morning/CLAUDE_morning.md。）
 
 ### 4. `fetch_quotes` 的 workers 不要超过 5
 
@@ -335,164 +278,6 @@ GitHub runner 上用 Playwright 起 chromium 也一样能过，见 `src/refresh_
 只信 index ≤ 38 的字段。涨停价一律由昨收自行推算（`limit_price()`），
 不要读高位字段——历史上调整过顺序。
 唯一的例外是 `_turnover()` 读 index 38，且取不到时返回 0 不影响主流程。
-
-### 7. claude-code-action 参数
-
-- **没有 `prompt_file` 参数**，只有 `prompt`
-- `model` / `allowed_tools` / `max_turns` 全部已废弃，必须走 `claude_args`
-- 用 `--json-schema` 拿结构化输出，不要让模型自己写文件
-- OAuth token 只对 Claude Code 有效，**会被 Messages API 拒绝**，
-  所以不能用 `anthropic` SDK 直连
-
-### 8. 学习系统改不动准入区间，也改不动 score.py
-
-`state/learned.yaml` 只允许覆盖 `scoring.weights.*` 和三个形状参数
-（`gap_pct_peak` / `auc_ratio_score_hi` / `auc_ratio_decay`），
-白名单在 `cfg.py::_ALLOWED_PREFIX` 里，越界的键整份忽略。
-
-准入区间（涨幅 2~5%、量比 2.5~10）是**用户定的规则**，系统只能提案。
-2026-09-02 用户刚把它们退回初版，机器无权撤销这个决定。
-
-`config.yaml` 永远是人工基线 θ⁰，`git diff` 它只会看到人的意图。
-删掉 `state/learned.yaml` 就是一键回到基线。
-
-六条自测都不许依赖 `state/`，学习系统没跑过也要能全绿。
-
-### 9. `learn/vscore.py` 和 `score.py` 必须逐位一致
-
-前者是后者的向量化孪生体，只为让优化器能在毫秒级重算 30 万行的分数
-（逐行 `score_one` 是 25 分钟）。改任何一个就必须同步改另一个，
-`selftest_learn.py` 用 2000 个随机样本钉住这件事。那条断言一红，
-学到的参数会被生产打分器用另一套语义执行，整个学习系统的结论作废。
-
-## 领域知识（改阈值前必读）
-
-### 两个自定义指标，不要用第三方的「量比」
-
-各家软件 9:25 的量比口径不一致、不可复现。项目自定义：
-
-```
-GAP_NORM  = 高开幅度 / 当日涨停幅度       # 主板10 创业板/科创20 北交所30 ST5
-AUC_RATIO = 竞价成交额 / 昨日全天成交额
-```
-
-`AUC_RATIO` 与传统量比换算（设昨日量 ≈ 5日均量），系数 240：
-
-| AUC_RATIO | ≈ 量比 | 含义 |
-|---|---|---|
-| 0.8% | 1.9 | 常态 |
-| 1.04% | 2.5 | 放量下限（当前配置） |
-| 3.0% | 7.2 | 明显异动（打分饱和点） |
-| 4.17% | 10 | 上限（当前配置） |
-| 8% | 19 | 强异动，当前配置已剔除 |
-| 10% | 24 | 原表「竞价量能 ≥ 昨日全天 10%」在这里，见下 |
-| 20.8% | 50 | 2026-08-24~09-01 用过的上限，现已收回 |
-
-`liangbi_per_auc_ratio: 240` 只用于日志和表格里换算显示，筛选打分一律用
-AUC_RATIO 本身。
-
-#### 阈值变更史
-
-| 日期 | 涨幅 | 量比 | 触发 |
-|---|---|---|---|
-| 初版 | 2%~5% | 2.5~10 | 用户最初那张表 |
-| 2026-08-24 | ≤5%（无下限） | 2.5~50 | 用户放宽 |
-| 2026-09-02 | 2%~5% | 2.5~10 | 用户要求退回初版 |
-
-#### 原表里的「竞价量能 ≥ 昨日全天 10%」为什么没启用
-
-它和「量比 2.5~10」约束的是**同一个变量**：10% 就是 `auc_ratio_min = 0.10`
-（量比 24），而量比上限 10 就是 `auc_ratio ≤ 0.0417`。要求
-`auc_ratio ≥ 0.10` 同时 `≤ 0.0417`，是空集。
-
-2026-09-02 用 08-24 ~ 08-27 四天真实快照实测：
-
-```
-涨幅 2~5% 且量比 2.5~10        39 / 10 / 28 / 37 只
-上面再叠加「量能 ≥ 10%」          0 /  0 /  0 /  0 只
-```
-
-这四天里涨幅 2~5% 且量能真到 10% 的票每天只有 1~2 只，它们的量比是 28~56，
-全部被「量比 ≤ 10」剔除。两条规则选的是不相交的集合，不是「交集小」。
-
-**所以只落实量比那条，10% 那条留在 config 注释里不启用。**
-真要走 10% 口径，得同时把 `auc_ratio_max` 抬到 0.10 以上（量比 24 以上），
-不能只打开下限。`selftest.py::check_curves` 有断言钉住
-`auc_ratio_min < auc_ratio_score_hi < auc_ratio_max`，配成空集会立刻报错，
-不会静默发空榜。
-
-### 涨幅上限是绝对值，不归一
-
-2026-08-24 起，硬性排除里的涨幅判据用 **`gap_pct`（绝对百分点）**，
-不用 `gap_norm`。规则「高开 2%~5%」是绝对数，两端都这么判：
-一只创业板票高开 6.4% 照样出局，不会因为 20cm 折算成 gap_norm 0.32 就放行；
-反过来高开 1.8% 也出局，不会因为「才走了涨停的 9%」就放行。
-
-`gap_norm` 仍然照常计算并写进 `detail.csv`，只是不再参与筛选和打分。
-打分的钟形函数也改用 `gap_pct_min / max / peak`。
-
-**峰值 3.5 不是因为它是区间中点。** 它沿用旧配置对主板的判断
-（`gap_norm_peak: 0.35` = 主板 +3.5%）。2026-09-02 退回 2%~5% 之后，
-3.5 恰好也等于 `(2+5)/2`，这是巧合。以后再动区间，peak 不要跟着中点漂
-——区间边界是准入条件，曲线形状是偏好强度（历史教训第 10 条）。
-
-同一个巧合还让 `f_gap` 的两臂变成等长（各 1.5），
-2026-08-24 那个「共用 `max()` 归一」的 bug 在当前配置下**看不出来**。
-正因为看不出来，分臂归一的代码和 `selftest.py` 的断言都不能撤。
-
-### 打分曲线的形状不能跟着阈值漂
-
-`f_gap` / `f_volume` 里，**曲线形状参数必须和区间上下限解耦**：
-
-- `f_volume` 超过饱和点后的衰减速率由 `auc_ratio_decay` 单独给（0.40，
-  对数刻度：每 e 倍于饱和点扣 0.40 分）。**不要**写成
-  `1 - 0.4*(ratio-sat)/(hi-sat)`，那样抬高 `auc_ratio_max` 会同时把衰减压平。
-  上限的含义是「还能接受」，不是「和饱和点一样好」。
-- `f_gap` 的左右两臂**各自**按自己的跨度归一（`peak-lo` 和 `hi-peak`），
-  不要用 `max(peak-lo, hi-peak)` 给两臂共用。共用时只有长的那一臂能在
-  边界归零，短的那一臂到边界还剩一截，被区间外的 `return 0` 硬切成断崖。
-
-`selftest.py::check_curves` 有 9 条断言钉这两件事，包括「衰减速率与
-`auc_ratio_max` 无关」「每 e 倍于饱和点扣 0.40（量比 19 处 0.61）」
-「min < 饱和点 < max」。这三条都**显式传 hi**，是纯形状断言，
-收窄上限时不会跟着一起失效。改阈值后跑一次自测就能发现形状被带偏。
-
-`check_rules` 另有 4 条，管的是不出现在 `rejected` 里、因而不会被用例覆盖的
-规则。目前钉的是「高位极端放量」扣分：它的触发线一度写成
-`auc_ratio_score_hi * 2`（=6%，量比 14.4），2026-09-02 量比上限收回 10 之后
-那个值落在准入区间之外，扣分永远不会发生 —— 死代码不报错。
-现已改成绝对量比 `high_pos_liangbi_min: 8.0`。
-
-### `min_auc_amount_wan` 不能删
-
-用户选了不限市值。一只 5 亿市值的票竞价成交 20 万也能满足
-`AUC_RATIO ≥ 1.04%`，但盘口买不进去。比例指标在小盘票上会失真，
-所以必须有绝对流动性下限（当前 300 万）。
-
-### 硬性排除的判定顺序有讲究
-
-`score.py::hard_reject` 里「假涨停撤单」必须排在「尾盘跳水」**之前**。
-假涨停同时满足两个条件，顺序反了会给出错误的拒绝原因，
-每日 `detail.csv` 的归因就废了。
-
-### 三次快照对应的判据
-
-| 特征 | 计算 |
-|---|---|
-| 假涨停撤单 | `T1 ≥ 涨停幅度×0.9` 且 `T3 < 涨停幅度×0.5` |
-| 尾盘跳水 | `T2涨幅 − T3涨幅 ≥ 2.0` |
-| 竞价斜率 | `T3 − T1` |
-| 稳步抬升 | `T1 ≤ T2 ≤ T3` |
-
-### 同花顺没有外部数据导入
-
-同花顺**不支持**把外部算好的数值导入成行情列表里可排序的一列。
-社区工具链全是「同花顺 → 通达信」方向的，反向不存在。
-排名只能用分层板块（强/中/观察 txt）表达，理由和风险放 HTML 面板。
-
-`tdx_export.py` 保留着，通达信那边能做真正的评分列，但用户目前只用同花顺。
-注意：通达信的「扩展数据 EXTDATA_USER」只能由本地公式生成，**不能外部导入**；
-能导入的是「自定义数据」（`.901`），格式 `市场|代码|字符串|数值`。别搞混。
 
 ## 历史教训
 
@@ -800,90 +585,97 @@ AUC_RATIO 本身。
     -> `truth.validation_by_board(refresh=True)` -> 六条自测对账 -> 文档。
     少跑任何一步都不会报错，只会让邮件里的数字悄悄属于另一套规则。
 
+37. **停一个系统之前，先查它顺手替别人做了什么**（2026-09-27 归档早盘系统）—
+    早盘那条 `auction.yml` 是全仓库**唯一**发布 Pages 的 workflow，起涨预测的
+    面板一直是它每天早上顺手发上去的；`state/regime_daily.jsonl` 和
+    `state/breakout/truth.json` 的**唯一**写者是学习会诊（每周一次），而起涨预测
+    邮件里的「近期全市场基准」和控制台首页的清单图读的就是它们。只停早盘不接手，
+    这两件事都不会报错：Pages 上的起涨预测面板从此停在归档那天，邮件里的基准
+    一周比一周旧。查法是反过来列：**留下的线读的每一个产物，写者是谁**。
+    现在 Pages 由 `pages.yml` 推送触发发布，truth / regime 由 `local_run.flow_breakout`
+    每天发信前算（`truth_and_regime`，fail-open）。
+
+38. **补跑逻辑要有下界：新线上线那天，计划任务会把「上线前的交易日」当成漏发**
+    （2026-09-27）— 长期调整突破的计划任务是周日注册的，那一刻目标日（最近一个已收盘
+    交易日）是 09-24，窗口开着、没有 sent 标记，登录触发一敲就会把 09-24 的清单当成
+    漏发补一封。不是 bug 的 bug：每一道判断都对，只是没人想过「这条线在 09-24 还不存在」。
+    现在 `local_run.START = {"pullback": "2026-09-28"}`，计划任务不补这之前的日子，
+    手动照跑；控制台显示「09-28 起每天」而不是「没跑」。任何「没跑就补」的逻辑，
+    都要先问一句它从哪天起才该有。
+
 ### 本地为主、云端托底（2026-09-15 起）
 
 用户方针（2026-09-15 定）：**手动 > 本机自动 > 云端。** 控制台手点随时优先；
-到了自动开跑时刻（早盘 08:30、起涨预测 16:30 北京）没手点，计划任务自己跑；
-本机根本没跑（没开机）才轮到云端。全部细节在 OPERATIONS.md 第五节，协议在
-`src/local_run.py` 模块注释，控制台「排期」页显式列出规则和当下判定。要点：
+到了自动开跑时刻（起涨预测 16:30、长期调整突破 17:40，北京）没手点，计划任务
+自己跑；两条线云端都算不了（数据在本机），本机根本没跑的话云端 20:30 只发提醒。
+全部细节在 OPERATIONS.md 第三节，协议在 `src/local_run.py` 模块注释，控制台
+「排期」页显式列出规则和当下判定。要点：
 
 ```
 tools/gui.cmd          控制台，桌面「A股流水线」指向它。手动跑用这个
-tools/setup_tasks.ps1  四个计划任务的唯一定义，改排期改它再重跑
-DailyReport-Local-Morning   竞价线。美东周日到周四 18:00 起每 15 分钟，共 3h15m
-DailyReport-Local-Evening   起涨预测。美东周一到周五 04:30 起每 30 分钟，共 16h
-DailyReport-Local-Learn     学习线。美东周一到周五 04:40 起每 30 分钟，共 16h
-DailyReport-Local-Sync      每天每 30 分钟只拉远端
+tools/setup_tasks.ps1  三个计划任务的唯一定义，改排期改它再重跑
+DailyReport-Local-Evening    起涨预测。08:30Z 周一到周五起每 30 分钟，共 16h（北京 16:30 起）
+DailyReport-Local-Pullback   长期调整突破。09:40Z 周一到周五起每 15 分钟，共 15h（北京 17:40 起）
+DailyReport-Local-Sync       每天每 30 分钟只拉远端
 ```
 
-- **目标日**：竞价线是今天；起涨预测和学习线是最近一个已收盘交易日，
-  窗口跨午夜到次日 08:30（`local_run.FLOWS`，上界小于下界即跨午夜，
-  第五项是自动开跑时刻）。机器整天没开、美东晚上才醒也能补出当天清单。
-- **进程锁** `state/lock/<flow>.json`：控制台按钮和计划任务同一入口，
-  后来者退出 0。2026-09-14 两边各起一个竞价线，发了两封一样的邮件。
-- **云端**：`auction.yml` 每天照常采样，09:28:20 看本地 sent 标记决定发不发；
-  让位时不提交数据、只发布 Pages。起涨预测云端算不了（特征表 2.5GB 在本机，
-  新浪源 runner 不通），`evening_check.yml` 20:30 只发提醒。
+- **目标日**：两条线都是最近一个已收盘交易日，窗口跨午夜到次日 08:30
+  （`local_run.FLOWS`，上界小于下界即跨午夜，第五项是自动开跑时刻）。
+  机器整天没开、美东晚上才醒也能补出当天清单。`local_run.START` 是每条线的
+  上线日，之前的交易日计划任务不补（教训 38）。
+- **17:58**：长期调整突破扫描几秒钟，跑完 `pullback.stage_send` 按墙钟等到
+  `config.yaml` 的 `pullback.send_at`；晚于它才跑完（没开机）就立即发，晚 15 分钟以上
+  邮件顶部写「补发于」。试跑（`--dry`）带 `--no-wait` 不等。
+- **进程锁** `state/lock/<flow>.json`：控制台按钮和计划任务同一入口，后来者退出 0。
+  2026-09-14 两边各起一个竞价线，发了两封一样的邮件。
+- **日线写锁** `state/lock/daily_update.json`：两条线都会去补 `data/breakout/daily.parquet`
+  （`backfill.py --stage update`，merge / refresh / sina 三个入口也拿同一把）。
+  长期调整突破先看补到没有（`daily_ready`，和起涨预测同一份闸），起涨预测在跑就等它，
+  都没补就自己补一次。合并后的日线表先写临时文件再换名，读的一方看不到半截文件。
+- **云端**：`evening_check.yml` 20:30 查 origin 上两条线目标日的 sent 标记，
+  缺哪条就在一封提醒里写哪条；`pages.yml` 推送触发发布面板。
 - **三层触发都要管**：GitHub cron、本机计划任务、Cloudflare Worker
   （`tools/external-trigger/`）。停一条线要三处都停。
 
 跨时区排期的坑，改时刻前先算一遍（2026-09-16 实测纠正）：
 
 - **计划任务的时刻是绝对锚定的，北京时刻不会漂。** `New-ScheduledTaskTrigger -At`
-  会把**注册那一刻**的 UTC 偏移烘进 StartBoundary（导出四个任务全是
-  `2026-09-12T18:00:00-04:00` 这种带偏移的形式），微软文档说带偏移就无视本机
-  时区和夏令时设置。所以漂的是美东墙钟（Morning 夏令时 18:00 EDT、冬令时
-  17:00 EST），北京时刻稳定。**真正的坑是「换个季节重跑 setup_tasks.ps1，
-  北京时刻会整体差一小时」** —— 脚本现在一律按 UTC 写（22:00Z / 08:30Z /
-  08:40Z / 04:15Z，+8 就是北京），注册季节影响不到排期。
-- 美东的星期几和北京的星期几差一天，竞价线按美东**周日到周四**排，
-  按周一到周五排会漏掉北京周一。`DaysOfWeek` 按**本机**日期数，22:00Z 在
-  美东是同一天傍晚，所以写 Sunday~Thursday。
+  会把**注册那一刻**的 UTC 偏移烘进 StartBoundary，微软文档说带偏移就无视本机
+  时区和夏令时设置。所以漂的是美东墙钟，北京时刻稳定。**真正的坑是「换个季节重跑
+  setup_tasks.ps1，北京时刻会整体差一小时」** —— 脚本现在一律按 UTC 写
+  （08:30Z / 09:40Z / 04:15Z，+8 就是北京），注册季节影响不到排期。
+- `DaysOfWeek` 按**本机**日期数。08:30Z / 09:40Z 在美东是同一天凌晨，北京日期和
+  美东日期同一天，写 Monday~Friday；换成跨 UTC 午夜的时刻（比如归档前早盘的 22:00Z）
+  就要改成 Sunday~Thursday。
 
 反复重试是因为笔记本可能整段时间不在线（2026-08-27 漏发过一次）。
-重试安全的前提是 `local_run.py --if-needed` **幂等**。五道闸（`if_needed_skip`）：
-已经在跑 / 目标日跑完了 / 周末 / **非交易日** / 不在开跑窗口或没到自动开跑时刻。
-两处 2026-09-16 审计后改过：
+重试安全的前提是 `local_run.py --if-needed` **幂等**。闸门（`if_needed_skip`）：
+周末（两条线窗口都跨午夜，实际不挡）/ 上线日之前 / 已经在跑 / 目标日跑完了 /
+不在开跑窗口或没到自动开跑时刻。节假日不单独挡：目标日就是节前最后一个交易日，
+早就跑完了。
 
-- **周末那道只挡窗口不跨午夜的线**（`weekend_skip`）。起涨预测和学习线的目标日
-  是最近一个已收盘交易日，北京周六 00:00~08:30（= 美东周五白天）正是补周五清单的
-  时段，以前被整段挡掉，周五收盘后没开机就永远补不出来。
-- **「跑完了」的判据**：`run_meta.json` 的日期对得上**且不是试跑**；被试跑标成
-  `dry` 时回落看 `state/sent/<线>_<目标日>.json`。以前真跑完再点一次「试跑」，
-  run_meta 被标 dry，计划任务下一次敲门就把整条线重跑并再发一封同样的清单。
-  试跑现在也不写 claim / sent 标记。
+- **「跑完了」的判据**：`run_meta.json` 的日期对得上**且**有
+  `state/sent/<线>_<目标日>.json`（两条线都在 `SENT_REQUIRED` 里）。试跑不写 sent 标记，
+  所以真跑完再点一次试跑、run_meta 被标成 dry，也还认得出是跑完了。
 
-**同一天不会重复发信**：`flow_morning` 和 `flow_breakout` 进场先看发信戳
-（`out/mail_sent.json` / `state/sent/breakout_<日>.json`），有就直接退出 0。
-真要重发，删掉那个戳。
+**同一天不会重复发信**：`flow_breakout` 和 `flow_pullback` 进场先看 `done_for`，
+跑完并发过信就直接退出 0。真要重发，删掉 `state/sent/<线>_<日>.json`。
 
 **两条线共用一个 git 工作区**，所以 pull / commit / push 全部包在
 `git_lock()`（`state/lock/git.json`）里；推送冲突走 `merge -X ours`，
 **不再用 `rebase --autostash`** —— 锁串得住 git 命令，串不住对方正在写的产物，
 autostash 会把对方没提交的当天面板还原成前一天，而推送只报「没有需要提交的产物」。
-
-`state/claim/` 和 `state/sent/` 两个标记仍然照写照推，
-云端手动 dispatch 应急时 `tools/yield_check.py` 还读它们。
+同一个工作区也是开发用的：`DailyReport-Local-Sync` 每 30 分钟 `pull --rebase --autostash`
+一次，大改动做到一半别放着过夜。
 
 推送必须自愈，见历史教训 15。`state/push_status.json` 记录上次推送
 成没成，控制台总览页读它——失败要有一个**能被界面查询的对象**，
 只写日志等于没写。
 
-`SKIP_MAIL=1` 环境变量让 enrich/send 生成全部产物但不发邮件，
-本地 dry-run 和远端让位共用这个开关。判定只有一份实现
-`mailer.skip_mail()`：**只认 `1` / `true`（不分大小写，两端空白忽略）**，
-`0` / `false` / `yes` / `no` / 空 / 不设 一律照发。
-2026-09-16 前四处各写各的 —— 三条业务线用真值判断（`if os.environ.get(...)`，
-于是 `"0"` 也跳过），`learn/report.py` 用 `== "1"`：往 `tools/local.env` 里写
-一行 `SKIP_MAIL=0` 想「明确开启发信」，早盘/形态/起涨预测三条线会全部静音，
-而学习和会诊邮件照发；写 `true` 想全部静音则正好反过来。
-`selftest.py` 有九个取值的断言，外加 AST 断言「业务线里不许再出现
-`environ.get("SKIP_MAIL")`」。
-
-本地 LLM 走 `learn/llm_local.py`：OAuth 自动识别链是
-环境变量 -> tools/local.env 的 CLAUDE_CODE_OAUTH_TOKEN -> CLI 登录态。
-CLI 的坑：**认证失败时退出码 1 但 stdout 仍是合法 JSON**，错误在
-is_error/result 字段里，stderr 是空的。要解析 JSON 不能只看退出码。
+`SKIP_MAIL=1` 环境变量让 send 阶段生成全部产物但不发邮件，本地试跑用它。判定只有
+一份实现 `mailer.skip_mail()`：**只认 `1` / `true`（不分大小写，两端空白忽略）**，
+`0` / `false` / `yes` / `no` / 空 / 不设 一律照发。2026-09-16 前四处各写各的，
+往 `tools/local.env` 里写一行 `SKIP_MAIL=0` 想「明确开启发信」，三条线会全部静音。
 
 计划任务一律经 `tools/headless.vbs` 起（wscript 无控制台），
 直接指到 cmd.exe 会闪黑框，任务设隐藏也没用。
@@ -896,97 +688,76 @@ GitHub cron 实测连续两天严重延迟或整段丢失（08-24 延迟 97 分�
 - **job 内自旋等待到精确时刻**，触发时刻只决定「来不来得及」，不决定采样时刻
 - **提前量堆在最早那个入口上**，不是靠加入口个数。平台拥堵时所有 schedule
   事件一起顺延，一堆挤在一起的入口等于一个入口
-- **本机计划任务做备份触发**（`tools/setup_tasks.ps1`），跨时区排期两个坑：
+- **本机计划任务是主力触发**（`tools/setup_tasks.ps1`），跨时区排期两个坑：
   计划任务的时刻是绝对锚定的（StartBoundary 烘进了注册那一刻的 UTC 偏移），
   所以北京时刻不漂、但换季重跑注册脚本会整体差一小时 —— 现在一律按 UTC 写；
-  美东的星期几和北京的星期几差一天，按美东周一到周五排会漏掉北京周一
+  跨 UTC 午夜的时刻，美东的星期几和北京的星期几差一天（归档前的早盘就是这样）
 
-## 形态线的领域知识
+## 长期调整突破的领域知识（2026-09-27）
 
-### 三段条件是硬门槛，打分只排序
+### 用户的规则和量化口径
 
-用户 2026-08-26 给的规则：
+用户原话三段（「最好」的都只排序，不决定入选）：
 
-| 段 | 条件 |
-|---|---|
-| 启动日 S | 涨停或涨幅 ≥5%；成交量 ≥ 前一日 1.5 倍；换手 5%~10% |
-| 调整期 | S+1 到 T-1，1~6 个交易日；缩量；期间最低价 ≥ S 日最低价 |
-| 执行日 T | 涨幅 ≥5%；成交量 ≥ 前一日 1.5 倍；换手 5%~10% |
+| 段 | 用户原话要点 | 量化（config.yaml pullback 段） |
+|---|---|---|
+| 横盘 | 3 个月以上，低成交量、窄幅震荡 | 首阳前 60 个交易日：收盘价最高/最低 ≤ 1.30；首阳量 ≥ 这 60 日均量 × 3，且大于其中任何一天 |
+| 首阳 | 倍量（≥ 前一日 1.5 倍）涨停（沪深主板）；或 ≥10% 且 1.5 倍量（科创/创业/北交所） | 主板 60/00 涨停；30/68/8/4/9 段涨幅 ≥10%；量 ≥ 前一日 × 1.5 |
+| 调整 | 随后两到三个交易日开始缩量调整（最好缩至首阳一半以下），不跌破首阳最低点或开盘价 | 2~10 个交易日；每天量 < 首阳、均量 ≤ 首阳 80%；最低价 ≥ 首阳最低价；收盘 ≤ 首阳最高价 |
+| 二次进攻 | 再来一根倍量大阳线突破前高（量最好超过首阳），收盘超过首阳最高价 | 调整后**第一次**收盘站上首阳最高价那天：同样的大阳线定义 + 量 ≥ 前一日 × 1.5 |
 
-三段全是准入条件，`pullback.weights` 只决定榜内顺序，不决定谁上榜。
+几处必须由我们来定、而用户可能会问的：
 
-### 「涨停或涨幅≥5%」只判后者
+- **「低成交量」对首阳说话**。和「此前 120 日」比会漏掉长期地量的票（601326 横盘日均
+  换手 0.5%，因为更早更冷清被判不合格），和全市场比会系统性排除小盘。用户的意思是
+  「冷清很久、突然放量」，所以量化成「首阳量 ≥ 横盘均量 3 倍且是 3 个月来最大量」。
+- **「最低点或开盘价」取最低点当硬门槛**：开盘价 ≥ 最低价恒成立，「或」取宽的那个；
+  不破开盘价放进加分项（`adjust.floor: open` 是更严的开关）。
+- **第二根大阳线和首阳同一个定义**（用户原话「以此为基准：第一根大阳线」「再次来一根」）。
+  代价是主板第二根也要涨停，频率偏低；`trigger.big: loose` 放宽成「涨幅 ≥5% 的阳线」，
+  三年回看从 69 次变成 149 次。
+- **第一次站上首阳高点就是考卷**。那一天量不够、不是大阳线，这段形态就作废，
+  不等下一次 —— 否则「突破」可以在任何一次反弹上补认，调整期就没有了意义。
 
-非 ST 票的涨停幅度是 10/20/30%，全都 ≥5%，涨停是「涨幅 ≥5%」的真子集。
-ST 本来就排除。写成两个条件是冗余，不是遗漏。
+### 频率：大多数交易日是 0 只
 
-### 「量能」指成交量，不是成交额
+2023-01 ~ 2026-09（905 个交易日）按默认口径回看 69 次，有成立的交易日 63 天，
+平均每月约 1.6 次；板块分布 创业板 31 / 北交所 14 / 主板 12 / 科创板 12。
+主板少，是因为主板两根都要涨停，另外三个板块只要 ≥10%。
+**空榜是常态，这一点必须写在邮件和面板里**，否则用户会以为流水线坏了。
+「之后 20 天怎么走」只是描述（样本内、阈值看过这段历史才定），面板里标了，
+不要把它写成预期收益。
 
-成交额受价格影响：同样的换手，在涨停日的成交额天然更大，拿它判「放大
-1.5 倍」会系统性偏松。`vol_ratio` 一律用成交量（手）。
+### 数据：读本机三年日线，不联网逐只拉
 
-### 历史换手率是反推的
+`data/breakout/daily.parquet` 是新浪前复权 + 腾讯快照每日追加，全市场 5500 只 × 三年，
+一次读进来 1 秒，整张表扫一遍形态几秒钟。所以回测和生产是同一个函数在同一张表上跑
+（`find_events`），生产只取「二次进攻日 == 目标日」的那几行，面板里「三年同口径 N 次」
+也从同一次调用里数出来。两个前复权的坑：
 
-腾讯批量行情 index 38 是换手率，今天的能直接读；历史日线两条路里只有东财
-带换手率，腾讯 K 线不带。所以统一按
-
-```
-历史换手率 = 今日换手率 × (历史成交量 / 今日成交量)
-```
-
-反推。流通股本在 7 个交易日内基本不变，恒等式成立。**期间有增发或大额解禁
-的票会失真**，是已知误差，不为它单独去拉股本表。东财那路带真值时优先用真值。
-
-### 多个候选启动日取最近的那个
-
-不是取最强的。形态讲的是「上一次启动之后的这一段回调」，取更早的启动日会让
-调整期跨过一次新的放量，那就不是同一段结构了。
-
-### 这个形态多久出一次票：平均每个交易日约 1 只
-
-2026-08-26 抽样实测（`src/pullback_backtest.py`，754 只样本 x 30 个交易日）：
-
-```
-30 个交易日，样本命中 5 次，放大系数 7.4x -> 全市场合计约 37 只
-平均每交易日：样本 0.17 只，全市场约 1 只
-30 天里 26 天是 0 只，只有 3 天出票（08-04 一只、08-13 两只、08-14 两只）
-```
-
-落选归因（已过执行日三条件、再倒回去找形态的那 236 个样本日）：
-
-```
-窗口内无合格启动日 142   启动日量比不足 51   有启动日但调整段不合格 13
-启动日换手出界 12   调整期有一天没缩量 6   跌破启动日最低价 6   均量比超上限 1
-```
-
-**所以「今天 0 只」是常态，不是故障。** 这一点必须写在邮件和面板里，
-否则用户会以为流水线坏了。样本只有 5 次命中，估计值误差很大，别把
-「每天 1 只」当成精确数字。
-
-想放宽的话，按上面的归因，收益最大的三个旋钮依次是：
-`launch.vol_ratio_min`（1.5 -> 1.3）、`adjust.max_days`（6 -> 10）、
-`launch.turnover_min/max`（5~10 -> 4~12）。
-
-### 收盘后跑，早触发要防
-
-数据窗口和竞价相反：收盘后数据就定死了，17:00 跑和 19:00 跑结果一样，
-所以 `hard_deadline` 给到 22:00，cron 迟一两小时无所谓。
-真正要防的是**早**：手动 dispatch 到盘中会扫到实时数据，涨幅和量都没定型。
-`stage_scan` 会自旋等到 `run_at`。
+- **涨停判定要容 ±1 分**。复权段（最近一次除权之前）的价格被整体缩放再四舍五入，按昨收
+  重算的涨停价会差 1 分。全表实测收在最高价、离涨停价「高 1 分」2634 次、「低 1 分」
+  2524 次，几乎对称 —— 几乎全是舍入，真「差一分没封住」可以忽略。判据是
+  「收在最高价且不低于涨停价 1 分以上」。
+- **送转让成交量不可比**。复权只调价格不调量，10 送 10 之后每天的量天然翻倍，会伪造
+  「倍量」。流通股本一天变 20% 以上（`guard.os_jump_max`）出现在首阳、调整期、二次进攻
+  任何一天，这段就作废；横盘期里的不管（送转只会让横盘均量偏大，是保守的一侧）。
+  第一版连横盘期一起挡，把 300461（2026-01-23 标准形态）误杀了。
 
 ### 一个仓库只有一份 Pages 部署
 
-两条线都调 `build_site.py`，它从 `out/` 和 `out_pullback/` 各取一份凑齐再发布。
+两条线的面板都由 `build_site.py` 凑齐再发布（`pages.yml` 推送触发）。
 **不要退回成各自 `mkdir _site && cp`**，那样谁后跑谁把对方的页面冲掉。
-两个面板的 stamp 文件在站点根目录会撞名，所以形态那份发布成
+两个面板的 stamp 文件在站点根目录会撞名，所以发布成 `stamp-breakout.txt` /
 `stamp-pullback.txt`，面板里的 `__STAMPFILE__` 占位符就是干这个的。
+根目录 `index.html` 是 build_site 生成的入口页（归档前是早盘竞价面板）。
 
 ### GitHub Pages 的 CDN 缓存
 
-`index.html` 的响应头是 `Cache-Control: max-age=600`。邮件到了点进去经常还是
-上一个交易日的面板。页面改不了响应头，所以让它自己发现过期：轮询
-`stamp.txt?cb=<随机>`，不一致就跳到 `?v=<新stamp>`（不同缓存键必然回源）。
-`ths_export.REFRESH_JS` 是这段脚本，两个面板共用。
+响应头是 `Cache-Control: max-age=600`。邮件到了点进去经常还是上一次的面板。
+页面改不了响应头，所以让它自己发现过期：轮询 `stamp-*.txt?cb=<随机>`，
+不一致就跳到 `?v=<新stamp>`（不同缓存键必然回源）。`panel_style.REFRESH_JS`
+是这段脚本，两个面板共用。
 
 ## 用户偏好
 

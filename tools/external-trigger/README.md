@@ -4,7 +4,7 @@
 整段不触发；本机计划任务在机器睡着或关机时形同虚设。这一层跑在
 Cloudflare 边缘网络，和上面两者完全独立，常年在线。
 
-免费额度足够：每天两次定时触发，远低于 Workers 免费版每天 10 万次请求。
+免费额度足够：每天一次定时触发，远低于 Workers 免费版每天 10 万次请求。
 
 ## 一次性配置，约 5 分钟
 
@@ -43,7 +43,7 @@ npx wrangler deploy
 https://daily-report-trigger.<子域>.workers.dev/check
 ```
 
-返回 `"status": 200` 和六个 workflow 的名字，就说明 token 有效、
+返回 `"status": 200` 和仓库里 workflow 的名字，就说明 token 有效、
 链路通了。**这个自检不会真的派发**，可以随时点。
 
 想立刻实测一次真的派发：Cloudflare 控制台 → Workers → 这个 Worker →
@@ -59,27 +59,26 @@ Cloudflare 控制台 → Workers → daily-report-trigger → Logs（实时日�
 
 [cron-job.org](https://cron-job.org)，免费，纯网页配置，不用写代码：
 
-- URL：`https://api.github.com/repos/SophiaSha2026/daily-report/actions/workflows/auction.yml/dispatches`
+- URL：`https://api.github.com/repos/SophiaSha2026/daily-report/actions/workflows/evening_check.yml/dispatches`
 - Method：POST
 - Headers：
   - `Authorization: Bearer <你的token>`
   - `Accept: application/vnd.github+json`
   - `X-GitHub-Api-Version: 2022-11-28`
 - Body：`{"ref":"main"}`
-- 时间：UTC 23:30，每天
-
-形态那条同理，把 `auction.yml` 换成 `pullback.yml`，时间改成 UTC 09:05
-周一到周五。
+- 时间：UTC 12:45，每天
 
 ## 时间对照
 
-| 北京 | UTC cron | 触发 |
+| 北京 | UTC cron | 派发 |
 |---|---|---|
-| 每天 07:30 | `30 23 * * *` | 竞价（job 内自旋等到 09:19:40 采 T1） |
-| 每天 17:05 | `5 9 * * *` | 形态（收盘后，数据已定型） |
+| 每天 20:45 | `45 12 * * *` | `evening_check.yml`：晚间两条线（起涨预测、长期调整突破）目标日没发出去就发提醒 |
+
+2026-09-27 早盘系统归档，北京 07:30 派发 `auction.yml` 的 `30 23 * * *` 删掉；
+2026-09-15 起不再派发 `pullback.yml`（北京 17:05 那条）。改完 `npx wrangler deploy`，
+`wrangler.toml` 的 crons 和 `worker.js` 的 ROUTES 必须逐字对应（selftest_gui 钉住）。
 
 **不限定星期是刻意的。** Cloudflare 的 cron 解析器拒绝 `0-4` 这种星期范围
-（`invalid cron string ... code 10100`）；而且竞价那条跨 UTC 午夜，
-「UTC 星期几」和「北京星期几」会差一天，是最容易写错的地方。
-干脆每天都触发,两条流水线都会先查新浪交易日历，非交易日直接退出，
-不发邮件也不留数据。代价只是周末两次空跑，每次不到一分钟。
+（`invalid cron string ... code 10100`）；而且跨 UTC 午夜时「UTC 星期几」和
+「北京星期几」会差一天，是最容易写错的地方。干脆每天都触发，evening_check 自己
+先查新浪交易日历，非交易日直接退出，不发邮件也不留数据。

@@ -47,6 +47,7 @@ import argparse
 import json
 import logging
 import math
+import os
 import random
 import sys
 import time
@@ -251,6 +252,26 @@ def stage_daily() -> int:
     return merge_daily()
 
 
+def write_atomic(df: pd.DataFrame, target: Path, tries: int = 20) -> None:
+    """先写临时文件再整体换名：读的一方永远看不到写了一半的 parquet。
+
+    2026-09-27 起日线表有两条线在读（起涨预测、长期调整突破），补数据可能
+    发生在另一条线正在读的时候。直接 to_parquet 会把目标截断重写，那几秒里
+    读到的是半截文件。Windows 上目标正被别人打开时 os.replace 会
+    PermissionError，读一次不到两秒，所以短重试。
+    """
+    tmp = target.with_name(target.name + ".tmp")
+    df.to_parquet(tmp, index=False)
+    for i in range(tries):
+        try:
+            os.replace(tmp, target)
+            return
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(0.5)
+
+
 def merge_daily(pattern: str = "daily_*.parquet") -> int:
     shards = sorted(RAW.glob(pattern))
     if not shards:
@@ -279,7 +300,7 @@ def merge_daily(pattern: str = "daily_*.parquet") -> int:
     df = (df.drop_duplicates(["code", "date"], keep="last")
             .sort_values(["code", "date"]))
     OUT.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(target, index=False)
+    write_atomic(df, target)
     log.info("日线合并完成：%d 行，%d 只，%s .. %s -> %s",
              len(df), df.code.nunique(), df.date.min(), df.date.max(),
              target.name)
@@ -600,7 +621,29 @@ def _write_status(payload: dict) -> None:
         log.warning("update_status.json 写不出来：%s", e)
 
 
+def _lock_path() -> Path:
+    """日线写锁的位置：STATE（state/breakout）旁边的 state/lock/。
+    跟着 STATE 走，自测把 STATE 换成临时目录时锁也进临时目录。"""
+    return STATE.parent / "lock" / "daily_update.json"
+
+
 def stage_update(target: str = "") -> int:
+    """stage_update 的入口：先拿日线表的写锁（state/lock/daily_update.json）。
+
+    2026-09-27 起起涨预测和长期调整突破两条线都会来补同一张表。锁里再判一次
+    「覆盖到了没有」：后来的那个等前一个补完，看到已经覆盖就走「不用追加」。
+    """
+    sys.path.insert(0, str(ROOT / "src"))
+    import local_run as LR
+    try:
+        with LR.data_lock(path=_lock_path()):
+            return _stage_update(target)
+    except LR.LockBusy as e:
+        log.error("日线表正被别的进程补着，这次不补：%s", e)
+        return 1
+
+
+def _stage_update(target: str = "") -> int:
     """把最近一个已收盘交易日追加进 daily.parquet。秒级，每天收盘后跑。
 
     返回 0 表示 daily.parquet 已经覆盖到目标日（不管是刚追加的还是本来
@@ -632,6 +675,16 @@ def stage_update(target: str = "") -> int:
                  hist_max, int(cnt.loc[hist_max]), target)
         # 这条早退路也要写账：local_run.flow_breakout 读 update_status.json 判
         # 「今天缺了谁」，最常见的一条路不写的话，那边只能记一行「没写账」。
+        # 但同一个目标日已经有一份真追加过的账（另一条线刚补过），就别拿
+        # 「short 为空」盖掉它：起涨预测靠 short 判「成片补不上就不出清单」。
+        try:
+            prev = json.loads((STATE / "update_status.json").read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            prev = {}
+        if prev.get("date") == target and prev.get("ok", True)                 and prev.get("note") != "已覆盖，本轮没有追加":
+            log.info("目标日 %s 的补数据记账已经在了（%s），不覆盖",
+                     target, "追加 %s 只" % prev.get("appended"))
+            return 0
         try:
             STATE.mkdir(parents=True, exist_ok=True)
             (STATE / "update_status.json").write_text(json.dumps(
@@ -911,16 +964,27 @@ def main() -> int:
     ap.add_argument("--target", default="",
                     help="目标日 YYYY-MM-DD，由编排层传入（只 --stage update 用）")
     a = ap.parse_args()
-    if a.stage == "merge":
-        return merge_daily(pattern="sina_*.parquet")
     if a.stage == "update":
-        return stage_update(target=a.target)
-    if a.stage == "refresh":
-        return stage_refresh()
+        return stage_update(target=a.target)      # 锁在 stage_update 里拿
+    if a.stage in ("merge", "refresh", "sina"):
+        # 这三个也会重写 daily.parquet（控制台「全量回填」按钮走 refresh），
+        # 和 update 用同一把写锁。只在入口这一层拿：stage_update 缺好几天时
+        # 会在锁里直接调 stage_refresh，里面再拿一次就成了自己清自己的锁
+        sys.path.insert(0, str(ROOT / "src"))
+        import local_run as LR
+        LIMIT["n"] = a.limit
+        try:
+            with LR.data_lock(path=_lock_path()):
+                if a.stage == "merge":
+                    return merge_daily(pattern="sina_*.parquet")
+                if a.stage == "refresh":
+                    return stage_refresh()
+                return stage_daily_sina()
+        except LR.LockBusy as e:
+            log.error("日线表正被别的进程写着：%s", e)
+            return 1
     rc = 0
     LIMIT["n"] = a.limit
-    if a.stage == "sina":
-        return stage_daily_sina()
     if a.stage == "daily":
         rc |= stage_daily()
     if a.stage == "shares":

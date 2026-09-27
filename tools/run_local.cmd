@@ -5,7 +5,7 @@ REM  trigger_auction.cmd / trigger_pullback.cmd, which only DISPATCHED the
 REM  cloud workflow. Since 2026-09-12 every pipeline runs on this machine and
 REM  the repo is version control only, so there is nothing to dispatch.
 REM
-REM  Usage:  run_local.cmd morning | breakout | learn | evening | sync
+REM  Usage:  run_local.cmd breakout | pullback | sync
 REM          sync = only pull what the cloud produced; runs no flow.
 REM
 REM  Keep this file PURE ASCII. cmd.exe reads .cmd in the OEM code page, so
@@ -26,14 +26,14 @@ REM  A scheduled task does not necessarily inherit the interactive PATH
 REM  order, so resolve 3.11 explicitly and only fall back to PATH.
 REM
 REM  Log: tools/local_flow_<flow>.log (gitignored). One file per flow: while
-REM  a long flow (morning waits ~2.5 h for the auction) holds its log open,
+REM  a long flow (pullback waits until 17:58 to mail) holds its log open,
 REM  a second cmd cannot append to the same file ("being used by another
 REM  process") and the other tasks would silently not run at all.
 REM ===========================================================================
 setlocal
 set "ROOT=%~dp0.."
 set "FLOW=%~1"
-if "%FLOW%"=="" set "FLOW=morning"
+if "%FLOW%"=="" set "FLOW=breakout"
 set "LOG=%~dp0local_flow_%FLOW%.log"
 
 set "PY=C:\Users\xueji\AppData\Local\Programs\Python\Python311\python.exe"

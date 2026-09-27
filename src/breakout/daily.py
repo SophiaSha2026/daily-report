@@ -88,12 +88,13 @@ MIN_HISTORY_DAYS = 120
 
 
 def load_overrides() -> dict:
-    """学习会诊批准过的常量覆盖（state/breakout/overrides.json）。
+    """常量覆盖（state/breakout/overrides.json）。
 
     只认 SCORE_MIN / CAP_A / MIN_STREAK / drop_features / BOARD_ADJ 五个键，
     其余忽略（BOARD_ADJ 里也只认四个板块名）。
-    文件由 learn/council/experiments.apply 写，人在控制台批准才会有；
-    删掉文件 = 回到代码里的默认值。读失败按没有处理，不许影响出清单。
+    文件原本由学习会诊的批准流程写（learn/council/experiments.apply，2026-09-27
+    随早盘系统归档到 archive/morning/）；现在只剩手工改这一条路，批准过的那份
+    照常生效。删掉文件 = 回到代码里的默认值。读失败按没有处理，不许影响出清单。
     """
     p = ROOT / "state" / "breakout" / "overrides.json"
     try:
@@ -863,7 +864,7 @@ def stage_send() -> int:
     # SKIP_MAIL 那条路和这条路退出码都是 0，local_run 只看退出码就推
     # state/sent/breakout_<date>.json，云端托底看 run_meta 日期也判「跑完了」，
     # 三层保护（重试、云端提醒、控制台）会在同一天一起报正常。
-    # 竞价线的对应物是 out/mail_sent.json（run_auction.py），这里照抄。
+    # 长期调整突破的 out_pullback/mail_sent.json 是同一个写法。
     p = OUT / "mail_sent.json"
     tmp = p.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(

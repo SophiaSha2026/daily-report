@@ -126,12 +126,14 @@ def t_hist():
     return f"{len(h)} 根K线 | {' / '.join(detail)}"
 
 
-def t_scoring():
+def t_pattern():
+    """长期调整突破的离线自测（早盘系统 2026-09-27 归档前这里跑的是竞价打分自测）。"""
     import subprocess
-    r = subprocess.run([sys.executable, str(Path(__file__).parent / "selftest.py")],
-                       capture_output=True, text=True, timeout=90)
+    r = subprocess.run([sys.executable, str(Path(__file__).parent / "selftest_pullback.py")],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       timeout=120)
     assert r.returncode == 0, r.stdout[-400:]
-    return "12 边界用例 + 1000 压力样本 全通过"
+    return "形态判定用例全通过"
 
 
 if __name__ == "__main__":
@@ -144,7 +146,7 @@ if __name__ == "__main__":
     check("全市场快照(腾讯)", t_spot)
     check("交易日历", t_calendar)
     check("日线历史(东财主/腾讯辅)", t_hist)
-    check("打分逻辑自测", t_scoring)
+    check("形态判定自测", t_pattern)
     print("-" * 72)
     print("以下为非关键项，失败不影响运行：")
     soft = len(FAIL)

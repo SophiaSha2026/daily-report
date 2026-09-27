@@ -1,5 +1,5 @@
 """
-起涨预测的面板和邮件。样式复用 mailer 和 ths_export，和另外两条线一致。
+起涨预测的面板和邮件。样式复用 mailer 和 panel_style，和长期调整突破那条线一致。
 
 分数是排名不是概率
 ------------------
@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mailer import _conf, _send          # noqa: E402
-from ths_export import PANEL_CSS, REFRESH_JS  # noqa: E402
+from panel_style import PANEL_CSS, REFRESH_JS  # noqa: E402
 
 log = logging.getLogger("breakout.export")
 

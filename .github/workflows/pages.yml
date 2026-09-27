@@ -1,0 +1,49 @@
+name: 9-发布面板（推送触发）
+
+# 2026-09-27 起的 Pages 发布入口。
+#
+# 以前 Pages 是早盘那条 auction.yml 每天早上顺手发布的：晚间两条线的面板
+# 要等到第二天早上才上线。早盘系统归档之后改成**推送触发**：本机跑完把
+# out_breakout/ out_pullback/ 推上来，这里一两分钟内发布，邮件里的在线面板
+# 链接点进去就是当天的。
+#
+# 没有 cron：它只在面板真的变了的时候跑。控制台总览的「云端托底」卡片数的是
+# 带 cron 的 workflow，这一条不在里面。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "out_breakout/panel.html"
+      - "out_breakout/stamp.txt"
+      - "out_pullback/panel.html"
+      - "out_pullback/stamp.txt"
+      - "src/build_site.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 两条线前后脚推送时只留最后一次：build_site 每次都从仓库里取两个面板凑齐，
+# 最后那次发布的就是完整站点
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # ref 显式给：workflow_dispatch 的 github.sha 钉死在派发那一刻
+      # （2026-08-26 实际发生过拿旧 tip 发布），给了 ref 就是 checkout 时刻的分支 tip
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      # build_site 只用标准库，系统 python3 就够
+      - run: python3 src/build_site.py
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+      - uses: actions/deploy-pages@v4

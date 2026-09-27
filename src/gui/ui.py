@@ -7,8 +7,8 @@
 字段名要同时动两处、还要处理静态文件路由和缓存。等到第二个页面出现
 再拆不迟。
 
-样式沿用 ths_export.PANEL_CSS 的配色（#14161a 底、#c1440e 强调），
-这样右侧 iframe 里嵌的三个面板和外壳是同一套视觉，不会像两个软件。
+样式沿用 panel_style.PANEL_CSS 的配色（#14161a 底、#c1440e 强调），
+这样右侧 iframe 里嵌的两个面板和外壳是同一套视觉，不会像两个软件。
 故意不 import 那份 CSS：面板的 CSS 要跟着邮件正文走，控制台的不用，
 共用会让两边互相绊住。
 """
@@ -186,18 +186,11 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
   <section id="v-panel" hidden class="flush">
     <div class="frame">
       <div class="tabs">
-        <span class="tabgrp">早盘系统</span>
-        <button data-p="auction" class="on">早盘选股</button>
-        <button data-p="learn">参数自学</button>
-        <span class="tabsep"></span>
         <span class="tabgrp">晚间系统</span>
-        <button data-p="breakout">起涨预测</button>
-        <button data-p="pullback">回调形态</button>
-        <span class="tabsep"></span>
-        <span class="tabgrp">学习</span>
-        <button data-p="council">学习会诊</button>
+        <button data-p="breakout" class="on">起涨预测</button>
+        <button data-p="pullback">长期调整突破</button>
       </div>
-      <div class="body"><iframe id="pframe" src="/panel/auction"></iframe></div>
+      <div class="body"><iframe id="pframe" src="/panel/breakout"></iframe></div>
     </div>
   </section>
 
@@ -302,26 +295,24 @@ function sysCard(no, title, when, items) {
 function lineOf(s, key) { return s.lines.find(l => l.key === key) || {}; }
 
 function pickState(l, s) {
-  // 五种状态：跑完了(ok) / 跑完但没发出去(bad) / 只试跑过(warn) /
-  //          周末不用跑(no) / 该跑没跑(warn)
-  // 周末只对早盘系统成立：晚间系统和参数自学的目标日是最近一个已收盘
-  // 交易日，北京周六凌晨（美东周五）正是补周五清单的时段，那会儿显示
-  // 「周末不用跑」会把真正该报的「没跑」盖掉。
+  // 四种状态：跑完了(ok) / 跑完但没发出去(bad) / 只试跑过(warn) / 该跑没跑(warn)
+  // 没有「周末不用跑」：两条线的目标日都是最近一个已收盘交易日，北京周六
+  // 凌晨（美东周五）正是补周五清单的时段，那会儿显示「周末不用跑」会把
+  // 真正该报的「没跑」盖掉。
   //
   // done 和 sent 是两件事：run_meta 在采样/扫描阶段就落盘，发信是后面的
   // 子进程。只按 done 上绿灯的话，「采样成功、enrich 挂了没发信」和正常
   // 日子在界面上一模一样（教训 16：失败必须有一个能被界面查询的对象）。
   const n = (l.n === undefined || l.n === null) ? "已完成" : l.n + " 只";
-  // 出错对象最优先：参数自学的面板段/影子段挂掉时 eval_daily 把异常写进
-  // learning_status.json 就继续往下走（研究性步骤不阻断业务），退出码 0、
-  // 日期也是今天，只按 done 上绿灯的话，这一天和正常日子在界面上一模一样，
-  // 而 learn.html 其实还是昨天那份（教训 16）。
+  // 出错对象最优先：研究性步骤挂掉时把异常写进 run_meta 就继续往下走
+  // （不阻断业务），退出码 0、日期也对，只按 done 上绿灯的话，这一天和
+  // 正常日子在界面上一模一样（教训 16）。
+  if (l.before_start) return ["no", "还没开始", (l.since || "").slice(5) + " 起每天发"];
   if (l.error) return ["bad", "有报错", String(l.error).slice(0, 40)];
   if (l.done && l.sent === false)
     return ["bad", n + "，邮件没发出去", "数据 " + (l.date || "-")];
   if (l.done) return ["ok", n, "数据 " + (l.date || "-")];
   if (l.dry) return ["warn", "只试跑过", "没发信，真跑还没做"];
-  if (s.weekend && l.key === "morning") return ["no", "周末", "不用跑"];
   return ["warn", "没跑", "数据 " + (l.date || "无")];
 }
 
@@ -336,8 +327,7 @@ function perfRow(lbl, val, unit, barPct, grey) {
 }
 
 function perfBlock(title, rows, note) {
-  // 成绩块，塞在各自系统卡片的**里面**。它属于哪个系统就放哪个系统，
-  // 不单独成块 —— 单独摆出来的话，看的人不知道它说的是早还是晚。
+  // 成绩块，塞在系统卡片的**里面**，紧挨着它说的那条线。
   const d = el("div", "perfbox");
   d.appendChild(el("div", "pt", title));
   rows.forEach(r => d.appendChild(r));
@@ -350,53 +340,22 @@ function renderHome(s) {
   const h = el("h2", null, "今天");
   h.appendChild(Object.assign(el("span", "hint"),
     { textContent: `北京 ${s.bj} 周${s.weekday}` +
-      (s.weekend ? "（周末，早盘系统不跑；晚间系统和参数自学仍会补上一交易日）" : "") }));
+      (s.weekend ? "（周末：两条线仍会补上一个交易日）" : "") }));
   box.appendChild(h);
 
-  // ===== 1 早盘系统 =====
-  const m = lineOf(s, "morning"), lr = lineOf(s, "learn");
-  const [ms, mb, mm] = pickState(m, s);
-  const [ls, lb, lm] = pickState(lr, s);
-  const c1 = sysCard("1", "早盘系统", "每天早上 9:27 发邮件", [
-    sysItem("1-1", "早盘选股", "挑出当天最强的股票发给你", ms, mb, mm),
-    sysItem("1-2", "参数自学", "回头检查打分准不准，自动改进", ls, lb, lm),
-  ]);
-  const mp = s.morning_perf || {};
-  if (mp.exists) {
-    // 两个口径分开：回填回放（历史日线拼出来的代理特征，404 天）和
-    // 真实榜单（每天真发出去的前 10，开盘买收盘卖相对大盘的超额）。
-    // 以前把回放当「实测」写，数字还写死在句子里。
-    const hitPct = 100 * mp.hit, exc = 100 * mp.excess;
-    const on = mp.online || {};
-    const rows = [
-      perfRow("回填回放·按榜单买", hitPct.toFixed(1) + " 只", "",
-              (hitPct - 45) / 10 * 100, false),
-      perfRow("随便买", "50.0 只", "", (50 - 45) / 10 * 100, true),
-    ];
-    let note = "回填回放（" + mp.days + " 天，历史日线拼的代理特征）：榜上的票平均每只比大盘多赚 "
-      + exc.toFixed(2) + "%，跑赢比例 " + hitPct.toFixed(1) + " 对随便买 50.0。";
-    if (on.days) {
-      const oe = 100 * on.excess, oh = 100 * on.hit;
-      rows.push(perfRow("真实榜单·前 10 日均超额", (oe >= 0 ? "+" : "") + oe.toFixed(2) + "%", "",
-                        Math.max(0, Math.min(100, 50 + oe * 25)), false));
-      note += " 真实榜单（" + on.days + " 个交易日，实盘口径）：前 10 每天平均比大盘 "
-        + (oe >= 0 ? "多赚 " : "少赚 ") + Math.abs(oe).toFixed(2) + "%，"
-        + "跑赢大盘的天数占 " + oh.toFixed(0) + "%。真实榜单的天数还少，先看方向别看精度。";
-    }
-    c1.appendChild(perfBlock("100 只票里，有多少当天跑赢了大盘？", rows, note));
-  }
-  box.appendChild(c1);
-
-  // ===== 2 晚间系统 =====（结构和上面一模一样）
-  const bk = lineOf(s, "breakout");
+  // ===== 晚间系统 =====（2026-09-27 早盘系统归档后仓库里只剩这一个）
+  const bk = lineOf(s, "breakout"), pb = lineOf(s, "pullback");
   const [bs, bb, bm] = pickState(bk, s);
+  const [ps, pbb, pm] = pickState(pb, s);
   const mo = s.model || {};
-  const c2 = sysCard("2", "晚间系统", "每天下午 5:00 发邮件", [
-    sysItem("2-1", "起涨预测", "挑出可能要涨的股票发给你", bs, bb, bm),
-    sysItem("2-2", "模型自学", "用最新数据重新学习，每 30 天一次",
+  const c2 = sysCard("1", "晚间系统", "起涨预测 17:00 后、长期调整突破 17:58 发邮件", [
+    sysItem("1-1", "起涨预测", "挑出可能要涨的股票发给你", bs, bb, bm),
+    sysItem("1-2", "模型自学", "用最新数据重新学习，每 30 天一次",
             mo.exists ? "ok" : "warn",
             mo.exists ? mo.age_days + " 天前" : "没训练",
-            mo.exists ? mo.days_to_refit + " 天后重学" : "点 2-2 训练"),
+            mo.exists ? mo.days_to_refit + " 天后重学" : "点 1-2 训练"),
+    sysItem("1-3", "长期调整突破", "横盘 3 个月 -> 倍量大阳线 -> 缩量调整 -> 二次进攻的那一天发给你",
+            ps, pbb, pm),
   ]);
   // 口径必须和邮件/面板里印的一致（export.STREAK_PERF）。之前这里挂的是
   // 14.43%，那是**旧规则**（每天固定前 10 只、不设门槛）在封存数据上的
@@ -412,7 +371,7 @@ function renderHome(s) {
   const hit2 = bp.exists ? bp.hit2 : 15.7, hitAll = bp.exists ? bp.hit_all : 12.6,
         base = bp.exists ? bp.base : 2.93;
   c2.appendChild(perfBlock(
-    "100 只票里，有多少会在接下来一个月内涨超 50%？（验证集 207 个交易日）", [
+    "起涨预测：100 只票里，有多少会在接下来一个月内涨超 50%？（验证集 207 个交易日）", [
     perfRow("连续上榜 2 天以上的", hit2.toFixed(1) + " 只", "", 100, false),
     perfRow("清单上的全部", hitAll.toFixed(1) + " 只", "",
             hitAll / hit2 * 100, false),
@@ -423,26 +382,17 @@ function renderHome(s) {
    + "反过来说：清单上仍有近 9 成涨不到 50%，这份清单是提高出黑马的密度，"
    + "不是「选出来的都会涨」。这组数字是把偷看和未净化的回测都修掉之后的，"
    + "比早先发布的低，那才是真的。"));
-  box.appendChild(c2);
-
-  // 学习会诊：最近一次的结论 + 等批准的提案
-  const cs = s.council || {};
-  const c3 = el("div", "card");
-  c3.appendChild(el("h2", "", "学习会诊"));
-  if (!cs.exists) {
-    c3.appendChild(el("div", "dim", "还没跑过。学习流程末尾自动跑；也可在「运行 -> 1-3 学习会诊」手动跑。"));
-  } else {
-    const st = cs.ok ? "ok" : "warn";
-    const v = cs.ok ? ((cs.verdict || "") + (cs.p_real != null ? "（差距为真 " + Math.round(cs.p_real * 100) + "%）" : ""))
-                    : ("没跑成：" + (cs.error || ""));
-    c3.appendChild(sysItem("会诊", cs.date || "", "LLM 六个视角并行分析预测 vs 实际", st, v,
-                           cs.ok ? (cs.n_proposals || 0) + " 条提案 · " + Math.round(cs.seconds || 0) + " 秒" : ""));
-    const pend = cs.pending || 0;
-    c3.appendChild(sysItem("待批准", pend + " 条", "过了实验闸门、等你一键批准落地",
-                           pend ? "warn" : "ok", pend ? "去「面板 -> 学习会诊」批准" : "没有待办",
-                           (cs.needs_human || 0) + " 条要人手工做"));
+  // 长期调整突破的历史频率：扫描时用同一个判定函数在三年全市场上现数的
+  const ph = s.pullback_hist || {};
+  if (ph.exists) {
+    let note = ph.from.slice(0, 7) + " ~ " + ph.to.slice(0, 7) + " 同口径共 " + ph.n
+      + " 次，平均每月约 " + ph.per_month + " 次，大多数交易日是空榜，空榜也发信写明。";
+    if (ph.n_final) note += "走满 " + ph.bars + " 天的 " + ph.n_final + " 次里，之后最高价涨幅中位 "
+      + (ph.max_up_median > 0 ? "+" : "") + ph.max_up_median + "%，第 " + ph.bars
+      + " 天收盘中位 " + (ph.ret_median > 0 ? "+" : "") + ph.ret_median + "%（只描述历史，不是预测）。";
+    c2.appendChild(perfBlock("长期调整突破：多久出一次？", [], note));
   }
-  box.appendChild(c3);
+  box.appendChild(c2);
 
   return renderSync(box, s);
 }
@@ -692,18 +642,16 @@ function renderSched(s) {
   const tip = el("div", "muted");
   tip.style.cssText = "font-size:12px;margin-top:14px;line-height:1.8";
   tip.innerHTML =
-    "早盘选股 <b>DailyReport-Local-Morning</b>：北京周一到周五 06:00 起每 15 分钟，" +
-    "持续 3 小时 15 分（末次 09:00，开跑上界 09:16）。" +
-    "北京 08:30 之前只等你手点，08:30 没点才自动跑。<br>" +
     "起涨预测 <b>DailyReport-Local-Evening</b>：北京周一到周五 16:30 起每 30 分钟，持续 16 小时。" +
     "目标日是最近一个已收盘的交易日，北京 16:00 到次日 08:30 都能补跑，结果一样。<br>" +
-    "参数自学 <b>DailyReport-Local-Learn</b>：北京周一到周五 16:40 起每 30 分钟，持续 16 小时。<br>" +
-    "三条线的触发器按 <b>UTC</b> 锚定（Morning 22:00Z / Evening 08:30Z / Learn 08:40Z），" +
-    "北京时刻固定不漂；漂的是美东墙钟：Morning 夏令时 18:00、冬令时 17:00 起。<br>" +
-    "同步远端 <b>DailyReport-Local-Sync</b>：每 30 分钟把云端代跑的产物拉到本地面板。<br>" +
+    "长期调整突破 <b>DailyReport-Local-Pullback</b>：北京周一到周五 17:40 起每 15 分钟，持续 15 小时。" +
+    "扫描几秒钟，跑完等到 17:58 发信；机器 17:58 没开着就开机后补发，邮件里写明补发时刻。<br>" +
+    "两条线的触发器按 <b>UTC</b> 锚定（Evening 08:30Z / Pullback 09:40Z），北京时刻固定不漂。<br>" +
+    "同步远端 <b>DailyReport-Local-Sync</b>：每 30 分钟拉一次 GitHub 上的最新产物。<br>" +
     "反复重试是因为笔记本可能整段时间不在线（2026-08-27 就漏发过一次）。" +
     "反复敲是安全的：流程会先查目标日跑过没有、有没有正在跑，跑完了再敲直接退出，不会重发邮件。" +
-    "本机整天没开时云端补位：早盘由云端代发；起涨预测云端算不了，北京 20:30 发提醒，开机后自动补。" +
+    "本机整天没开时云端算不了（数据都在本机），北京 20:30 发一封提醒，开机后自动补。" +
+    "早盘系统的两个任务（Morning / Learn）2026-09-27 随早盘系统归档删掉。" +
     "排期定义在 tools/setup_tasks.ps1。";
   box.appendChild(tip);
 }
@@ -728,15 +676,12 @@ async function refresh(force) {
     lastStatus = s;
     $("#clock").textContent = "北京 " + s.bj;
     const bad = !s.sync.ok || (s.cloud_cron_live || []).length;
-    // 周末只让早盘系统安静下来。晚间系统/参数自学的目标日是上一个已收盘
-    // 交易日，周六没补出来是真没跑，不能被「周末」两个字盖住（教训 16）。
-    // 「跑完了但邮件没发出去」也算没跑完，顶栏写「一切正常」就没人去补了。
-    // 起涨预测那条线计划任务会自己重跑（done_for 对它要求 sent 标记，
-    // 见 local_run.SENT_REQUIRED）；早盘那条不会 —— 09:16 之后窗口就关了，
-    // 只能靠这里报出来。带报错对象的（参数自学的 panel_error）同理。
-    const undone = s.lines.filter(l => (!l.done || l.sent === false || l.error)
-      && l.key !== "evening"
-      && !(s.weekend && l.key === "morning")).length;
+    // 两条线的目标日都是上一个已收盘交易日，周六没补出来是真没跑，不能被
+    // 「周末」两个字盖住（教训 16）。「跑完了但邮件没发出去」也算没跑完，
+    // 顶栏写「一切正常」就没人去补了（计划任务会自己重跑：done_for 对两条线
+    // 都要求 sent 标记，见 local_run.SENT_REQUIRED）。
+    const undone = s.lines.filter(l => !l.before_start
+      && (!l.done || l.sent === false || l.error)).length;
     $("#health").innerHTML = bad
       ? '<span class="dot bad"></span>有问题，看总览'
       : (undone ? '<span class="dot warn"></span>' + undone + " 条线今天还没跑"

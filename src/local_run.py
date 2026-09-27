@@ -1,9 +1,14 @@
 """
-本地全流程编排器。TUI 的「一键跑」按的就是它。
+本地全流程编排器。控制台按钮和计划任务都走这里。
 
-    python src/local_run.py --flow morning    竞价线：候选池->采样->LLM->发信
-    python src/local_run.py --flow evening    形态线+学习线：扫描->发信->评估
-    加 --dry 只跑不发不推（测试用）
+    python src/local_run.py --flow breakout   起涨预测：补日线 -> 特征 -> 打分 -> 17:00 后发信
+    python src/local_run.py --flow pullback   长期调整突破：补日线 -> 扫描 -> 北京 17:58 发信
+    python src/local_run.py --sync            只拉远端，不跑流程
+    加 --dry 只跑不发不推（测试用）；加 --if-needed 是计划任务的入口（见下）
+
+两条线都在晚间系统里（2026-09-27 起仓库里就这一个系统）：早盘系统
+（早盘选股 + 参数自学 + 学习会诊）整体归档到 archive/morning/，
+它的 flow_morning / flow_learn / flow_evening 和 LLM 文案一起搬走了。
 
 本地为主、云端托底（2026-09-15 起）
 ----------------------------------
@@ -11,45 +16,39 @@
 
     1. 手动     控制台点按钮，随时（在开跑窗口内）
     2. 本机自动  到了「自动开跑时刻」还没手点，计划任务自己跑
-    3. 云端     本机根本没跑（没开机），GitHub cron + Cloudflare Worker 叫起云端兜底
+    3. 云端     本机根本没跑（没开机）。两条线的数据都在本机（日线表 +
+               特征表），云端算不了，北京 20:30 只发一封「本机没跑」的提醒
 
 计划任务从窗口一开就每 15~30 分钟敲一次，但自动开跑时刻之前只拉远端、
 不开跑，把时间留给手动。手动和自动是同一个入口、同一把锁，谁先起谁跑。
-跑完把产物 commit + push，云端看到 sent 标记就让位；Pages 面板由云端发布。
+跑完把产物 commit + push；Pages 面板由 .github/workflows/pages.yml 在推送后发布。
 
-    --flow morning   竞价线：候选池 -> 采样 -> LLM -> 09:27:30 发信
-    --flow breakout  晚间系统：补当天日线 -> 特征 -> 打分 -> 17:00 后发信
-    --flow learn     只跑学习线，收盘后排期跑的就是它
-    --flow evening   形态线 + 学习线（形态报告已停用，手动想看时才跑）
-    --sync           只拉远端（云端替本地跑过的产物落到本地面板），不跑流程
     --if-needed      目标日这条线已经跑完、或不在开跑窗口，直接退出 0
                      （计划任务每 15~30 分钟重试一次，入口必须幂等，
                      否则会重复发信）
 
 目标日不等于今天
 ----------------
-晚间系统和学习线的「目标日」是最近一个**已收盘**的交易日：北京 09-15
-早上 07:00 补跑，目标日仍是 09-14，数据和 09-14 下午 17:00 跑一模一样。
-所以它们的开跑窗口跨过午夜（16:00 到次日 08:30），机器整天没开、
-晚上（美东）才醒过来也能把当天的清单补出来，赶在下一个交易日开盘前。
-竞价线的目标日永远是今天：09:16 之后新起进程来不及赶上 09:25 采样。
+两条线的「目标日」都是最近一个**已收盘**的交易日：北京 09-15 早上 07:00
+补跑，目标日仍是 09-14，数据和 09-14 下午跑一模一样。所以开跑窗口跨过
+午夜（16:00 到次日 08:30），机器整天没开、晚上（美东）才醒过来也能把当天
+的清单补出来，赶在下一个交易日开盘前。
 
 同一时刻一条线只能有一个实例
 ----------------------------
-计划任务和控制台按钮都走这里。2026-09-14 早上两边各起了一个竞价线
-（用户手点 + 计划任务到点），两个进程各采各的样、各发各的信，用户收到
-两封一模一样的邮件，git 还互相撞。现在 state/lock/<flow>.json 是进程锁：
-后来者看到活着的锁就退出 0，控制台上显示「已经在跑」。
+2026-09-14 早上两边各起了一个竞价线（用户手点 + 计划任务到点），两个进程
+各采各的样、各发各的信，用户收到两封一模一样的邮件，git 还互相撞。
+现在 state/lock/<flow>.json 是进程锁：后来者看到活着的锁就退出 0。
+两条线共用的日线表 data/breakout/daily.parquet 另有一把
+state/lock/daily_update.json（backfill.stage_update 拿），谁先到谁补，
+后来的看到已经补到目标日就直接用。
 
-云端托底协议（另一半在 tools/yield_check.py 和 .github/workflows/）
+云端托底协议（另一半在 tools/evening_check.py 和 .github/workflows/）
 ----------------------------------------------------------------
-    state/claim/<flow>_<date>.json   本地开跑时推送：「我来」
-    state/sent/<flow>_<date>.json    本地发信成功后推送：「我发了」
-竞价线：云端 07:40 起照常采样，09:27:00 看到 claim 就等到 09:28:20 确认
-sent，有 sent 只发布面板不发邮件、也不提交数据；没 claim 或没 sent 就
-云端发。晚间系统云端算不了（特征表 2.5GB 在本机，新浪源云端也不通），
-云端 20:30 只做一件事：看 origin/main 上有没有目标日的 out_breakout，
-没有就发一封「本机今天没跑」的提醒。
+    state/claim/<线>_<date>.json   本地开跑时推送：「我来」
+    state/sent/<线>_<date>.json    本地发信成功后推送：「我发了」
+云端 20:30（Cloudflare Worker 20:45 再敲一次）看 origin/main 上两条线目标日的
+sent 标记，缺哪条就在一封提醒里写哪条。
 
 进度输出约定：每行 "##STEP n/m 文字" 是给 TUI 解析的进度行，
 其余行原样透传。
@@ -139,8 +138,12 @@ def last_closed_trade_day(now: dt.datetime | None = None) -> str:
 
 
 def target_date(flow: str) -> str:
-    """这条线这次要产出哪一天。竞价线是今天，其余是最近一个已收盘交易日。"""
-    return today() if flow == "morning" else last_closed_trade_day()
+    """这条线这次要产出哪一天。两条线都是最近一个已收盘交易日。
+
+    flow 参数留着：调用方（控制台、自测）一直按线问。早盘归档前竞价线的
+    目标日是「今天」，以后再有目标日口径不同的线也从这里分。
+    """
+    return last_closed_trade_day()
 
 
 # ---------------------------------------------------------------------
@@ -161,10 +164,10 @@ _SUB = [
      lambda m: 0.05 + 0.85 * int(m.group(1)) / max(1, int(m.group(2)))),
     (re.compile(r"三层变换完成"), lambda m: 0.93),
     (re.compile(r"训练表 \d+ 行"), lambda m: 0.97),
-    (re.compile(r"学习会诊开跑"), lambda m: 0.35),
-    (re.compile(r"视角完成 (\d+)/(\d+)"),
-     lambda m: 0.35 + 0.45 * int(m.group(1)) / max(1, int(m.group(2)))),
-    (re.compile(r"视角 chair 完成"), lambda m: 0.85),
+    # 长期调整突破第 4 步要等到 17:58 才发信，最长等一个多小时；pullback.wait_until
+    # 每分钟打一行「等待发信 k/N 分钟」，进度条按它走，不在同一格停一个小时
+    (re.compile(r"等待发信 (\d+)/(\d+) 分钟"),
+     lambda m: int(m.group(1)) / max(1, int(m.group(2)))),
 ]
 
 
@@ -320,25 +323,25 @@ def _git_unstick() -> None:
         log.warning("index.lock 删不掉: %s", e)
 
 
-class GitBusy(RuntimeError):
-    """别的流程正占着 git 工作区，这次放弃。"""
+class LockBusy(RuntimeError):
+    """别的流程正占着这把锁（git 工作区 / 日线表），这次放弃。"""
 
+
+GitBusy = LockBusy      # 旧名字：控制台的「重试上传」和自测按它接异常
 
 GIT_LOCK_MAX = 600      # 锁比这个老（秒）就当持锁进程死了没清
 
 
 @contextlib.contextmanager
-def git_lock(timeout: float = 300.0):
-    """跨流程的 git 互斥。整个仓库只有一个工作区，两条线却是并行跑的。
+def file_lock(name: str, timeout: float = 300.0, max_age: float = GIT_LOCK_MAX,
+              path: Path | None = None):
+    """跨进程互斥：state/lock/<name>.json（或调用方给的 path），O_EXCL 原子创建。
 
-    2026-09-16 实测起涨预测和学习线同一秒启动，两边各自 pull --rebase
-    --autostash、各自 add/commit。autostash 在对方正写产物的瞬间 stash/pop，
-    pop 冲突时 git 整体放弃 stash，对方没提交的当天面板和清单就被还原成
-    前一天的版本，而推送那一步只会报「没有需要提交的产物」。
-    锁只串得住 git 命令本身，串不住对方的写盘，所以推送路径同时不再用
-    autostash（见 git_commit_push）。
+    持锁进程死了、或锁比 max_age 秒还老，就当残留清掉重来（教训 15，自愈路径
+    本身要能自愈）；活着就等，等过 timeout 抛 LockBusy。git_lock 和 data_lock
+    都是它，一种锁只留一份实现（教训 34）。
     """
-    p = ROOT / "state" / "lock" / "git.json"
+    p = path or ROOT / "state" / "lock" / f"{name}.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.time() + timeout
     while True:
@@ -356,19 +359,19 @@ def git_lock(timeout: float = 300.0):
             except OSError:
                 age = 0.0
             alive = (holder and holder != os.getpid() and _pid_alive(holder)
-                     and age <= GIT_LOCK_MAX)
+                     and age <= max_age)
             if alive and time.time() < deadline:
                 time.sleep(0.5)
                 continue
             if alive:
-                raise GitBusy(f"git 工作区被 pid {holder} 占着超过 {timeout:.0f} 秒")
-            # 持锁进程已经死了、或锁太老：清掉重来（教训 15，自愈路径本身要能自愈）
+                raise LockBusy(f"{name} 被 pid {holder} 占着超过 {timeout:.0f} 秒")
+            # 持锁进程已经死了、或锁太老：清掉重来
             try:
                 p.unlink()
             except OSError:
                 pass
             if time.time() >= deadline:
-                raise GitBusy("拿不到 git 锁")
+                raise LockBusy(f"拿不到 {name} 锁")
             continue
         try:
             os.write(fd, json.dumps(
@@ -387,6 +390,34 @@ def git_lock(timeout: float = 300.0):
                 p.unlink()
         except Exception:  # noqa: BLE001
             pass
+
+
+def git_lock(timeout: float = 300.0):
+    """跨流程的 git 互斥。整个仓库只有一个工作区，两条线却是并行跑的。
+
+    2026-09-16 实测起涨预测和学习线同一秒启动，两边各自 pull --rebase
+    --autostash、各自 add/commit。autostash 在对方正写产物的瞬间 stash/pop，
+    pop 冲突时 git 整体放弃 stash，对方没提交的当天面板和清单就被还原成
+    前一天的版本，而推送那一步只会报「没有需要提交的产物」。
+    锁只串得住 git 命令本身，串不住对方的写盘，所以推送路径同时不再用
+    autostash（见 git_commit_push）。
+    """
+    return file_lock("git", timeout, GIT_LOCK_MAX)
+
+
+# 日线补数据最长的一条路是缺好几天时的全量刷新（新浪整段重拉，约 70 分钟），
+# 锁的「太老就当残留」要比它长
+DATA_LOCK_MAX = 3 * 3600
+
+
+def data_lock(timeout: float = 1800.0, path: Path | None = None):
+    """data/breakout/daily.parquet 的写锁。起涨预测和长期调整突破都会去补它
+    （backfill.py --stage update），同一时刻只许一个在写。
+
+    backfill 传 path = 它自己的 STATE/../lock/daily_update.json：生产下就是
+    state/lock/daily_update.json，自测把 STATE 换成临时目录时锁也跟着进临时目录，
+    不去碰（更不会去等）生产目录里那把真锁（教训 17）。"""
+    return file_lock("daily_update", timeout, DATA_LOCK_MAX, path=path)
 
 
 def _write_push_status(ok: bool, msg: str, detail: str = "") -> None:
@@ -468,9 +499,9 @@ def git_commit_push(msg: str, paths: list[str], dry: bool) -> bool:
                         time.sleep(0.5)
                         continue
                     # 路径压根不存在（rc=128 "did not match any files"）不算
-                    # 失败：推送列表里有几条是**可选产物**，比如学习线的
-                    # out_learn/council.html 只在会诊真跑过的那天才有。
-                    # 按失败处理的话，那一天连 learn.html 和 state/ 都推不上去。
+                    # 失败：推送列表里可以有**可选产物**（早盘系统归档前，学习线
+                    # 的 out_learn/council.html 只在会诊真跑过的那天才有），按失败
+                    # 处理的话同一次推送里的其它产物也推不上去。
                     # 被 .gitignore 挡住的那种 rc=1 仍然要报（council.html 从
                     # 上线起一次都没进过仓库，就是它被吞掉的）。
                     if "did not match any files" in out \
@@ -506,8 +537,8 @@ def push_marker(kind: str, flow: str, payload: dict, dry: bool,
                 date: str = "") -> None:
     """写 state/{claim,sent}/<flow>_<date>.json 并推送。
 
-    云端 workflow 的 tools/yield_check.py 读它们决定让不让位。
-    date 是目标日，不传就是今天（竞价线）。
+    云端 tools/evening_check.py 读 sent 标记决定要不要发「本机没跑」提醒。
+    date 是目标日（两条线都传；不传就是今天，只剩兼容用途）。
     """
     date = date or today()
     p = ROOT / "state" / kind / f"{flow}_{date}.json"
@@ -773,6 +804,16 @@ def sync_repo() -> bool:
                 _git_unstick()
                 return False
             after = _git("rev-parse", "HEAD")[1]
+            # 上一次**拉取**失败留下的红灯，这次拉成功了就清掉。以前只在失败时写，
+            # 2026-09-26 一次网络重置之后每次同步都成功，控制台却一直挂着
+            # 「上次推送失败」。推送失败（msg 不是 pull）不动，那要等推成功才算好
+            try:
+                ps = json.loads((ROOT / "state" / "push_status.json")
+                                .read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                ps = {}
+            if ps and not ps.get("ok") and ps.get("msg") == "pull":
+                _write_push_status(True, "pull")
     except GitBusy as e:
         log.warning("这次不拉远端: %s", e)
         return False
@@ -879,9 +920,9 @@ def _update_short(target: str) -> tuple[list[str], str]:
 def _mail_sent_date(rel: str, date: str) -> str:
     """某条线目标日的邮件真发出去了没有。发了返回发信时刻，没发返回空串。
 
-    两条线的写法一样：run_auction / breakout.daily 都在把邮件交给 SMTP
-    **之后**才写这个文件，它是「发过了」的唯一证据（两边各有几条
-    「没发信也 return 0」的分支，教训 27）。
+    两条线的写法一样：breakout.daily / pullback 都在把邮件交给 SMTP
+    **之后**才写这个文件，它是「发过了」的唯一证据（「没发信也 return 0」
+    的分支哪条线都有，教训 27）。
     """
     try:
         ms = json.loads((ROOT / rel).read_text(encoding="utf-8"))
@@ -890,256 +931,35 @@ def _mail_sent_date(rel: str, date: str) -> str:
         return ""
 
 
-def _mail_sent_today(date: str) -> str:
-    """竞价清单今天发出去了没有。"""
-    return _mail_sent_date("out/mail_sent.json", date)
-
-
 # ---------------------------------------------------------------------
-#  本地 LLM 文案（竞价线的 reason/risk 两句话）
+#  两条线的排期表
 # ---------------------------------------------------------------------
-def local_commentary(timeout: int = 150) -> bool:
-    """out/brief.json -> claude CLI -> out/commentary.json。
-
-    远端这一步是 claude-code-action；本地直接调 CLI（OAuth 自动识别在
-    llm_local 里）。失败就算了——enrich 拿不到 commentary 会按
-    「本次无 LLM 分析」照发，这是硬约束 2。
-    """
-    try:
-        from learn import llm_local
-        brief_p = ROOT / "out" / "brief.json"
-        if not brief_p.exists():
-            log.info("没有 brief.json，跳过 LLM 文案")
-            return False
-        # brief.json 是被跟踪文件，永远存在：非交易日、超死线、候选池缺失
-        # 那几条路上 quick 根本没写今天的 run_meta，这里如果照跑，就是拿
-        # 上一个交易日的 brief 再调一次 Opus，把 out/commentary.json 覆盖成
-        # 和已发邮件对不上的文案（每个节假日 4 次，每次约 40 秒）。
-        if _run_meta_date("out/run_meta.json") != today():
-            log.info("quick 没有产出今天的清单，不调 LLM")
-            return False
-        if not llm_local.available():
-            log.info("本机没有 claude CLI，按「本次无 LLM 分析」发")
-            return False
-        brief = brief_p.read_text(encoding="utf-8")
-        prompt = ((ROOT / "prompts" / "analyst.md").read_text(encoding="utf-8")
-                  + "\n\n# brief.json\n```json\n" + brief + "\n```\n\n"
-                  + "# 输出\n只输出一个 JSON 对象，不要围栏不要解释："
-                  + '{"<code>": {"reason": "...", "risk": "..."}} '
-                  + "覆盖 brief 里每一只。")
-        envj, err = llm_local._run_cli(prompt, "claude-opus-5", timeout)
-        if err:
-            log.info("LLM 文案失败（照发无文案版）: %s", err[:100])
-            return False
-        obj = llm_local._extract_json(
-            envj.get("result", "") if isinstance(envj, dict) else "")
-        if not isinstance(obj, dict) or not obj:
-            log.info("LLM 文案解析失败（照发无文案版）")
-            return False
-        clean = {str(k).zfill(6): {"reason": str(v.get("reason", ""))[:60],
-                                   "risk": str(v.get("risk", ""))[:50]}
-                 for k, v in obj.items() if isinstance(v, dict)}
-        (ROOT / "out" / "commentary.json").write_text(
-            json.dumps(clean, ensure_ascii=False, indent=2), encoding="utf-8")
-        log.info("LLM 文案就绪：%d 只", len(clean))
-        return True
-    except Exception as e:  # noqa: BLE001
-        log.info("LLM 文案异常（照发无文案版）: %s", e)
-        return False
-
-
-# ---------------------------------------------------------------------
-#  两条流程
-# ---------------------------------------------------------------------
-def flow_morning(dry: bool) -> int:
-    """竞价线。开跑时刻不限（内部各阶段自己等到点），09:26:30 前都来得及。"""
-    n = 6
-    d = today()
-    # 发过信就不再跑。手动入口不带 --if-needed（手动优先，不该被窗口和
-    # 自动时刻挡），所以发完信再点一下，09:27 前会多发一封告警 + 一封重复
-    # 清单，09:27 后走抢救模式把当天真实的 09:25 快照覆盖掉再发一封
-    # （学习线随后按 T1=T2=T3 占比把这一天整天丢弃）。这道门只看
-    # 「今天发过没有」，锁和窗口都管不了它。
-    sent_at = _mail_sent_today(d)
-    if not dry and sent_at:
-        log.info("今日竞价清单已于 %s 发出，不重跑不重发。"
-                 "确要重发先删 out/mail_sent.json", sent_at)
-        return 0
-    step(1, n, "同步仓库（拿远端可能已建好的候选池）")
-    if not dry:
-        sync_repo()
-    push_marker("claim", "auction", {"plan": "本地接管今日竞价线"}, dry)
-
-    step(2, n, "候选池")
-    meta = ROOT / "cache" / "universe_meta.json"
-    need = True
-    try:
-        need = json.loads(meta.read_text(encoding="utf-8"))["date"] != today()
-    except Exception:  # noqa: BLE001
-        pass
-    bj = now_bj()
-    if need and (bj.hour, bj.minute) < (9, 8):
-        log.info("候选池不是今天的，现在建（3-5 分钟）")
-        if py("src/premarket.py") != 0:
-            log.error("候选池构建失败，quick 阶段会因候选池不是今天的而放弃，远端兜底")
-    elif need:
-        log.warning("候选池不是今天的且时间太晚，quick 阶段会放弃（不拿旧池子发脏清单），远端兜底")
-    else:
-        log.info("候选池已是今天的")
-
-    step(3, n, "采样 + 打分（自动等到 09:14 预热、09:19/09:23/09:25 采样）")
-    # 「该不该转抢救模式」只留一口钟：run_auction.quick_mode 按秒级的
-    # hard_deadline（09:26:30）判。这里以前自己按 (9, 27) 判一次再传 --late，
-    # 两条线之间有 32 秒的缝（09:26:30~09:26:59 手点会发一封措辞还写着
-    # 「GitHub Actions 排队延迟」的告警邮件，而那一刻本该出抢救榜）；
-    # 而且上面那个 bj 是**建候选池之前**取的，premarket 跑满 18.5 分钟以上时
-    # （2026-09-04 实测 1089 秒）quick 实际起在死线之后，late 仍按 09:07 判 False。
-    rc = py("src/run_auction.py", "--stage", "quick", "--salvage-if-late")
-    if rc != 0:
-        log.error("quick 阶段失败（退出码 %d），不推 sent 标记，远端会兜底", rc)
-        return rc
-    # 退出码 0 不等于做了事（教训 22）：非交易日、超死线、候选池不是今天的
-    # 三条路 quick 都是 return 0 且不写 run_meta。再往下走就是拿上一个交易日
-    # 的 brief 调一次 Opus、把 out/ 里的旧产物再提交推送一遍。
-    if _run_meta_date("out/run_meta.json") != d:
-        tds = trade_dates()
-        holiday = bool(tds) and d not in tds
-        log.info("quick 没有产出 %s 的清单（%s），不进 LLM、不发信", d,
-                 "非交易日" if holiday else "超死线或候选池缺失")
-        return 0 if holiday else 1
-
-    step(4, n, "推送数据快照（远端 yield_check 以此判断本地活着）")
-    # 候选池也提交：云端替本地跑的那天会提交它，本地留着未提交的同名
-    # 文件下次 pull --autostash 就会撞上。本地跑过就以本地为准。
-    push_all(f"data: {d} [local]",
-             [f"data/{d[:7]}", "cache/universe.parquet",
-              "cache/universe_meta.json"], dry)
-
-    step(5, n, "LLM 文案（失败照发）")
-    local_commentary()
-
-    step(6, n, "面板 + 发信（等到 09:27:30 那一秒）")
-    if dry:
-        os.environ["SKIP_MAIL"] = "1"
-        log.info("[dry] 发信被跳过")
-    rc = py("src/run_auction.py", "--stage", "enrich")
-    # 退出码 0 不等于发了信：enrich 有四条不发信的分支也返回 0。
-    # 只认 run_auction 真发出去之后落的 out/mail_sent.json。
-    sent_ok = bool(_mail_sent_today(d))
-    if rc == 0 and (sent_ok or dry):
-        push_marker("sent", "auction", {"ok": True}, dry)
-        push_all(f"out: {d} [local]", ["out"], dry)
-        log.info("完成。远端看到 sent 标记后只发布面板不发邮件。")
-    elif rc == 0:
-        log.error("enrich 退出码 0 但没有发信记录，不推 sent 标记，远端将兜底发信")
-        push_all(f"out: {d} [local]", ["out"], dry)
-        rc = 1
-    else:
-        log.error("enrich 失败（退出码 %d），远端将在 09:28:20 兜底发信", rc)
-    return rc
-
-
-def flow_evening(dry: bool) -> int:
-    """形态线 + 学习线。17:00 后数据定型，几点跑都一样，防早不防晚。"""
-    n = 5
-    step(1, n, "同步仓库")
-    if not dry:
-        sync_repo()
-    push_marker("claim", "pullback", {"plan": "本地接管今日形态线"}, dry)
-
-    step(2, n, "形态扫描（未到 17:00 会自动等）")
-    rc = py("src/pullback.py", "--stage", "scan", *(["--dry"] if dry else []))
-    if rc != 0:
-        log.error("扫描失败（退出码 %d），远端会兜底", rc)
-        return rc
-
-    step(3, n, "发信")
-    if dry:
-        log.info("[dry] 跳过发信")
-    else:
-        rc = py("src/pullback.py", "--stage", "send")
-        if rc == 0:
-            push_marker("sent", "pullback", {"ok": True}, dry)
-        else:
-            log.error("发信失败（退出码 %d），远端将兜底", rc)
-    d = today()
-    push_all(f"data: 形态 {d} [local]", [f"data/{d[:7]}", "out_pullback"], dry)
-
-    # 学习线在这里是内嵌调用，主进程的锁是 evening 的，进程表里也只看得到
-    # `--flow evening`。计划任务的 DailyReport-Local-Learn 每 30 分钟敲一次、
-    # 登录也敲，两边会同时起两份 eval_daily --stage all：theta_history 同日双行、
-    # 两封参数变更邮件、会诊双跑（一次约 $5）。所以嵌跑前自己把 learn 的锁拿上，
-    # 让对面的 --if-needed 看得见。
-    if already_done("learn"):
-        log.info("学习线目标日 %s 已跑完，不嵌跑", target_date("learn"))
-        return rc
-    if not acquire_lock("learn"):
-        return rc              # acquire_lock 已经打过「已经在跑」
-    try:
-        flow_learn(dry, base=3, total=n)
-    finally:
-        release_lock("learn")
-    return rc
-
-
-def flow_learn(dry: bool, base: int = 0, total: int = 3) -> int:
-    """学习线：标签 -> 归因 -> 拟合与闸门 -> 推产物。
-
-    2026-09-12 形态报告停用后，这条线单独排期跑。它调的是**竞价线**的
-    参数，和形态线没有任何依赖关系，不该被一起停掉。
-
-    base/total 让它既能独立跑（1/3、2/3、3/3），又能嵌在 evening 里
-    接着前面的步号往下数，TUI 和 GUI 的进度条才不会倒退。
-    """
-    d = target_date("learn")
-    if base == 0:
-        step(1, total, "同步仓库")
-        if not dry:
-            sync_repo()
-        base = 1
-
-    step(base + 1, total, "学习线：标签 -> 归因 -> 拟合与闸门")
-    rc = py("src/eval_daily.py", "--stage", "all", "--date", d,
-            *(["--dry"] if dry else []))
-    if rc != 0:
-        log.warning("学习线退出码 %d（研究性步骤，不影响业务邮件）", rc)
-
-    step(base + 2, total, "推送学习产物")
-    # learn.html 也推：它进 Pages 站点，不推就没人看得到今天的裁决
-    push_all(f"learn: {d} [local]",
-             ["data/labels", "state", "out_learn/learn.html",
-              "out_learn/council.html"], dry)
-    return rc
-
-
 # 「目标日这条线跑完了没有」读哪个文件，以及 --if-needed 允许开跑的北京时间窗口
 #
 # 窗口是给自动触发用的，手动跑（不带 --if-needed）不受限制。
-# 上界小于下界表示跨午夜。各条线上界的含义：
-#   morning  09:16 之后新起一个进程来不及赶上 09:25 的竞价采样，
-#            硬跑只会撞上 hard_deadline 然后发一封告警邮件。计划任务带
-#            「登录时触发」，不设上界的话盘后每次开机登录都发一封告警。
-#   breakout 收盘后数据定死，目标日是最近一个已收盘交易日，所以可以一直
-#            补到次日 08:30：机器整天没开、美东晚上才醒也能赶在开盘前出清单。
-#            再晚就撞上竞价线的采样（09:14 起），不抢那几分钟。
-#   learn    同上，跨午夜到 08:30
-#   evening  形态线的 hard_deadline 是 22:00（已停用自动，手动不受限）
+# 上界小于下界表示跨午夜。两条线的窗口都是 16:00 到次日 08:30：收盘后数据
+# 定死，目标日是最近一个已收盘交易日，机器整天没开、美东晚上才醒也能赶在
+# 下一个交易日开盘前把清单补出来。
 # 第五项是「自动开跑时刻」（北京）：计划任务在这之前只等手动，到点没手点
 # 才自己跑。手动不受它限制，只受窗口限制。
-#   morning  08:30。手动窗口 06:00~08:30（美东晚 18:00~20:30，冬令时 17:00~19:30）。
-#            08:30 起跑，候选池 10 分钟，09:14 预热前有余量；再晚候选池来不及。
 #   breakout 16:30。收盘后半小时数据定型，17:00 前后出清单是这条线的约定；
 #            美东凌晨没人手点，实际上就是自动跑，机器没醒就等醒了补。
-#   learn    16:40，同上
+#   pullback 17:40。用户要 17:58 收到清单（2026-09-27）。扫描几秒钟，日线通常
+#            已经被起涨预测 16:30 那次补好，17:40 起跑留足余量；跑完等到
+#            17:58:00 才发。过了 17:58 才开跑（没开机）就跑完立即发。
 FLOWS = {
-    "morning": ("out/run_meta.json", "竞价线", (6, 0), (9, 16), (8, 30)),
-    "evening": ("out_pullback/run_meta.json", "形态线", (16, 0), (22, 0), (16, 30)),
-    "learn": ("state/learning_status.json", "学习线", (16, 0), (8, 30), (16, 40)),
     "breakout": ("out_breakout/run_meta.json", "起涨预测", (16, 0), (8, 30), (16, 30)),
+    "pullback": ("out_pullback/run_meta.json", "长期调整突破", (16, 0), (8, 30), (17, 40)),
 }
 
-# 一次最多跑多久（小时）。锁比这个老就当死锁，防 PID 重用误判
-MAX_RUN = {"morning": 4, "breakout": 3, "learn": 3, "evening": 3}
+# 这条线从哪个交易日起才有清单。上线之前的交易日没有「该发没发」一说：
+# 2026-09-27（周日）注册计划任务时目标日还是 09-24，登录触发一敲就会把
+# 09-24 当成漏发补一封。计划任务（--if-needed）不补这之前的日子；手动照跑。
+START = {"pullback": "2026-09-28"}
+
+# 一次最多跑多久（小时）。锁比这个老就当死锁，防 PID 重用误判。
+# pullback 手动 16:00 起跑的话要等到 17:58 才发信，给到 4 小时
+MAX_RUN = {"breakout": 3, "pullback": 4}
 
 
 def in_window(flow: str) -> bool:
@@ -1174,17 +994,15 @@ def auto_due(flow: str) -> bool:
 
 
 # 哪条线真发信之后写哪个 sent 标记（state/sent/<名字>_<目标日>.json）
-SENT_MARK = {"morning": "auction", "evening": "pullback", "breakout": "breakout"}
+SENT_MARK = {"breakout": "breakout", "pullback": "pullback"}
 
 # 这几条线的「跑完了」还必须有 sent 标记撑着。
 #
-# 起涨预测的 run_meta 在 scan 阶段就落盘，发信是下一个子进程（daily.py
-# --stage send）。只认 run_meta 的话，send 挂掉的那天控制台是绿的、
-# 计划任务也判「已经跑完」整夜不再补，用户直到第二天才发现没收到清单。
-# 只列它一条：早盘那天云端代跑时只会推 out/（含 mail_sent.json），
-# 不推 state/sent/auction_*，把 morning 列进来会让云端代发的日子
-# 整天误报「没跑」。早盘另有 out/mail_sent.json 这条证据（_sent_ok）。
-SENT_REQUIRED = {"breakout"}
+# 两条线的 run_meta 都在扫描阶段就落盘，发信是下一个子进程（起涨预测
+# daily.py --stage send，长期调整突破还要等到 17:58）。只认 run_meta 的话，
+# send 挂掉的那天控制台是绿的、计划任务也判「已经跑完」整夜不再补，
+# 用户直到第二天才发现没收到清单。
+SENT_REQUIRED = {"breakout", "pullback"}
 
 
 def done_for(flow: str, target: str) -> bool:
@@ -1226,7 +1044,7 @@ def already_done(flow: str) -> bool:
 def weekend_skip(flow: str) -> bool:
     """周末拦截只管目标日是「今天」的线，也就是窗口不跨午夜的那几条。
 
-    跨午夜的线（起涨预测、学习线）目标日是最近一个已收盘交易日，
+    跨午夜的线（起涨预测、长期调整突破）目标日是最近一个已收盘交易日，
     北京周六 00:00~08:30（= 美东周五中午前）正是补周五清单的时段：
     计划任务按周一~周五排（08:30Z 锚定），北京周五 16:30 起跑 16 小时，
     其中 8.5 小时、17 次触发全落在北京周六。按「现在是不是周末」一刀切挡掉，周五收盘后
@@ -1247,16 +1065,14 @@ def if_needed_skip(flow: str) -> str:
 
     抽成纯函数是为了能离线自测：这几道判断以前散在 main() 里，只能靠
     读代码核对，而它们决定的是「今天这条线到底跑不跑」。
+    节假日不用单独挡：目标日是最近一个已收盘交易日，节假日那天的目标日
+    就是节前最后一个交易日，早就跑完了，走「已经跑完」那一道。
     """
     if weekend_skip(flow):
         return "北京时间周末"
-    # 节假日（工作日但不是交易日）：竞价线的目标日永远是今天，各阶段虽然
-    # 自己会 return 0，但那之前已经推了一个 claim 提交、调了一次 Opus 把
-    # commentary.json 覆盖成上一个交易日的文案。08:30~09:15 每 15 分钟一轮，
-    # 一个节假日 4 轮。日历拿不到时不按节假日挡（fail-open）。
-    tds = trade_dates()
-    if flow == "morning" and tds and today() not in tds:
-        return f"{today()} 非交易日"
+    since = START.get(flow, "")
+    if since and target_date(flow) < since:
+        return f"{FLOWS[flow][1]} {since} 起才发清单，目标日 {target_date(flow)} 不补"
     if running_instance(flow):
         return f"{FLOWS[flow][1]} 正在跑"
     if already_done(flow):
@@ -1270,6 +1086,140 @@ def if_needed_skip(flow: str) -> str:
         return (f"{SYNC_ON[1]} {auto[0]:02d}:{auto[1]:02d}（北京），"
                 f"先等手动；到点没手点就自动跑")
     return ""
+
+
+def daily_ready(target: str) -> tuple[bool, str]:
+    """日线表是不是完整地覆盖到了目标日。返回 (够不够, 人话)。两条线共用。
+
+    两道闸（理由见 DAILY_COVER_MIN / DAILY_PREV_MIN 的注释）：
+      · 九成以上的票最后一根到了目标日（全表 max 一只票就能顶起来，不能只看它）
+      · 目标日的行数不少于前一个交易日的 95%（合并之后才看得见的掉行）
+    """
+    try:
+        import pandas as pd
+        dd = pd.read_parquet(ROOT / "data" / "breakout" / "daily.parquet",
+                             columns=["date", "code"])
+        cov, mx = daily_coverage(dd, target)
+        full, why = _daily_covers(dd, target)
+    except Exception as e:  # noqa: BLE001
+        return False, f"读不到日线: {e}"
+    if cov < DAILY_COVER_MIN:
+        return False, f"日线只有 {cov * 100:.1f}% 的票到 {target}（全表最新 {mx}）"
+    if not full:
+        return False, f"目标日那一天的行数不够：{why}"
+    return True, f"日线覆盖 {cov * 100:.1f}%，{why}"
+
+
+def truth_and_regime(dry: bool) -> None:
+    """市场环境指标 + 起涨预测历史清单真值。fail-open，只写 state/。"""
+    if dry:
+        log.info("[dry] 不重算市场环境和清单真值")
+        return
+    code = ("import sys; sys.path[:0]=['src','src/breakout']; "
+            "import regime as R, truth as T; R.record(90); T.save(T.compute())")
+    try:
+        r = subprocess.run([PY, "-c", code], cwd=ROOT, capture_output=True,
+                           text=True, encoding="utf-8", errors="replace",
+                           timeout=600)
+        if r.returncode != 0:
+            log.warning("市场环境 / 清单真值没算出来（不影响发信）：%s",
+                        ((r.stdout or "") + (r.stderr or ""))[-300:])
+        else:
+            log.info("市场环境 + 清单真值已更新")
+    except Exception as e:  # noqa: BLE001
+        log.warning("市场环境 / 清单真值没算出来（不影响发信）：%s", e)
+
+
+# 起涨预测正在补日线时，长期调整突破最多等它这么久（分钟）。它的第 2 步
+# （补日线 + 建特征表）一共十几分钟，补日线本身在最前面，通常一两分钟
+PULLBACK_WAIT_DAILY_MIN = 45
+
+
+def ensure_daily(target: str) -> tuple[bool, str]:
+    """长期调整突破要的日线补到目标日没有；没有就等起涨预测补，或者自己补。
+
+    谁先到谁补：backfill.stage_update 自己拿 daily_update 锁，后来的那个
+    看到已经覆盖到目标日就直接退出 0（「不用追加」那条路）。
+    起涨预测正在跑时先等它：它的补日线是第一步，等它比两边抢锁更省事。
+    """
+    deadline = time.time() + PULLBACK_WAIT_DAILY_MIN * 60
+    ran = False
+    while True:
+        ok, why = daily_ready(target)
+        if ok:
+            return True, why
+        if running_instance("breakout") and time.time() < deadline:
+            log.info("起涨预测正在跑，等它把日线补到 %s（%s）", target, why)
+            time.sleep(30)
+            continue
+        if ran:
+            return False, why
+        log.info("日线还没到 %s（%s），自己补", target, why)
+        rc = py("src/breakout/backfill.py", "--stage", "update", "--target", target)
+        ran = True
+        if rc != 0:
+            return False, f"补数据失败（退出码 {rc}）"
+
+
+def flow_pullback(dry: bool) -> int:
+    """长期调整突破：补日线 -> 扫描 -> 等到 17:58 -> 面板 + 邮件 -> 推产物。
+
+    目标日是最近一个已收盘的交易日。日线表和起涨预测共用（它 16:30 那次
+    通常已经补好），扫描本身几秒钟。17:58 之前跑完就等，之后跑完立即发。
+    """
+    n = 4
+    d = target_date("pullback")
+    # 跑完并发过信就不再跑。手动入口不带 --if-needed（手动优先），点一下
+    # 不该把同一份清单再发一遍。确要重发：删 state/sent/pullback_<日>.json
+    if not dry and done_for("pullback", d):
+        log.info("长期调整突破 %s 已经跑完并发过信，直接退出。"
+                 "确要重发先删 state/sent/pullback_%s.json", d, d)
+        return 0
+    step(1, n, f"同步仓库（目标日 {d}）")
+    if not dry:
+        sync_repo()
+    push_marker("claim", "pullback", {"plan": "本地接管今日长期调整突破"}, dry, d)
+
+    step(2, n, f"日线补到 {d}")
+    ok, why = ensure_daily(d)
+    if not ok:
+        log.error("%s，今天不出清单", why)
+        return 1
+    log.info("%s", why)
+    short, note = _update_short(d)
+    if short:
+        # 这条线逐只判，缺几只只是那几只今天判不了；不像起涨预测要在全市场
+        # 横截面上排名，所以只提醒不挡
+        log.warning("%s；没拉到 %s 的 %d 只今天判不了：%s", note, d, len(short),
+                    ",".join(short[:20]))
+
+    step(3, n, "扫描")
+    rc = py("src/pullback.py", "--stage", "scan", "--target", d)
+    if rc != 0:
+        log.error("扫描失败（退出码 %d），今天不出清单", rc)
+        return rc
+    # 退出码 0 不等于做了事（教训 22）：非交易日那条路 scan 也是 return 0
+    if _run_meta_date("out_pullback/run_meta.json") != d:
+        log.error("扫描没有产出 %s 的清单，不发信", d)
+        return 1
+
+    step(4, n, "面板 + 邮件（北京 17:58 发）")
+    if dry:
+        os.environ["SKIP_MAIL"] = "1"
+    rc = py("src/pullback.py", "--stage", "send", "--target", d,
+            *(["--no-wait"] if dry else []))
+    # 退出码 0 不等于发了信（教训 27）：SKIP_MAIL 那条路也是 0。只认
+    # pullback.stage_send 在 SMTP 之后落的 out_pullback/mail_sent.json
+    sent_at = _mail_sent_date("out_pullback/mail_sent.json", d)
+    if rc == 0 and (sent_at or dry):
+        push_marker("sent", "pullback", {"ok": True}, dry, d)
+    elif rc == 0:
+        log.error("send 退出码 0 但 out_pullback/mail_sent.json 不是 %s 的，"
+                  "不推 sent 标记（云端 20:30 会发「本机没跑」提醒）", d)
+        rc = 1
+    push_all(f"长期调整突破 {d} [local]",
+             [f"data/pullback/{d[:7]}", "out_pullback"], dry)
+    return rc
 
 
 def flow_breakout(dry: bool) -> int:
@@ -1301,23 +1251,12 @@ def flow_breakout(dry: bool) -> int:
     if rc != 0:
         log.error("补数据失败（退出码 %d），今天不出清单", rc)
         return rc
-    try:
-        import pandas as pd
-        dd = pd.read_parquet(ROOT / "data" / "breakout" / "daily.parquet",
-                             columns=["date", "code"])
-        cov, mx = daily_coverage(dd, d)
-        full, why = _daily_covers(dd, d)
-    except Exception as e:  # noqa: BLE001
-        log.error("读不到日线: %s", e)
+    # 两道覆盖闸抽成 daily_ready，长期调整突破用同一份（教训 34）
+    ok, why = daily_ready(d)
+    if not ok:
+        log.error("%s，不出清单", why)
         return 1
-    if cov < DAILY_COVER_MIN:
-        log.error("日线只有 %.1f%% 的票到 %s（全表最新 %s），不出清单",
-                  cov * 100, d, mx)
-        return 1
-    if not full:
-        log.error("目标日那一天的行数不够：%s，不出清单", why)
-        return 1
-    log.info("日线覆盖 %.1f%%，%s", cov * 100, why)
+    log.info("%s", why)
     # 补数据那一步自己记的账。短几只是常态，成片补不上就不该出清单：
     # 那天的横截面百分位、板块中性化、市场宽度都在残缺的池子里算。
     short, note = _update_short(d)
@@ -1338,6 +1277,12 @@ def flow_breakout(dry: bool) -> int:
     if rc != 0:
         return rc
 
+    # 市场环境 + 历史清单真值。以前只有学习会诊（每周一次）顺手算，早盘系统
+    # 2026-09-27 归档后搬到这里每天算：邮件里的「近期全市场基准」读
+    # state/regime_daily.jsonl，控制台首页那张「每份清单 20 天内涨超 50%」读
+    # state/breakout/truth.json。研究性步骤，失败不挡发信（fail-open）。
+    truth_and_regime(dry)
+
     step(4, n, "面板 + 邮件")
     if dry:
         os.environ["SKIP_MAIL"] = "1"
@@ -1345,8 +1290,8 @@ def flow_breakout(dry: bool) -> int:
     # 退出码 0 不等于发了信（教训 27）：send 阶段的 SKIP_MAIL 分支、
     # 以及任何「面板建好了但 send_mail 没走到」的路都返回 0。只认
     # daily.py 在 send_mail 之后落的 out_breakout/mail_sent.json，
-    # 写法照抄 flow_morning。标记不该在没发信的日子推出去：云端 20:30 的
-    # evening_check 看 origin 上有没有清单，推了它就不再提醒。
+    # 和 flow_pullback 同一个写法。标记不该在没发信的日子推出去：云端 20:30
+    # 的 evening_check 看 origin 上有没有 sent 标记，推了它就不再提醒。
     sent_at = _mail_sent_date("out_breakout/mail_sent.json", d)
     if rc == 0 and (sent_at or dry):
         push_marker("sent", "breakout", {"ok": True}, dry, d)
@@ -1361,7 +1306,7 @@ def flow_breakout(dry: bool) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--flow", choices=["morning", "evening", "learn", "breakout"])
+    ap.add_argument("--flow", choices=sorted(FLOWS))
     ap.add_argument("--sync", action="store_true",
                     help="只拉远端产物到本地，不跑任何流程")
     ap.add_argument("--dry", action="store_true",
@@ -1385,14 +1330,14 @@ def main() -> int:
         reason = if_needed_skip(a.flow)
         if reason:
             log.info("%s：%s，跳过", name, reason)
-            # 「时候未到」的两种：顺手拉一次远端，云端替本地跑过的产物
-            # 落到本地面板。周末/非交易日/在跑/已跑完都不动工作区。
+            # 「时候未到」的两种：顺手拉一次远端，让本地面板跟上远端。
+            # 周末/在跑/已跑完都不动工作区。
             if reason.startswith(SYNC_ON):
                 sync_repo()
             return 0
-        # 开跑前先拉远端再核对一次：云端可能已经替本地跑完了
+        # 开跑前先拉远端再核对一次：另一台机器可能已经跑完推上去了
         if sync_repo() and already_done(a.flow):
-            log.info("%s 目标日 %s 云端已经跑过，产物已同步到本地面板，跳过",
+            log.info("%s 目标日 %s 远端已经有了，产物已同步到本地面板，跳过",
                      name, target_date(a.flow))
             return 0
 
@@ -1414,8 +1359,7 @@ def main() -> int:
         t0 = now_bj()
         log.info("本地全流程 %s 启动 @ %s%s", a.flow,
                  t0.strftime("%H:%M:%S"), "（dry-run）" if a.dry else "")
-        rc = {"morning": flow_morning, "evening": flow_evening,
-              "learn": flow_learn, "breakout": flow_breakout}[a.flow](a.dry)
+        rc = {"breakout": flow_breakout, "pullback": flow_pullback}[a.flow](a.dry)
         log.info("总耗时 %.0f 秒，退出码 %d",
                  (now_bj() - t0).total_seconds(), rc)
         return rc

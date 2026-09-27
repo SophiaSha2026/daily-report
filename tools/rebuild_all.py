@@ -6,7 +6,6 @@
 
     python tools/rebuild_all.py            全套
     python tools/rebuild_all.py --only breakout   只重建起涨预测那条
-    python tools/rebuild_all.py --only morning    只重建早盘的训练表
     python tools/rebuild_all.py --dry             只打印要跑什么
 
 顺序有讲究：
@@ -15,7 +14,8 @@
                成绩表 STREAK_PERF 和 state/breakout/board_adj.json 都从这来）
             -> exp_calib（分数分档，BASE / SCORE_TABLE 的来源）
             -> truth.validation_by_board（按板块命中率，邮件的加权期望用）
-  早盘      build-train（回填训练表）-> 学习线下一次跑自然会用新表
+  （早盘那条 build-train 2026-09-27 随早盘系统归档；长期调整突破没有训练表，
+   规则改了跑 python src/pullback_backtest.py 看频率就行）
 
 每一步都核对产物日期/行数，不合格就停下来，不许「退出码 0 但什么都没做」
 （历史教训 22、27）。
@@ -144,36 +144,20 @@ def step_board() -> bool:
     return True
 
 
-def step_train_table() -> bool:
-    if run([sys.executable, str(ROOT / "src" / "eval_daily.py"),
-            "--stage", "build-train"]) != 0:
-        return False
-    import glob
-    import pandas as pd
-    fs = sorted(glob.glob(str(ROOT / "data" / "train" / "backfill_*.parquet")))
-    if not fs:
-        log.error("回填训练表没建出来")
-        return False
-    d = pd.read_parquet(fs[-1], columns=["date", "code"])
-    log.info("回填训练表：%s，%d 行，%d 天", Path(fs[-1]).name, len(d), d["date"].nunique())
-    return True
-
-
 STEPS = {
     "breakout": [("建特征表", step_build), ("重训模型", step_refit),
                  ("逐月滚动", step_window), ("逐月滚动-滚动校正", step_window_rolling),
                  ("分数分档", step_calib), ("按板块命中率", step_board)],
-    "morning": [("回填训练表", step_train_table)],
 }
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--only", choices=["breakout", "morning"], default="")
+    ap.add_argument("--only", choices=["breakout"], default="")
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--from-step", default="", help="从这一步开始（名字前缀）")
     a = ap.parse_args()
-    lines = ["breakout", "morning"] if not a.only else [a.only]
+    lines = ["breakout"] if not a.only else [a.only]
     plan = [(ln, name, fn) for ln in lines for name, fn in STEPS[ln]]
     if a.from_step:
         i = next((i for i, (_, n, _) in enumerate(plan) if n.startswith(a.from_step)), 0)

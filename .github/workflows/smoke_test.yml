@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.11", cache: pip }
       - run: pip install -r requirements.txt
-      - name: 数据源与打分逻辑
+      - name: 数据源与形态判定
         run: python src/smoke_test.py
       - name: 邮件通道
         env:

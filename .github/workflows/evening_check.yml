@@ -1,11 +1,11 @@
 name: 8-晚间托底检查 (20:30 BJT)
 
-# 晚间系统（起涨预测）云端**算不了**：特征表 2.5GB 在本机，新浪日线源在
-# runner 上也不通（CLAUDE.md 5b）。所以云端在这条线上只做一件事：
-# 本地没跑就发一封提醒。协议见 tools/evening_check.py 和 src/local_run.py。
+# 晚间系统两条线（起涨预测、长期调整突破）云端都**算不了**：日线表和特征表
+# 在本机，新浪日线源在 runner 上也不通（CLAUDE.md 5b）。所以云端只做一件事：
+# 本地没跑就发一封提醒，缺哪条写哪条。协议见 tools/evening_check.py 和 src/local_run.py。
 #
-# 20:30 BJT = 美东 08:30。本机计划任务 16:30 起每 30 分钟重试，机器要是
-# 在 16:30~20:30 之间醒过就已经跑完了；到 20:30 还没有就是整段没开机。
+# 20:30 BJT = 美东 08:30。本机计划任务 16:30 / 17:40 起反复重试，机器要是
+# 在那之后到 20:30 之间醒过就已经跑完了；到 20:30 还没有就是整段没开机。
 # 提醒发到邮箱，用户早上（美东）看到后开机，登录触发会自动补跑。
 #
 # 两层触发：这里的 cron + Cloudflare Worker 20:45 BJT 派发（GitHub cron
@@ -63,7 +63,9 @@ jobs:
           git config user.email bot@users.noreply.github.com
           git add state/alert/ 2>/dev/null || true
           git diff --staged --quiet && exit 0
-          git commit -m "alert: breakout $D"
+          # 这次新写的提醒标记（两条线可能只缺一条），推完逐个核对
+          NEW=$(git diff --staged --name-only -- state/alert/)
+          git commit -m "alert: evening $D"
           URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           ok=""
           for i in 1 2 3; do
@@ -78,6 +80,10 @@ jobs:
             sleep 5
           done
           git fetch -q origin "${{ github.ref_name }}" || true
-          if [ -z "$ok" ] || ! git cat-file -e "origin/${{ github.ref_name }}:state/alert/breakout_$D.json" 2>/dev/null; then
-            echo "::error::「今天已提醒」标记没推上 origin，下一个入口会重复提醒一次"
+          miss=""
+          for f in $NEW; do
+            git cat-file -e "origin/${{ github.ref_name }}:$f" 2>/dev/null || miss="$miss $f"
+          done
+          if [ -z "$ok" ] || [ -n "$miss" ]; then
+            echo "::error::「今天已提醒」标记没推上 origin（$miss），下一个入口会重复提醒一次"
           fi

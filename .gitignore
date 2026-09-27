@@ -24,9 +24,10 @@ cache/hist_auction.parquet
 # build_site.py 发布哪几个文件，这里就要放行哪几个：council.html 从
 # 2026-09-16 上线起被这条规则挡着，git add 返回 rc=1 又被吞掉，
 # 「已推送」照打，面板一次都没上过 Pages。
-out_learn/*
-!out_learn/learn.html
-!out_learn/council.html
+# 2026-09-27 早盘系统归档后这一套搬到 archive/morning/out_learn/，规则跟着搬
+archive/morning/out_learn/*
+!archive/morning/out_learn/learn.html
+!archive/morning/out_learn/council.html
 
 cache/hist_auction_c.parquet
 tools/local_flow*.log
@@ -51,7 +52,17 @@ state/trade_dates.json
 
 # 学习会诊：CLI 的原始 stream 每份几百 KB，排查用，不进仓库；
 # 过程时间线 <lens>.trace.jsonl、结论 <lens>.json、证据包都进（面板和历史靠它们）
-state/council/*/*.raw.jsonl
-state/council/*/*.raw2.jsonl
+archive/morning/state/council/*/*.raw.jsonl
+archive/morning/state/council/*/*.raw2.jsonl
 # 起涨清单真值（逐只明细，每天重算，能从 daily.parquet 复原）
 state/breakout/truth.json
+
+# 端到端运行时测试的报告（tools/e2e_check.py 写），本机跑一次看一次，不进仓库
+tools/e2e_report.json
+
+# 注销前导出的计划任务定义（2026-09-27）。带本机用户名和 SID，只留本机，不进公开仓库；
+# Morning / Learn 的定义能从 archive/morning/tools/setup_tasks.ps1 原样重建
+archive/morning/tools/scheduled_tasks/
+
+# 早盘系统归档时移过来的旧运行日志（原来就是 gitignore 的）
+archive/morning/tools/logs/

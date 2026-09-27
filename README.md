@@ -1,269 +1,39 @@
-# A股集合竞价选股 · 自动化流水线
+# A股晚间流水线
 
-每交易日 **09:27:30（北京时间）** 把竞价强弱榜前 10 发到邮箱，
-同时更新在线面板。
+每个交易日收盘后两封邮件（北京时间）：
+
+| 清单 | 时间 | 是什么 |
+|---|---|---|
+| 起涨预测 | 17:00 后 | 模型打分，技术形态接近起涨的股票（清单 A）+ 可能见顶的（清单 B） |
+| 长期调整突破 | 17:58 | 横盘 3 个月以上 -> 倍量大阳线（首阳）-> 缩量调整 -> 再一根倍量大阳线站上首阳最高价，这一天推荐。没有就发空榜 |
+
+在线面板：https://sophiasha2026.github.io/daily-report/
 
 > 量化筛选工具，非投资建议。
 
-> **2026-09-15 起是「本地为主，云端托底」**：主界面是本地控制台
-> `tools/gui.cmd`（桌面「A股流水线」），自动跑靠四个 Windows 计划任务
-> `DailyReport-Local-*`，GitHub Actions 只在本机没跑的时候补位。
-> 这份 README 下面的「部署（全程网页操作）」写的是最初的纯云端装法，
-> 仍然可用（云端托底就是它），但**日常排期、三层触发、让位协议一律以
-> `OPERATIONS.md` 第五节「本地为主，云端托底」为准**，架构和文件地图见
-> `CLAUDE.md`。
+- **日常怎么用、没收到邮件怎么办**：`OPERATIONS.md`
+- **改代码之前**：`CLAUDE.md`（架构、文件地图、硬约束、历史教训）
+- **长期调整突破的规则和每个阈值的来历**：`src/pullback.py` 开头，阈值在 `config.yaml`
+- **早盘系统（09:27:30 竞价强弱榜 + 参数自学）**：2026-09-27 整体归档，见 `archive/morning/RESTORE.md`
 
----
+## 跑在哪
 
-## 目录
+本机为主：控制台 `tools/gui.cmd`（桌面「A股流水线」）是唯一入口，自动跑靠
+Windows 计划任务 `DailyReport-Local-*`（定义在 `tools/setup_tasks.ps1`）。
+两条线的数据（三年全市场日线、特征表）都在本机，云端算不了；本机那天没跑，
+北京 20:30 云端发一封提醒，开机后自动补，最晚到次日 08:30。
 
-- [部署（全程网页操作）](#部署全程网页操作)
-- [Claude 认证的三条路](#claude-认证的三条路)
-- [每天怎么用](#每天怎么用)
-- [调参](#调参)
-- [已知风险](#已知风险)
+GitHub 上只做三件事：存代码和产物、推送后发布 Pages 面板（`pages.yml`）、
+20:30 的晚间提醒（`evening_check.yml`，Cloudflare Worker 20:45 再敲一次）。
 
----
+## 第一次在新机器上装
 
-## 部署（全程网页操作）
-
-### 1. 建仓库
-
-打开 https://github.com/new
-
-| 字段 | 值 |
-|---|---|
-| Repository name | `daily-report` |
-| 可见性 | **Public** |
-| Add README | **不勾** |
-
-选 Public 是因为 Actions 分钟数无限制；Private 免费额度 2000 分钟/月，
-本流程约需 900 分钟/月。Secrets 在 Public 仓库里同样是加密的，读不出来。
-
-### 2. 上传文件
-
-新仓库页面 → **uploading an existing file** →
-把解压后的**所有内容**（包括 `.github` 文件夹）拖进去 → Commit changes。
-
-> 如果拖拽后看不到 `.github` 文件夹：Windows 资源管理器默认隐藏以点开头的
-> 文件夹。查看 → 勾选「隐藏的项目」，再拖一次。
-> 或者直接把整个解压目录拖进去，GitHub 会保留目录结构。
-
-上传完确认仓库里有这几项：`.github/workflows/`、`src/`、`prompts/`、
-`config.yaml`、`requirements.txt`。
-
-### 3. 配 Secrets
-
-仓库 → **Settings** → 左栏 **Secrets and variables** → **Actions**
-→ **New repository secret**，逐个添加：
-
-| Name | Secret |
-|---|---|
-| `SMTP_HOST` | `smtp.gmail.com` |
-| `SMTP_PORT` | `587` |
-| `SMTP_USER` | 你的 Gmail 地址 |
-| `SMTP_PASS` | Gmail 应用专用密码（16 位，**去掉空格**） |
-| `MAIL_TO` | 收件地址，多个用英文逗号分隔 |
-
-**Gmail 应用专用密码怎么来**：
-1. https://myaccount.google.com/security → 开启两步验证（必须先开）
-2. https://myaccount.google.com/apppasswords → 起个名字 → 生成
-3. 复制那 16 位，去掉空格填进 `SMTP_PASS`
-
-Claude 的认证 secret 见下一节。
-
-### 4. 开 Actions 和 Pages
-
-- **Actions**：仓库 → Actions 标签 → 点 "I understand my workflows, go ahead and enable them"
-- **Pages**：Settings → Pages → Source 选 **GitHub Actions**（不是 Deploy from a branch）
-
-Pages 开好后，你的面板地址是
-`https://sophiasha2026.github.io/daily-report/`
-
-### 5. 跑冒烟测试
-
-Actions → 左栏 **0-冒烟测试（首次必跑）** → 右侧 **Run workflow** → 绿色按钮。
-
-它验证 6 项：腾讯批量行情、1600 只吞吐耗时、东财全市场快照、交易日历、
-日线历史、打分逻辑自测，最后发一封测试邮件。
-
-**必须全绿。** 如果行情类失败，说明 GitHub runner 的出口 IP 被国内接口限流，
-需要换部署位置（见「已知风险」）。
-
-### 6. 初始化板块缓存
-
-Actions → **3-刷新板块缓存** → Run workflow。跑 2-4 分钟。
-不跑这步，板块共振维度会失效（不影响其他维度）。
-
-### 7. 试跑一次盘前
-
-Actions → **1-盘前候选池** → Run workflow。确认绿灯。
-
-完成。次日 08:23 起自动运行。
-
----
-
-## Claude 认证的三条路
-
-**你要的「对本地无要求」和 `claude setup-token` 是冲突的**——那条命令必须
-在本机装 Node.js 和 Claude Code CLI 才能跑。三个选项：
-
-### 路 A：API Key（真正零本地，推荐先用这个）
-
-1. https://console.anthropic.com → API keys → Create Key
-2. 复制，存为 Secret `ANTHROPIC_API_KEY`
-
-工作流会自动走备用分支。纯网页操作，零安装。
-代价是按量计费，与订阅分开结算。本流程每天约 1 万 token 量级，
-成本很低，但不是零。
-
-### 路 B：OAuth（用订阅额度，需要本地跑一条命令）
-
-CLAUDE_CODE_OAUTH_TOKEN 认证你的 Claude 订阅，Pro / Max / Team / Enterprise
-都支持，由 `claude setup-token` 生成。
-
-```
-# 需要 Node.js 18+
-npm install -g @anthropic-ai/claude-code
-claude setup-token
+```bash
+pip install -r requirements.txt -r requirements-breakout.txt
 ```
 
-浏览器走 OAuth，终端打印 `sk-ant-oat01-...`，**只显示一次**。
-存为 Secret `CLAUDE_CODE_OAUTH_TOKEN`。
-
-两个注意点：它消耗你的订阅额度，跑重了会挤占本地 Claude Code 的用量；
-2026 年初社区有过这类 token 被拒的反复报告，所以工作流里它是
-`continue-on-error`，挂了照发邮件并在顶部声明「本次无 LLM 分析」。
-
-### 路 C：完全不配
-
-两个 Secret 都不填也能跑。邮件照发，只是没有题材理由和风险提示，
-其余量化字段（评分、高开、量能、形态、板块共振）完全不受影响。
-
-**先按路 A 上线，跑通之后想省钱再换路 B。**
-
----
-
-## 每天怎么用
-
-时刻全部来自 `config.yaml` 的 `runtime` 段，改那里就改了这张表：
-
-| 时间(BJT) | 键 | 发生什么 |
-|---|---|---|
-| 08:30 | — | 本机计划任务的自动开跑时刻（`local_run.FLOWS["morning"]`；手点控制台随时优先，开跑窗口 06:00~09:16） |
-| 开跑后第一步 | — | 构建候选池（全市场筛到 400-1600 只，扫隔夜公告） |
-| 09:19:40 | `snapshot_t1` | T1 快照 —— 撤单前虚拟撮合价 |
-| 09:23:30 | `snapshot_t2` | T2 快照 |
-| 09:25:10 | `snapshot_t3` | T3 快照 —— 最终竞价结果 |
-| 09:25:40 | `snapshot_t4` | T4 补采 —— 只补 T3 漏掉的票（9:25-9:30 价格固定不变） |
-| 09:25:50 | — | Claude 查证题材与风险（起跑时刻钉死在这里，硬超时 2 分钟） |
-| 09:26:30 | `hard_deadline` | 还没开始就放弃并发告警邮件，宁可不发也不发脏数据 |
-| **09:27:30** | `send_at` | **发邮件 + 更新在线面板**（软时点：到点就发，早跑完也等到这一秒） |
-| 09:28:30 | `send_deadline` | 硬上限。越过要在邮件里留痕，是报警器不是常规路径 |
-
-你在美东时区：北京 09:27:30 = 美东 21:27（夏令时）/ 20:27（冬令时）。
-
-**收到之后**：
-
-1. 邮件里就是完整表格，直接看
-2. 要推进同花顺 → 打开在线面板 `https://sophiasha2026.github.io/daily-report/`
-   → 点「复制全部代码」或「仅强」→ 切到同花顺，剪贴板识别框会自动弹出
-   → 点「加入自选股/板块股」
-3. 或者用邮件附件里的 `竞价_强.txt` / `竞价_中.txt`：
-   同花顺 → 自选股版块设置 → 导入 → 文件类型选 TXT
-
-### 关于同花顺
-
-同花顺**没有**通达信那种自定义数据管理器，外部算好的数值导不进去做成
-可排序的一列。社区工具链全是「同花顺 → 通达信」方向的，反向不存在。
-所以排名只能用**分层板块**（强 / 中 / 观察）表达，理由和风险放在面板里。
-
-仓库里保留了 `src/tdx_export.py`。如果你哪天愿意额外装个通达信
-（免费、体积小、可与同花顺共存）当评分看板，那边能做到真正的可排序评分列。
-
----
-
-## 调参
-
-全部在 `config.yaml`，网页上直接改，Commit 后下一个交易日生效。
-
-### 两个自定义指标
-
-各家软件 9:25 的「量比」口径不一致、不可复现，所以自己定义：
-
-```
-GAP_NORM  = 高开幅度 / 当日涨停幅度       # 10/20/30cm 统一可比
-AUC_RATIO = 竞价成交额 / 昨日全天成交额    # 竞价量能
-```
-
-`AUC_RATIO` 与传统量比的换算（设昨日量 ≈ 5日均量）：
-
-| AUC_RATIO | ≈ 量比 | 含义 |
-|---|---|---|
-| 0.8% | 1.9 | 常态 |
-| **1.04%** | 2.5 | 放量下限（`auc_ratio_min`，默认） |
-| **3.0%** | 7.2 | 明显异动（打分饱和点 `auc_ratio_score_hi`） |
-| **4.17%** | 10 | 上限（`auc_ratio_max`，默认） |
-| 8% | 19 | 强异动，当前配置已剔除 |
-| 20.8% | 50 | 2026-08-24~09-01 用过的上限，**09-02 已收回**，不再是默认 |
-
-> 你原始规则里的「竞价量能 ≥ 昨日全天 10%」等价于量比约 24，
-> 与「量比 ≤ 10」直接冲突，两条同时用交集是空集（四天真实快照实测
-> 每天 0 只），所以只落实量比那条，10% 那条留在 config 注释里不启用。
-
-### 涨幅上限用绝对值
-
-竞价涨幅的筛选用 `gap_pct`（绝对百分点，上限 5%），不用 `GAP_NORM`。
-创业板高开 6.4% 照样出局，不会因为它是 20cm 就放宽到 10%。
-`GAP_NORM` 仍然算出来写进 `detail.csv`，只是不参与筛选。
-
-### 常改的几项
-
-| 想要 | 改哪里 |
-|---|---|
-| 涨幅区间改成 3%-5% | `gap_pct_min: 3.0` / `gap_pct_max: 5.0` |
-| 换个最理想涨幅 | `gap_pct_peak: 3.5`（必须落在上下限之间） |
-| 不接受低开以外还要有动能 | `gap_pct_min: 2.0` |
-| 出 15 只 | `output.top_n: 15` |
-| 更严 | `min_score: 60`、`require_positive_slope: true` |
-| 量比下限改成 3 倍 | `auc_ratio_min: 0.0125`（量比 ÷ 240） |
-| 分层阈值 | `ths_tiers: [80, 65]` |
-| 加大板块权重 | `scoring.weights.sector: 0.25`（其余等比缩减，和为 1.0） |
-| 恢复 A/B 双榜 | `merge_groups: false` |
-
-### 为什么有 `min_auc_amount_wan`
-
-你选了不限市值。一只 5 亿市值的票竞价成交 20 万也能满足
-`AUC_RATIO ≥ 1.04%`，但那个盘口买不进去——比例指标在小盘票上会失真。
-所以加了绝对流动性下限 300 万。这个数可以调，但不建议去掉。
-
----
-
-## 已知风险
-
-| 风险 | 影响 | 处理 |
-|---|---|---|
-| GH Actions cron 延迟 30 分钟以上 | 错过 9:25 窗口 | 2026-09-15 起主路是本机计划任务；云端保留错峰入口 + job 内自旋等待 + 硬截止 09:26:30 + 告警邮件 |
-| runner IP 被国内行情接口限流 | 拿不到数据 | 冒烟测试先验；不通则改用香港轻量服务器（约 24 元/月）跑同一份代码 |
-| 东财 clist 批量接口不可用 | 已规避 | **实测 GitHub runner 上该接口被 RemoteDisconnected 掐断**（但东财单只日线接口正常）。全市场快照已改走腾讯批量 + 本地代码表 |
-| akshare 随数据源改版失效 | 盘前任务失败 | 时间宽裕、带重试；失败发告警邮件 |
-| 仓库 60 天无提交 cron 被停 | 静默失效 | 每日 commit 快照数据自动 keepalive |
-| Claude 撞额度 | 无理由文案 | 照发邮件，顶部声明「本次无 LLM 分析」 |
-| 腾讯字段索引变动 | 解析异常 | 只用低位稳定字段，涨停价自行推算；冒烟测试会先发现 |
-
-**已验证**（2026-08 冒烟测试，GitHub runner）：腾讯批量行情可达，1600 只
-5 路并发约 4 秒；交易日历可达；东财**单只**日线接口可达；东财 clist
-**批量**接口不可达，已改走腾讯规避。
-
-**仍未验证**：腾讯在 9:15-9:25 返回的「当前价」是否为虚拟撮合参考价。
-这决定 `假涨停撤单` 和 `竞价斜率` 两个维度是否有效，只能在交易日盘前实测。
-若不符，改成从东财盘前分时接口取（`stock_zh_a_hist_pre_min_em`），
-`datasource.py` 里留了位置。
-
----
-
-## 数据积累
-
-流程每天把全候选池的竞价快照落到 `data/YYYY-MM/`。市面上买不到便宜的
-历史竞价数据，只能自己攒。攒够 40 个交易日后，这份数据可以用来标定
-`config.yaml` 里所有阈值的真实最优区间。
+1. 复制 `tools/local.env.example` 为 `tools/local.env`，填 Gmail 应用专用密码等发信项
+2. 首次回填三年日线（约 70 分钟）：控制台「辅助工具 -> 全量回填」
+3. 注册计划任务：`powershell -ExecutionPolicy Bypass -File tools\setup_tasks.ps1`
+4. 跑一遍自测：`python src/selftest_pullback.py`、`python src/selftest_gui.py`、
+   `python src/selftest_breakout.py`，再 `python tools/e2e_check.py`

@@ -3,9 +3,9 @@
 
 为什么不上 Flask/FastAPI
 ------------------------
-CLAUDE.md 的规矩是依赖分线管理（学习线要 scikit-learn，另两条线不许
-沾）。控制台是三条线共用的，给它引一个 Web 框架，等于给每条线都加了
-依赖。标准库的 ThreadingHTTPServer 在单用户本机场景下完全够用——
+CLAUDE.md 的规矩是依赖分线管理（起涨预测要 lightgbm/torch，长期调整突破
+只要 requirements.txt）。控制台是两条线共用的，给它引一个 Web 框架，等于给
+每条线都加了依赖。标准库的 ThreadingHTTPServer 在单用户本机场景下完全够用——
 这里的并发上限是「一个人开了几个标签页」。
 
 两道防护
@@ -44,37 +44,16 @@ REG = Registry()
 
 ALLOWED_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
 
-# 面板文件：界面上用 iframe 嵌这三个。键要和前端对得上。
+# 面板文件：界面上用 iframe 嵌这两个。键要和前端对得上。
+# 2026-09-27 早盘选股 / 参数自学 / 学习会诊三个面板随早盘系统归档，
+# 会诊提案的批准接口（/api/council/decide）一起删掉。
 PANELS = {
-    "auction": ("out/panel.html", "早盘选股面板"),
-    "pullback": ("out_pullback/panel.html", "回调形态面板"),
-    "learn": ("out_learn/learn.html", "参数自学面板"),
     "breakout": ("out_breakout/panel.html", "起涨预测面板"),
-    "council": ("out_learn/council.html", "学习会诊面板"),
+    "pullback": ("out_pullback/panel.html", "长期调整突破面板"),
 }
 
-
-def _council_decide(body: dict) -> dict:
-    pid = str(body.get("id") or "")
-    action = str(body.get("action") or "")
-    if not pid or action not in ("approve", "reject"):
-        return {"ok": False, "error": "缺 id 或 action"}
-    try:
-        from learn.council import run as CR, experiments as EX
-        if action == "reject":
-            CR.write_decision(pid, "rejected", by="gui")
-            res = {"ok": True, "what": "已驳回"}
-        else:
-            import cfg as C
-            res = EX.apply(pid, C.load(), by="gui")
-        try:
-            from learn.council import panel as CP
-            CP.build()
-        except Exception as e:  # noqa: BLE001
-            res["panel_error"] = str(e)
-        return res
-    except Exception as e:  # noqa: BLE001
-        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+# 面板 iframe 里的自刷新脚本轮询的 stamp 文件名 -> 它在哪个目录
+STAMPS = {"stamp-pullback.txt": "out_pullback", "stamp-breakout.txt": "out_breakout"}
 
 
 def _retry_push() -> dict:
@@ -191,9 +170,9 @@ class Handler(BaseHTTPRequestHandler):
         # 控制台的网络面板会被刷屏。
         if p.startswith("/panel/stamp"):
             name = p.rsplit("/", 1)[-1]
-            src = {"stamp.txt": "out", "stamp-pullback.txt": "out_pullback",
-                   "stamp-breakout.txt": "out_breakout",
-                   }.get(name, "out")
+            src = STAMPS.get(name)
+            if not src:
+                return self._json({"error": "no such stamp"}, 404)
             f = ROOT / src / "stamp.txt"
             txt = f.read_text(encoding="utf-8") if f.exists() else ""
             return self._send(200, txt.encode("utf-8"),
@@ -270,11 +249,6 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/task":
             return self._task(body)
 
-        if p == "/api/council/decide":
-            # 会诊提案的批准 / 驳回。批准 = 落地（早盘参数写 learned.yaml，
-            # 起涨常量/特征进 overrides）。只认过闸的，其余只能驳回。
-            return self._json(_council_decide(body))
-
         if p == "/api/push":
             r = _retry_push()
             return self._json(r, 409 if r.get("busy") else 200)
@@ -292,8 +266,8 @@ class Handler(BaseHTTPRequestHandler):
              `'' | Out-Null` 成功，退出码 0、接口回 ok:true、界面 toast「已改」，
              完全静默。
           2. 白名单：只放行 scheduled_tasks() 实际列出来的键。用它而不是
-             LINES 的 task 字段，是因为本机还有 Local-Sync 和两个旧的
-             Trigger 任务（共 6 个），界面给每个都画了按钮。
+             LINES 的 task 字段，是因为本机还有 Local-Sync 这种不属于任何
+             一条线的任务，界面给每个都画了按钮。
         """
         name = str(body.get("name", ""))
         if (not re.fullmatch(r"DailyReport-[A-Za-z0-9_-]+", name)

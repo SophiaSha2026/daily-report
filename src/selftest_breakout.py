@@ -782,7 +782,8 @@ def check_holders_refresh() -> None:
     _os.utime(hp, (fresh, fresh))
     ck(not B.holders_stale(hp),
        "1 小时前刚刷过的不重复刷（同一晚每 30 分钟重试一次不会反复拉）")
-    src = inspect.getsource(B.stage_update)
+    # 2026-09-27 起 stage_update 只拿日线写锁，干活的是 _stage_update
+    src = inspect.getsource(B._stage_update)
     ck("holders_stale(" in src and "7 * 86400" not in src,
        "stage_update 走 holders_stale，源码里没有残留的 7 天门槛")
 
@@ -2606,8 +2607,14 @@ def check_evening_decide() -> None:
     ck("没发出去" in s1 and "没跑" in s2 and s1 != s2, "两种原因的主题不一样")
     ck("多半是没开机" in b2, "本机没跑那封还是老说法")
     msrc = inspect.getsource(ec.main)
-    ck("decide(" in msrc and "state/sent/breakout_" in msrc,
+    ck("decide(" in msrc and "state/sent/{key}_" in msrc,
        "main 真的走 decide + sent 标记（防止有人把判据写回 run_meta）")
+    ck(set(ec.LINES) == {"breakout", "pullback"},
+       "两条晚间线都查（2026-09-27 起长期调整突破也进提醒）")
+    s3, b3 = ec.build_mail_many("2026-09-16", [("breakout", m, ec.NOT_RUN),
+                                               ("pullback", {}, ec.NOT_RUN)])
+    ck("起涨预测" in s3 and "长期调整突破" in s3 and "DailyReport-Local-Pullback" in b3,
+       "两条都缺时合成一封，主题和正文里两条都在")
     ck(msrc.index("_origin_json(") < msrc.index("_origin_has(f\"state/sent"),
        "_origin_has 不自己 fetch，必须排在 _origin_json 之后")
 

@@ -1,8 +1,8 @@
 @echo off
 REM ===========================================================================
-REM  Desktop entry point for the console (GUI). Replaces panel.cmd, which
-REM  launched the PowerShell TUI. The TUI still works and is kept as a
-REM  fallback for when a browser is not available.
+REM  Desktop entry point for the console (GUI). The old PowerShell TUI
+REM  (panel.cmd / panel.ps1) was archived on 2026-09-27 together with the
+REM  morning system: archive/morning/tools/.
 REM
 REM  Keep this file PURE ASCII: cmd.exe reads .cmd in the OEM code page, so
 REM  Chinese comments turn into mojibake and any echo of them prints garbage.
