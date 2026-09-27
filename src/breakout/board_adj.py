@@ -95,7 +95,7 @@ def shrink_factors(counts: dict[str, tuple[int, int]],
 
 def diagnostics(counts: dict[str, tuple[int, int]],
                 min_board: int = MIN_BOARD) -> dict:
-    """把中间量也吐出来，面板和会诊证据包要印「每个板块被信了多少」。"""
+    """把中间量也吐出来，面板要印「每个板块被信了多少」。"""
     rows = [(b, int(h), int(n)) for b, (h, n) in counts.items()
             if int(n) >= min_board and int(n) > 0]
     total_n = sum(n for _, _, n in rows)

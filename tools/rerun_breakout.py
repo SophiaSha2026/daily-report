@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import time
 import shutil
 import sys
 import tempfile
@@ -41,6 +42,9 @@ import local_run as LR      # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
                     datefmt="%H:%M:%S")
+# 日志时间一律北京时间（控制台「运行记录」直接印日志，界面只用北京时间）。
+# 必须包 staticmethod：直接赋 lambda 会被绑成方法，每条日志都报错并丢掉
+logging.Formatter.converter = staticmethod(lambda t: time.gmtime(t + 8 * 3600))
 log = logging.getLogger("rerun")
 
 

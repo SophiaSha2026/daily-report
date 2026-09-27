@@ -16,7 +16,7 @@
 当天例行跑一次 update_perf 就会静默发生这件事（2026-09-16 实测发生了）。
 
 写之前还要核对产物的板块系数和生产此刻生效的是不是同一套（含 overrides.json
-里会诊批准的覆盖），对不上直接拒绝写，让人先去重跑 exp_window。
+里的人工覆盖），对不上直接拒绝写，让人先去重跑 exp_window。
 两臂的数都写进 docs/breakout_log.md，邮件里印哪一个在这里选。
 """
 from __future__ import annotations

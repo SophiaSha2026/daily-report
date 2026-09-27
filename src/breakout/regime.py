@@ -1,9 +1,10 @@
 """
 每日市场环境指标：state/regime_daily.jsonl。
 
-2026-09-16 会诊的结论里，「市场环境」占了原因权重的 15%，但那是 LLM 去网上
+2026-09-16 学习会诊的结论里，「市场环境」占了原因权重的 15%，但那是 LLM 去网上
 查成交额和指数得出来的 —— 查到的数字没人核对，也没法做时间序列。这里把能从
-自己的日线表算出来的环境量每天落一行，下次会诊直接读，不用再靠检索：
+自己的日线表算出来的环境量每天落一行（local_run.flow_breakout 发信前写），
+起涨预测邮件的「近期基准」和控制台读它：
 
     date, n, turnover_yi, adv_share, limit_up, limit_down, max_gain_share,
     ret_median_pct, ret_mean_pct, base20, turnover_ma5_yi, turnover_chg5

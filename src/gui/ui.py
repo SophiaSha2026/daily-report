@@ -197,7 +197,7 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
   <section id="v-sched" hidden></section>
 
   <section id="v-log" hidden>
-    <h2>自动运行记录<span class="hint">计划任务每天自己跑的输出。手动跑的记录在「运行」页</span></h2>
+    <h2>自动运行记录<span class="hint">计划任务每天自己跑的输出，北京时间（09-28 以前的行是美东时间）。手动跑的记录在「运行」页</span></h2>
     <pre class="log" id="flowlog">读取中...</pre>
   </section>
 
@@ -579,7 +579,7 @@ function renderRules(box, r) {
   const cond = el("div", "muted");
   cond.style.cssText = "font-size:12px;margin-top:10px;line-height:1.8";
   cond.innerHTML = "<b>优先级：</b><br>" + (r.priority || []).map(esc).join("<br>") +
-    "<br><b>计划任务每次敲门，按顺序过五道检查（--if-needed）：</b><br>" +
+    "<br><b>计划任务每次敲门，按顺序过这几道检查（--if-needed）：</b><br>" +
     (r.if_needed || []).map((x, i) => (i + 1) + ". " + esc(x)).join("<br>") +
     "<br><b>手动：</b>" + esc(r.manual || "") +
     "<br><b>第三层触发：</b>" + esc(r.worker || "");
@@ -602,8 +602,8 @@ function renderSched(s) {
   const box = $("#v-sched"); box.innerHTML = "";
   const h = el("h2", null, "Windows 计划任务");
   h.appendChild(Object.assign(el("span", "hint"),
-    { textContent: "每天自动运行靠这个。表里「上次/下次」是 Windows 报的本机（美东）时间，" +
-                   "排期本身按 UTC 锚定，对应的北京时刻见下面的说明" }));
+    { textContent: "每天自动运行靠这个。「上次/下次」是北京时间；" +
+                   "排期按 UTC 锚定，北京时刻不随美东夏令时漂" }));
   box.appendChild(h);
 
   const t = el("table");
@@ -651,7 +651,6 @@ function renderSched(s) {
     "反复重试是因为笔记本可能整段时间不在线（2026-08-27 就漏发过一次）。" +
     "反复敲是安全的：流程会先查目标日跑过没有、有没有正在跑，跑完了再敲直接退出，不会重发邮件。" +
     "本机整天没开时云端算不了（数据都在本机），北京 20:30 发一封提醒，开机后自动补。" +
-    "早盘系统的两个任务（Morning / Learn）2026-09-27 随早盘系统归档删掉。" +
     "排期定义在 tools/setup_tasks.ps1。";
   box.appendChild(tip);
 }

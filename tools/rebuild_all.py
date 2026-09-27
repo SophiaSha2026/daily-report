@@ -1,6 +1,6 @@
 """
 口径改动之后的重建重训流水。2026-09-16 那批审计修了 40 余处会改口径的地方
-（筹码网格、均线暖机、股东户数过滤、共同起点、回填表的竞价字段……），
+（筹码网格、均线暖机、股东户数过滤、共同起点……），
 特征表和训练表必须整个重建，成绩常量也要按新表重算，否则邮件里印的是
 旧口径的成绩给新模型背书（历史教训 30）。
 
@@ -37,6 +37,9 @@ sys.path.insert(0, str(ROOT / "src" / "breakout"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
                     datefmt="%H:%M:%S")
+# 日志时间一律北京时间（控制台「运行记录」直接印日志，界面只用北京时间）。
+# 必须包 staticmethod：直接赋 lambda 会被绑成方法，每条日志都报错并丢掉
+logging.Formatter.converter = staticmethod(lambda t: time.gmtime(t + 8 * 3600))
 log = logging.getLogger("rebuild")
 DATA = ROOT / "data" / "breakout"
 OUT = ROOT / "out_breakout"

@@ -14,10 +14,13 @@ tools/local_run_*.log
 .secret
 .secret.*
 
-# 回填原始数据：体积大、可重建，不进版本库。
-# 派生出来的训练表 data/train/*.parquet 才提交。
-cache/hist_daily.parquet
-cache/hist_auction.parquet
+# 早盘学习线回填的原始缓存：体积大、可重建，不进版本库（2026-09-27 随早盘归档
+# 从 cache/ 搬到这里）。派生出来的训练表 archive/morning/data/train/ 才提交。
+archive/morning/cache/hist_daily.parquet
+archive/morning/cache/hist_auction.parquet
+archive/morning/cache/hist_auction_c.parquet
+# 早盘两条线归档前最后一次的进度文件（本机运行态，原来就在 gitignore 的 state/lock/）
+archive/morning/state/lock/
 # out_learn 里只有面板入库：它们要进 Pages 站点，而部署跑在
 # 另一个 job 另一次 checkout（历史教训 7：跨 job 传状态要么提交要么
 # download-artifact）。其余产物（PDF、brief、race csv）留本地。
@@ -29,7 +32,6 @@ archive/morning/out_learn/*
 !archive/morning/out_learn/learn.html
 !archive/morning/out_learn/council.html
 
-cache/hist_auction_c.parquet
 tools/local_flow*.log
 
 # 本机推送状态，控制台总览读它。每次推送都变，进仓库只是噪音
@@ -41,6 +43,9 @@ state/push_status.json
 # 连续天数靠它数，丢了连续计数就断了。
 data/breakout/raw/
 data/breakout/daily.parquet
+# 腾讯分片合并出来的备用日线（backfill --stage daily），和原子写的半成品
+data/breakout/daily_tx.parquet
+data/breakout/*.tmp
 data/breakout/train.parquet
 data/breakout/holders.parquet
 data/breakout/shares.parquet

@@ -45,7 +45,7 @@
 
 「第二根大阳线」取和首阳同一个定义（用户原话「以此为基准：第一根大阳线」
 「再次来一根倍量大阳线」）。放宽成「涨幅 ≥5% 的阳线」是 trigger.big=loose，
-2026-09-27 回测三年频率从每月约 1.7 次变成约 3.6 次。
+2026-09-27 回测频率从每月约 1.9 次变成约 4.1 次（2023-08 起全市场覆盖齐了的 749 天）。
 
 「量」一律是成交量（股），不是成交额：成交额受价格影响，涨停日天然更大，
 拿它判「放大 1.5 倍」会系统性偏松（形态线 2026-08 就定的口径）。
@@ -60,6 +60,12 @@ data/breakout/daily.parquet：起涨预测那条线维护的全市场三年日�
     「高 1 分」2634 次、「低 1 分」2524 次，几乎对称 —— 说明几乎全是舍入，
     真正「差一分没封住」的情形可以忽略。所以判据是「收在最高价且不低于
     涨停价 1 分以上」。
+  · 停牌：首阳前一天到推荐日之间，这只票只要缺了一个全市场开市日（停牌），这一段
+    就作废，首阳是复牌第一天也不算。停牌不是缩量调整，复牌那天的量和停牌前也不可比
+    （2026-09-27 回看：688693 首阳 03-10，03-16~03-27 停牌 10 个交易日，第一版把它算成了
+    「调整 3 天后二次进攻」）。
+    节假日全市场都休市，不受影响；横盘期里停过牌不管（60 根 K 线跨得更久，照样是
+    「3 个月以上」）。
   · 送转 / 大额解禁：流通股本一天变 20% 以上时，那天前后的成交量不可比
     （10 送 10 之后每天的量天然翻倍，会伪造「倍量」）。首阳、调整期、二次进攻
     任何一天股本跳变就整段作废（guard.os_jump_max）。横盘期里的跳变不管：
@@ -102,6 +108,9 @@ NAME = "长期调整突破"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
                     datefmt="%H:%M:%S")
+# 日志时间一律北京时间（控制台「运行记录」直接印日志，界面只用北京时间）。
+# 必须包 staticmethod：直接赋 lambda 会被绑成方法，每条日志都报错并丢掉
+logging.Formatter.converter = staticmethod(lambda t: time.gmtime(t + 8 * 3600))
 log = logging.getLogger("pullback")
 
 
@@ -144,6 +153,8 @@ def prepare(d: pd.DataFrame, pb: dict) -> pd.DataFrame:
     big     这一根算不算「大阳线」：主板涨停，其余板块涨幅 ≥ launch.gain_min_other
     vr      成交量 / 前一交易日成交量
     os_jump 当日流通股本相对前一日变动超过 guard.os_jump_max（送转 / 大额解禁）
+    missed  离这只票上一根 K 线之间，全市场开了几天市而它没有 K 线（停牌天数）。
+            节假日全市场都休市，不算；「开市日」取有 K 线的票不少于在市票数一半的日子
     """
     need = ["code", "date", "open", "high", "low", "close", "volume"]
     miss = [c for c in need if c not in d.columns]
@@ -173,6 +184,18 @@ def prepare(d: pd.DataFrame, pb: dict) -> pd.DataFrame:
     x["big"] = np.where(x["board"].eq("main"), x["limit_up"],
                         (x["gain"] >= gmin - 1e-9).fillna(False))
     x["big"] = x["big"].astype(bool)
+
+    # 开市日：当天有 K 线的票不少于「在市」票数的一半。在市 = 这只票的第一根到
+    # 最后一根之间。不能拿全表行数的中位数比：日线表 2023 年初只有两三百只票有
+    # 数据（中位 5304），按中位数那段 96 天全被当成休市，停牌就识别不出来
+    cnt = x["date"].value_counts()
+    u = np.array(sorted(cnt.index))
+    span = x.groupby("code")["date"].agg(["min", "max"])
+    alive = (np.searchsorted(np.sort(span["min"].to_numpy()), u, side="right")
+             - np.searchsorted(np.sort(span["max"].to_numpy()), u, side="left"))
+    mdays = u[cnt.reindex(u).to_numpy() >= 0.5 * alive]
+    mi = x["date"].map({dd: i for i, dd in enumerate(mdays)}).astype(float)
+    x["missed"] = (mi - mi.shift() - 1).where(~first).fillna(0).clip(lower=0)
 
     jmax = float((pb.get("guard") or {}).get("os_jump_max", 0.20))
     if "outstanding_share" in x.columns:
@@ -239,6 +262,7 @@ def find_events(x: pd.DataFrame, pb: dict) -> tuple[pd.DataFrame, pd.DataFrame, 
     vr = x["vr"].to_numpy(float)
     big = x["big"].to_numpy(bool)
     osj = x["os_jump"].to_numpy(bool)
+    miss = x["missed"].to_numpy(float) if "missed" in x.columns else np.zeros(len(x))
     brd = x["board"].to_numpy()
     lup = x["limit_up"].to_numpy(bool)
     n = len(x)
@@ -276,6 +300,10 @@ def find_events(x: pd.DataFrame, pb: dict) -> tuple[pd.DataFrame, pd.DataFrame, 
         if above_max and v[s] <= float(base_v.max()):
             bump("横盘期有比首阳更大的量")
             continue
+        if miss[s] > 0:
+            # 复牌第一天：「比前一天放量」比的是停牌前那根，不是用户说的「突然倍量」
+            bump("首阳是复牌第一天")
+            continue
         bump("首阳成立")
         vs, hs, ls, os_ = v[s], h[s], lo[s], o[s]
         floor = os_ if floor_kind == "open" else ls
@@ -286,6 +314,12 @@ def find_events(x: pd.DataFrame, pb: dict) -> tuple[pd.DataFrame, pd.DataFrame, 
             L = t - s - 1                      # t 之前已经调整了几天
             if osj[t]:
                 status = "股本跳变"
+                break
+            if miss[t] > 0:
+                # 调整期或推荐日之前停过牌：停牌不是缩量调整，复牌那天的量和
+                # 停牌前也不可比（2026-09-27 回看：688693 首阳后停牌 10 个交易日，
+                # 复牌就被算成「调整 3 天后二次进攻」）
+                status = "形态段里停过牌"
                 break
             if L >= lmin and c[t] > hs:
                 # 调整够天数之后第一次收盘站上首阳最高价：这一天就是考卷
@@ -422,15 +456,36 @@ def forward(x: pd.DataFrame, ev: pd.DataFrame, bars: int = 20) -> pd.DataFrame:
     return e
 
 
-def history_stats(evf: pd.DataFrame, x: pd.DataFrame, bars: int = 20) -> dict:
-    """全表同口径的历史频率，外加走满 bars 根的那些事件之后怎么样了。"""
-    days = int(x["date"].nunique()) if len(x) else 0
-    first = str(x["date"].min()) if len(x) else ""
+def coverage_start(x: pd.DataFrame, base_days: int) -> str:
+    """全市场都能被扫到的第一天：前面已有 base_days 根 K 线的票数第一次到中位数九成。
+
+    一只票要先有 base_days 根横盘才可能出首阳。日线表 2023 年初只有两三百只票有
+    数据（2023-05 之后才五千多只），拿全表天数当分母，「每月几次」被摊薄两成，
+    「回看 2023-01 起」也名不副实（2026-09-27 实测：全表 905 天算每月 1.55 次，
+    覆盖齐了的 749 天算 1.9 次）。
+    """
+    if not len(x):
+        return ""
+    pos = x.groupby("code").cumcount()
+    n = x[pos >= base_days].groupby("date").size()
+    if not len(n):
+        return str(x["date"].min())
+    return str(n.index[n >= 0.9 * n.median()].min())
+
+
+def history_stats(evf: pd.DataFrame, x: pd.DataFrame, bars: int, base_days: int) -> dict:
+    """同口径的历史频率，外加走满 bars 根的那些事件之后怎么样了。
+
+    只数全市场覆盖齐了之后的那一段（coverage_start），频率和「之后」用同一批事件。
+    """
+    start = coverage_start(x, base_days)
     last = str(x["date"].max()) if len(x) else ""
-    n = int(len(evf))
-    done = evf[evf["n_after"] >= bars] if n else evf
+    days = int(x.loc[x["date"] >= start, "date"].nunique()) if len(x) else 0
+    evw = evf[evf["date"] >= start] if len(evf) else evf
+    n = int(len(evw))
+    done = evw[evw["n_after"] >= bars] if n else evw
     per_month = round(n / days * 21, 2) if days else None
-    st = {"n": n, "days": days, "from": first, "to": last, "per_month": per_month,
+    st = {"n": n, "days": days, "from": start, "to": last, "per_month": per_month,
           "bars": bars, "n_final": int(len(done))}
     if len(done):
         st.update({
@@ -517,8 +572,10 @@ def scan(target: str, pb: dict, d: pd.DataFrame | None = None) -> dict:
 
     need = sorted(set(todays["code"] if len(todays) else [])
                   | set(watch["code"] if len(watch) else []))
+    hist_n = int(pb.get("output", {}).get("history_n", 30))
+    # 多取一些再剔 ST，剔完才截到 hist_n 条（先截后剔，面板上会少几条）
     hist = (evf[evf["date"] < target].sort_values(["date", "code"])
-            .tail(int(pb.get("output", {}).get("history_n", 30)))) if len(evf) else evf
+            .tail(hist_n + 20)) if len(evf) else evf
     need_all = sorted(set(need) | set(hist["code"] if len(hist) else []))
     nm = names_for(need_all)
     st = st_cache()
@@ -538,11 +595,13 @@ def scan(target: str, pb: dict, d: pd.DataFrame | None = None) -> dict:
         # 同一只票不能既在清单上又在观察名单里
         watch = watch[~watch["code"].isin(set(todays["code"]))].reset_index(drop=True)
     hist, _ = attach(hist)
+    hist = hist.tail(hist_n).reset_index(drop=True)
     todays = rank(todays)
     # 历史频率按今天的 ST 名单剔（历史上当时是不是 ST 拿不到），和
     # pullback_backtest 同一个口径，邮件里的「三年 N 次」和回看脚本对得上
     evs = evf[~evf["code"].isin(st)] if len(evf) else evf
-    stats = history_stats(evs, x, int(pb.get("output", {}).get("forward_bars", 20)))
+    stats = history_stats(evs, x, int(pb.get("output", {}).get("forward_bars", 20)),
+                          int(pb["base"]["days"]))
     # 目标日当天的分项计数（邮件抬头那一行）
     big_today = int((today["big"] & (today["vr"] >= float(pb["launch"]["vol_ratio_min"]))).sum())
     info = {
@@ -577,7 +636,7 @@ def rules_text(pb: dict) -> list[str]:
         f"二次进攻（今天）：{tbig}，量 ≥ 前一日 {tc['vol_ratio_min']:g} 倍，"
         f"收盘 > 首阳最高价（调整后第一次站上）",
         "加分项只排序不决定入选：量超首阳、调整最低量缩到首阳一半以下、不破首阳开盘价",
-        "「量」是成交量（股），不是成交额。ST 不选",
+        "「量」是成交量（股），不是成交额。ST、形态中途停过牌的不选",
     ]
 
 
@@ -703,14 +762,17 @@ def stage_send(target: str, wait: bool = True) -> int:
     if wait:
         wait_until(due)
     late = now_bj() - due
+    muted = skip_mail()
+    # 「补发于」只在真要发信时写。SKIP_MAIL（试跑、手动重出面板）不发信，
+    # 写上去面板就在说一件没发生的事（2026-09-27 首发那份 09-24 面板就是这样）
     late_note = (f"本机 {due.strftime('%H:%M')} 没开机，补发于 "
                  f"{now_bj().strftime('%m-%d %H:%M')}"
-                 if late.total_seconds() > 15 * 60 else "")
+                 if late.total_seconds() > 15 * 60 and not muted else "")
     owner = os.environ.get("GH_OWNER", "")
     repo = os.environ.get("GH_REPO", "")
     page = f"https://{owner.lower()}.github.io/{repo}/pullback.html" if owner else ""
     E.write_panel(sel, watch, hist, meta, OUT, target, late_note)
-    if skip_mail():
+    if muted:
         log.info("SKIP_MAIL 已设：面板已生成，邮件不发")
         return 0
     att = [p for p in [OUT / f"{NAME}.txt"] if p.exists() and p.stat().st_size > 0]

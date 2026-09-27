@@ -74,8 +74,9 @@ config.yaml              长期调整突破的全部阈值（pullback 段）。�
                          src/breakout/daily.py 和 state/breakout/，不在这里。
                          早盘那些段原样在 archive/morning/config.yaml
 src/
-  datasource.py          数据源层。腾讯批量行情为主，东财单只日线为辅；交易日历、
-                         limit_pct / limit_price（涨停价口径的唯一实现）
+  datasource.py          数据源层：腾讯批量行情、代码表、交易日历、
+                         limit_pct / limit_price（涨停价口径的唯一实现）。历史日线不在这里，
+                         在 breakout/backfill.py；早盘专用的快照 / 三路日线 2026-09-27 删掉
   mailer.py              SMTP 发信底层 + send_alert + skip_mail（SKIP_MAIL 的唯一判定）
   panel_style.py         两个面板共用的 PANEL_CSS / REFRESH_JS（2026-09-27 从已归档的
                          ths_export.py 抽出来）
@@ -86,7 +87,6 @@ src/
                          file_lock 一份实现：git_lock（git 工作区）、data_lock（日线表）
   build_site.py          把两个面板打包成 _site（入口 index.html + 两个面板），pages.yml 调它
   refresh_meta.py        刷新代码表 cache/codes.csv（行业板块那半随早盘归档）
-  smoke_test.py          联网冒烟测试（云端 0-冒烟测试 手动 dispatch 才跑）
   ── 长期调整突破（2026-09-27）──
   pullback.py            主流程 --stage scan / send。prepare -> find_events（回测和生产
                          同一个判定函数）-> rank。规则和每个阈值的来历在模块 docstring
@@ -127,14 +127,15 @@ src/
 .github/workflows/       只有 evening_check 带 cron
   pages.yml              9-发布面板：推送了 out_breakout / out_pullback 的面板就发布
   evening_check.yml      8-晚间托底检查 20:30 BJT，两条线缺哪条就提醒哪条
-  smoke_test.yml         0-冒烟测试（手动）
   refresh_meta.yml       3-刷新代码表（手动）
+                         （冒烟测试 smoke_test 测的是早盘在 runner 上用的源，随早盘归档）
 tools/external-trigger/  Cloudflare Worker：20:45 BJT 派发 evening_check。第三层触发，
                          停一条线要连它一起停（历史教训 24）
 tools/setup_tasks.ps1    本机三个计划任务的唯一定义
 tools/evening_check.py   晚间托底检查（只在云端跑）
 tools/e2e_check.py       端到端运行时测试（联网、分钟级，试跑不发信不推送）
-tools/probe.py           数据源可达性探针（控制台「检查数据源」）
+tools/probe.py           数据源可达性探针（控制台「检查数据源」）：晚间线实际连的五个主机 +
+                         依赖 + SMTP 登录
 tools/rebuild_all.py     起涨预测口径改动之后的重建重训流水
 tools/update_perf.py     按实验产物改写 export.py 的成绩常量（默认 --from fixed）
 tools/rerun_breakout.py / resend_breakout.py   起涨预测重算 / 补发历史清单
@@ -214,14 +215,17 @@ archive/morning/CLAUDE_morning.md。）
 全部 `RemoteDisconnected` / `ConnectionReset`。
 
 **这不是永久结论，是会来回变的。** 所以代码里东财一律「优先 + 重试 + 兜底」，
-不许写成唯一路径：
+不许写成唯一路径。晚间两条线现在的取数（2026-09-27 早盘归档后）：
 
 | 用途 | 主源 | 兜底 |
 |---|---|---|
-| 全市场快照 | 腾讯批量 + `cache/codes.csv` | 无（腾讯稳） |
-| 个股日线 | 东财 `stock_zh_a_hist`（重试3次） | 腾讯 K 线，连续12只失败熔断，每150只回探 |
-| 代码表 | `cache/codes.csv` | 新浪 hs_a 分页 -> 东财两个接口 |
-| 行业成分 | 东财 -> 同花顺 -> 新浪 | 都失败就保留仓库里已提交的 parquet |
+| 当天 K 线追加（起涨预测维护，长期调整突破只读） | 腾讯批量快照 + `cache/codes.csv`；除权票整段重拉新浪 | 追加不到目标日就不出清单（教训 22） |
+| 三年日线全量重拉 | 新浪 `stock_zh_a_daily`（多进程，教训 19） | 腾讯日 K（北交所没有） |
+| 股东户数 | 东财 datacenter（`stock_zh_a_gdhs`），一天刷一次 | 失败沿用上一份 |
+| 代码表 | `cache/codes.csv` | 新浪 hs_a 分页 -> akshare 两个接口 |
+
+归档前早盘还有「个股日线东财主、腾讯辅、熔断回探」和「行业成分东财 -> 同花顺 -> 新浪」
+两条链，代码 2026-09-27 删掉 / 归档（archive/morning/RESTORE.md）。
 
 ### 5b. 各数据源主机的可达性（2026-08-24 实测）
 
@@ -261,23 +265,21 @@ archive/morning/CLAUDE_morning.md。）
 同花顺那条要单独说：它挡的是**客户端指纹**，不是 IP。用 requests 带上
 akshare 自带 ths.js 算出的 v cookie，照样 403 Nginx forbidden；同一台机器、
 同一个出口 IP，在真实浏览器会话里 fetch 同一个 URL 直接 200。
-GitHub runner 上用 Playwright 起 chromium 也一样能过，见 `src/refresh_sector.py`。
+GitHub runner 上用 Playwright 起 chromium 也一样能过（早盘的板块表就是这么抓的，
+见 `archive/morning/src/refresh_sector.py`）。
 
 推论：**`cache/` 里的东西可以在本地生成后提交进仓库**，不必要求 runner
-自己能拉到。`codes.csv`、`sina_industries.json` 就是这么来的。
-（`sector_map.parquet` 一开始也是本地抓的，后来发现 runner 用 Playwright
-能自己抓，已改为 workflow 每周自动刷新。）
+自己能拉到。`codes.csv`、`st_codes.json` 就是这么来的。
 
-### 5c. 新浪的 `newSinaHy` 行业表是过期的
-
-只认 3000 只，688 / 300 / 301 / 920 整段缺（实测缺 2924 只）。
-只能当最后兜底，不要当主力板块源。
+（5c「新浪 `newSinaHy` 行业表是过期的」只和早盘的板块打分有关，搬到
+`archive/morning/CLAUDE_morning.md`。）
 
 ### 6. 腾讯字段只用低位索引
 
 只信 index ≤ 38 的字段。涨停价一律由昨收自行推算（`limit_price()`），
 不要读高位字段——历史上调整过顺序。
-唯一的例外是 `_turnover()` 读 index 38，且取不到时返回 0 不影响主流程。
+读到最高位的是 `breakout/backfill._snap_row`：index 33/34（最高/最低，解析不了
+那只票这次不追加）和 38（换手率，用来核单位和流通股本；空串按 0，只是跳过核对）。
 
 ## 历史教训
 
@@ -582,8 +584,10 @@ GitHub runner 上用 Playwright 起 chromium 也一样能过，见 `src/refresh_
     `BOARD_ADJ` 写进 `state/breakout/overrides.json` 之后，生产当场生效，
     而成绩常量、按板块命中率缓存、邮件文案、实验日志全部还停在旧规则上。
     批准这类覆盖必须连带跑完：`exp_window.py --refit` -> `tools/update_perf.py`
-    -> `truth.validation_by_board(refresh=True)` -> 六条自测对账 -> 文档。
+    -> `truth.validation_by_board(refresh=True)` -> 自测对账 -> 文档。
     少跑任何一步都不会报错，只会让邮件里的数字悄悄属于另一套规则。
+    （2026-09-27 起「批准」这条路随学习会诊归档，只剩手改 overrides.json，
+    手改也是同一条流水。）
 
 37. **停一个系统之前，先查它顺手替别人做了什么**（2026-09-27 归档早盘系统）—
     早盘那条 `auction.yml` 是全仓库**唯一**发布 Pages 的 workflow，起涨预测的
@@ -715,14 +719,16 @@ GitHub cron 实测连续两天严重延迟或整段丢失（08-24 延迟 97 分�
   不破开盘价放进加分项（`adjust.floor: open` 是更严的开关）。
 - **第二根大阳线和首阳同一个定义**（用户原话「以此为基准：第一根大阳线」「再次来一根」）。
   代价是主板第二根也要涨停，频率偏低；`trigger.big: loose` 放宽成「涨幅 ≥5% 的阳线」，
-  三年回看从 69 次变成 149 次。
+  回看从 66 次变成 146 次。
 - **第一次站上首阳高点就是考卷**。那一天量不够、不是大阳线，这段形态就作废，
   不等下一次 —— 否则「突破」可以在任何一次反弹上补认，调整期就没有了意义。
 
 ### 频率：大多数交易日是 0 只
 
-2023-01 ~ 2026-09（905 个交易日）按默认口径回看 69 次，有成立的交易日 63 天，
-平均每月约 1.6 次；板块分布 创业板 31 / 北交所 14 / 主板 12 / 科创板 12。
+2023-08 ~ 2026-09（749 个交易日）按默认口径回看 66 次，有成立的交易日 60 天，
+平均每月约 1.9 次；板块分布 创业板 29 / 北交所 14 / 主板 12 / 科创板 11。
+日线表更早那段（2023-01 起）只有两三百只票有数据，频率的分母从全市场覆盖齐了
+那天起算（`pullback.coverage_start`），以前按全表 905 天算是每月 1.6 次，摊薄了两成。
 主板少，是因为主板两根都要涨停，另外三个板块只要 ≥10%。
 **空榜是常态，这一点必须写在邮件和面板里**，否则用户会以为流水线坏了。
 「之后 20 天怎么走」只是描述（样本内、阈值看过这段历史才定），面板里标了，
@@ -743,6 +749,11 @@ GitHub cron 实测连续两天严重延迟或整段丢失（08-24 延迟 97 分�
   「倍量」。流通股本一天变 20% 以上（`guard.os_jump_max`）出现在首阳、调整期、二次进攻
   任何一天，这段就作废；横盘期里的不管（送转只会让横盘均量偏大，是保守的一侧）。
   第一版连横盘期一起挡，把 300461（2026-01-23 标准形态）误杀了。
+- **停牌不是缩量调整**。首阳前一天到推荐日之间只要缺了一个开市日（停牌），这段作废；
+  首阳是复牌第一天也不算（「倍量」比的是停牌前那根）。开市日 = 有 K 线的票不少于
+  **在市**票数一半的日子，不能拿全表行数的中位数比（2023 年初那 96 天会全被当成休市，
+  停牌就识别不出来）。第一版没有这道，688693 首阳后停牌 10 个交易日被算成「调整 3 天」，
+  三年里去掉 3 次。
 
 ### 一个仓库只有一份 Pages 部署
 

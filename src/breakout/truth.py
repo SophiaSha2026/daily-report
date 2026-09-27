@@ -11,7 +11,8 @@ y_up 当时是 NaN（未来还没发生）。这里用 daily.parquet 把每只�
 上榜那天全市场随便买一只，之后 20 根内涨超 50% 的比例。**只有和同期基准比
 才能分清「模型没用」和「那段时间谁都涨不了」。**
 
-产物 state/breakout/truth.json，学习会诊的证据包和面板都读它。
+产物 state/breakout/truth.json，控制台的清单图和起涨预测邮件读它
+（local_run.flow_breakout 每天发信前算；归档前是学习会诊在写）。
 """
 from __future__ import annotations
 
@@ -177,7 +178,7 @@ BOARD_FILE = ROOT / "out_breakout" / "board_hit.json"
 
 
 def _rule_stamp() -> dict:
-    """当前生产规则的指纹：分数线 / 上限 / 板块系数（含会诊批准的覆盖）。"""
+    """当前生产规则的指纹：分数线 / 上限 / 板块系数（含 overrides.json 的覆盖）。"""
     try:
         import daily as D
         return {"score_min": int(D.SCORE_MIN), "cap_a": int(D.CAP_A),
@@ -221,7 +222,7 @@ def validation_by_board(refresh: bool = False) -> dict:
             got = _j.loads(cache.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             got = None
-        # 规则也要比。只看 mtime 的话，改 BOARD_ADJ（会诊批准写 overrides.json）
+        # 规则也要比。只看 mtime 的话，改 BOARD_ADJ（手改 overrides.json）
         # 既不动 parquet 也不动缓存，邮件里按板块加权的期望会一直停在旧系数上，
         # 而那正是「谁上榜」变了的那一维（2026-09-16 star 1.27->1.0 换掉了
         # 162 个出榜日里的 77 天）。

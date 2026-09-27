@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import re
 import sys
 import time
 import warnings
@@ -1366,8 +1367,8 @@ def check_panel_html() -> None:
                        {"rejected": 0, "model_date": "2026-09-13"}, for_panel)
         tag = "面板" if for_panel else "邮件"
         ck("**" not in html, f"{tag}里没有 markdown 粗体（**）")
-        ck("__STAMP" not in html and "__DATE__" not in html,
-           f"{tag}里没有没替换的占位符")
+        ck(not re.search(r"__[A-Z]+__", html),
+           f"{tag}里没有没替换的占位符（__STAMP__ / __DATE__ / __LAGOK__ …）")
     html = E._body("2026-09-11", fake_a, fake_b, {}, True)
     ck(html.count("<script>") == 1, "面板有且只有一个 script 标签")
     ck(E._body("2026-09-11", fake_a, fake_b, {}, False).count("<script") == 0,

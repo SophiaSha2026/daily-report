@@ -74,7 +74,7 @@ CAP_PERF = (7.6, 210, 21)         # 满员日：准确率%, 名额数, 天数
 NONCAP_PERF = (18.6, 381, 125)        # 准确率%, 名额数, 天数
 # STREAK_PERF / BASE 是在**这条规则**下测的（exp_window.py 的 W5 那几行）。
 # daily.py 的 SCORE_MIN / CAP_A 会被 state/breakout/overrides.json 覆盖
-# （学习会诊批准后就会写），规则一改这张成绩表就不适用了，必须在邮件里说清楚，
+# （手改那份文件就会变），规则一改这张成绩表就不适用了，必须在邮件里说清楚，
 # 不能拿旧规则的成绩给新规则背书。
 PERF_RULE = (97, 10)
 
@@ -272,7 +272,7 @@ def expected_for(a: pd.DataFrame) -> tuple[float, str, bool]:
 
 
 def disclaimer(score_min: int = PERF_RULE[0], cap: int = PERF_RULE[1]) -> str:
-    """免责/读法说明。规则从 run_meta 来，不写死 —— 会诊把 SCORE_MIN 改成 96
+    """免责/读法说明。规则从 run_meta 来，不写死 —— overrides.json 把 SCORE_MIN 改成 96
     之后，这句话还说「≥ 97 够不到就不上」就是假的。
 
     措辞跟着数据走。实验 8 时连续 3 天 31% 对首日 18%，写的是「最强的信号」；
@@ -469,7 +469,7 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
             f'<td>{lift:.1f} 倍</td><td>{n} 只</td></tr>')
     rows += (f'<tr><td>随便买</td><td class="sc">{BASE}%</td><td>—</td>'
              f'<td>1.0 倍</td><td>全市场</td></tr>')
-    # 规则和实验那条不一样时（会诊批准改了 SCORE_MIN / CAP_A / 板块系数）
+    # 规则和实验那条不一样时（overrides.json 改了 SCORE_MIN / CAP_A / 板块系数）
     # 必须说明白：这张表是旧规则的成绩，拿它给新规则背书正是本模块开头禁止的事
     if _same_rule(meta):
         rule_txt = (f'口径和每天发的清单一致：剔掉上市不足 {_min_days()} 个交易日的票后，'
@@ -512,6 +512,9 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
     #   1. 包在 <script> 里
     #   2. __STAMPFILE__ 换成本面板自己的 stamp 文件名
     #   3. __STAMP__ / __DATE__ 换成当前日期，否则脚本一跑就判定自己过期
+    #   4. __LAGOK__ 换成 true：面板日期本来就是最近一个已收盘交易日，落后今天
+    #      是常态。2026-09-16 加这个开关时这里漏了，此后每个交易日 17:00 前
+    #      面板顶上都挂着误报的「数据过期」横幅（2026-09-27 发现）
     picker, pjs = "", ""
     if for_panel and history:
         picker, pjs = _date_picker(date, history, day)
@@ -520,7 +523,8 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
         js = ("<script>" + REFRESH_JS
               .replace("__STAMPFILE__", "stamp-breakout.txt")
               .replace("__STAMP__", date)
-              .replace("__DATE__", date) + pjs + "</script>")
+              .replace("__DATE__", date)
+              .replace("__LAGOK__", "true") + pjs + "</script>")
         stale = '<div id="stale"></div>'
     else:
         js, stale = "", ""

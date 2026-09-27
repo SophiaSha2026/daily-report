@@ -25,6 +25,10 @@ REM  WindowsApps stub that opens the Microsoft Store instead of running code.
 REM  A scheduled task does not necessarily inherit the interactive PATH
 REM  order, so resolve 3.11 explicitly and only fall back to PATH.
 REM
+REM  Timestamps in the log are BEIJING time (UTC+8), like everything else the
+REM  console shows. The [yyyy-MM-ddTHH:mm:ss] shape must stay: gui/simple.py
+REM  splits the log into runs on that exact pattern.
+REM
 REM  Log: tools/local_flow_<flow>.log (gitignored). One file per flow: while
 REM  a long flow (pullback waits until 17:58 to mail) holds its log open,
 REM  a second cmd cannot append to the same file ("being used by another
@@ -44,7 +48,7 @@ REM would fill with mojibake and UnicodeEncodeError tracebacks.
 set "PYTHONIOENCODING=utf-8"
 set "PYTHONUTF8=1"
 
-for /f "delims=" %%i in ('powershell -NoProfile -Command "Get-Date -Format s"') do set "NOW=%%i"
+for /f "delims=" %%i in ('powershell -NoProfile -Command "(Get-Date).ToUniversalTime().AddHours(8).ToString('s')"') do set "NOW=%%i"
 echo [%NOW%] === run_local %FLOW% === >> "%LOG%"
 
 cd /d "%ROOT%"
@@ -55,6 +59,6 @@ if /i "%FLOW%"=="sync" (
 )
 set "RC=%ERRORLEVEL%"
 
-for /f "delims=" %%i in ('powershell -NoProfile -Command "Get-Date -Format s"') do set "NOW=%%i"
+for /f "delims=" %%i in ('powershell -NoProfile -Command "(Get-Date).ToUniversalTime().AddHours(8).ToString('s')"') do set "NOW=%%i"
 echo [%NOW%] === run_local %FLOW% exit=%RC% === >> "%LOG%"
 exit /b %RC%

@@ -146,7 +146,7 @@ def step_probe() -> tuple[bool, str]:
 
 
 def step_idempotence() -> tuple[bool, str]:
-    """--if-needed 的五道闸：在进程内问一遍每条线现在会不会跑、为什么。"""
+    """--if-needed 的几道闸：在进程内问一遍每条线现在会不会跑、为什么。"""
     import local_run as L
     rows = []
     for f in L.FLOWS:

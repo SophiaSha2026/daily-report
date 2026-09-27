@@ -57,7 +57,7 @@ def _bj_of(ts: float) -> dt.datetime:
 
 def ago(t: dt.datetime | None, now: dt.datetime) -> str:
     if not t:
-        return "从没跑通"
+        return "还没有"
     m = int((now - t).total_seconds() // 60)
     if m < 1:
         return "刚刚"
@@ -291,7 +291,8 @@ def charts() -> dict:
     recent = ([{"d": str(r.get("date", ""))[5:], "code": str(r.get("code", "")).zfill(6),
                 "name": r.get("name", ""), "up": None, "new": True} for r in today]
               + [{"d": str(r.get("date", ""))[5:], "code": str(r.get("code", "")).zfill(6),
-                  "name": r.get("name", ""), "up": r.get("max_up_pct"), "new": False}
+                  "name": r.get("name", ""), "up": r.get("max_up_pct"),
+                  "n_after": r.get("n_after"), "new": False}
                  for r in reversed(hist)])[:8]
     h = meta.get("hist") or {}
     return {"lists": lists,
@@ -412,10 +413,16 @@ function lists(rows){
     <b>${r.hit}/${r.n}</b>${r.final?"已到期":`第 ${r.bars}/20 天`}
     <div class="mini"><i style="width:${Math.min(100,r.bars/20*100)}%"></i></div></div>`).join("");
 }
+// 走满 20 个交易日的写「20 天最高」，还在走的写「至今最高」：两者不是一回事
+function upTxt(r){
+  if(r.up==null) return "";
+  const v=(r.up>0?"+":"")+Number(r.up).toFixed(1)+"%";
+  return (r.n_after!=null&&r.n_after<20?"至今最高 ":"20 天最高 ")+v;
+}
 function pattern(p){
   const rows=p.recent||[];
   $("#pattern").innerHTML=rows.length?rows.map(r=>`<div class="lst${r.new?" new":""}">${esc(r.d)}
-    <b>${esc(r.code)}</b>${esc(r.name||"")}<div>${r.new?"今天":(r.up==null?"":"之后最高 "+(r.up>0?"+":"")+r.up+"%")}</div></div>`).join("")
+    <b>${esc(r.code)}</b>${esc(r.name||"")}<div>${r.new?"今天":upTxt(r)}</div></div>`).join("")
     :'<div class="dim">还没有</div>';
   const bits=[];
   if(p.per_month!=null) bits.push(`三年同口径 ${p.n} 次，约每月 ${p.per_month} 次，空榜是常态`);

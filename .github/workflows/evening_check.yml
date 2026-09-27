@@ -52,7 +52,7 @@ jobs:
 
       - name: 记下「今天已提醒」
         run: |
-          # 和 auction.yml 的提交步骤同一个模板，同一个坑：`git pull --rebase
+          # 推送模板和 refresh_meta.yml 同一个（归档前 auction.yml 也是），同一个坑：`git pull --rebase
           # --autostash || true` 冲突时把仓库停在 rebase-merge 中间态，HEAD
           # 正好落在 origin/main 上，下一次 push 就是 "Everything up-to-date"
           # 返回 0，标记没推上去却当成功 —— 下一个入口会再提醒一次。

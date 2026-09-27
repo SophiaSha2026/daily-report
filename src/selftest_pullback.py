@@ -20,6 +20,7 @@ import ast
 import datetime as dt
 import json
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -295,6 +296,43 @@ def check_share_jump() -> None:
     ck(len(ev) == 1, "横盘期里的股本跳变不管（只会让横盘均量偏大，保守的一侧）")
 
 
+def check_suspension() -> None:
+    print("[停牌]")
+    # 两只票同一段日期：A 走标准形态，B 是陪跑的（让「全市场开市日」有参照）
+    a = build(MAIN)
+    b = build("600000", t_gain=False, adj=[(0.99, 1.0, 0.5)] * 4)
+    both = pd.concat([a, b], ignore_index=True)
+    ev, _, _ = events_of(both)
+    ck(len(ev[ev["code"] == MAIN]) == 1, "两只票都在：A 的标准形态成立（对照组）")
+    adj_day = a["date"].iloc[72]                 # 首阳在第 70 根，调整第 2 天
+    ev, _, d = events_of(both[~((both["code"] == MAIN) & (both["date"] == adj_day))])
+    ck(len(ev[ev["code"] == MAIN]) == 0 and d.get("形态段里停过牌", 0) >= 1,
+       "调整期里 A 停了一天（B 那天照常交易）：停牌不是缩量调整，这一段作废")
+    pre = a["date"].iloc[69]                     # 首阳前一天
+    ev, _, d = events_of(both[~((both["code"] == MAIN) & (both["date"] == pre))])
+    ck(len(ev[ev["code"] == MAIN]) == 0 and d.get("首阳是复牌第一天", 0) >= 1,
+       "首阳前一天 A 停牌：复牌第一天的「倍量」比的是停牌前那根，不算首阳")
+    ev, _, _ = events_of(both[both["date"] != adj_day])
+    r = ev[ev["code"] == MAIN]
+    ck(len(r) == 1 and int(r.iloc[0]["adjust_days"]) == 2,
+       "那一天两只都没有（节假日全市场休市）：不算停牌，形态照常成立，调整按交易日数 2 天")
+    # 日线表早年只有少数票有数据（真实表 2023 年初两三百只、之后五千多只）：
+    # 拿全表行数的中位数定开市日，早年那段全被当成休市，停牌识别不出来
+    late = []
+    for k, code in enumerate(["600004", "600006", "600007", "600008",
+                              "600009", "600010", "600011", "600012"]):
+        dd = _dates(260)[90:]
+        late.append(pd.DataFrame({"code": code, "date": dd, "open": 10.0, "high": 10.1,
+                                  "low": 9.9, "close": 10.0 + 0.01 * (k % 3),
+                                  "volume": 1e6, "outstanding_share": 1e8}))
+    sparse = pd.concat([both] + late, ignore_index=True)
+    ev, _, _ = events_of(sparse)
+    ck(len(ev[ev["code"] == MAIN]) == 1, "再加 8 只后来才有数据的票：A 的标准形态照常成立")
+    ev, _, d = events_of(sparse[~((sparse["code"] == MAIN) & (sparse["date"] == adj_day))])
+    ck(len(ev[ev["code"] == MAIN]) == 0 and d.get("形态段里停过牌", 0) >= 1,
+       "早年只有 2 只票有数据时 A 停一天，照样识别成停牌（开市日按在市票数算，不按全表中位数）")
+
+
 def check_open_patterns() -> None:
     print("[进行中]")
     ev, op, _ = events_of(build(MAIN, t_gain=False))
@@ -317,8 +355,16 @@ def check_forward() -> None:
     ck(int(r["n_after"]) == 3, "之后只有 3 根就只算 3 根，不串到下一只票")
     ck(r["max_up_pct"] > 5 and abs(r["ret_pct"] - round(100 * (1.05 * 0.97 * 1.02 - 1), 1)) < 0.3,
        "之后最高涨幅、最后一根收盘涨幅按事件日收盘算")
-    st = P.history_stats(f, x, bars=20)
+    st = P.history_stats(f, x, bars=20, base_days=60)
     ck(st["n"] == len(f) and st["n_final"] == 0, "走不满 20 根的不进「之后」统计")
+    # 频率的分母只数全市场覆盖齐了之后：早年只有 A、B 两只，后来 6 只才有数据
+    late = [pd.DataFrame({"code": code, "date": _dates(300)[100:], "open": 10.0,
+                          "high": 10.1, "low": 9.9, "close": 10.0, "volume": 1e6})
+            for code in ["600004", "600006", "600007", "600008", "600009", "600010"]]
+    x2 = P.prepare(pd.concat([a, b] + late, ignore_index=True), pb())
+    st2 = P.history_stats(f, x2, bars=20, base_days=60)
+    ck(st2["from"] == _dates(300)[160] and st2["days"] == 140 and st2["n"] == 0,
+       "早年只有两只票有数据：频率从后来 6 只都有 60 根横盘那天起算（140 天），之前的事件不数")
 
 
 def check_rules_text() -> None:
@@ -400,6 +446,8 @@ def check_products() -> None:
             ck(zero in html and "名&lt;b&gt;" in html and "名<b>" not in html,
                "面板带前导零的代码，名称转义")
             ck("stamp-pullback.txt" in html and (P.OUT / "stamp.txt").exists(), "面板自刷新接到自己的 stamp")
+            ck(not re.search(r"__[A-Z]+__", html) and "LAGOK=('true'" in html,
+               "面板里没有没替换的占位符；LAGOK=true（面板日期本来就落后今天，不报过期）")
             os.environ.pop("SKIP_MAIL", None)
 
             ck(P.stage_send(target, wait=False) == 0 and len(sent) == 1, "真发信走 _send 一次")
@@ -409,6 +457,8 @@ def check_products() -> None:
             ck(m["Subject"].startswith(f"[{P.NAME}] {target} · 1只"), "邮件标题带线名、日期、只数")
             body = m.get_body(("html",)).get_content()
             ck(zero in body and "名<b>" not in body, "邮件正文前导零、名称转义")
+            ck(not re.search(r"__[A-Z]+__", body) and "<script" not in body,
+               "邮件里没有占位符、没有 script（邮件客户端会剥掉）")
             ck(any(p.get_filename() == f"{P.NAME}.txt" for p in m.iter_attachments()),
                "非空清单附同花顺 txt")
             # 补发说明：发信晚了 15 分钟以上邮件顶部写明
@@ -419,6 +469,15 @@ def check_products() -> None:
             P.now_bj = real_now
             b2 = sent[0].get_body(("html",)).get_content()
             ck("没开机，补发于" in b2, "晚于 17:58 十五分钟以上：邮件顶部写「补发于」")
+            ck("补发于" in (P.OUT / "panel.html").read_text(encoding="utf-8"),
+               "真补发时面板也写明")
+            os.environ["SKIP_MAIL"] = "1"
+            P.now_bj = lambda: P.send_time(target, P.cfg()) + dt.timedelta(days=3)
+            P.stage_send(target, wait=True)
+            P.now_bj = real_now
+            os.environ.pop("SKIP_MAIL", None)
+            ck("补发" not in (P.OUT / "panel.html").read_text(encoding="utf-8"),
+               "SKIP_MAIL 事后重出面板：没发信就不写「补发于」")
         finally:
             (P.OUT, P.DATA_DIR, P.DAILY, P.names_for, ds.trade_dates, E._send, E._conf) = keep
             os.environ.pop("SKIP_MAIL", None)
@@ -490,6 +549,7 @@ def main() -> int:
     check_trigger_rules()
     check_bonus_and_rank()
     check_share_jump()
+    check_suspension()
     check_open_patterns()
     check_forward()
     check_rules_text()

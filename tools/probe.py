@@ -18,17 +18,20 @@ import urllib.request
 
 socket.setdefaulttimeout(10)
 
+# 晚间两条线实际要连的主机（2026-09-27 早盘归档后重排，逐个本机实测过）：
+#   每天：腾讯快照追加当天 K 线、拿名称；新浪交易日历；东财 datacenter 刷股东户数
+#         （起涨预测 backfill --stage update 顺手刷，失败沿用上一份）
+#   重下三年日线时：新浪日线（前复权 + 股本）为主，腾讯日 K 兜底
+# 东财 push2his 日线（归档前早盘盘前用）本机也不通，已不再探测。
 SOURCES = [
     ("Tencent quote ", "https://qt.gtimg.cn/q=sh600000"),
+    ("Sina calendar ", "https://finance.sina.com.cn/realstock/company/klc_td_sh.txt"),
+    ("Sina daily    ", "https://finance.sina.com.cn/realstock/company/sh600000/qfq.js"),
     ("Tencent kline ", "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
                        "?param=sh600000,day,,,10,"),
-    ("Sina calendar ", "https://finance.sina.com.cn/realstock/company/"
-                       "sh000001/hisdata/klc_kl.js"),
-    # 东财是可选源：日线优先走它（成交额是真值），不通就熔断走腾讯。
-    # 所以这一项 FAIL 不影响出榜，只是慢一点、成交额变成估算。
-    ("EastMoney(opt)", "https://push2his.eastmoney.com/api/qt/stock/kline/get"
-                       "?secid=1.600000&fields1=f1&fields2=f51&klt=101&fqt=0"
-                       "&end=20500101&lmt=5"),
+    ("EastMoney(opt)", "https://datacenter-web.eastmoney.com/api/data/v1/get"
+                       "?reportName=RPT_HOLDERNUMLATEST&columns=SECURITY_CODE,END_DATE"
+                       "&pageSize=1&pageNumber=1&source=WEB&client=WEB"),
 ]
 
 DEPS = ("pandas", "pyarrow", "yaml", "requests", "akshare")

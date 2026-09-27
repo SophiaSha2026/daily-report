@@ -36,9 +36,12 @@ def run(x: pd.DataFrame, c: dict, st: set[str]) -> tuple[pd.DataFrame, dict]:
     return P.forward(x, ev, int(c.get("output", {}).get("forward_bars", 20))), diag
 
 
-def report(ev: pd.DataFrame, x: pd.DataFrame, diag: dict, bars: int) -> None:
-    st = P.history_stats(ev, x, bars)
-    print(f"区间 {st['from']} ~ {st['to']}，{st['days']} 个交易日")
+def report(ev: pd.DataFrame, x: pd.DataFrame, diag: dict, bars: int, base_days: int) -> None:
+    st = P.history_stats(ev, x, bars, base_days)
+    # 下面的分项和频率用同一批事件：全市场覆盖齐了之后那一段（P.coverage_start）
+    ev = ev[ev["date"] >= st["from"]] if len(ev) else ev
+    print(f"区间 {st['from']} ~ {st['to']}，{st['days']} 个交易日"
+          f"（日线表更早的那段只有几百只票有数据，不算）")
     print(f"成立 {st['n']} 次，平均每月 {st['per_month']} 次，"
           f"有成立的交易日 {ev['date'].nunique() if len(ev) else 0} 天")
     if not len(ev):
@@ -93,17 +96,19 @@ def main() -> int:
     x = P.prepare(raw, c)
     st = P.st_cache()
     bars = int(c.get("output", {}).get("forward_bars", 20))
+    base = int(c["base"]["days"])
     ev, diag = run(x, c, st)
-    report(ev, x, diag, bars)
+    report(ev, x, diag, bars, base)
     if a.grid:
-        days = x["date"].nunique()
-        print(f"\n旋钮对比（当前口径 {len(ev)} 次，每月 {len(ev) / days * 21:.2f} 次）：")
+        # 频率只有 history_stats 一份算法（以前这里另算 len/全表天数）
+        s0 = P.history_stats(ev, x, bars, base)
+        print(f"\n旋钮对比（当前口径 {s0['n']} 次，每月 {s0['per_month']:.2f} 次）：")
         for name, over in GRID:
             e2, _ = run(x, with_over(c, over), st)
-            s2 = P.history_stats(e2, x, bars)
+            s2 = P.history_stats(e2, x, bars, base)
             tail = (f"，之后最高中位 {s2['max_up_median']:+.1f}%"
                     if s2.get("n_final") else "")
-            print(f"  {name:<22} {len(e2):4d} 次  每月 {len(e2) / days * 21:.2f} 次{tail}")
+            print(f"  {name:<22} {s2['n']:4d} 次  每月 {s2['per_month']:.2f} 次{tail}")
     print(f"\n用时 {time.time() - t0:.1f} 秒")
     return 0
 

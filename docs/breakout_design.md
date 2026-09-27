@@ -1,6 +1,10 @@
 # 爆发线（breakout）设计
 
 > 状态：**设计稿，待批准**。2026-09-12 起草。
+> 2026-09-27 注：早盘系统（竞价线 + 学习线）已整体归档。文中借鉴的 `learn/`
+> 下的实现（model_select / optimize / gate）在 `archive/morning/src/learn/`；
+> 「竞价线 / 形态线」指归档前的另两条线；依赖以 `requirements-breakout.txt` 为准，
+> 筹码 decay 最后是模块常量 `chips.DECAY`，没进 config.yaml。
 > 定位：替代已停用的形态线 17:00 报告，成为项目第三条流水线。
 > 目标：每交易日 17:00 出两个清单。
 > A = 技术上接近起涨（历史经验：5 个交易日内启动，一个月涨超 50%）。

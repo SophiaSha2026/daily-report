@@ -1,5 +1,5 @@
-# 爆发线依赖。竞价线和形态线的 requirements.txt 不动 —— CLAUDE.md 的规矩是
-# 依赖分线管理，别让一条线的依赖污染另外两条。
+# 起涨预测（内部代号 breakout / 爆发线）的模型依赖。很重，长期调整突破和云端托底
+# 都用不到，所以不进 requirements.txt（依赖分线管理）。
 #
 #   pip install -r requirements-breakout.txt
 #   torch 走官方 CPU 源，默认源会拉 CUDA 版（2GB+）：

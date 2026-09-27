@@ -1,16 +1,18 @@
 """
-数据源层：腾讯批量行情（竞价窗口主力） + 东财快照/日线（盘前）。
+数据源层：腾讯批量行情、代码表、交易日历，外加涨停价 / 涨跌停幅度这些口径函数。
 
-设计要点
---------
-1. 竞价窗口只有 5 分钟，必须用「批量」接口。腾讯 qt.gtimg.cn 单次可查 ~60 只，
-   500 只候选池 = 9 个请求，通常 <2 秒完成。
-2. 东财 push2 接口用于盘前（时间宽裕），走 akshare 封装。
-3. 所有网络调用带重试 + 超时 + 降级，任何单点失败不阻断主流程。
+2026-09-27 早盘系统归档之后，用它的是晚间两条线：
+  · 起涨预测每天追加当天 K 线（breakout/backfill.py --stage update）走 fetch_quotes
+  · 长期调整突破拿当前名称剔 ST（pullback.names_for / is_excluded）走 fetch_quotes，
+    涨停判定（pullback.prepare）用 limit_pct / limit_price_arr
+  · 所有流程判交易日走 trade_dates（接口 -> state/trade_dates.json 缓存）
+历史日线不在这里：起涨预测的 breakout/backfill.py 自己拉（新浪为主、腾讯兜底）。
+只给早盘用的全市场快照 spot_all、三路日线 daily_hist*、次新判定 is_new_listing
+2026-09-27 删掉，要恢复早盘从 git 取回（见 archive/morning/RESTORE.md）。
 
-⚠️ 首次部署必须跑一次 smoke_test.yml 验证腾讯字段索引。
-   腾讯返回字段顺序历史上调整过，本文件只使用 index <= 38 的低位字段
-   （相对稳定），涨停价由昨收自行推算而非读取。
+腾讯返回字段顺序历史上调整过，本文件只使用 index <= 37 的低位字段
+（相对稳定），涨停价由昨收自行推算而非读取。所有网络调用带重试 + 超时，
+单批失败只丢那一批。改了字段解析，跑一次 tools/e2e_check.py（真起子进程拉快照）。
 """
 from __future__ import annotations
 
@@ -20,13 +22,10 @@ import math
 import time
 import logging
 from dataclasses import dataclass, field
-from typing import Sequence, TYPE_CHECKING
+from typing import Sequence
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-if TYPE_CHECKING:                       # 只给类型标注用，运行时不导入 pandas
-    import pandas as pd                 # noqa: F401  （竞价 quick 阶段要快起）
 
 log = logging.getLogger(__name__)
 
@@ -121,28 +120,14 @@ def limit_pct(code: str, name: str) -> float:
 
 
 def is_st_name(name: str) -> bool:
-    """名字层面判 ST / 退市整理。
+    """名字层面判 ST / 退市整理。长期调整突破（pullback.is_excluded）用它。
 
-    生产 premarket.stage1 和回填 learn/backfill.build_pool 共用这一份判据。
-    以前两边各写各的（生产 `contains("ST|退")`、回填 `startswith(("ST","*ST"))`），
-    而回填那边的 names 长期是空字典，exclude_st 等于没执行：训练表里 11514 行
-    （2.82%，201 只）ST 票混在池子里，每天前 10 平均 2.7% 席位是生产永远
-    不会打分的票（2026-09-16 审计）。
+    只留这一份判据：早盘系统归档前，盘前候选池和学习回填各写过一份
+    （`contains("ST|退")` 和 `startswith(("ST","*ST"))`），两边剔掉的不是同一批票
+    （2026-09-16 审计，教训 34）。
     """
     s = str(name).upper()
     return "ST" in s or "退" in str(name)
-
-
-def is_new_listing(name: str) -> bool:
-    """次新：腾讯给的名字带 N/C 前缀（上市第 1~5 天）。
-
-    旧写法 `^[NC] ` 要求 N/C 后面跟一个空格，而腾讯只在 2~3 字老票补位时
-    插空格（`万  科Ａ`、`农 产 品`）；真正的次新是 `C频准` / `C绿控传动` /
-    `C宇树-W`，一个空格都没有。那条正则从上线起一次都没生效，688836、
-    688826、301655 都进过候选池并被 score.py 打了分（2026-09-16 审计）。
-    后面跟一个汉字是为了不误伤以英文开头的老票名。
-    """
-    return bool(re.match(r"^[NC][一-鿿]", str(name)))
 
 
 def _is_bj(code: str) -> bool:
@@ -173,10 +158,10 @@ def limit_price_arr(prev_close, pct, code=None):
     """limit_price 的向量化孪生体（pandas Series / numpy 数组）。
 
     code 给了就和标量版同口径（北交所向下取整）；不给就一律四舍五入。
-    两个版本必须同口径：生产 premarket.stage2 判昨日炸板用标量版，
-    回填 learn/backfill 判同一件事用这个版本，差一分就是两套语义（教训 30）。
+    两个版本必须同口径：长期调整突破的涨停判定（pullback.prepare）用这个版本，
+    它的自测造「封涨停」的数据用标量版，差一分就是两套语义（教训 30）。
 
-    只留一份公式：以前 premarket 和 learn/backfill 各写了一遍
+    只留一份公式：早盘系统归档前，盘前候选池和学习回填各写过一遍
     `prev_close*(1+lim/100) - 0.01`，那个 −0.01 不是防浮点噪音，是把
     涨停价整体放宽一分 —— data/breakout/daily.parquet 428 万行实测，
     −0.01 判「昨日炸板」25418 行、精确判 21483 行，多出的 3935 行
@@ -266,10 +251,10 @@ def fetch_quotes(
     workers: int = 5,
 ) -> dict[str, Quote]:
     """
-    批量拉取实时/竞价快照。返回 {symbol: Quote}。
+    批量拉取实时快照（收盘后就是当日收盘态）。返回 {symbol: Quote}。
 
-    并发说明：GitHub runner 在美国，到腾讯单次往返约 0.6s，1600 只串行要 17s。
-    5 路并发压到 4s 左右，为竞价窗口留足余量。并发再高会触发限流，别调。
+    并发说明：到腾讯单次往返约 0.6s（美国出口），1600 只串行 17.2s，5 路并发
+    3.6s（2026-08 实测）。并发再高会触发限流，别调（CLAUDE.md 硬约束 4）。
     单批失败只丢该批，不影响其余。
     """
     batches = [list(symbols[i:i + TX_BATCH])
@@ -288,7 +273,7 @@ def fetch_quotes(
 
 
 # ---------------------------------------------------------------------
-#  盘前用（时间宽裕，走 akshare / 东财）
+#  代码表
 # ---------------------------------------------------------------------
 
 _ROOT = __import__("pathlib").Path(__file__).resolve().parent.parent
@@ -303,8 +288,8 @@ def _sina_code_list(timeout: float = 8.0) -> list[str]:
     **一页失败就整体抛异常，绝不返回残表。** 页是按 symbol 排序切的，
     丢一页就是丢连续一段代码（离线复现：第 3 页超时 -> 5448 只，丢的
     920433~920837 一整段北交所）。残表会被 refresh_code_list 写进
-    cache/codes.csv，之后早盘候选池、形态扫描、起涨预测的当日 K 线追加、
-    学习回填全都看不见那一段，而唯一的信号是一行 log.warning（教训 16）。
+    cache/codes.csv，之后起涨预测的回填和每日追加、长期调整突破全都看不见
+    那一段，而唯一的信号是一行 log.warning（教训 16）。
     """
     url = ("https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/"
            "Market_Center.getHQNodeData?page={p}&num=100&sort=symbol&asc=1&node=hs_a")
@@ -374,10 +359,9 @@ def refresh_code_list() -> list[str]:
     每个源重试 2 次：东财那两个接口在 runner 上是间歇性拒绝，
     一次失败不代表不可用（实测同一次运行里第二次调用就成功了）。
 
-    写盘前还有一道「不许比现有表少超过 2%」的闸（和 refresh_meta 里
-    sector_map 的 0.9 闸同款）：`len > 3000` 太松，一次网络抖动削成 3200 只
-    照样写进去，而且没有任何自动刷新会来纠正它（refresh_meta 的周日 cron
-    2026-09-12 已停用，只剩控制台手点）。
+    写盘前还有一道「不许比现有表少超过 2%」的闸：`len > 3000` 太松，一次网络
+    抖动削成 3200 只照样写进去，而且没有任何自动刷新会来纠正它（refresh_meta
+    的周日 cron 2026-09-12 已停用，只剩控制台手点）。
     """
     import pandas as pd
 
@@ -421,344 +405,9 @@ def refresh_code_list() -> list[str]:
     raise RuntimeError("代码表获取失败：所有数据源均不可用，或新表比现有表短太多")
 
 
-def spot_all(expect_date: str | None = None) -> "pd.DataFrame":  # noqa: F821
-    """
-    全市场快照，盘前用于构建候选池。
-
-    ⚠️ 实测：GitHub runner 访问东财 push2 的 clist/get 批量接口会被
-    RemoteDisconnected 掐断（但东财的**单只**日线接口 push2his 正常）。
-    所以这里改用腾讯批量接口 + 本地代码表，走的是已验证可用的通道。
-
-    盘前 08:23 调用时腾讯返回的是上一交易日收盘状态：
-        当前价 = T-1 收盘价      成交额 = T-1 全天成交额
-        涨跌%  = T-1 涨跌幅      昨收   = T-2 收盘价
-    正好是候选池需要的字段。
-
-    **这个「还没翻篇」是个时间假设，不是事实**，以前一道校验都没有：
-    早班触发全丢或机器晚醒时，池子可能 09:15 之后才建，那时腾讯给的是
-    当日竞价态（成交额变成竞价额、涨跌幅变成竞价涨幅），按它算出来的
-    昨日量能整体放大两个数量级，全榜会被量能条件剔光，而清单照发。
-    expect_date 给了就用 f[30] 时间戳核对：正常态实测 5548/5548 只
-    ts[:8] 全等于最近已收盘交易日（含 14 只成交额为 0 的停牌票），
-    5% 的容差只留给零星未更新。同仓库 breakout/backfill.py 和 pullback.py
-    早就把 f[30] 当日期权威用，spot_all 是最后一个没做的消费者。
-    """
-    import pandas as pd
-    codes = load_code_list()
-    syms = [to_symbol(c) for c in codes]
-    q = fetch_quotes(syms)
-    if len(q) < len(syms) * 0.6:
-        raise RuntimeError(f"全市场快照过少: {len(q)}/{len(syms)}")
-    if expect_date:
-        key = str(expect_date).replace("-", "")[:8]
-        bad = [str(v.ts) for v in q.values() if not str(v.ts).startswith(key)]
-        if len(bad) > len(q) * 0.05:
-            raise RuntimeError(
-                f"快照已翻篇：{len(bad)}/{len(q)} 只的时间戳不是 {key}"
-                f"（示例 {bad[0] if bad else '空'}），"
-                f"此刻建池会把竞价态当成昨日收盘态")
-
-    rows = [{
-        "代码": v.code, "名称": v.name, "最新价": v.price,
-        "涨跌幅": v.chg_pct, "成交额": v.amount_yuan,
-        # 没有「总市值」这一列：腾讯低位字段里没有市值（高位字段顺序会变，
-        # 硬约束 6 不许读）。以前恒填 NaN，一列永远是假的数据，
-        # universe.min/max_mktcap_yi 设成非 0 就会把候选池静默筛空。
-        # 现在干脆不输出，premarket.stage1 见到那种配置直接报错。
-        "换手率": _turnover(v),
-    } for v in q.values()]
-    df = pd.DataFrame(rows)
-    log.info("全市场快照(腾讯): %d 只", len(df))
-    return df
-
-
-def _turnover(q: Quote) -> float:
-    """换手率，腾讯字段 38。取不到返回 0。
-
-    2026-09-16 前这里注释写「不影响主流程」，其实反了：入池四条规则里
-    「昨日换手 >= 5%」就是靠它，字段一缺整条规则被静默关掉（08-28 那天
-    池子只有 635 只，正常 1100~1400）。现在 premarket.stage1 会检查这一列
-    是否成片为 0，成片为 0 就报错发告警邮件，不静默放行。
-    """
-    try:
-        return float(q.raw[38])
-    except Exception:  # noqa: BLE001
-        return 0.0
-
-
 # ---------------------------------------------------------------------
-#  日线历史：东财为主，腾讯为辅，中间加熔断
+#  交易日历
 # ---------------------------------------------------------------------
-#  东财 stock_zh_a_hist（push2his）给的是真实成交额和官方复权口径，优先用。
-#  它在 runner 上是间歇性拒绝，不是永久失效——2026-08-23 那轮通过（153 根 K 线），
-#  2026-08-24 那轮失败。所以单只失败要重试，不要一次就判死。
-#
-#  但盘前 stage2 要对 1600 只逐个拉。如果东财整段时间不通，每只都耗满重试
-#  再降级，1600 只跑不完 40 分钟的 job 超时。所以加熔断：
-#      连续 _EM_TRIP 只都失败 -> 本次进程内暂时跳过东财，直接走腾讯
-#      每隔 _EM_RETRY_AFTER 只回探一次，东财恢复就切回去
-#
-#  腾讯 K 线返回 [日期, 开盘, 收盘, 最高, 最低, 成交量]，**没有成交额**。
-#  那个成交量：主板/创业板是手，**科创板是股**，已由 tx_vol_hand 折成手。
-#  成交额只能估算。以前写「只喂 amount_ratio_5d 这个展示字段，不进打分」，
-#  那句话对生产成立、对回填不成立：learn/backfill.py 拿 cache/hist_daily.parquet
-#  的成交额当 prev_amount，也就是 auc_ratio 的分母，而 auc_ratio 是准入判据。
-#  估算式从 收盘×量 改成 (最高+最低+收盘)/3×量：实测昨日涨停那一子群
-#  收盘×量 的中位偏差 +2.79%，(H+L+C)/3 只有 −0.12%（2026-09-16，
-#  基准是新浪日线店 data/breakout/daily.parquet 的真实成交额）。
-#  回填那边现在优先并真值进来，估算只作补不上的兜底。
-#  竞价用的真实成交额来自腾讯实时快照 index 37，不是这里。
-# ---------------------------------------------------------------------
-
-# 2026-09-02：用 4 路并发连打 800 只之后，web.ifzq.gtimg.cn 的
-# /appstock/app/fqkline/get 开始整片返回 HTTP 501（JS 挑战页），
-# 而同一时刻 qt.gtimg.cn 批量行情、以及**去掉 web. 前缀**的裸主机
-# ifzq.gtimg.cn 同一路径全部 200。所以那次限流是按「主机+路径」挂的，
-# 不是按 IP。裸主机更不容易被挑战，改用它。
-TX_KLINE = ("https://ifzq.gtimg.cn/appstock/app/fqkline/get"
-            "?param={sym},day,{start},{end},{cnt},")
-
-# 成交量一律为「手」，成交额为「元」，三路一致（腾讯 688 由 tx_vol_hand 折算）。
-# chg_adj：「涨跌幅」这一列是不是**复权口径**的真值。
-#   东财 stock_zh_a_hist 的涨跌幅是服务端字段（除权后的真实涨跌幅）-> True
-#   腾讯 / 新浪只给 OHLCV，涨跌幅只能按相邻**不复权**收盘价算 -> False
-# 三路以前共用「涨跌幅」这一个列名却是两种语义，谁也标不出来：
-# learn/backfill.py 曾按「chg 是复权涨跌幅」反解昨收，而 cache/hist_daily.parquet
-# 里 2188865 个非首行 100% 是不复权比值，那段反解是恒等变换（2026-09-16 审计）。
-_HIST_COLS = ["日期", "开盘", "收盘", "最高", "最低", "成交量", "成交额",
-              "涨跌幅", "chg_adj"]
-
-_EM_RETRIES = 3          # 单只东财重试次数
-_EM_TRIP = 12            # 连续失败多少只后熔断
-_EM_RETRY_AFTER = 150    # 熔断后每隔多少只回探一次
-_em_state = {"fail_streak": 0, "tripped": False, "since_probe": 0, "em": 0, "tx": 0}
-_em_lock = __import__("threading").Lock()
-
-
-def _dash(d: str) -> str:
-    d = str(d).replace("-", "")
-    return f"{d[:4]}-{d[4:6]}-{d[6:8]}" if len(d) == 8 else str(d)
-
-
-def daily_hist_tx(code: str, start: str, end: str,
-                  timeout: float = 8.0) -> "pd.DataFrame":  # noqa: F821
-    """腾讯不复权日线。字段名与东财 stock_zh_a_hist 对齐，便于互换。
-
-    成交量：腾讯对科创板给「股」，其余给「手」，由 tx_vol_hand 统一成手
-    （不折算的话 688 的成交额估算会大 100 倍：688008 2026-09-16 估出
-    7009 亿，真值 68.3 亿）。
-    涨跌幅：按相邻**不复权**收盘价算，除权日会错，所以 chg_adj=False；
-    首根没有前一根，给 NaN 而不是 0.0 —— 给 0.0 会让次日的 prev_gain
-    变成「昨天平盘」这个假事实（2025-01-02 那批 440 只里 000001 实际 −2.64%）。
-    """
-    import pandas as pd
-    sym = to_symbol(code)
-    url = TX_KLINE.format(sym=sym, start=_dash(start), end=_dash(end), cnt=640)
-    r = _SESSION.get(url, headers=UA, timeout=timeout)
-    js = r.json()
-    node = (js.get("data") or {}).get(sym) or {}
-    rows = node.get("day") or node.get("qfqday") or []
-    if not rows:
-        return pd.DataFrame(columns=_HIST_COLS)
-
-    rec = []
-    prev = None
-    for it in rows:
-        try:
-            d, o, cl, hi, lo, vol = (it[0], float(it[1]), float(it[2]),
-                                     float(it[3]), float(it[4]),
-                                     tx_vol_hand(code, float(it[5])))
-        except (ValueError, IndexError):
-            continue
-        rec.append({
-            "日期": d, "开盘": o, "收盘": cl, "最高": hi, "最低": lo,
-            "成交量": vol, "成交额": (hi + lo + cl) / 3.0 * vol * 100.0,
-            "涨跌幅": (round((cl - prev) / prev * 100.0, 2) if prev
-                    else float("nan")),
-            "chg_adj": False,
-        })
-        prev = cl
-    return pd.DataFrame(rec, columns=_HIST_COLS)
-
-
-SINA_KLINE = ("https://quotes.sina.cn/cn/api/json_v2.php/"
-              "CN_MarketDataService.getKLineData"
-              "?symbol={sym}&scale=240&ma=no&datalen=1023")
-
-
-def daily_hist_sina(code: str, start: str, end: str,
-                    timeout: float = 10.0) -> "pd.DataFrame":  # noqa: F821
-    """新浪日线。第三路兜底，2026-09-02 加。
-
-    单次给 1023 根，实测回溯到 2022-06，比腾讯那路的 640 根上限还长。
-    代价是它**只有 OHLC 和成交量**：
-      成交额  用 (最高+最低+收盘)/3×成交量 估算，和腾讯那路同一口径，
-              是估算不是真值（理由见上面那段注释）
-      涨跌幅  按相邻收盘价算，**除权日会错**（东财那路才是复权真值），
-              所以 chg_adj=False；窗口第一根若连前置行都没有就是 NaN
-    所以顺序仍然是 东财 -> 腾讯 -> 新浪，它只在前两路都不通时顶上。
-    """
-    import pandas as pd
-    sym = to_symbol(code)
-    r = _SESSION.get(SINA_KLINE.format(sym=sym), headers=UA, timeout=timeout)
-    js = r.json()
-    if not isinstance(js, list) or not js:
-        return pd.DataFrame(columns=_HIST_COLS)
-    s0, e0 = _dash(start), _dash(end)
-    rec, prev = [], None
-    for it in js:
-        d = str(it.get("day", ""))[:10]
-        if not (s0 <= d <= e0):
-            prev = float(it["close"])
-            continue
-        cl = float(it["close"])
-        vol = float(it["volume"]) / 100.0     # 新浪给的是股，统一成手
-        hi, lo = float(it["high"]), float(it["low"])
-        rec.append({
-            "日期": d, "开盘": float(it["open"]), "收盘": cl,
-            "最高": hi, "最低": lo,
-            "成交量": vol, "成交额": (hi + lo + cl) / 3.0 * vol * 100.0,
-            "涨跌幅": (round((cl - prev) / prev * 100.0, 2) if prev
-                    else float("nan")),
-            "chg_adj": False,
-        })
-        prev = cl
-    return pd.DataFrame(rec, columns=_HIST_COLS)
-
-
-def daily_hist_em(code: str, start: str, end: str,
-                  retries: int = _EM_RETRIES) -> "pd.DataFrame":  # noqa: F821
-    """东财不复权日线（akshare 封装）。成交额是真实值，腾讯那路是估算。
-
-    它的「涨跌幅」是服务端字段（除权后的真实涨跌幅），所以 chg_adj=True ——
-    只有这一路的涨跌幅能用来反解「已除权的昨收」。
-    """
-    import akshare as ak
-    last = None
-    for attempt in range(retries):
-        try:
-            h = ak.stock_zh_a_hist(
-                symbol=str(code).zfill(6), period="daily",
-                start_date=str(start).replace("-", ""),
-                end_date=str(end).replace("-", ""), adjust="",
-            )
-            if h is not None:
-                h = h.copy()
-                h["chg_adj"] = True
-            return h
-        except Exception as e:  # noqa: BLE001
-            last = e
-            time.sleep(0.3 * (attempt + 1))
-    raise last if last else RuntimeError("东财日线失败")
-
-
-def _em_allowed() -> bool:
-    """熔断开关。熔断后每 _EM_RETRY_AFTER 只放一只过去回探。"""
-    with _em_lock:
-        if not _em_state["tripped"]:
-            return True
-        _em_state["since_probe"] += 1
-        if _em_state["since_probe"] >= _EM_RETRY_AFTER:
-            _em_state["since_probe"] = 0
-            return True
-        return False
-
-
-def _em_result(ok: bool, used: bool = True) -> None:
-    """ok = 东财**答复了**（决定熔断），used = 这次真的用了它的数据（决定计数）。
-
-    两件事必须分开：新股/长期停牌只有十几根 K 线是「数据本身短」，不是
-    「东财不通」。以前 <25 根和抛异常一样累加 fail_streak，连续 12 只短历史
-    就把东财熔断掉，之后 150 只无声改走腾讯（腾讯那路的成交额是估算）。
-    真实数据下凑不满 12 只（全市场 <25 根的只有 17 只，按代码排序最长连续
-    3 只：688826/828/836），但语义错了就该改对。
-    """
-    with _em_lock:
-        if ok:
-            _em_state["fail_streak"] = 0
-            if used:
-                _em_state["em"] += 1
-            if _em_state["tripped"]:
-                _em_state["tripped"] = False
-                log.info("东财日线已恢复，切回主源")
-        else:
-            _em_state["fail_streak"] += 1
-            if not _em_state["tripped"] and _em_state["fail_streak"] >= _EM_TRIP:
-                _em_state["tripped"] = True
-                log.warning("东财日线连续 %d 只失败，本次熔断，改走腾讯"
-                            "（每 %d 只回探一次）", _EM_TRIP, _EM_RETRY_AFTER)
-
-
-def hist_source_stats() -> dict:
-    """本次进程内各源命中数，跑完打日志用。
-
-    新浪那一路以前不报，1125 只里 780 只去向不明，看日志对不上账。
-    """
-    with _em_lock:
-        return {"东财": _em_state["em"], "腾讯": _em_state["tx"],
-                "新浪": _em_state.get("sina", 0),
-                "熔断中": _em_state["tripped"]}
-
-
-def daily_hist(code: str, start: str, end: str) -> "pd.DataFrame":  # noqa: F821
-    """
-    个股不复权日线。用于算 5 日均量、60 日分位、平台高点。
-
-    三路：东财（成交额是真值）-> 腾讯 -> 新浪。
-    东财失败重试 3 次，整体不通时熔断。腾讯被限流返 501 时新浪顶上。
-    """
-    import pandas as pd
-    if _em_allowed():
-        try:
-            h = daily_hist_em(code, start, end)
-            n = 0 if h is None else len(h)
-            # 「通不通」看有没有答复，「用不用」才看够不够 25 根。
-            # 空表仍算失败：东财软限流会返回 data=null。
-            _em_result(n > 0, used=n >= 25)
-            if n >= 25:
-                return h
-        except Exception as e:  # noqa: BLE001
-            _em_result(False)
-            log.debug("东财日线(%s) 失败: %s", code, e)
-    try:
-        h = daily_hist_tx(code, start, end)
-        if h is not None and len(h) >= 25:
-            with _em_lock:
-                _em_state["tx"] += 1
-            return h
-    except Exception as e:  # noqa: BLE001
-        log.debug("腾讯日线(%s) 失败: %s", code, e)
-    # 第三路。腾讯那路被限流返 501 时，这一路仍然通（2026-09-02 实测）。
-    try:
-        h = daily_hist_sina(code, start, end)
-        if h is not None and len(h) >= 25:
-            with _em_lock:
-                _em_state["sina"] = _em_state.get("sina", 0) + 1
-            return h
-    except Exception as e:  # noqa: BLE001
-        log.debug("新浪日线(%s) 失败: %s", code, e)
-    return pd.DataFrame(columns=_HIST_COLS)
-
-
-def daily_hist_many(codes: Sequence[str], start: str, end: str,
-                    workers: int = 4) -> dict[str, "pd.DataFrame"]:  # noqa: F821
-    """
-    批量拉日线。盘前 stage2 用，1600 只串行要 9 分钟以上，4 路并发压到 2-3 分钟。
-
-    并发数和 fetch_quotes 一样保守：免费接口并发一高就限流，别往上调。
-    """
-    out: dict[str, "pd.DataFrame"] = {}  # noqa: F821
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        futs = {ex.submit(daily_hist, c, start, end): c for c in codes}
-        for f in as_completed(futs):
-            code = futs[f]
-            try:
-                out[code] = f.result()
-            except Exception as e:  # noqa: BLE001
-                log.warning("日线 %s 失败: %s", code, e)
-    return out
-
-
 def _norm_trade_dates(col, today=None) -> set[str]:
     """把接口的 trade_date 列统一成 YYYY-MM-DD，归一不了就抛。
 
@@ -766,8 +415,8 @@ def _norm_trade_dates(col, today=None) -> set[str]:
     `str(d)` 恰好是 YYYY-MM-DD，所以一直没出事。但 requirements.txt 写的是
     `akshare>=1.16.0`，云端每次 pip install 都拉最新版，上游改成
     '20260916' / 20260916 / object 型 Timestamp 里的任何一种，
-    `today not in s` 就恒真：早盘选股、盘前候选池、形态扫描全部每天
-    「非交易日」退出 0，evening_check 也判非交易日不提醒，三层托底一起哑，
+    `today not in s` 就恒真：起涨预测、长期调整突破全部每天「非交易日」
+    退出 0，evening_check 也判非交易日不提醒，三层托底一起哑，
     而且坏日历会写进 state/trade_dates.json 把三处只读缓存的兜底一起污染
     （教训 15「恢复路径本身要能恢复」、教训 27「退出码 0 不等于做了事」）。
 
@@ -802,7 +451,7 @@ def trade_dates() -> set[str]:
             cache.parent.mkdir(parents=True, exist_ok=True)
             # 原子写。Path.write_text 是 open("w")：先把文件截断成 0 字节
             # 再写回 123KB，中间那约 1 毫秒里读方（控制台 gui/status.py、
-            # 学习闸门 learn/gate.py）读到的是空文件，json.loads 直接失败。
+            # local_run 的日历缓存）读到的是空文件，json.loads 直接失败。
             # 实测一写一读并发 3 秒 337 次读里 138 次读到 0 字节（41%）。
             # tmp 名带 pid：两个进程同时写不能共用一个临时文件。
             tmp = cache.with_name(f"trade_dates.{os.getpid()}.tmp")

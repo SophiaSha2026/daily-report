@@ -50,6 +50,9 @@ import validate as V         # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
                     datefmt="%H:%M:%S")
+# 日志时间一律北京时间（控制台「运行记录」直接印日志，界面只用北京时间）。
+# 必须包 staticmethod：直接赋 lambda 会被绑成方法，每条日志都报错并丢掉
+logging.Formatter.converter = staticmethod(lambda t: time.gmtime(t + 8 * 3600))
 log = logging.getLogger("breakout")
 
 # 清单 A 的规则（2026-09-13 按用户「最大化准确率」的要求定，实测见
@@ -120,9 +123,9 @@ _OVR = load_overrides()
 SCORE_MIN = int(_OVR.get("SCORE_MIN", SCORE_MIN))
 CAP_A = int(_OVR.get("CAP_A", CAP_A))
 # 连续够格天数的下限。默认 1 = 不过滤（当天够格就能上）。
-# 以前 load_overrides 读了它却没有一处代码用，会诊批准 MIN_STREAK 也不生效。
+# 以前 load_overrides 读了它却没有一处代码用，overrides.json 里写了也不生效。
 MIN_STREAK = int(_OVR.get("MIN_STREAK", 1))
-DROP_FEATURES = list(_OVR.get("drop_features", []))   # 会诊批准去掉的基础特征名
+DROP_FEATURES = list(_OVR.get("drop_features", []))   # overrides.json 里去掉的基础特征名
 if _OVR:
     log.info("起涨预测常量覆盖生效：%s", _OVR)
 TOP_A = CAP_A       # 兼容旧名字
@@ -182,7 +185,7 @@ def load_board_adj() -> dict:
 
 
 BOARD_ADJ.update(load_board_adj())            # 收缩估计（有就用它）
-BOARD_ADJ.update(_OVR.get("BOARD_ADJ", {}))   # 人工/会诊批准的覆盖，优先级最高
+BOARD_ADJ.update(_OVR.get("BOARD_ADJ", {}))   # overrides.json 的人工覆盖，优先级最高
 RISE_MIN = 0.20     # 进池后至少涨过这么多，才谈得上「波段结束」
 
 
@@ -290,7 +293,7 @@ def load_or_fit(df: pd.DataFrame, force: bool = False,
     feats_all = [c for c in df.columns if "__" in c
                  and c.rsplit("__", 1)[0] not in set(DROP_FEATURES)]
     if DROP_FEATURES:
-        log.info("会诊批准去掉的特征：%s（剩 %d 列）", DROP_FEATURES, len(feats_all))
+        log.info("overrides.json 去掉的特征：%s（剩 %d 列）", DROP_FEATURES, len(feats_all))
     rep = FS.run(tr, feats_all, y="y_up")
     feats = rep["keep"]
     trs = M.stratified_sample(tr, "y_up")
@@ -311,7 +314,8 @@ def load_or_fit(df: pd.DataFrame, force: bool = False,
     # 而当天重训后的生产模型是 102 列进 51 列出 —— 入模的 51 列里有 16 列
     # 躺在那份记录的 dropped 里，另有 6 列它压根没见过，按它做的特征级判断
     # 全部无据。带 fingerprint 才能核对是不是同一次。
-    # ic_table 也要落：会诊的 feature_ic 查询读这份文件，不写的话它永远返回空。
+    # ic_table 一起落：排查某一列为什么被筛掉时要看它（归档前学习会诊的
+    # feature_ic 查询也读这份）。
     sel_p = STATE / "feature_select.json"
     try:
         sel_p.write_text(json.dumps(
@@ -326,7 +330,7 @@ def load_or_fit(df: pd.DataFrame, force: bool = False,
             ensure_ascii=False, indent=1), encoding="utf-8")
     except Exception as e:  # noqa: BLE001
         log.warning("特征筛选记录没落盘（不阻断出清单）: %s", e)
-    # gain 重要性也写进 model.json：面板和会诊不装 lightgbm 也能读到它
+    # gain 重要性也写进 model.json：面板不装 lightgbm 也能读到它
     try:
         gain = mdl.m.booster_.feature_importance(importance_type="gain")
         imp = {f: float(g) for f, g in zip(feats, gain)}
@@ -802,7 +806,7 @@ def stage_scan(force_fit: bool = False) -> int:
     (OUT / "run_meta.json").write_text(json.dumps(
         {"date": date, "n_a": len(picks), "n_b": len(blist),
          # 规则要跟着清单一起落盘：邮件和面板按它印「上榜条件是 ≥N 分前 M 名」，
-         # 会诊批准 overrides.json 之后不写 cap_a 的话，邮件还会说「前 10」
+         # 改了 overrides.json 之后不写 cap_a 的话，邮件还会说「前 10」
          "score_min": SCORE_MIN, "cap_a": CAP_A, "min_streak": MIN_STREAK,
          # 板块系数也是规则的一部分。2026-09-16 会诊批准 star 1.27->1.0 之后，
          # 生产每天的榜换掉了近一半（162 个出榜日里 77 天不同，科创席位

@@ -1378,6 +1378,38 @@ def _check_push_api(call, server) -> None:
         (local_run.ROOT, local_run._git, local_run.any_flow_running) = o
 
 
+def check_log_time_bj() -> None:
+    """日志时间戳一律北京时间：控制台「运行记录」「运行」两页直接印日志。"""
+    print("\n[日志时间是北京时间]")
+    import logging
+    import time as _time
+    bad, n = [], 0
+    for p in list((ROOT / "src").rglob("*.py")) + list((ROOT / "tools").glob("*.py")):
+        s = p.read_text(encoding="utf-8")
+        if "logging.basicConfig(" in s and "%(asctime)s" in s:
+            n += 1
+            if "Formatter.converter = staticmethod(" not in s:
+                bad.append(p.relative_to(ROOT).as_posix())
+    ck(n >= 8 and not bad, f"带时间戳的 {n} 个入口都把日志换成北京时间（漏了：{bad}）")
+    # 直接赋 lambda 会被绑成方法：每条日志 TypeError，logging 吞掉异常、消息丢失
+    keep = logging.Formatter.converter
+    try:
+        logging.Formatter.converter = staticmethod(lambda t: _time.gmtime(t + 8 * 3600))
+        f = logging.Formatter("%(asctime)s %(message)s", "%Y-%m-%d %H:%M")
+        rec = logging.makeLogRecord({"msg": "x", "created": 1790000000.0})
+        ck(f.format(rec).startswith(_time.strftime("%Y-%m-%d %H:%M",
+                                                    _time.gmtime(1790000000 + 8 * 3600))),
+           "staticmethod 包着的换算器按 UTC+8 出时间")
+    finally:
+        logging.Formatter.converter = keep
+    cmd = (ROOT / "tools" / "run_local.cmd").read_text(encoding="ascii")
+    ck(cmd.count("ToUniversalTime().AddHours(8)") == 2 and "Get-Date -Format s" not in cmd,
+       "run_local.cmd 的开始 / 结束两行时间头也是北京时间")
+    ck(r"[\d\-T:]+\] === run_local" in (ROOT / "src" / "gui" / "simple.py")
+       .read_text(encoding="utf-8"),
+       "首页按 [yyyy-MM-ddTHH:mm:ss] 切分运行块，时间头格式没变")
+
+
 def check_task_sentinel() -> None:
     """「从没跑过」的哨兵只能按 rc 认，不能按 last 的 11-30 前缀认。"""
     print("\n[计划任务哨兵]")
@@ -1387,9 +1419,9 @@ def check_task_sentinel() -> None:
     from gui import status as st
     rows = [
         {"name": "DailyReport-Local-Evening", "state": "Ready",
-         "last": "11-30 18:07", "rc": 0, "next": ""},
+         "last": "2026-11-30 10:07", "rc": 0, "next": "2026-12-01 08:30"},
         {"name": "DailyReport-Never", "state": "Ready",
-         "last": "11-30 00:00", "rc": 267011, "next": ""},
+         "last": "1999-11-30 05:00", "rc": 267011, "next": ""},
     ]
     orig = subprocess.run
     subprocess.run = lambda *a, **k: types.SimpleNamespace(
@@ -1401,13 +1433,14 @@ def check_task_sentinel() -> None:
         ck(m.get("last") == "11-30 18:07",
            "真的 11 月 30 日跑过，「上次」不被当哨兵清空（每年白一整天）")
         ck(m.get("rc") == 0 and m.get("never") is None, "跑过的任务 rc 原样保留")
+        ck(m.get("next") == "12-01 16:30", "PowerShell 给 UTC，排期页印北京时间（08:30Z = 16:30）")
         ck(n.get("last") == "" and n.get("rc") is None and n.get("never") is True,
            "rc=267011 才是从没跑过：清空「上次」、标 never")
     finally:
         subprocess.run = orig
         st._task_cache.update(at=0.0, data={})
     ck("Year -ge 2000" in inspect.getsource(st.scheduled_tasks),
-       "年份在 PowerShell 那一侧过滤（格式串里没有年，出了那一步就分不清了）")
+       "年份在 PowerShell 那一侧过滤（1999-11-30 哨兵是本机时间，转 UTC 之前判）")
 
 
 def check_done_semantics() -> None:
@@ -1916,6 +1949,13 @@ def check_pages_wiring() -> None:
        f"build_site 只发布两个晚间面板（{names}），早盘/学习/会诊页不再上线")
     ck("out_learn" not in (ROOT / "src" / "build_site.py").read_text(encoding="utf-8"),
        "build_site 不再去 out_learn 拷学习面板（已归档）")
+    pg = build_site.with_nav("<html><body><h1>x</h1></body></html>", "pullback.html")
+    ck('href="./"' in pg and 'href="breakout.html"' in pg
+       and 'href="pullback.html"' not in pg and "<b>长期调整突破</b>" in pg
+       and pg.index('class="nav"') < pg.index("<h1>"),
+       "发布的面板顶上有导航：入口页 + 另一个面板，当前页不是链接")
+    ck(build_site.with_nav("<html>x</html>", "pullback.html") == "<html>x</html>",
+       "没有 <body> 的页面原样发布，不硬插")
     # 其余 workflow 都不许再发布 Pages：两处发布会互相冲掉
     other = [p.name for p in (ROOT / ".github" / "workflows").glob("*.yml")
              if p.name != "pages.yml" and "deploy-pages" in p.read_text(encoding="utf-8")]
@@ -2071,7 +2111,7 @@ def check_simple_page() -> None:
     from gui import simple as S
 
     now = dt.datetime(2026, 9, 29, 8, 17)
-    ck(S.ago(None, now) == "从没跑通", "没跑过显示「从没跑通」")
+    ck(S.ago(None, now) == "还没有", "没跑通过显示「上次跑通 还没有」")
     ck(S.ago(now - dt.timedelta(minutes=8), now) == "8 分钟前", "8 分钟前")
     ck(S.ago(now - dt.timedelta(hours=22, minutes=50), now) == "22 小时 50 分前",
        "22 小时 50 分前")
@@ -2239,6 +2279,7 @@ def main() -> int:
     check_simple_page()
     check_progress_file()
     check_panels()
+    check_log_time_bj()
     check_task_sentinel()
     check_http()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")

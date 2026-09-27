@@ -26,12 +26,24 @@
 | 其它 | `config.yaml`（归档前的完整版，含 runtime / universe / screen / scoring / output / llm / learning 各段）、`tools/yield_check.py trigger_auction.cmd build_manual.py build_devprocess.py`、`src/refresh_meta.py`（归档前那版还刷行业板块表）、旧 `README.md` `HANDOVER.md`、`CLAUDE_morning.md`（CLAUDE.md 里早盘专属的硬约束和领域知识） |
 
 `cache/hist_daily.parquet` / `hist_auction*.parquet`（学习线回填用的原始缓存，
-gitignore、很大）留在原地没动，删掉不影响任何在用的东西。
+gitignore、共 143MB，只在本机）当晚第二轮清理时也搬进了本目录的 `cache/`，
+`state/lock/progress_learn|morning.json` 搬进 `state/lock/`，都没删。
+
+### 第二轮清理（2026-09-27 晚）
+
+- `src/datasource.py` 里只给早盘用的函数删了：全市场快照 `spot_all` / `_turnover`，
+  三路日线 `daily_hist` / `daily_hist_many` / `daily_hist_em|tx|sina` 和东财熔断
+  （`_em_*`、`hist_source_stats`），次新判定 `is_new_listing`。盘前候选池
+  （`premarket.py`）要它们，恢复时从提交 `20fe1ba` 的 `src/datasource.py` 拷回去。
+- 冒烟测试 `src/smoke_test.py` + `.github/workflows/smoke_test.yml` 搬到本目录
+  `src/` 和 `workflows/`：它测的是早盘在 runner 上要用的源（全市场快照、三路日线、
+  竞价窗口吞吐）。晚间两条线云端算不了，本机的数据源体检是控制台「检查数据源」
+  （`tools/probe.py`，这次改成测晚间线实际连的主机）。
 
 ## 留下的共用部分（没归档）
 
-`datasource.py`、`mailer.py`（发信底层 + 告警）、`localenv.py`、`local_run.py`、
-控制台 `gui/`、`refresh_meta.py`（只刷代码表了）、`smoke_test.py`、`tools/probe.py`、
+`datasource.py`（删掉了早盘专用的几个函数，见上）、`mailer.py`（发信底层 + 告警）、
+`localenv.py`、`local_run.py`、控制台 `gui/`、`refresh_meta.py`（只刷代码表了）、`tools/probe.py`、
 Pages 发布（改由 `.github/workflows/pages.yml` 推送触发，以前是 auction.yml 顺手发）。
 
 早盘归档时顺手接过来的两件事（以前是早盘系统顺带在做、别的线在用）：
@@ -53,4 +65,5 @@ Pages 发布（改由 `.github/workflows/pages.yml` 推送触发，以前是 auc
 3. 计划任务：`archive/morning/tools/setup_tasks.ps1` 里的 Morning / Learn 定义抄回去重跑。
 4. workflows 移回 `.github/workflows/` 后在 GitHub 上 `gh workflow enable`；
    Worker 加回 `30 23 * * *` 并 deploy。三层都要回来，缺一层就是教训 24 反过来。
-5. 跑 `selftest.py selftest_learn.py selftest_train.py`（也在本目录）。
+5. `datasource.py` 的早盘函数和冒烟测试按上面「第二轮清理」取回。
+6. 跑 `selftest.py selftest_learn.py selftest_train.py`（也在本目录）。

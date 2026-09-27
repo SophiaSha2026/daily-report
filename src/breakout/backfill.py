@@ -64,6 +64,9 @@ STATE = ROOT / "state" / "breakout"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
                     datefmt="%H:%M:%S")
+# 日志时间一律北京时间（控制台「运行记录」直接印日志，界面只用北京时间）。
+# 必须包 staticmethod：直接赋 lambda 会被绑成方法，每条日志都报错并丢掉
+logging.Formatter.converter = staticmethod(lambda t: time.gmtime(t + 8 * 3600))
 log = logging.getLogger("backfill")
 
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -650,7 +653,7 @@ def _stage_update(target: str = "") -> int:
     就有）。中间缺了不止一个交易日（机器几天没开）就退化成全量刷新。
 
     target 由编排层（local_run.flow_breakout）传进来：目标日只该算一次，
-    每个子阶段各判一次早晚会分叉（S20，学习线的 `--date` 是同一做法）。
+    每个子阶段各判一次早晚会分叉（S20）。
     没传就自己算，手动裸跑时用。
     """
     sys.path.insert(0, str(ROOT / "src"))

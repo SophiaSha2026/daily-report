@@ -17,6 +17,7 @@
 净损失。
 
 根目录 index.html 以前是早盘竞价面板，现在是一个入口页，指向两个面板。
+发布出去的面板顶上多一行导航（with_nav），控制台内嵌的那份不加。
 """
 from __future__ import annotations
 
@@ -70,6 +71,27 @@ def index_html(items: list[tuple[str, str, str]]) -> str:
             '</div></body></html>')
 
 
+_A = 'style="color:#7fb3ff;text-decoration:none"'
+
+
+def with_nav(page: str, current: str) -> str:
+    """发布到 Pages 的面板顶上加一行导航：入口页 + 另一个面板。
+
+    邮件里的在线面板链接只指向一个面板，以前点进去就回不到入口页、也到不了
+    另一个面板（2026-09-27）。只加在 _site 那份上：控制台内嵌的是
+    out_*/panel.html，它自己有页签，不要这一行。找不到 <body> 就原样返回。
+    """
+    if "<body>" not in page:
+        return page
+    links = [f'<a href="./" {_A}>全部面板</a>']
+    for _, name, _, label in PAGES:
+        links.append(f"<b>{html.escape(label)}</b>" if name == current
+                     else f'<a href="{html.escape(name)}" {_A}>{html.escape(label)}</a>')
+    bar = ('<div class="nav" style="font-size:12px;color:#8f9aa8;margin:0 0 10px">'
+           + " · ".join(links) + "</div>")
+    return page.replace("<body>", "<body>" + bar, 1)
+
+
 def main() -> int:
     # 先清空：本机的 _site 里可能还留着早盘归档前的 index/learn/council 页，
     # 发布出去就成了指向已归档内容的死页面（云端每次都是新 checkout，不受影响）
@@ -82,7 +104,8 @@ def main() -> int:
         if not panel.exists():
             log.warning("跳过 %s：没有 panel.html", src.name)
             continue
-        shutil.copy2(panel, SITE / name)
+        (SITE / name).write_text(with_nav(panel.read_text(encoding="utf-8"), name),
+                                 encoding="utf-8")
         s = src / "stamp.txt"
         if s.exists():
             shutil.copy2(s, SITE / stamp_name)

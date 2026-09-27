@@ -56,15 +56,33 @@ LINES = [
 # 的判断会分家：一边绿灯一边还在重跑。selftest_gui 钉住两边相等。
 SENT_REQUIRED = {"breakout", "pullback"}
 
-# 这几个字段是 fail-open 的分支留下的错误对象：研究性步骤挂掉时把异常写进
-# run_meta 就继续往下走（不该阻断业务），于是退出码 0、日期也对，总览页一路
-# 绿灯。失败必须有一个能被界面查询的对象（教训 16）。早盘系统归档前是学习线
-# 的 panel_error / shadow_error 在用，键名留着，谁写都认。
-ERR_KEYS = ("panel_error", "shadow_error", "error")
+# fail-open 的分支留下的错误对象：研究性步骤挂掉时把异常写进 run_meta 就继续
+# 往下走（不该阻断业务），于是退出码 0、日期也对，总览页一路绿灯。失败必须有
+# 一个能被界面查询的对象（教训 16）。run_meta 里带这个键就显示在那一行上；
+# 两条晚间线目前都不写（失败直接非 0 退出）。归档前学习线用的
+# panel_error / shadow_error 2026-09-27 删掉。
+ERR_KEYS = ("error",)
 
 
 def now_bj() -> dt.datetime:
     return dt.datetime.utcnow() + dt.timedelta(hours=8)
+
+
+def _utc_to_bj(s: str) -> str:
+    """'2026-09-28 09:40'（UTC）-> '09-28 17:40'（北京）。认不出来就原样返回。"""
+    try:
+        t = dt.datetime.strptime(str(s), "%Y-%m-%d %H:%M") + dt.timedelta(hours=8)
+        return t.strftime("%m-%d %H:%M")
+    except (TypeError, ValueError):
+        return str(s or "")
+
+
+def _mdhm(iso: str) -> str:
+    """'2026-09-27T18:22:28+08:00' -> '09-27 18:22'。认不出来就原样返回。"""
+    s = str(iso or "")
+    if len(s) >= 16 and s[4] == "-" and s[10] in "T ":
+        return f"{s[5:10]} {s[11:16]}"
+    return s
 
 
 def today_bj() -> str:
@@ -115,12 +133,14 @@ def scheduled_tasks(force: bool = False) -> dict:
         "  $i = $_ | Get-ScheduledTaskInfo;"
         "  [pscustomobject]@{"
         "    name=$_.TaskName; state=[string]$_.State;"
-        # 年份的过滤只能放在这一侧：格式串里没有年，出了 PowerShell 就再也
-        # 分不清「1999-11-30 的哨兵」和「真的 11 月 30 日跑过」。
+        # 年份的过滤放在这一侧：1999-11-30 的哨兵是本机时间，在这里判最直接。
+        # 时刻一律转成 UTC 再出来，Python 那边换成北京时间（界面只用北京时间；
+        # 以前印的是 Windows 报的本机美东时间，排期页要人自己加 12 小时）。
         "    last=if($i.LastRunTime -and $i.LastRunTime.Year -ge 2000)"
-        "{$i.LastRunTime.ToString('MM-dd HH:mm')}else{''};"
+        "{$i.LastRunTime.ToUniversalTime().ToString('yyyy-MM-dd HH:mm')}else{''};"
         "    rc=$i.LastTaskResult;"
-        "    next=if($i.NextRunTime){$i.NextRunTime.ToString('MM-dd HH:mm')}else{''}"
+        "    next=if($i.NextRunTime)"
+        "{$i.NextRunTime.ToUniversalTime().ToString('yyyy-MM-dd HH:mm')}else{''}"
         "  } } | ConvertTo-Json -Compress"
     )
     out = {}
@@ -148,6 +168,8 @@ def scheduled_tasks(force: bool = False) -> dict:
                 d["rc"] = None
                 d["never"] = True
                 d["last"] = ""
+            d["last"] = _utc_to_bj(d.get("last", ""))
+            d["next"] = _utc_to_bj(d.get("next", ""))
         out = {d["name"]: d for d in data}
     except Exception:  # noqa: BLE001
         out = {}
@@ -191,7 +213,8 @@ def sync_status() -> dict:
         "problems": problems,
         "ahead": ahead or "?", "behind": behind or "?",
         "dirty": len([x for x in dirty.splitlines() if x.strip()]),
-        "last_push": push.get("at", ""),
+        # push_status 的 at 是北京时间的 ISO 串（local_run 写），界面只印「月-日 时:分」
+        "last_push": _mdhm(push.get("at", "")),
         "last_push_ok": push.get("ok"),
         "last_push_msg": push.get("msg", ""),
     }
@@ -397,6 +420,7 @@ RULES = {
 # --if-needed 的几道检查，顺序就是 local_run.if_needed_skip 里的顺序
 IF_NEEDED = [
     "北京时间周末：两条线的窗口都跨午夜，北京周六凌晨正是补周五清单的时段，这一道实际不挡",
+    "目标日在这条线上线之前（{start}）：跳过，不补上线前的日子",
     "这条线正在跑（state/lock 或进程表）：跳过",
     "目标日已经跑完（run_meta 日期 == 目标日，且有 sent 标记）：跳过",
     "不在开跑窗口：只拉一次远端，不跑",
@@ -497,7 +521,6 @@ def auto_text(key: str) -> str:
 
 def rules_status(lines: list[dict]) -> dict:
     now = now_bj()
-    edt = dt.datetime.now()
     out = []
     for ln in lines:
         r = RULES.get(ln["key"], {})
@@ -515,14 +538,18 @@ def rules_status(lines: list[dict]) -> dict:
             "steps": r.get("steps", ""),
             "cloud": r.get("cloud", ""),
         })
+    L = _local_run()
+    # 上线日从 local_run.START 现拼，改了那边这里跟着变（不写死日期）
+    start = "、".join(f"{L.FLOWS[k][1]} {v} 起" for k, v in
+                     (getattr(L, "START", {}) or {}).items() if k in L.FLOWS) if L else ""
     return {
-        "now": f"北京 {now.strftime('%m-%d %H:%M')}（本机 {edt.strftime('%m-%d %H:%M')}）",
+        "now": f"北京 {now.strftime('%m-%d %H:%M')}",
         "lines": out,
-        "if_needed": IF_NEEDED,
+        "if_needed": [x.format(start=start or "没有设上线日") for x in IF_NEEDED],
         "priority": PRIORITY,
         "manual": MANUAL_RULE,
-        "worker": "Cloudflare Worker daily-report-trigger：每天 20:45 北京派发 evening_check.yml"
-                  "（07:30 那条早盘派发 2026-09-27 随早盘系统删掉）。第三层触发，改它要重新 deploy。",
+        "worker": "Cloudflare Worker daily-report-trigger，每天 20:45 北京派发 "
+                  "evening_check.yml；改它要重新 deploy。",
     }
 
 
