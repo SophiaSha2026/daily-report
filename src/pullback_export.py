@@ -38,10 +38,22 @@ def _pct(x, digits: int = 1, sign: bool = True) -> str:
 
 
 def meta_line(meta: dict) -> str:
+    n, n_pat = meta.get("n", "?"), meta.get("n_pattern", meta.get("n", "?"))
+    drop = len(meta.get("excluded") or {})
+    tail = (f"今日二次进攻 {n_pat} 只，剔除 {drop} 只，清单 {n} 只" if drop
+            else f"今日二次进攻 {n_pat} 只，清单 {n} 只")
     return (f"{meta.get('date', '')} 收盘后扫描 · 全市场 {meta.get('n_stocks', '?')} 只 · "
-            f"今日倍量大阳线 {meta.get('n_big_today', '?')} 只 · "
-            f"调整中 {meta.get('n_watch', '?')} 只 · "
-            f"今日二次进攻 {meta.get('n', '?')} 只")
+            f"今日倍量大阳线 {meta.get('n_big_today', '?')} 只 · " + tail)
+
+
+def excluded_line(meta: dict) -> str:
+    """今天走完三步、但按规则剔掉的：代码 名称（原因）。没有就空串。"""
+    ex = meta.get("excluded") or {}
+    if not ex:
+        return ""
+    nm = meta.get("excluded_names") or {}
+    return f"剔除 {len(ex)} 只：" + "；".join(
+        f"{c}{' ' + nm[c] if nm.get(c) else ''}：{why}" for c, why in ex.items())
 
 
 def hist_line(meta: dict) -> str:
@@ -54,6 +66,8 @@ def hist_line(meta: dict) -> str:
         s += (f"。走满 {h.get('bars', 20)} 个交易日的 {h['n_final']} 次里，之后最高价涨幅"
               f"中位 {_pct(h.get('max_up_median'))}，第 {h.get('bars', 20)} 天收盘中位 "
               f"{_pct(h.get('ret_median'))}（只描述历史，不是预测）")
+    if h.get("n_unknown"):
+        s += f"。其中 {h['n_unknown']} 次减持 / 定增数据没拉到，按不剔算"
     return s
 
 
@@ -66,8 +80,20 @@ def _bonus(r: dict, html: bool = True) -> str:
                     for nm, ok in items)
 
 
-def _cells(r: dict) -> tuple[str, str, str, str, str]:
-    """一行的五个格子：名称、今日、首阳、调整、加分。邮件和面板共用。"""
+def base_text(r: dict, html: bool = True) -> str:
+    """前期调整：首阳前收盘价待在 30% 振幅里的交易日数（pullback.base_run）。"""
+    n = r.get("base_run")
+    if n is None:
+        return "-"
+    n = int(n)
+    head = f"{'至少 ' if r.get('base_run_full') else ''}{n} 个交易日"
+    if not html:
+        return head
+    return f'{head}<div class="dim">约 {n / 21:.1f} 个月</div>'
+
+
+def _cells(r: dict) -> tuple[str, str, str, str, str, str]:
+    """一行的六个格子：名称、今日、前期调整、首阳、缩量调整、加分。邮件和面板共用。"""
     tag = ' <span class="warnt">一字板</span>' if r.get("one_word") else ""
     name = (f'{_esc(r.get("name", ""))}{tag}'
             f'<div class="dim">{BOARD.get(r.get("board"), "")}</div>')
@@ -81,7 +107,7 @@ def _cells(r: dict) -> tuple[str, str, str, str, str]:
     adj = (f'{int(r["adjust_days"])} 天'
            f'<div class="dim">最低量 {100 * float(r["adj_vol_min"]):.0f}% · 最深 '
            f'{_pct(r["adj_drawdown_pct"])}</div>')
-    return name, today, launch, adj, _bonus(r)
+    return name, today, base_text(r), launch, adj, _bonus(r)
 
 
 # ---------------------------------------------------------------------
@@ -96,6 +122,8 @@ _PANEL = """<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 h2{font-size:14px;margin:22px 0 8px;color:#c9d1d9}
 .rules{color:#9aa4b2;font-size:12px;line-height:1.8;margin-top:14px}
 .empty{color:#9aa4b2;padding:14px 0}
+.excl{color:#9aa4b2;font-size:12px;margin:6px 0 0}
+details{margin-top:22px}summary{cursor:pointer;color:#c9d1d9;font-size:14px}
 .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
 @media (max-width:640px){body{padding:10px}td,th{padding:5px 6px;font-size:12px}}
 </style></head><body>
@@ -107,10 +135,10 @@ __LATE__
   <button onclick="cp(this)">复制今日代码</button>
 </div>
 __TODAY__
-<h2>调整中（首阳已出，还没二次进攻）· __NW__ 只</h2>
-__WATCH__
-<h2>最近 __NH__ 次成立（之后怎么走的）</h2>
+__EXCL__
+<details><summary>以前成立过的 __NH__ 次（不是今天的清单，点开看之后怎么走的）</summary>
 __HIST__
+</details>
 <div class="rules">__RULES__</div>
 <div class="tip">点代码即复制；切到同花顺，剪贴板识别框会自动弹出。</div>
 <div id="toast"></div>
@@ -144,32 +172,12 @@ def today_table(rows: list[dict]) -> str:
                 '二次进攻）。这是常态，不是故障。</div>')
     tr = []
     for i, r in enumerate(rows, 1):
-        name, today, launch, adj, bonus = _cells(r)
+        name, today, base, launch, adj, bonus = _cells(r)
         tr.append(f"<tr><td>{i}</td>{_code_td(r['code'])}<td>{name}</td><td>{today}</td>"
-                  f"<td>{launch}</td><td>{adj}</td><td>{bonus}</td></tr>")
+                  f"<td>{base}</td><td>{launch}</td><td>{adj}</td><td>{bonus}</td></tr>")
     return ('<div class="tw"><table><thead><tr><th>#</th><th>代码</th><th>名称</th>'
-            "<th>今日</th><th>首阳</th><th>调整</th><th>加分项</th></tr></thead><tbody>"
-            + "".join(tr) + "</tbody></table></div>")
-
-
-def watch_table(rows: list[dict]) -> str:
-    if not rows:
-        return '<div class="empty">没有。</div>'
-    rows = sorted(rows, key=lambda r: (float(r.get("to_high_pct") or 0), str(r["code"])))
-    tr = []
-    for r in rows:
-        L = int(r.get("adjust_days") or 0)
-        state = "今日首阳" if L == 0 else f"调整第 {L} 天"
-        vm = r.get("adj_vol_min")
-        tr.append(f"<tr>{_code_td(r['code'])}<td>{_esc(r.get('name', ''))}"
-                  f"<div class=\"dim\">{BOARD.get(r.get('board'), '')}</div></td>"
-                  f"<td>{_esc(str(r['launch_date'])[5:])} "
-                  f"<span class=\"up\">{_pct(r.get('launch_gain_pct'))}</span></td>"
-                  f"<td>{state}</td>"
-                  f"<td>{'-' if vm is None else f'{100 * float(vm):.0f}%'}</td>"
-                  f"<td>{_pct(r.get('to_high_pct'), 2)}</td></tr>")
-    return ('<div class="tw"><table><thead><tr><th>代码</th><th>名称</th><th>首阳</th>'
-            "<th>进度</th><th>调整最低量</th><th>离首阳高点</th></tr></thead><tbody>"
+            "<th>今日</th><th>前期调整</th><th>首阳</th><th>缩量调整</th><th>加分项</th>"
+            "</tr></thead><tbody>"
             + "".join(tr) + "</tbody></table></div>")
 
 
@@ -182,15 +190,17 @@ def hist_table(rows: list[dict], bars: int = 20) -> str:
         tail = "" if n_after >= bars else f'<div class="dim">才走 {n_after} 天</div>'
         tr.append(f"<tr><td>{_esc(r['date'])}</td>{_code_td(r['code'])}"
                   f"<td>{_esc(r.get('name', ''))}</td>"
+                  f"<td>{base_text(r, html=False)}</td>"
                   f"<td>{int(r['adjust_days'])} 天</td>"
                   f"<td class=\"up\">{_pct(r.get('max_up_pct'))}</td>"
                   f"<td>{_pct(r.get('ret_pct'))}{tail}</td></tr>")
     return (f'<div class="tw"><table><thead><tr><th>成立日</th><th>代码</th><th>名称</th>'
-            f"<th>调整</th><th>之后 {bars} 天最高</th><th>第 {bars} 天收盘</th></tr></thead>"
+            f"<th>前期调整</th><th>缩量调整</th><th>之后 {bars} 天最高</th>"
+            f"<th>第 {bars} 天收盘</th></tr></thead>"
             "<tbody>" + "".join(tr) + "</tbody></table></div>")
 
 
-def write_panel(sel: list[dict], watch: list[dict], hist: list[dict], meta: dict,
+def write_panel(sel: list[dict], hist: list[dict], meta: dict,
                 out_dir: Path, date: str, late_note: str = "") -> Path:
     out_dir.mkdir(exist_ok=True)
     stamp = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=8))).strftime("%Y%m%d-%H%M%S")
@@ -200,13 +210,13 @@ def write_panel(sel: list[dict], watch: list[dict], hist: list[dict], meta: dict
     hl = hist_line(meta)
     if hl:
         rules += "<br>" + _esc(hl)
+    xl = excluded_line(meta)
     html = (_PANEL.replace("__DATE__", _esc(date))
             .replace("__SUB__", _esc(meta_line(meta)))
             .replace("__LATE__", f'<div id="late" class="warnt">{_esc(late_note)}</div>'
                      if late_note else "")
             .replace("__TODAY__", today_table(sel))
-            .replace("__NW__", str(len(watch)))
-            .replace("__WATCH__", watch_table(watch))
+            .replace("__EXCL__", f'<div class="excl">{_esc(xl)}</div>' if xl else "")
             .replace("__NH__", str(len(hist)))
             .replace("__HIST__", hist_table(hist, bars))
             .replace("__RULES__", rules)
@@ -232,7 +242,7 @@ _MAIL_CSS = _CSS + """
 """
 
 
-def build_html(date: str, sel: list[dict], watch: list[dict], meta: dict,
+def build_html(date: str, sel: list[dict], meta: dict,
                page_url: str = "", late_note: str = "") -> str:
     parts = [f"<style>{_MAIL_CSS}</style>", f'<div class="meta">{_esc(meta_line(meta))}</div>']
     if late_note:
@@ -240,17 +250,19 @@ def build_html(date: str, sel: list[dict], watch: list[dict], meta: dict,
     if sel:
         tr = []
         for r in sel:
-            name, today, launch, adj, bonus = _cells(r)
+            name, today, base, launch, adj, bonus = _cells(r)
             tr.append(f'<tr><td class="c">{_esc(r["code"])}</td><td>{name}</td>'
-                      f"<td>{today}</td><td>{launch}</td><td>{adj}</td><td>{bonus}</td></tr>")
-        parts.append("<table><thead><tr><th>代码</th><th>名称</th><th>今日</th><th>首阳</th>"
-                     "<th>调整</th><th>加分项</th></tr></thead><tbody>"
+                      f"<td>{today}</td><td>{base}</td><td>{launch}</td><td>{adj}</td>"
+                      f"<td>{bonus}</td></tr>")
+        parts.append("<table><thead><tr><th>代码</th><th>名称</th><th>今日</th><th>前期调整</th>"
+                     "<th>首阳</th><th>缩量调整</th><th>加分项</th></tr></thead><tbody>"
                      + "".join(tr) + "</tbody></table>")
     else:
         parts.append('<div class="meta" style="font-size:14px;color:#333">今天没有股票走完三步'
                      '（横盘 → 首阳 → 缩量调整 → 二次进攻）。这是常态，不是故障。</div>')
-    if watch:
-        parts.append(f'<div class="meta">调整中、还没二次进攻的 {len(watch)} 只在面板里。</div>')
+    xl = excluded_line(meta)
+    if xl:
+        parts.append(f'<div class="meta">{_esc(xl)}</div>')
     if page_url:
         parts.append(f'<div class="meta">在线面板：<a href="{_esc(page_url)}">'
                      f'{_esc(page_url)}</a></div>')
@@ -267,7 +279,7 @@ def subject(date: str, sel: list[dict]) -> str:
     return f"[{NAME}] {date} · {len(sel)}只 · 首位 {sel[0].get('name') or sel[0]['code']}"
 
 
-def send_mail(date: str, sel: list[dict], watch: list[dict], meta: dict,
+def send_mail(date: str, sel: list[dict], meta: dict,
               page_url: str = "", late_note: str = "",
               attachments: list[Path] | None = None) -> None:
     c = _conf()
@@ -278,12 +290,15 @@ def send_mail(date: str, sel: list[dict], watch: list[dict], meta: dict,
     lines = [f"{date} {NAME}：{len(sel)} 只。请用 HTML 视图查看。"]
     for r in sel:
         lines.append(f"{r['code']} {r.get('name', '')} 收 {float(r['close']):.2f} "
-                     f"{float(r['gain_pct']):+.2f}% | 首阳 {r['launch_date']} | "
-                     f"调整 {r['adjust_days']} 天 | {_bonus(r, html=False)}")
+                     f"{float(r['gain_pct']):+.2f}% | 前期调整 {base_text(r, html=False)} | "
+                     f"首阳 {r['launch_date']} | 缩量调整 {r['adjust_days']} 天 | "
+                     f"{_bonus(r, html=False)}")
+    if excluded_line(meta):
+        lines.append(excluded_line(meta))
     if page_url:
         lines.append(f"在线面板：{page_url}")
     m.set_content("\n".join(lines))
-    m.add_alternative(build_html(date, sel, watch, meta, page_url, late_note),
+    m.add_alternative(build_html(date, sel, meta, page_url, late_note),
                       subtype="html")
     for p in (attachments or []):
         m.add_attachment(Path(p).read_bytes(), maintype="application",

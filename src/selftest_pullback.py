@@ -30,6 +30,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).parent))
 
+import corp_events as CE     # noqa: E402
 import datasource as ds      # noqa: E402
 import pullback as P         # noqa: E402
 import pullback_export as E  # noqa: E402
@@ -367,6 +368,138 @@ def check_forward() -> None:
        "早年只有两只票有数据：频率从后来 6 只都有 60 根横盘那天起算（140 天），之前的事件不数")
 
 
+def check_base_run() -> None:
+    print("[前期调整天数]")
+    a = build(MAIN)                              # 横盘 70 根就是数据的开头
+    x = P.prepare(a, pb())
+    ev, _, _ = P.find_events(x, pb())
+    r = ev.iloc[0]
+    ck(int(r["base_run"]) == 70 and bool(r["base_run_full"]),
+       "横盘从数据第一根就开始：70 个交易日，标「至少」")
+    # 前面再加 30 根高一倍的价：横盘从出界那根的下一根算起
+    pre = a.iloc[:30].copy()
+    pre[["open", "high", "low", "close"]] *= 2.0
+    pre["date"] = pd.bdate_range(end=pd.Timestamp(a["date"].iloc[0]) - pd.Timedelta(days=1),
+                                 periods=30).strftime("%Y-%m-%d")
+    x2 = P.prepare(pd.concat([pre, a], ignore_index=True), pb())
+    ev2, _, _ = P.find_events(x2, pb())
+    r2 = ev2.iloc[0]
+    ck(int(r2["base_run"]) == 70 and not bool(r2["base_run_full"]),
+       "前面有一段出了振幅上限：只数到出界为止，不标「至少」")
+    ck(E.base_text({"base_run": 70, "base_run_full": True}, html=False) == "至少 70 个交易日"
+       and "约 3.3 个月" in E.base_text({"base_run": 70}), "显示「至少 N 个交易日 / 约 M 个月」")
+    ck(E.base_text({}) == "-", "老产物没有这一列：显示 -")
+
+
+def check_corp_events() -> None:
+    """减持 / 定增判定：只读缓存的纯函数，造公告测。不联网。"""
+    print("[股东减持 / 定增]")
+    RED = "001002007004003"
+    asof = "2026-09-24"
+
+    def ann(date, node, cats, title, art=None):
+        return {"art": art or f"{date}{title[:6]}", "date": date, "node": node,
+                "cats": cats, "title": "公司:" + title}
+
+    c = {"ann": [ann("2026-06-26", "7", [RED], "关于股东减持股份的预披露公告")], "rec": []}
+    ck(len(CE.reduce_hits(c, asof, 90)) == 1, "第 90 天那条减持公告算（含当天往前 90 天）")
+    c = {"ann": [ann("2026-06-25", "7", [RED], "关于股东减持股份的预披露公告")], "rec": []}
+    ck(not CE.reduce_hits(c, asof, 90), "第 91 天的不算")
+    c = {"ann": [ann("2026-09-25", "7", [RED], "关于股东减持股份的预披露公告")], "rec": []}
+    ck(not CE.reduce_hits(c, asof, 90), "事件日之后才公告的不算（回看历史不偷看）")
+    c = {"ann": [ann("2026-09-20", "7", [RED], "关于回购股份集中竞价减持的进展公告"),
+                 ann("2026-09-20", "7", [RED], "关于股东减持计划期限届满未实施减持的公告"),
+                 ann("2026-09-20", "7", [], "关于控股股东承诺不减持公司股份的公告")], "rec": []}
+    ck(not CE.reduce_hits(c, asof, 90), "公司卖回购股、「未实施减持」「不减持」都不算")
+    c = {"ann": [], "rec": [{"date": "2026-09-01", "holder": "某投资", "free_ratio": 1.1,
+                             "start": "2026-08-25", "end": "2026-08-29"}]}
+    ck(len(CE.reduce_hits(c, asof, 90)) == 1, "交易所减持记录（没有单独公告的）也算")
+
+    plan = ann("2026-05-30", "2", [CE.PLAN], "2026年度向特定对象发行A股股票预案", "P1")
+    ck(CE.pending_plan({"ann": [plan]}, asof, 730)["art"] == "P1", "有预案、没发完没终止：还在走流程")
+    for extra, why in [
+            (ann("2026-08-01", "2", [CE.SEO + "005001"], "向特定对象发行股票发行结果暨股本变动公告"),
+             "之后有发行结果：发完了"),
+            (ann("2026-08-01", "2", [CE.SEO + "006001"], "向特定对象发行股票上市公告书"),
+             "之后有上市公告书：发完了"),
+            (ann("2026-08-01", "2", [CE.SEO + "007001"], "以简易程序向特定对象发行股票竞价结果的公告"),
+             "简易程序出了竞价结果：价格定了"),
+            (ann("2026-08-01", "2", [CE.STOP], "关于终止2026年度向特定对象发行A股股票事项的公告"),
+             "之后终止了"),
+            (ann("2026-08-01", "2", [CE.SEO + "007002"], "关于撤回向特定对象发行股票申请文件的公告"),
+             "之后撤回了")]:
+        ck(CE.pending_plan({"ann": [plan, extra]}, asof, 730) is None, why + " -> 不算在走流程")
+    ck(CE.pending_plan({"ann": [ann("2026-05-30", "2", [CE.PLAN], "2026年第二次临时股东会决议公告")]},
+                       asof, 730) is None, "东财也给股东会决议打「增发预案」：没有方案文件就不算")
+    ck(CE.pending_plan({"ann": [ann("2026-04-28", "2", [CE.PLAN],
+                                    "关于提请股东大会授权董事会办理以简易程序向特定对象发行股票的公告")]},
+                       asof, 730) is None, "年度股东会例行的「授权简易程序定增」不是一笔定增")
+    ck(CE.pending_plan({"ann": [ann("2026-01-05", "2", [CE.REVISE],
+                                    "关于调整公司向不特定合格投资者公开发行股票并在北交所上市方案的公告")]},
+                       asof, 730) is None, "北交所上市的公开发行方案不是定增")
+    ck(CE.pending_plan({"ann": [dict(plan, date="2024-09-23")]}, asof, 730) is None,
+       "730 天前的预案不看")
+    ck(CE.pending_plan({"ann": [dict(plan, date="2026-09-25")]}, asof, 730) is None,
+       "事件日之后才出的预案不看（不偷看）")
+    old = dict(plan, date="2025-03-01", art="P0")
+    done = ann("2025-06-01", "2", [CE.SEO + "006001"], "向特定对象发行股票上市公告书")
+    ck(CE.pending_plan({"ann": [old, done, plan]}, asof, 730)["art"] == "P1",
+       "上一轮发完了、又出了新预案：按新的一轮算")
+    rev = ann("2026-07-10", "2", [CE.REVISE], "2026年度向特定对象发行A股股票预案(修订稿)", "P2")
+    brief = ann("2026-07-10", "2", [CE.REVISE], "2026年度向特定对象发行A股股票预案(修订稿)(摘要)", "P3")
+    ck(CE.pending_plan({"ann": [plan, brief, rev]}, asof, 730)["art"] == "P2",
+       "定价看最新一份修订稿，同一天优先全文不看摘要")
+
+    # 定价方式：造几页正文，走 fetch_pricing 的真实判定
+    pages = {
+        "bid": ["一、本次向特定对象发行股票的定价基准日为发行期首日，发行价格不低于"],
+        "lock": ["本次发行的定价基准日为公司第三届董事会第十次会议决议公告日，"],
+        "fixed": ["本次发行股票数量按照募集资金总额除以发行价格34.12元/股确定"],
+        "table": ["定价基准日      指   上市公司第十届董事会\n第十八次会议决议公告日"],
+        "both": ["购买资产的定价基准日为公司第十届董事会第十八次会议决议公告日", "……",
+                 "募集配套资金的定价基准日为本次向特定对象发行股票的发行期首日"],
+        "none": ["发行价格由股东大会授权董事会与主承销商协商确定"],
+    }
+    real_get = CE._get
+
+    def fake_get(url, params, tries=3):
+        pg = pages[params["art_code"]]
+        i = int(params["page_index"])
+        return {"data": {"notice_content": pg[i - 1] if i <= len(pg) else "", "page_size": len(pg)}}
+
+    try:
+        CE._get = fake_get
+        got = {k: CE.fetch_pricing(k) for k in pages}
+    finally:
+        CE._get = real_get
+    ck(got == {"bid": "bid", "lock": "lock", "fixed": "lock", "table": "lock", "both": "bid",
+               "none": "unknown"},
+       f"定价方式：竞价 / 锁价 / 写死价格 / 表格里的锁价 / 购买资产+配套募资竞价 / 认不出（{got}）")
+
+    with tempfile.TemporaryDirectory() as td:
+        keep = CE.CACHE
+        try:
+            CE.CACHE = Path(td)
+            ck(CE.verdict("600004", asof)[0] == "unknown", "没有缓存：unknown，不当成「没问题」")
+            (Path(td) / "600004.json").write_text(json.dumps(
+                {"code": "600004", "from": "2000-01-01", "through": asof, "ann": [plan], "rec": []}),
+                encoding="utf-8")
+            ck(CE.verdict("600004", asof)[0] == "unknown", "定增还在走、定价方式没拉到：unknown")
+            for kind, want, word in [("bid", "out", "竞价"), ("unknown", "out", "认不出"),
+                                     ("lock", "ok", "")]:
+                (Path(td) / "_pricing.json").write_text(json.dumps({"P1": {"kind": kind}}),
+                                                        encoding="utf-8")
+                v = CE.verdict("600004", asof)
+                ck(v[0] == want and word in v[1],
+                   f"定价 {kind} -> {want}" + ("（价格已定是用户说的例外）" if kind == "lock" else ""))
+            (Path(td) / "600004.json").write_text(json.dumps(
+                {"code": "600004", "from": "2025-01-01", "through": asof, "ann": [], "rec": []}),
+                encoding="utf-8")
+            ck(CE.verdict("600004", asof)[0] == "unknown", "缓存没覆盖到往前 730 天：unknown")
+        finally:
+            CE.CACHE = keep
+
+
 def check_rules_text() -> None:
     print("[规则文案]")
     t = "\n".join(P.rules_text(pb()))
@@ -376,6 +509,8 @@ def check_rules_text() -> None:
     ck("2~7 个交易日" in t2 and "≤ 1.25" in t2, "改阈值文案跟着变，不用改代码")
     t3 = "\n".join(P.rules_text(pb(**{"trigger.big": "loose"})))
     ck("≥5% 的阳线" in t3, "trigger.big=loose 时文案说清楚放宽了")
+    ck("剔除：" in t and "90 天内有股东减持" in t and "价格没定的定增" in t,
+       "剔除规则（减持 / 定增）印在规则里，天数从 config 现拼")
 
 
 def check_config() -> None:
@@ -390,6 +525,9 @@ def check_config() -> None:
        "floor / trigger.big 只认那两个取值")
     hh, mm, ss = (int(v) for v in str(c["send_at"]).split(":"))
     ck((hh, mm) >= (15, 5), "发信时刻在收盘之后")
+    ex = c.get("exclude") or {}
+    ck(int(ex.get("reduce_days", 0)) > 0 and int(ex.get("placement_days", 0)) >= 365,
+       "剔除窗口：减持天数 > 0，定增预案往前至少看一年")
 
 
 def check_products() -> None:
@@ -404,14 +542,47 @@ def check_products() -> None:
         b = build(CYB, t_gain=False, adj=[(0.985, 1.01, 0.6), (0.975, 1.005, 0.45),
                                           (0.98, 1.008, 0.4), (0.97, 1.01, 0.35)])
         st = build("000010")                    # ST 那只：名字带 ST 要剔掉
-        allx = pd.concat([a, b, st], ignore_index=True)
+        # 另外三只形态也成立，但按用户 2026-09-28 的规则要剔：近期减持 / 价格没定的定增 /
+        # 数据没拉到（宁可为空）
+        red, seo, unk = build("600004"), build("600006"), build("600007")
+        allx = pd.concat([a, b, st, red, seo, unk], ignore_index=True)
         dp = td / "daily.parquet"
         allx.to_parquet(dp, index=False)
         target = a["date"].iloc[-1]
-        keep = (P.OUT, P.DATA_DIR, P.DAILY, P.names_for, ds.trade_dates, E._send, E._conf)
+        day = lambda k: (dt.date.fromisoformat(target) + dt.timedelta(days=k)).isoformat()  # noqa: E731
+        corp = td / "corp"
+        corp.mkdir()
+
+        def fake(code, ann, rec=()):
+            (corp / f"{code}.json").write_text(json.dumps(
+                {"code": code, "from": "2000-01-01", "through": target, "ts": 0,
+                 "ann": list(ann), "rec": list(rec)}, ensure_ascii=False), encoding="utf-8")
+
+        RED = "001002007004003"
+        # 标准形态那只：有减持字样但都不该算 + 一笔已经发完的定增
+        fake(zero, [
+            {"art": "z1", "date": day(-5), "node": "7", "cats": [RED],
+             "title": "公司:关于回购股份集中竞价减持的进展公告"},
+            {"art": "z2", "date": day(-20), "node": "7", "cats": [RED],
+             "title": "公司:关于股东减持计划期限届满未实施减持的公告"},
+            {"art": "z3", "date": day(-120), "node": "7", "cats": [RED],
+             "title": "公司:关于持股5%以上股东减持股份的预披露公告"},
+            {"art": "z4", "date": day(-200), "node": "2", "cats": [CE.PLAN],
+             "title": "公司:2025年度向特定对象发行A股股票预案"},
+            {"art": "z5", "date": day(-30), "node": "2", "cats": [CE.SEO + "005001"],
+             "title": "公司:向特定对象发行股票发行情况报告书"}])
+        fake("000010", [])
+        fake("600004", [{"art": "r1", "date": day(-10), "node": "7", "cats": [RED],
+                         "title": "公司:关于持股5%以上股东减持股份的预披露公告"}])
+        fake("600006", [{"art": "s1", "date": day(-60), "node": "2", "cats": [CE.PLAN],
+                         "title": "公司:2026年度向特定对象发行A股股票预案"}])
+        (corp / "_pricing.json").write_text(json.dumps({"s1": {"kind": "bid"}}), encoding="utf-8")
+        keep = (P.OUT, P.DATA_DIR, P.DAILY, P.names_for, ds.trade_dates, E._send, E._conf,
+                CE.CACHE, CE.prefetch)
         sent: list = []
         try:
             P.OUT, P.DATA_DIR, P.DAILY = td / "out", td / "data", dp
+            CE.CACHE, CE.prefetch = corp, (lambda *a, **k: {})   # 不联网：只读假缓存
             P.names_for = lambda cs: {c: ("*ST测试" if c == "000010" else f"名<b>{c}")
                                       for c in cs}
             ds.trade_dates = lambda: set(allx["date"])
@@ -422,9 +593,17 @@ def check_products() -> None:
             sel = json.loads((P.OUT / "selected.json").read_text(encoding="utf-8"))
             ck(meta["date"] == target and meta["n"] == 1 and not meta["dry"], "run_meta 日期是目标日、非试跑")
             ck([r["code"] for r in sel] == [zero], "清单只有标准形态那只，ST 被剔掉")
-            ck("000010" in meta["excluded"], "剔除原因落进 run_meta")
-            w = json.loads((P.OUT / "watch.json").read_text(encoding="utf-8"))
-            ck([r["code"] for r in w] == [CYB], "进行中的那只进观察名单")
+            ex = meta["excluded"]
+            ck("000010" in ex, "剔除原因落进 run_meta")
+            ck("减持" in ex.get("600004", "") and "定增" in ex.get("600006", "")
+               and "竞价" in ex.get("600006", "") and "没法核" in ex.get("600007", ""),
+               "近 90 天减持剔、竞价中的定增剔、数据没拉到也剔（宁可为空），原因写明")
+            ck(zero not in ex, "回购股减持、「未实施减持」、90 天前的减持、已发完的定增都不剔")
+            ck(meta["n_pattern"] == 5 and meta["n"] == 1,
+               "形态成立 5 只（ST 1 + 规则剔 3 + 入选 1），清单 1 只")
+            ck(not (P.OUT / "watch.json").exists() and CYB not in json.dumps(meta),
+               "「调整中」的票不落任何产物（只有走完二次进攻的才列）")
+            ck(sel[0].get("base_run", 0) >= 60, "入选的票带前期调整天数（>= 横盘检查的 60 根）")
             pq = pd.read_parquet(P.DATA_DIR / target[:7] / f"pullback_{target}.parquet")
             ck(list(pq["code"]) == [zero], "每日清单入库 data/pullback/YYYY-MM/")
             txt = (P.OUT / f"{P.NAME}.txt").read_bytes()
@@ -448,6 +627,9 @@ def check_products() -> None:
             ck("stamp-pullback.txt" in html and (P.OUT / "stamp.txt").exists(), "面板自刷新接到自己的 stamp")
             ck(not re.search(r"__[A-Z]+__", html) and "LAGOK=('true'" in html,
                "面板里没有没替换的占位符；LAGOK=true（面板日期本来就落后今天，不报过期）")
+            ck("调整中" not in html and "<details>" in html and "前期调整" in html
+               and "缩量调整" in html and "剔除 4 只：" in html and "600004" in html,
+               "面板：没有观察名单，历史收起来，有前期调整 / 缩量调整两列，剔了谁写一行")
             os.environ.pop("SKIP_MAIL", None)
 
             ck(P.stage_send(target, wait=False) == 0 and len(sent) == 1, "真发信走 _send 一次")
@@ -459,6 +641,10 @@ def check_products() -> None:
             ck(zero in body and "名<b>" not in body, "邮件正文前导零、名称转义")
             ck(not re.search(r"__[A-Z]+__", body) and "<script" not in body,
                "邮件里没有占位符、没有 script（邮件客户端会剥掉）")
+            ck("前期调整" in body and "个交易日" in body and "剔除 4 只：" in body
+               and "调整中" not in body, "邮件：带前期调整天数、剔了谁，不提观察名单")
+            plain = m.get_body(("plain",)).get_content()
+            ck("前期调整" in plain and "缩量调整" in plain, "纯文本那份也带两个调整天数")
             ck(any(p.get_filename() == f"{P.NAME}.txt" for p in m.iter_attachments()),
                "非空清单附同花顺 txt")
             # 补发说明：发信晚了 15 分钟以上邮件顶部写明
@@ -479,7 +665,8 @@ def check_products() -> None:
             ck("补发" not in (P.OUT / "panel.html").read_text(encoding="utf-8"),
                "SKIP_MAIL 事后重出面板：没发信就不写「补发于」")
         finally:
-            (P.OUT, P.DATA_DIR, P.DAILY, P.names_for, ds.trade_dates, E._send, E._conf) = keep
+            (P.OUT, P.DATA_DIR, P.DAILY, P.names_for, ds.trade_dates, E._send, E._conf,
+             CE.CACHE, CE.prefetch) = keep
             os.environ.pop("SKIP_MAIL", None)
 
     # 空榜：空文件、空榜文案
@@ -498,7 +685,7 @@ def check_products() -> None:
             ck((P.OUT / f"{P.NAME}.txt").read_bytes() == b"", "空榜 txt 是 0 字节，不留上次的代码")
             pq = pd.read_parquet(P.DATA_DIR / target[:7] / f"pullback_{target}.parquet")
             ck(len(pq) == 0, "空榜也落一个空的每日清单")
-            html = E.build_html(target, [], [], json.loads(
+            html = E.build_html(target, [], json.loads(
                 (P.OUT / "run_meta.json").read_text(encoding="utf-8")))
             ck("这是常态，不是故障" in html, "空榜邮件写明「这是常态，不是故障」")
             ck(E.subject(target, []).endswith("今日 0 只"), "空榜标题写「今日 0 只」")
@@ -531,6 +718,12 @@ def check_single_impl() -> None:
        "回测脚本调 pullback.prepare / find_events，不自己另写判据（教训 34）")
     defs = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
     ck(not ({"find_events", "prepare", "is_launch"} & defs), "回测脚本里没有同名的第二份判定函数")
+    ck("P.mark_risk" in calls and "P.history_pool" in calls,
+       "回测脚本剔减持 / 定增走 pullback.mark_risk / history_pool，和每天的清单同一份")
+    ps = (ROOT / "src" / "pullback.py").read_text(encoding="utf-8")
+    fn = next(n for n in ast.walk(ast.parse(ps)) if isinstance(n, ast.FunctionDef) and n.name == "scan")
+    used = {n.func.id for n in ast.walk(fn) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    ck({"mark_risk", "history_pool"} <= used, "生产扫描也走 mark_risk / history_pool")
     lr = (ROOT / "src" / "local_run.py").read_text(encoding="utf-8")
     t2 = ast.parse(lr)
     fp = next(n for n in ast.walk(t2) if isinstance(n, ast.FunctionDef) and n.name == "ensure_daily")
@@ -552,6 +745,8 @@ def main() -> int:
     check_suspension()
     check_open_patterns()
     check_forward()
+    check_base_run()
+    check_corp_events()
     check_rules_text()
     check_config()
     check_products()

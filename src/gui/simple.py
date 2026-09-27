@@ -297,7 +297,7 @@ def charts() -> dict:
     h = meta.get("hist") or {}
     return {"lists": lists,
             "pattern": {"recent": recent, "per_month": h.get("per_month"),
-                        "n": h.get("n"), "watch": meta.get("n_watch"),
+                        "n": h.get("n"), "n_today": meta.get("n"),
                         "date": meta.get("date", "")}}
 
 
@@ -363,7 +363,7 @@ a.more{color:var(--dim);font-size:13px}
 <div id="lines"></div>
 <h2>起涨预测 · 每份清单 20 天内涨超 50% 的只数</h2>
 <div class="card"><div class="lists" id="lists"></div></div>
-<h2 id="pt">长期调整突破 · 最近成立</h2>
+<h2 id="pt">长期调整突破 · 今天的和以前成立过的</h2>
 <div class="card"><div class="lists" id="pattern"></div><div class="meta" id="pm"></div></div>
 <div class="links"><a class="more" href="/full?token=__TOKEN__">详细控制台</a>
 <a class="more" href="/panel/breakout" target="_blank">起涨预测面板</a>
@@ -426,7 +426,7 @@ function pattern(p){
     :'<div class="dim">还没有</div>';
   const bits=[];
   if(p.per_month!=null) bits.push(`三年同口径 ${p.n} 次，约每月 ${p.per_month} 次，空榜是常态`);
-  if(p.watch!=null) bits.push(`${esc((p.date||"").slice(5))} 调整中 ${p.watch} 只`);
+  if(p.n_today!=null) bits.push(`${esc((p.date||"").slice(5))} 清单 ${p.n_today} 只`);
   $("#pm").textContent=bits.join(" · ");
 }
 async function load(){

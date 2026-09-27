@@ -12,6 +12,8 @@
   · 这是在已知历史上数出来的，阈值也是看过这段历史之后定的（样本内），
     频率可信，「之后怎么走」只能当描述，不能当预期收益
   · ST 按今天的名单剔（cache/st_codes.json），历史上当时是不是 ST 拿不到
+  · 减持 / 定增按每次的事件日核，只用那天之前已经公告的（corp_events，和生产同一份）。
+    第一次跑要联网把这几十只票的公告拉下来（缓存在 data/pullback/corp/）
   · 前复权价：最近一次除权之前的价格被缩放过，涨停判定有 ±1 分的舍入容差
 """
 from __future__ import annotations
@@ -30,10 +32,18 @@ import pullback as P          # noqa: E402
 
 
 def run(x: pd.DataFrame, c: dict, st: set[str]) -> tuple[pd.DataFrame, dict]:
+    """和每天发的清单同一套：find_events -> forward -> 按事件日核减持 / 定增 -> 剔 ST。"""
     ev, _, diag = P.find_events(x, c)
-    if len(ev):
-        ev = ev[~ev["code"].isin(st)].reset_index(drop=True)
-    return P.forward(x, ev, int(c.get("output", {}).get("forward_bars", 20))), diag
+    evf = P.mark_risk(P.forward(x, ev, int(c.get("output", {}).get("forward_bars", 20))), c)
+    if len(evf):
+        # 被减持 / 定增剔掉的也记进各环节淘汰，回看时看得见卡在哪
+        for why in evf.loc[evf["risk"] == "out", "risk_why"]:
+            k = "剔除：股东减持" if "减持" in why else "剔除：定增价格没定"
+            diag[k] = diag.get(k, 0) + 1
+        n_unk = int((evf["risk"] == "unknown").sum())
+        if n_unk:
+            diag["减持 / 定增数据没拉到（按不剔算）"] = n_unk
+    return P.history_pool(evf, st).reset_index(drop=True), diag
 
 
 def report(ev: pd.DataFrame, x: pd.DataFrame, diag: dict, bars: int, base_days: int) -> None:
@@ -59,8 +69,10 @@ def report(ev: pd.DataFrame, x: pd.DataFrame, diag: dict, bars: int, base_days: 
     print("\n各环节淘汰（全表所有倍量大阳线）：")
     for k, v in sorted(diag.items(), key=lambda kv: -kv[1]):
         print(f"  {v:7d}  {k}")
+    print("\n前期调整天数（首阳前收盘价待在振幅上限里的交易日数）：",
+          ev["base_run"].describe()[["min", "25%", "50%", "75%", "max"]].round(0).to_dict())
     print("\n最近 15 次：")
-    cols = ["date", "code", "board", "launch_date", "adjust_days", "gain_pct",
+    cols = ["date", "code", "board", "launch_date", "base_run", "adjust_days", "gain_pct",
             "vol_vs_launch", "adj_vol_min", "max_up_pct", "ret_pct"]
     print(ev.sort_values("date").tail(15)[cols].to_string(index=False))
 

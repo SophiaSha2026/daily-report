@@ -43,6 +43,8 @@ state/push_status.json
 # 连续天数靠它数，丢了连续计数就断了。
 data/breakout/raw/
 data/breakout/daily.parquet
+# 长期调整突破剔票用的公司事件缓存（东财公告、减持记录、预案定价方式），能重拉
+data/pullback/corp/
 # 腾讯分片合并出来的备用日线（backfill --stage daily），和原子写的半成品
 data/breakout/daily_tx.parquet
 data/breakout/*.tmp
