@@ -39,7 +39,7 @@ h2{font-size:14px;margin:22px 0 8px;color:#c9d1d9}
 <div id="stale"></div>
 <h1>长期调整突破 · 2026-09-24</h1>
 <div class="sub">2026-09-24 收盘后扫描 · 全市场 5506 只 · 今日倍量大阳线 38 只 · 调整中 21 只 · 今日二次进攻 0 只</div>
-
+<div id="late" class="warnt">本机 17:58 没开机，补发于 09-28 01:44</div>
 <div class="bar">
   <button onclick="cp(this)">复制今日代码</button>
 </div>
@@ -75,7 +75,7 @@ function one(c){put(c,'已复制 '+c);}
    带上 ?v=<新stamp> 就是不同的缓存键，必然回源。
    stamp.txt 的请求也带 cb=<随机> 绕开缓存，否则查的还是旧的。
    --------------------------------------------------------------------- */
-const STAMP='20260928-000236', PDATE='2026-09-24', LAGOK=('true'==='true');
+const STAMP='20260928-014448', PDATE='2026-09-24', LAGOK=('true'==='true');
 function bjToday(){
   // Date.now() 已经是 UTC 毫秒，加 8 小时再按 UTC 取日期就是北京日期。
   // 以前还加了一次 getTimezoneOffset，美东浏览器算成北京 +4 小时，
