@@ -413,23 +413,16 @@ def risk_filter(codes: list[str]) -> dict[str, str]:
     except Exception as e:  # noqa: BLE001
         log.warning("ST 检查跳过：%s", e)
 
-    # --- 近 30 天减持（巨潮，带公告日）---
+    # --- 近 30 天减持（东财减持公告 + 交易所减持记录）---
+    # 判据和长期调整突破同一份（corp_events.reduce_hits）：减持计划预披露、进展、结果都算，
+    # 公司卖回购股、「期限届满未实施减持」不算。以前这里查的是巨潮 stock_hold_change_cninfo，
+    # 那是股本变动表（定期报告 / 回购 / 限售股上市），不是减持表，从上线起一只减持的票
+    # 都没剔过（2026-09-28 查出来，CLAUDE.md 教训 40）。全市场拉一次，只数不影响请求数。
     try:
-        import akshare as ak
-        d = ak.stock_hold_change_cninfo(symbol="全部")
-        col = next((c for c in d.columns if "公告日期" in c), None)
-        cc = next((c for c in d.columns if "证券代码" in c), None)
-        rc = next((c for c in d.columns if "变动原因" in c), None)
-        if col and cc:
-            d = d.copy()
-            d["_d"] = pd.to_datetime(d[col], errors="coerce").dt.date
-            recent = d[d["_d"] >= today - dt.timedelta(days=30)]
-            for _, r in recent.iterrows():
-                c = str(r[cc]).zfill(6)
-                if c in cs and c not in bad:
-                    why = str(r[rc]) if rc else ""
-                    if "减" in why or not why:
-                        bad[c] = "近 30 天有减持公告"
+        import corp_events as CE
+        for c, why in CE.recent_reduction_reasons(cs, today.isoformat(), 30).items():
+            if c not in bad:
+                bad[c] = f"近 30 天有股东减持（{why}）"
     except Exception as e:  # noqa: BLE001
         log.warning("减持检查跳过：%s", e)
 

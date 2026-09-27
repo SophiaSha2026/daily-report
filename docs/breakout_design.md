@@ -5,6 +5,9 @@
 > 下的实现（model_select / optimize / gate）在 `archive/morning/src/learn/`；
 > 「竞价线 / 形态线」指归档前的另两条线；依赖以 `requirements-breakout.txt` 为准，
 > 筹码 decay 最后是模块常量 `chips.DECAY`，没进 config.yaml。
+> 2026-09-28 注：下文把巨潮 `stock_hold_change_cninfo` 当成减持表是错的，它是股本变动表，
+> 按它做的「近 30 天减持」剔除从上线起没剔过一只（CLAUDE.md 教训 40）；现在用东财减持公告和
+> 减持记录（`src/corp_events.py`，和长期调整突破同一份判据）。
 > 定位：替代已停用的形态线 17:00 报告，成为项目第三条流水线。
 > 目标：每交易日 17:00 出两个清单。
 > A = 技术上接近起涨（历史经验：5 个交易日内启动，一个月涨超 50%）。
@@ -30,7 +33,7 @@
 | **股东人数** | 东财 `gdhs_detail_em` | 2013 年起 | ✅ |
 | 定增 | 东财 `qbzf_em` | 全市场，含锁定期 | ✅ |
 | 解禁 | 东财 `datacenter-web` | 按日期区间 | ✅ |
-| 减持（**带公告日**） | 巨潮 `hold_change_cninfo` | 全市场 5640 行 | ✅ |
+| 减持（**带公告日**） | ~~巨潮 `hold_change_cninfo`~~ 东财减持公告 + 减持记录（2026-09-28 改，见下注） | 全市场 | ✅ |
 | 历史资金流 | 东财 `push2his/fflow/daykline?lmt=0` | **120 天** | ⚠️ 1.4 |
 | ST / 停牌 | 腾讯快照 | 当日 | ✅ |
 
@@ -642,7 +645,7 @@ holdout  2026-01 .. 2026-09   （9 个月，锁死）
 | 剔除项 | 数据源 | 规则 |
 |---|---|---|
 | ST / *ST | 腾讯快照名称 | 名称含 ST |
-| 近期减持 | 巨潮 `stock_hold_change_cninfo` | 公告日在近 30 个自然日内且为减持 |
+| 近期减持 | 东财减持公告 + 交易所减持记录（`corp_events.recent_reduction_reasons`） | 公告日在近 30 个自然日内且为减持 |
 | 近期解禁 | 东财 `datacenter-web` | 未来 30 自然日内解禁且市值占比 > 5% |
 | 停牌 | 腾讯快照 | 当日无成交 |
 | 次新股 | 训练表里的行数 | 不足 `daily.MIN_HISTORY_DAYS`(120) 行不打分 |

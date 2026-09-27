@@ -476,6 +476,25 @@ def check_corp_events() -> None:
                "none": "unknown"},
        f"定价方式：竞价 / 锁价 / 写死价格 / 表格里的锁价 / 购买资产+配套募资竞价 / 认不出（{got}）")
 
+    # 起涨预测用的全市场版：拉一次全市场，判据还是 reduce_hits
+    mk = [dict(ann("2026-09-10", "7", [RED], "关于持股5%以上股东减持股份结果的公告"), code="600004"),
+          dict(ann("2026-09-11", "7", [RED], "关于回购股份集中竞价减持的进展公告"), code="600006"),
+          dict(ann("2026-09-12", "7", [RED], "关于股东减持股份的预披露公告"), code="600007")]
+    recs = [{"code": "600008", "date": "2026-09-20", "holder": "某基金", "free_ratio": 0.5,
+             "start": "2026-09-15", "end": "2026-09-18"},
+            {"code": "600009", "date": "2026-09-26", "holder": "某基金", "free_ratio": 0.5,
+             "start": "2026-09-22", "end": "2026-09-25"}]
+    keep_m = (CE.fetch_ann_market, CE.fetch_rec)
+    try:
+        CE.fetch_ann_market = lambda node, b, e, max_pages=200: [a for a in mk if b <= a["date"] <= e]
+        CE.fetch_rec = lambda code, since: [r for r in recs if r["date"] >= since]
+        got = CE.recent_reduction_reasons(["600004", "600006", "600008", "600009"], asof, 30)
+    finally:
+        CE.fetch_ann_market, CE.fetch_rec = keep_m
+    ck(set(got) == {"600004", "600008"},
+       "全市场版：减持公告、减持记录都认；回购股不算、不在候选里的不管、事件日之后的不看"
+       f"（{sorted(got)}）")
+
     with tempfile.TemporaryDirectory() as td:
         keep = CE.CACHE
         try:

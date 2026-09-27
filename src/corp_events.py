@@ -17,7 +17,9 @@
             只在要判定增定价方式时拉
 
 不用巨潮的 stock_hold_change_cninfo：它是**股本变动**表（定期报告、回购、限售股上市），
-不是股东减持表，2026-09-28 实测 5649 行的「变动原因」里没有一条是减持。
+不是股东减持表，2026-09-28 实测 5649 行的「变动原因」里没有一条是减持。起涨预测以前
+就是拿它剔「近 30 天减持」，一只都没剔过；2026-09-28 起改用这里的
+recent_reduction_reasons（全市场拉一次，判据同 reduce_hits）。
 
 判定一律按**公告日**：回看历史时只用那一天之前已经公告的，不偷看。
 
@@ -144,18 +146,43 @@ def fetch_ann(code: str, node: str, begin: str, end: str) -> list[dict]:
         page += 1
 
 
-def fetch_rec(code: str, since: str) -> list[dict]:
-    """交易所披露的实际减持记录（公告日 >= since）。"""
-    flt = f'(SECURITY_CODE="{code}")(DIRECTION="减持")(NOTICE_DATE>=\'{since}\')'
+def fetch_ann_market(node: str, begin: str, end: str, max_pages: int = 200) -> list[dict]:
+    """全市场某个大类在 [begin, end] 的公告，逐页拉。一条公告挂几只票就展开成几行（带 code）。"""
+    out, page = [], 1
+    while True:
+        d = (_get(ANN_URL, {"sr": "-1", "page_size": "100", "page_index": str(page),
+                            "ann_type": "A", "client_source": "web", "f_node": node,
+                            "s_node": "0", "begin_time": begin, "end_time": end}).get("data") or {})
+        rows = d.get("list") or []
+        for it in rows:
+            base = {"art": it.get("art_code", ""), "date": str(it.get("notice_date", ""))[:10],
+                    "title": it.get("title", ""), "node": node,
+                    "cats": [c.get("column_code", "") for c in it.get("columns") or []]}
+            for x in it.get("codes") or []:
+                if str(x.get("ann_type", "")).startswith("A") and x.get("stock_code"):
+                    out.append({**base, "code": str(x["stock_code"]).zfill(6)})
+        if len(rows) < 100 or page * 100 >= int(d.get("total_hits") or 0):
+            return out
+        if page >= max_pages:
+            raise RuntimeError(f"全市场公告超过 {max_pages} 页还没拉完（{begin}~{end}），不返回残表")
+        page += 1
+
+
+def fetch_rec(code: str | None, since: str) -> list[dict]:
+    """交易所披露的实际减持记录（公告日 >= since）。code=None 拉全市场，每条带 code。"""
+    flt = (f'(SECURITY_CODE="{code}")' if code else "") + \
+        f'(DIRECTION="减持")(NOTICE_DATE>=\'{since}\')'
     out, page = [], 1
     while True:
         j = _get(REC_URL, {"sortColumns": "NOTICE_DATE", "sortTypes": "-1", "pageSize": "500",
                            "pageNumber": str(page), "reportName": "RPT_SHARE_HOLDER_INCREASE",
-                           "columns": "NOTICE_DATE,HOLDER_NAME,CHANGE_FREE_RATIO,START_DATE,END_DATE",
+                           "columns": "SECURITY_CODE,NOTICE_DATE,HOLDER_NAME,CHANGE_FREE_RATIO,"
+                                      "START_DATE,END_DATE",
                            "source": "WEB", "client": "WEB", "filter": flt})
         res = j.get("result") or {}          # 查不到时东财给 result: null
         for r in res.get("data") or []:
-            out.append({"date": str(r.get("NOTICE_DATE", ""))[:10],
+            out.append({"code": str(r.get("SECURITY_CODE") or code or "").zfill(6),
+                        "date": str(r.get("NOTICE_DATE", ""))[:10],
                         "holder": r.get("HOLDER_NAME") or "",
                         "free_ratio": r.get("CHANGE_FREE_RATIO"),
                         "start": str(r.get("START_DATE") or "")[:10],
@@ -270,6 +297,30 @@ def _short(title: str) -> str:
     t = re.sub(r"^[^:：]*[:：]", "", title)
     t = re.sub(r"^.*?关于", "", t)
     return re.sub(r"(的)?(公告|提示性公告)$", "", t)[:24]
+
+
+def recent_reduction_reasons(codes, asof: str, days: int) -> dict[str, str]:
+    """codes 里 [asof-days, asof] 有股东减持的：{代码: 一句原因}。
+
+    起涨预测的风险剔除用：它一天要核几十上百只够格的票，全市场拉一次（减持公告十来页、
+    减持记录一两页）比逐只查省得多，而且只数不影响请求数。判据就是 reduce_hits，和
+    长期调整突破同一份（教训 34）。拉不到就抛，由调用方决定跳过还是停。
+    """
+    cs = {str(c).zfill(6) for c in codes}
+    begin = _day(asof, -days)
+    by: dict[str, dict] = {}
+    for a in fetch_ann_market("7", begin, asof):
+        if a["code"] in cs:
+            by.setdefault(a["code"], {"ann": [], "rec": []})["ann"].append(a)
+    for r in fetch_rec(None, begin):
+        if r["code"] in cs:
+            by.setdefault(r["code"], {"ann": [], "rec": []})["rec"].append(r)
+    out = {}
+    for c, d in by.items():
+        hits = reduce_hits(d, asof, days)
+        if hits:
+            out[c] = hits[0] + (f" 等 {len(hits)} 条" if len(hits) > 1 else "")
+    return out
 
 
 def pending_plan(c: dict, asof: str, days: int) -> dict | None:

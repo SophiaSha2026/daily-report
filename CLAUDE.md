@@ -92,7 +92,9 @@ src/
                          同一个判定函数）-> rank。规则和每个阈值的来历在模块 docstring
   pullback_export.py     面板（今日清单 + 剔了谁 + 以前成立过的，收起来）+ 邮件
   corp_events.py         股东减持 / 定向增发（东财公告 + 减持记录 + 预案正文的定价方式），
-                         按公告日判不偷看；缓存 data/pullback/corp/（gitignore）
+                         按公告日判不偷看；缓存 data/pullback/corp/（gitignore）。
+                         减持判据 reduce_hits 两条线共用：长期调整突破逐只查（要回看定增），
+                         起涨预测 recent_reduction_reasons 全市场拉一次
   pullback_backtest.py   三年回看：频率、卡在哪一步、旋钮对比（--grid）。调 find_events，
                          不另写判据（selftest_pullback 用 AST 钉住）
   selftest_pullback.py   离线自测：每条硬规则一个用例 + 产物 / 发信接线
@@ -627,7 +629,10 @@ GitHub runner 上用 Playwright 起 chromium 也一样能过（早盘的板块�
     `risk_filter` 照着它做「近 30 天有减持公告」：只认变动原因带「减」字的行，于是从上线起
     一只减持的票都没剔过，邮件却一直写着「风险剔除（ST / 减持 / 解禁）」（教训 26 同一类）。
     长期调整突破加减持剔除时拉数据核对才发现，新写的 `corp_events.py` 用东财的减持公告和
-    减持记录。起涨预测那处还没改（要不要换成同一份，等用户定）。
+    减持记录；用户同意后起涨预测也改用同一份判据（`recent_reduction_reasons`，全市场
+    30 天拉一次，十来个请求）。换源当天拿 09-24 的清单 A 回头核，10 只里就有 1 只
+    （300829，09-24 公告股东减持结果）按规则该剔而没剔。selftest_breakout 用 AST 钉住
+    「不再调用 stock_hold_change_cninfo」。
     **表里写的是「用途」，用之前拉一次看看列和取值**，别只看名字和说明。
 
 ### 本地为主、云端托底（2026-09-15 起）

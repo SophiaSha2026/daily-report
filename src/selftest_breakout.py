@@ -2332,6 +2332,14 @@ def check_release_share() -> None:
     calls = {n.func.id for n in ast.walk(rf)
              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
     ck("release_share_by_code" in calls, "risk_filter 走 release_share_by_code")
+    attrs = {f"{n.func.value.id}.{n.func.attr}" for n in ast.walk(rf)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+             and isinstance(n.func.value, ast.Name)}
+    called = {n.func.attr for n in ast.walk(ast.parse(src))
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+    ck("CE.recent_reduction_reasons" in attrs and "stock_hold_change_cninfo" not in called,
+       "减持剔除走 corp_events（和长期调整突破同一份判据）；巨潮那张是股本变动表，"
+       "不是减持表（教训 40）")
 
 
 def check_board_adj_wiring() -> None:
