@@ -177,7 +177,9 @@ python tools/e2e_check.py         # 端到端运行时测试（联网、分钟�
 真起子进程把每条线跑一遍（各条线走 `--dry`，跳过发信和推送），检查「跑起来会发生什么」：
 退出码、产物日期对不对得上目标日、`--if-needed` 的判定、进程锁挡不挡得住第二个进程、
 控制台两道防护、SKIP_MAIL 九个取值。改了流程编排（local_run / 各线主脚本 / 控制台）
-就该跑它一次。e2e 的试跑会把两条线的产物写成 `dry`，要提交的话先 `git checkout` 回去。
+就该跑它一次。e2e 的试跑会把两条线的产物写成 `dry`，要提交的话先 `git checkout` 回去
+（`state/breakout/model.txt` 靠 `.gitattributes` 的 `-text` 才不会被 checkout 改成 CRLF，
+那条规则别删，见教训 41）。
 
 每条自测跑完自己会打印「断言失败 N 个」，**以那一行为准**。
 
@@ -634,6 +636,15 @@ GitHub runner 上用 Playwright 起 chromium 也一样能过（早盘的板块�
     （300829，09-24 公告股东减持结果）按规则该剔而没剔。selftest_breakout 用 AST 钉住
     「不再调用 stock_hold_change_cninfo」。
     **表里写的是「用途」，用之前拉一次看看列和取值**，别只看名字和说明。
+
+41. **恢复产物的那一下把模型文件弄坏了**（2026-09-28）— 这台机器 `core.autocrlf=true`，
+    `git checkout HEAD -- state/breakout` 会把文本文件的换行改成 CRLF。JSON、HTML 无所谓，
+    LightGBM 的 `model.txt` 不行：换行一变就 `Model format error, expect a tree here`，
+    起涨预测打不了分。e2e 试跑后按惯例 checkout 回去，模型就这么坏了，而且不报错，
+    要等下一次打分才炸（当天是验证减持换源时的试跑先炸出来的，正式运行还没碰到）。
+    修法：按仓库里的 LF 原样写回（逐字节比对 blob），`.gitattributes` 给 model.txt 标
+    `-text`（git 进出都不转换换行），selftest_breakout 用 `git check-attr` 钉住。
+    **凡是被原生库按行解析的文件，都不能交给 autocrlf。**
 
 ### 本地为主、云端托底（2026-09-15 起）
 

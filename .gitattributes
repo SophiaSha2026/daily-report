@@ -1,0 +1,7 @@
+# 这台机器 core.autocrlf=true：git checkout 会把文本文件的换行改成 CRLF。
+# 大多数文件无所谓（Python、JSON、HTML 都认 CRLF），下面这些不行，一律原样进出：
+#
+# LightGBM 的模型文本只认 LF。2026-09-28 用 git checkout 恢复试跑写脏的 state/breakout 后，
+# model.txt 被改成 CRLF，LightGBM 报 Model format error，起涨预测当天就打不了分
+# （CLAUDE.md 教训 41）。
+state/breakout/model.txt -text

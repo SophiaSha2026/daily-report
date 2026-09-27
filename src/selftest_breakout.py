@@ -2593,6 +2593,17 @@ def check_send_marker() -> None:
             os.environ["SKIP_MAIL"] = skip
 
 
+def check_model_eol() -> None:
+    """LightGBM 模型文件不许被 git 改换行（教训 41）。"""
+    print("\n[模型文件换行]")
+    import subprocess
+    r = subprocess.run(["git", "check-attr", "text", "state/breakout/model.txt"], cwd=ROOT,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    ck(r.returncode == 0 and r.stdout.strip().endswith("unset"),
+       "state/breakout/model.txt 标了 -text：core.autocrlf=true 的机器上 git checkout "
+       "不会把它改成 CRLF（LightGBM 只认 LF，改了就 Model format error）")
+
+
 def check_evening_decide() -> None:
     """云端托底只认 state/sent 标记，不认 run_meta 的日期（F5-2）。"""
     print("\n[云端托底·判据]")
@@ -2890,6 +2901,7 @@ def main() -> int:
     check_rerun_pool_seed()
     check_rerun_train_gap()
     check_send_marker()
+    check_model_eol()
     check_evening_decide()
     check_expected_board()
     check_panel_html()
