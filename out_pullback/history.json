@@ -1072,7 +1072,7 @@
   "bonus_vol": true,
   "bonus_half": true,
   "bonus_open": true,
-  "n_after": 17,
+  "n_after": 18,
   "max_up_pct": 14.8,
   "ret_pct": -14.8,
   "risk": "ok",
