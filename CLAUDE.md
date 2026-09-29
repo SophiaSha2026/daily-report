@@ -90,7 +90,9 @@ src/
   ── 长期调整突破（2026-09-27）──
   pullback.py            主流程 --stage scan / send。prepare -> find_events（回测和生产
                          同一个判定函数）-> rank。规则和每个阈值的来历在模块 docstring
-  pullback_export.py     面板（清单 A + 清单 B + 剔了谁 + 以前成立过的，收起来）+ 邮件
+  pullback_export.py     面板（清单 A + 清单 B + 剔了谁 + 以前成立过的，收起来）+ 邮件。
+                         面板顶上日期下拉看近 10 天（output.panel_days）的清单，
+                         读 data/pullback/ 存档（pullback.recent_lists），只进面板不进邮件
   corp_events.py         股东减持 / 定向增发（东财公告 + 减持记录 + 预案正文的定价方式），
                          按公告日判不偷看；缓存 data/pullback/corp/（gitignore）。
                          减持判据 reduce_hits 两条线共用：长期调整突破逐只查（要回看定增），
@@ -148,7 +150,7 @@ cache/                   codes.csv（代码表）、st_codes.json
 data/breakout/           daily.parquet（三年日线，gitignore）、train.parquet（特征表，
                          gitignore）、YYYY-MM/breakout_*.parquet（每日清单 A，入库）
 data/pullback/YYYY-MM/   长期调整突破每日清单 pullback_<日>.parquet（A）/ pullback_b_<日>.parquet（B），
-                         空榜也落空文件
+                         空榜也落空文件。面板的日期下拉读它，本机没跑的那天就没有
 out_breakout/            起涨预测当日产物
 out_pullback/            长期调整突破当日产物：panel.html stamp.txt selected.json（清单 A）
                          list_b.json（清单 B）history.json run_meta.json mail_sent.json

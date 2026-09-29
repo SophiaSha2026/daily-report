@@ -72,4 +72,6 @@ pullback:
 
   output:
     history_n: 30           # 面板里列最近多少次历史成立
+    panel_days: 10          # 面板顶上的日期下拉能选最近几个交易日的清单（含当天），
+                            # 读 data/pullback/ 每天的存档；本机没跑的那天没有存档就不列
     forward_bars: 20        # 历史成立之后看多少根 K 线（只描述历史，不是预测）

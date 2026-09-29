@@ -576,6 +576,7 @@ def check_config() -> None:
     ex = c.get("exclude") or {}
     ck(int(ex.get("reduce_days", 0)) > 0 and int(ex.get("placement_days", 0)) >= 365,
        "剔除窗口：减持天数 > 0，定增预案往前至少看一年")
+    ck(int(c["output"].get("panel_days", 0)) >= 1, "面板日期下拉至少列当天（panel_days ≥ 1）")
 
 
 def check_products() -> None:
@@ -678,6 +679,25 @@ def check_products() -> None:
             ck(P.stage_send(target, wait=False) == 1, "run_meta 不是目标日的：不发信、退出码 1")
             (P.OUT / "run_meta.json").write_text(json.dumps(meta), encoding="utf-8")
 
+            # 面板日期下拉读 data/pullback/ 的存档。造目标日之前 12 天 + 之后 1 天：
+            # 只该列当天 + 之前最近 9 天；有一天存档少列（以后改了列），只坏那一块
+            past = list(a["date"])[-13:-1]
+            empty = pd.DataFrame(columns=["code"])
+            for d in past + [day(3)]:
+                (P.DATA_DIR / d[:7]).mkdir(parents=True, exist_ok=True)
+                for pre in ("pullback_", "pullback_b_"):
+                    empty.to_parquet(P.DATA_DIR / d[:7] / f"{pre}{d}.parquet", index=False)
+            prev, broken = past[-1], past[-2]
+            pq.assign(code="600011", date=prev).to_parquet(
+                P.DATA_DIR / prev[:7] / f"pullback_{prev}.parquet", index=False)
+            pd.read_parquet(P.DATA_DIR / target[:7] / f"pullback_b_{target}.parquet").assign(
+                code="600009", date=prev).to_parquet(
+                P.DATA_DIR / prev[:7] / f"pullback_b_{prev}.parquet", index=False)
+            pd.DataFrame({"code": ["600010"]}).to_parquet(
+                P.DATA_DIR / broken[:7] / f"pullback_{broken}.parquet", index=False)
+            ck(P.recent_lists(target, 0) == [] and [p["date"] for p in P.recent_lists(target, 3)]
+               == past[::-1][:3], "recent_lists：目标日之前最近 n 天，新的在前")
+
             # SKIP_MAIL：面板照出，不发不落戳
             os.environ["SKIP_MAIL"] = "1"
             E._send = lambda m, c: sent.append(m)
@@ -696,6 +716,23 @@ def check_products() -> None:
             ck("清单 B · 二次进攻前" in html and "复制清单 B" in html and CYB in html
                and "离突破" in html and "历史上进过清单 B" in html,
                "面板有清单 B：离突破多少、还能等几天、进过 B 的后来走完多少")
+            opts = re.findall(r'<option value="([\d-]+)"', html)
+            ck(opts == [target] + past[::-1][:P.cfg()["output"]["panel_days"] - 1],
+               "日期下拉：当天 + 之前最近 9 个有存档的交易日，新的在前；目标日之后的不列")
+            blk = dict(re.findall(r'<div class="day" data-d="([\d-]+)"(.*?)'
+                                  r'(?=<div class="day" |<div class="excl" id="brate">)', html, re.S))
+            ck(set(blk) == set(opts) and blk[target].startswith(">")
+               and all(blk[d].startswith(" hidden>") for d in opts[1:]),
+               "每天一块，只有当天那块默认显示")
+            ck("600011" in blk[prev] and "600009" in blk[prev] and "当天二次进攻" in blk[prev]
+               and "600011" not in blk[target] and "剔除 4 只：" in blk[target],
+               "存档那天的清单 A / B 渲染进自己那块；剔了谁只在当天那块")
+            ck("读不出来" in blk[broken] and "600010" not in blk[broken],
+               "某天存档少列：那一块写读不出来，面板照出")
+            lists = json.loads(re.search(r"const L=(.*?), D0=", html).group(1))
+            ck(lists[prev] == {"a": ["600011"], "b": ["600009"]}
+               and lists[target] == {"a": [zero], "b": [CYB]},
+               "复制按钮的代码按天存（带前导零），跟着下拉走")
             os.environ.pop("SKIP_MAIL", None)
 
             ck(P.stage_send(target, wait=False) == 0 and len(sent) == 1, "真发信走 _send 一次")
@@ -706,8 +743,9 @@ def check_products() -> None:
                "邮件标题带线名、日期、两份清单的只数")
             body = m.get_body(("html",)).get_content()
             ck(zero in body and "名<b>" not in body, "邮件正文前导零、名称转义")
-            ck(not re.search(r"__[A-Z]+__", body) and "<script" not in body,
-               "邮件里没有占位符、没有 script（邮件客户端会剥掉）")
+            ck(not re.search(r"__[A-Z]+__", body) and "<script" not in body
+               and "daysel" not in body and "600011" not in body,
+               "邮件里没有占位符、没有 script（邮件客户端会剥掉）、没有日期下拉和以前的清单")
             ck("前期调整" in body and "个交易日" in body and "剔除 4 只：" in body
                and "调整中" not in body, "邮件：带前期调整天数、剔了谁，不提观察名单")
             plain = m.get_body(("plain",)).get_content()

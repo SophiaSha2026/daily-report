@@ -886,6 +886,34 @@ def wait_until(when: dt.datetime) -> None:
         time.sleep(min(left, 20))
 
 
+def recent_lists(target: str, n: int) -> list[dict]:
+    """面板日期下拉用：目标日之前最近 n 个有存档的交易日的清单 A / B，新的在前。
+
+    读 stage_scan 每天落的 data/pullback/YYYY-MM/pullback_<日>.parquet（A）和
+    pullback_b_<日>.parquet（B），是那天收盘扫描的结果，不重算。目标日本身不在这里
+    （stage_send 用 out_pullback/ 里当天的产物，带剔除原因和计数）；目标日之后的也不要，
+    事后重出旧面板时下拉里不能出现「未来」。本机没跑的交易日没有存档，下拉里就没有那天。
+    某天读不出来跳过并记一行，不拦发信。b 为 None 表示那天没有清单 B 的存档。
+    """
+    if n <= 0:
+        return []
+    # pullback_2* 只配清单 A 的文件（清单 B 是 pullback_b_*）
+    days = sorted({f.stem[len("pullback_"):] for f in DATA_DIR.glob("*/pullback_2*.parquet")})
+    out = []
+    for d in reversed([d for d in days if d < target][-n:]):
+        try:
+            a = _records(pd.read_parquet(DATA_DIR / d[:7] / f"pullback_{d}.parquet"))
+            fb = DATA_DIR / d[:7] / f"pullback_b_{d}.parquet"
+            b = _records(pd.read_parquet(fb)) if fb.exists() else None
+        except Exception as e:  # noqa: BLE001
+            log.warning("面板下拉：%s 的存档读不出来（%s），跳过", d, e)
+            continue
+        for r in a + (b or []):
+            r["code"] = str(r["code"]).zfill(6)       # 教训 29：前导零
+        out.append({"date": d, "a": a, "b": b})
+    return out
+
+
 def stage_send(target: str, wait: bool = True) -> int:
     import pullback_export as E
     from mailer import skip_mail
@@ -925,7 +953,9 @@ def stage_send(target: str, wait: bool = True) -> int:
     owner = os.environ.get("GH_OWNER", "")
     repo = os.environ.get("GH_REPO", "")
     page = f"https://{owner.lower()}.github.io/{repo}/pullback.html" if owner else ""
-    E.write_panel(sel, blist, hist, meta, OUT, target, late_note)
+    # 下拉能选最近 panel_days 个交易日（含目标日）
+    past = recent_lists(target, int(pb.get("output", {}).get("panel_days", 10)) - 1)
+    E.write_panel(sel, blist, hist, meta, OUT, target, late_note, past=past)
     if muted:
         log.info("SKIP_MAIL 已设：面板已生成，邮件不发")
         return 0

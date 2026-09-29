@@ -135,23 +135,20 @@ h2{font-size:14px;margin:22px 0 8px;color:#c9d1d9}
 .excl{color:#9aa4b2;font-size:12px;margin:6px 0 0}
 details{margin-top:22px}summary{cursor:pointer;color:#c9d1d9;font-size:14px}
 .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.bar{align-items:center}.lbl{color:#888;font-size:12px}
+select{background:#2a2f38;color:#e6e6e6;border:1px solid #3a4149;border-radius:5px;
+       padding:5px 8px;font-size:13px;max-width:100%}
 @media (max-width:640px){body{padding:10px}td,th{padding:5px 6px;font-size:12px}}
 </style></head><body>
 <div id="stale"></div>
-<h1>长期调整突破 · __DATE__</h1>
-<div class="sub">__SUB__</div>
-__LATE__
+<h1>长期调整突破 · <span id="hd">__DATE__</span></h1>
 <div class="bar">
-  <button onclick="cp(this,DA,'清单 A')">复制清单 A</button>
-  <button onclick="cp(this,DB,'清单 B')">复制清单 B</button>
+  __PICK__
+  <button onclick="cp(this,'a','清单 A')">复制清单 A</button>
+  <button onclick="cp(this,'b','清单 B')">复制清单 B</button>
 </div>
-<h2>清单 A · 今天二次进攻（走完横盘 → 首阳 → 缩量调整 → 二次进攻）· __NA__ 只</h2>
-__TODAY__
-__EXCL__
-<h2>清单 B · 二次进攻前（走完横盘 → 首阳 → 缩量调整）· __NB__ 只</h2>
-__BLIST__
-__EXCLB__
-<div class="excl">__BRATE__</div>
+__DAYS__
+<div class="excl" id="brate">__BRATE__</div>
 <details><summary>以前成立过的 __NH__ 次（不是今天的清单，点开看之后怎么走的）</summary>
 __HIST__
 </details>
@@ -159,7 +156,9 @@ __HIST__
 <div class="tip">点代码即复制；切到同花顺，剪贴板识别框会自动弹出。</div>
 <div id="toast"></div>
 <script>
-const DA=__DATA__, DB=__DATAB__;
+/* L：每一天两份清单的代码，{日期: {a: [...], b: [...]}}。复制按钮跟着下拉走 */
+const L=__LISTS__, D0='__DATE__';
+let cur=D0;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;
   t.className='show';setTimeout(()=>t.className='',1300);}
 function put(txt,msg){
@@ -168,11 +167,25 @@ function put(txt,msg){
     document.body.appendChild(a);a.select();document.execCommand('copy');
     a.remove();toast(msg);});
 }
-function cp(btn,D,nm){
-  if(!D.length){toast(nm+'今天没有');return;}
-  put(D.join('\\n'),'已复制'+nm+' '+D.length+' 个代码');btn.classList.add('on');
+function cp(btn,k,nm){
+  const D=(L[cur]||{})[k]||[], w=(cur===D0?'':cur.slice(5)+' ');
+  if(!D.length){toast(nm+' '+(w||'今天 ')+'没有');return;}
+  put(D.join('\\n'),'已复制 '+w+nm+' '+D.length+' 个代码');btn.classList.add('on');
 }
 function one(c){put(c,'已复制 '+c);}
+/* 日期下拉：每天那块在 Python 里渲染好了，这里只切显示。选中的日子记在 #日期 上，
+   刷新还停在那天；自动刷新跳新 stamp 时不带 #，回到最新一天 */
+function pick(d){
+  if(!L[d]) d=D0;
+  cur=d;
+  document.querySelectorAll('.day').forEach(e=>{e.hidden=(e.dataset.d!==d);});
+  document.getElementById('hd').textContent=d;
+  document.querySelectorAll('.bar button.on').forEach(b=>b.classList.remove('on'));
+  const s=document.getElementById('daysel'); if(s) s.value=d;
+  try{history.replaceState(null,'',location.pathname+location.search+(d===D0?'':'#'+d));}
+  catch(e){}
+}
+if(location.hash.length>1 && L[location.hash.slice(1)]) pick(location.hash.slice(1));
 """ + REFRESH_JS + """
 </script></body></html>"""
 
@@ -198,9 +211,9 @@ def _b_cells(r: dict) -> tuple[str, str, str, str, str, str]:
     return name, base_text(r), launch, adj, gap, bonus
 
 
-def b_table(rows: list[dict], html_panel: bool = True) -> str:
+def b_table(rows: list[dict], html_panel: bool = True, when: str = "今天") -> str:
     if not rows:
-        return '<div class="empty">今天没有走完前三步、还在等二次进攻的。</div>'
+        return f'<div class="empty">{when}没有走完前三步、还在等二次进攻的。</div>'
     tr = []
     for i, r in enumerate(rows, 1):
         name, base, launch, adj, gap, bonus = _b_cells(r)
@@ -218,9 +231,9 @@ def _code_td(code: str) -> str:
     return f'<td class="code" onclick="one(\'{c}\')">{c}</td>'
 
 
-def today_table(rows: list[dict]) -> str:
+def today_table(rows: list[dict], when: str = "今天") -> str:
     if not rows:
-        return ('<div class="empty">今天没有股票走完三步（横盘 → 首阳 → 缩量调整 → '
+        return (f'<div class="empty">{when}没有股票走完三步（横盘 → 首阳 → 缩量调整 → '
                 '二次进攻）。这是常态，不是故障。</div>')
     tr = []
     for i, r in enumerate(rows, 1):
@@ -228,9 +241,58 @@ def today_table(rows: list[dict]) -> str:
         tr.append(f"<tr><td>{i}</td>{_code_td(r['code'])}<td>{name}</td><td>{today}</td>"
                   f"<td>{base}</td><td>{launch}</td><td>{adj}</td><td>{bonus}</td></tr>")
     return ('<div class="tw"><table><thead><tr><th>#</th><th>代码</th><th>名称</th>'
-            "<th>今日</th><th>前期调整</th><th>首阳</th><th>缩量调整</th><th>加分项</th>"
-            "</tr></thead><tbody>"
+            f"<th>{'今日' if when == '今天' else '当日'}</th><th>前期调整</th><th>首阳</th>"
+            "<th>缩量调整</th><th>加分项</th></tr></thead><tbody>"
             + "".join(tr) + "</tbody></table></div>")
+
+
+def day_block(date: str, sel: list[dict], blist: list[dict] | None, head: str,
+              tail_a: str = "", tail_b: str = "", latest: bool = True) -> str:
+    """某一天的抬头 + 清单 A + 清单 B。面板顶上的日期下拉按 data-d 切换显示哪一块。
+    最新那天是 out_pullback/ 当天的产物（带剔除原因、补发说明）；以前的是
+    data/pullback/ 的存档（只有两份清单本身）。blist 为 None：那天没有清单 B 的存档。"""
+    when = "今天" if latest else "当天"
+    b = (b_table(blist, when=when) if blist is not None
+         else '<div class="empty">这天没有清单 B 的存档。</div>')
+    return (f'<div class="day" data-d="{_esc(date)}"{"" if latest else " hidden"}>'
+            + head +
+            f'<h2>清单 A · {when}二次进攻（走完横盘 → 首阳 → 缩量调整 → 二次进攻）'
+            f'· {len(sel)} 只</h2>' + today_table(sel, when) + tail_a
+            + f'<h2>清单 B · 二次进攻前（走完横盘 → 首阳 → 缩量调整）'
+            f'· {len(blist or [])} 只</h2>' + b + tail_b + '</div>')
+
+
+def past_block(p: dict) -> str:
+    """存档里的某一天。渲染失败（以后改了列、旧存档少列）只坏这一块，不拦面板和发信。"""
+    d, a, b = p["date"], p.get("a") or [], p.get("b")
+    head = (f'<div class="sub">当天收盘后扫描的存档 · 清单 A {len(a)} 只 · 清单 B '
+            f'{"-" if b is None else len(b)} 只。数字都是那天收盘时的，不重算；'
+            f'剔了谁只在最新一天列</div>')
+    try:
+        return day_block(d, a, b, head, latest=False)
+    except Exception as e:  # noqa: BLE001
+        log.warning("面板下拉：%s 的存档渲染失败（%s）", d, e)
+        return (f'<div class="day" data-d="{_esc(d)}" hidden>{head}'
+                f'<div class="empty">这天的存档读不出来（{_esc(e)}）。</div></div>')
+
+
+def _weekday(d: str) -> str:
+    try:
+        return " 周" + "一二三四五六日"[_dt.date.fromisoformat(d).weekday()]
+    except ValueError:
+        return ""
+
+
+def picker(date: str, days: list[tuple[str, int, int | None]]) -> str:
+    """日期下拉。days 是 (日期, A 只数, B 只数) 新的在前，第一项是最新那天。只有一天就不出。"""
+    if len(days) < 2:
+        return ""
+    opts = "".join(
+        f'<option value="{_esc(d)}"{" selected" if d == date else ""}>{_esc(d)}{_weekday(d)}'
+        f' · A {na} 只 · B {"-" if nb is None else nb} 只{"（最新）" if i == 0 else ""}</option>'
+        for i, (d, na, nb) in enumerate(days))
+    return (f'<span class="lbl">看哪一天</span>'
+            f'<select id="daysel" onchange="pick(this.value)">{opts}</select>')
 
 
 def hist_table(rows: list[dict], bars: int = 20) -> str:
@@ -253,7 +315,10 @@ def hist_table(rows: list[dict], bars: int = 20) -> str:
 
 
 def write_panel(sel: list[dict], blist: list[dict], hist: list[dict], meta: dict,
-                out_dir: Path, date: str, late_note: str = "") -> Path:
+                out_dir: Path, date: str, late_note: str = "",
+                past: list[dict] | None = None) -> Path:
+    """past：以前几天的存档（pullback.recent_lists，新的在前），给了就在顶上出日期下拉。
+    只进面板，不进邮件。"""
     out_dir.mkdir(exist_ok=True)
     stamp = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=8))).strftime("%Y%m%d-%H%M%S")
     (out_dir / "stamp.txt").write_text(stamp, encoding="utf-8")
@@ -263,29 +328,38 @@ def write_panel(sel: list[dict], blist: list[dict], hist: list[dict], meta: dict
     if hl:
         rules += "<br>" + _esc(hl)
     xl, xb = excluded_line(meta), excluded_line(meta, "b")
+    head = f'<div class="sub">{_esc(meta_line(meta))}</div>' + (
+        f'<div id="late" class="warnt">{_esc(late_note)}</div>' if late_note else "")
+    past = [p for p in (past or []) if p.get("date") and p["date"] < date]
+    days = day_block(date, sel, blist, head,
+                     f'<div class="excl">{_esc(xl)}</div>' if xl else "",
+                     f'<div class="excl">{_esc(xb)}</div>' if xb else "") \
+        + "".join(past_block(p) for p in past)
+
+    def codes(rows: list[dict] | None) -> list[str]:
+        return [str(r.get("code", "")).zfill(6) for r in (rows or [])]
+
+    lists = {date: {"a": codes(sel), "b": codes(blist)}}
+    lists.update({p["date"]: {"a": codes(p.get("a")), "b": codes(p.get("b"))} for p in past})
+    pick = picker(date, [(date, len(sel), len(blist))]
+                  + [(p["date"], len(p.get("a") or []),
+                      None if p.get("b") is None else len(p["b"])) for p in past])
     html = (_PANEL.replace("__DATE__", _esc(date))
-            .replace("__SUB__", _esc(meta_line(meta)))
-            .replace("__LATE__", f'<div id="late" class="warnt">{_esc(late_note)}</div>'
-                     if late_note else "")
-            .replace("__NA__", str(len(sel)))
-            .replace("__NB__", str(len(blist)))
-            .replace("__TODAY__", today_table(sel))
-            .replace("__EXCL__", f'<div class="excl">{_esc(xl)}</div>' if xl else "")
-            .replace("__BLIST__", b_table(blist))
-            .replace("__EXCLB__", f'<div class="excl">{_esc(xb)}</div>' if xb else "")
             .replace("__BRATE__", _esc(b_rate_line(meta)))
             .replace("__NH__", str(len(hist)))
             .replace("__HIST__", hist_table(hist, bars))
             .replace("__RULES__", rules)
-            .replace("__DATAB__", json.dumps([str(r["code"]).zfill(6) for r in blist]))
-            .replace("__DATA__", json.dumps([str(r["code"]).zfill(6) for r in sel]))
+            .replace("__LISTS__", json.dumps(lists))
             .replace("__STAMP__", stamp)
             # build_site.py 把 out_pullback/stamp.txt 发布成这个名字，
             # 避免和起涨预测的 stamp 在站点根目录撞名
             .replace("__STAMPFILE__", "stamp-pullback.txt")
             # 收盘后跑的线，面板日期本来就是最近一个已收盘交易日：关掉「日期不是
             # 今天」那条横幅（否则次日早上 100% 误报）
-            .replace("__LAGOK__", "true"))
+            .replace("__LAGOK__", "true")
+            # 带表格的两块最后塞：里面的名称来自行情源，别被后面的占位符替换碰到
+            .replace("__PICK__", pick)
+            .replace("__DAYS__", days))
     p = out_dir / "panel.html"
     p.write_text(html, encoding="utf-8")
     return p
