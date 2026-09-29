@@ -1,14 +1,14 @@
 {
-  "date": "2026-09-28",
+  "date": "2026-09-29",
   "requested": 5548,
-  "appended": 5491,
+  "appended": 5476,
   "stale": 12,
   "newcodes": 27,
-  "refetch": 30,
-  "refetch_only": 18,
+  "refetch": 43,
+  "refetch_only": 33,
   "missing": 0,
   "missing_codes": [],
-  "prev_n": 5506,
+  "prev_n": 5509,
   "covered": 5509,
   "closed": true,
   "short": [
@@ -40,7 +40,7 @@
     "920238",
     "920258"
   ],
-  "filled": 18,
+  "filled": 0,
   "ok": true,
-  "retried_at": "2026-09-29T08:11:02+08:00"
+  "retried_at": "2026-09-30T06:18:07+08:00"
 }

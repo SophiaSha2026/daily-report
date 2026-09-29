@@ -1,1 +1,1 @@
-{"date": "2026-09-28", "n_a": 7, "n_b": 10, "score_min": 97, "cap_a": 10, "min_streak": 1, "board_adj": {"main": 1.0735, "star": 0.8581, "bj": 0.987, "chinext": 0.9606}, "n_streak3": 2, "pool": 75, "model_date": "2026-09-17", "rejected": 2, "n_qualified": 9, "n_ok": 7, "dry": false}
+{"date": "2026-09-29", "n_a": 10, "n_b": 6, "score_min": 97, "cap_a": 10, "min_streak": 1, "board_adj": {"main": 1.0735, "star": 0.8581, "bj": 0.987, "chinext": 0.9606}, "n_streak3": 1, "pool": 79, "model_date": "2026-09-17", "rejected": 2, "n_qualified": 12, "n_ok": 10, "dry": false}
