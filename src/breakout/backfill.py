@@ -466,8 +466,8 @@ def _shard_name(kind: str) -> Path:
     return RAW / f"sina_9_{ts}_{kind}.parquet"
 
 
-def refetch_codes(cs: list[str],
-                  target: str | None = None) -> tuple[list[str], list[str]]:
+def refetch_codes(cs: list[str], target: str | None = None,
+                  only_complete: bool = False) -> tuple[list[str], list[str]]:
     """整段重拉指定代码（新浪，多进程）。除权那天用。
 
     返回 (拉到目标日的, 没拉到目标日的)。以前只返回成功只数而且没人接：
@@ -484,12 +484,17 @@ def refetch_codes(cs: list[str],
             if d is not None:
                 buf.append(d)
                 got[c] = str(d["date"].max())
+    n_ok = len(buf)
+    if only_complete and target:
+        # 重试那条路：还没拉到目标日的不落分片。_ref 对它的代码是整段权威，
+        # 落下去会把上一轮用快照补的当天那一根清掉
+        buf = [d for d in buf if str(d["date"].max()) >= target]
     if buf:
         pd.concat(buf, ignore_index=True).to_parquet(_shard_name("ref"),
                                                      index=False)
     short = [c for c in cs if target and got.get(c, "") < target]
     log.info("重拉 %d 只，成功 %d 只，没拉到目标日 %s 的 %d 只：%s",
-             len(cs), len(buf), target, len(short), ",".join(short[:20]))
+             len(cs), n_ok, target, len(short), ",".join(short[:20]))
     return [c for c in cs if c not in short], short
 
 
@@ -687,6 +692,27 @@ def _stage_update(target: str = "") -> int:
         if prev.get("date") == target and prev.get("ok", True)                 and prev.get("note") != "已覆盖，本轮没有追加":
             log.info("目标日 %s 的补数据记账已经在了（%s），不覆盖",
                      target, "追加 %s 只" % prev.get("appended"))
+            short = [str(c) for c in (prev.get("short") or [])]
+            if not short:
+                return 0
+            # 上一轮有票没拉到目标日：除权票要从新浪整段重拉，而新浪收盘后当天的
+            # K 线常常晚到。以前这里直接 return，每 30 分钟一次的重试读的永远是
+            # 16:30 那份账，一整夜十几次都是同一个「57 只没拉到」，起涨预测
+            # 09-28 的清单就这样一直没出（2026-09-29）。重试就要真的重拉那几只
+            try:
+                _got, still = refetch_codes(short, target=target, only_complete=True)
+            except Exception as e:  # noqa: BLE001
+                log.warning("重拉上一轮没拉到的 %d 只失败（%s），沿用上一轮的账",
+                            len(short), e)
+                return 0
+            if _got:
+                rc = merge_daily(pattern="sina_*.parquet")
+                if rc != 0:
+                    return rc
+            _write_status({**prev, "short": still,
+                           "retried_at": now_bj().isoformat(timespec="seconds")})
+            log.info("上一轮没拉到 %s 的 %d 只重拉了一次：这次拉到 %d 只，还差 %d 只",
+                     target, len(short), len(_got), len(still))
             return 0
         try:
             STATE.mkdir(parents=True, exist_ok=True)

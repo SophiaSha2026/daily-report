@@ -427,7 +427,7 @@ def _offline_update(tmp, daily_df, quote_fn, cs, target, tds,
     daily_df.to_parquet(B.RAW / "sina_0000.parquet", index=False)
     cap = {"ref": [], "fetch": 0}
 
-    def _ref(codes_, target=None):
+    def _ref(codes_, target=None, only_complete=False):
         cap["ref"] += list(codes_)
         if ref_result is not None:
             return ref_result
@@ -701,6 +701,13 @@ def check_refetch_short() -> None:
         ck(ok == ["600001"] and short == ["600000", "600002"],
            f"拉回来但不含目标日、以及整只失败，都要进 short（{short}）")
         ck(B.refetch_codes([], target=target) == ([], []), "空入参不炸")
+        for f in tmp.glob("*.parquet"):
+            f.unlink()
+        ok2, short2 = B.refetch_codes(["600000", "600001"], target=target,
+                                      only_complete=True)
+        got = set(pd.concat([pd.read_parquet(f) for f in tmp.glob("*.parquet")])["code"])
+        ck(ok2 == ["600001"] and short2 == ["600000"] and got == {"600001"},
+           "only_complete：没拉到目标日的不落分片（否则会清掉快照补的当天那根）")
     finally:
         B.RAW, B.ProcessPoolExecutor = raw, pool
 
@@ -733,6 +740,24 @@ def check_update_status() -> None:
            "除权票当天那一行被腾讯快照补上了（不会从候选池静默消失）")
         ck(set(m[m["date"] == target]["code"]) == set(m["code"]),
            "全局 max 到了目标日，不代表每只票都有那一行")
+        # 下一轮重试：日线已覆盖，但上一轮账上有没拉到的。以前直接 return，
+        # 每 30 分钟读的都是同一份旧账，09-28 的清单一整夜没出（2026-09-29）
+        cap["ref"].clear()
+        B.refetch_codes = lambda codes_, target=None, only_complete=False: (
+            cap["ref"].extend(codes_) or ([], list(codes_)))
+        rc2 = B.stage_update()
+        st2 = json.loads((B.STATE / "update_status.json").read_text("utf-8"))
+        m2 = pd.read_parquet(B.OUT / "daily.parquet")
+        ck(rc2 == 0 and cap["ref"] == [xr] and st2["short"] == [xr],
+           "重试真的去重拉上一轮没拉到的那几只，还没拉到就还记在账上")
+        ck(target in set(m2[m2["code"] == xr]["date"]),
+           "还没拉到的那只，快照补的当天那根没被重试清掉")
+        B.refetch_codes = lambda codes_, target=None, only_complete=False: (
+            cap["ref"].extend(codes_) or (list(codes_), []))
+        rc3 = B.stage_update()
+        st3 = json.loads((B.STATE / "update_status.json").read_text("utf-8"))
+        ck(rc3 == 0 and st3["short"] == [] and st3.get("retried_at"),
+           "重拉到了就从账上划掉，起涨预测不再按它挡清单")
     finally:
         restore()
 
