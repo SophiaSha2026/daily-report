@@ -3,80 +3,56 @@
     "code":"301282",
     "name":"金禄电子",
     "score":98.0,
-    "streak":6,
-    "close":43.6,
+    "streak":7,
+    "close":40.03,
     "board":"chinext"
-  },
-  {
-    "code":"300741",
-    "name":"华宝股份",
-    "score":97.0,
-    "streak":6,
-    "close":26.6,
-    "board":"chinext"
-  },
-  {
-    "code":"300829",
-    "name":"金丹科技",
-    "score":98.0,
-    "streak":4,
-    "close":27.56,
-    "board":"chinext"
-  },
-  {
-    "code":"688137",
-    "name":"近岸蛋白",
-    "score":97.0,
-    "streak":3,
-    "close":125.25,
-    "board":"star"
   },
   {
     "code":"600825",
     "name":"新华传媒",
-    "score":99.0,
-    "streak":2,
-    "close":7.77,
-    "board":"main"
-  },
-  {
-    "code":"300691",
-    "name":"联合光电",
     "score":98.0,
-    "streak":1,
-    "close":21.68,
-    "board":"chinext"
+    "streak":3,
+    "close":8.55,
+    "board":"main"
   },
   {
     "code":"688655",
     "name":"迅捷兴",
     "score":97.0,
-    "streak":1,
-    "close":73.8,
+    "streak":2,
+    "close":63.08,
     "board":"star"
   },
   {
-    "code":"688209",
-    "name":"英集芯",
+    "code":"300243",
+    "name":"瑞丰高材",
     "score":97.0,
     "streak":1,
-    "close":35.0,
-    "board":"star"
+    "close":21.47,
+    "board":"chinext"
   },
   {
-    "code":"001326",
-    "name":"联域股份",
+    "code":"300300",
+    "name":"海峡创新",
     "score":97.0,
     "streak":1,
-    "close":110.15,
-    "board":"main"
+    "close":11.08,
+    "board":"chinext"
   },
   {
-    "code":"301183",
-    "name":"东田微",
+    "code":"301251",
+    "name":"威尔高",
     "score":97.0,
     "streak":1,
-    "close":306.6,
+    "close":82.68,
+    "board":"chinext"
+  },
+  {
+    "code":"301085",
+    "name":"亚康股份",
+    "score":97.0,
+    "streak":1,
+    "close":76.18,
     "board":"chinext"
   }
 ]
