@@ -1,82 +1,26 @@
 [
   {
-    "code":"301282",
-    "name":"金禄电子",
-    "score":97.0,
-    "streak":8,
-    "close":45.49,
-    "board":"chinext"
-  },
-  {
-    "code":"300243",
-    "name":"瑞丰高材",
-    "score":97.0,
-    "streak":2,
-    "close":21.93,
-    "board":"chinext"
-  },
-  {
     "code":"300300",
     "name":"海峡创新",
-    "score":97.0,
-    "streak":2,
-    "close":10.73,
-    "board":"chinext"
-  },
-  {
-    "code":"301085",
-    "name":"亚康股份",
-    "score":97.0,
-    "streak":2,
-    "close":76.33,
-    "board":"chinext"
-  },
-  {
-    "code":"301251",
-    "name":"威尔高",
-    "score":97.0,
-    "streak":2,
-    "close":87.37,
+    "score":98.0,
+    "streak":3,
+    "close":11.13,
     "board":"chinext"
   },
   {
     "code":"920779",
     "name":"武汉蓝电",
-    "score":98.0,
-    "streak":1,
-    "close":28.4,
+    "score":97.0,
+    "streak":2,
+    "close":28.6,
     "board":"bj"
   },
   {
-    "code":"301190",
-    "name":"善水科技",
-    "score":98.0,
-    "streak":1,
-    "close":29.94,
-    "board":"chinext"
-  },
-  {
-    "code":"300647",
-    "name":"超频三",
+    "code":"920427",
+    "name":"华维设计",
     "score":97.0,
     "streak":1,
-    "close":9.68,
-    "board":"chinext"
-  },
-  {
-    "code":"001216",
-    "name":"华瓷股份",
-    "score":97.0,
-    "streak":1,
-    "close":29.09,
-    "board":"main"
-  },
-  {
-    "code":"600488",
-    "name":"津药药业",
-    "score":97.0,
-    "streak":1,
-    "close":6.9,
-    "board":"main"
+    "close":10.78,
+    "board":"bj"
   }
 ]
