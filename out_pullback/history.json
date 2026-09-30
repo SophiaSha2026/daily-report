@@ -465,7 +465,7 @@
   "ret_pct": 7.1,
   "risk": "ok",
   "risk_why": "",
-  "name": "XD锦江在"
+  "name": "锦江在线"
  },
  {
   "code": "688651",
@@ -1072,9 +1072,9 @@
   "bonus_vol": true,
   "bonus_half": true,
   "bonus_open": true,
-  "n_after": 19,
+  "n_after": 20,
   "max_up_pct": 14.8,
-  "ret_pct": -12.6,
+  "ret_pct": -13.2,
   "risk": "ok",
   "risk_why": "",
   "name": "润农节水"
