@@ -46,6 +46,35 @@ _SESSION.mount("https://", requests.adapters.HTTPAdapter(
     pool_connections=16, pool_maxsize=16, max_retries=0))
 
 
+# 第三方库里不带 timeout 的 requests 调用，补上的默认超时（秒）
+HTTP_TIMEOUT = 30
+
+
+def http_timeout(sec: float = HTTP_TIMEOUT) -> None:
+    """给这个进程里所有**没写 timeout** 的 requests 调用补一个默认超时。
+
+    akshare 的 stock_zh_a_daily（新浪日线）裸调 requests.get(url)，不带 timeout，
+    连接半死的时候会永远等下去：2026-09-29 16:30 起涨预测整段重拉 43 只，
+    一个子进程挂在这里 14 小时，那天的清单到次日 06:31 手动重跑才发出去
+    （CLAUDE.md 教训 43）。我们自己的调用都写了 timeout，第三方库改不了，
+    所以在 Session.request 这一层补：调用方显式给了 timeout 的原样不动。
+    每个进程调一次（多进程的子进程要各自调），重复调用不会叠。
+    """
+    cur = requests.Session.request
+    if getattr(cur, "_default_timeout", None) is not None:
+        return
+
+    def request(self, method, url, *args, **kw):
+        # timeout 是 Session.request 的第 7 个位置参数（url 之后），
+        # 位置传了就说明调用方自己给了
+        if len(args) < 7 and kw.get("timeout") is None:
+            kw["timeout"] = sec
+        return cur(self, method, url, *args, **kw)
+
+    request._default_timeout = sec
+    requests.Session.request = request
+
+
 @dataclass
 class Quote:
     """一只票在某一时刻的快照。price 在 9:15-9:25 期间为虚拟撮合参考价。"""

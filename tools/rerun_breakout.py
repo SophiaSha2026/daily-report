@@ -69,7 +69,7 @@ def main() -> int:
 def run(a) -> int:
     if not a.skip_build:
         log.info("重算特征表（约 20 分钟）")
-        if LR.py("src/breakout/build.py") != 0:
+        if LR.py("src/breakout/build.py", timeout=LR.STEP_LIMIT["build"][0]) != 0:
             log.error("特征表没建出来")
             return 1
 

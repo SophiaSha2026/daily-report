@@ -90,6 +90,9 @@
 三个都带「登录时触发」（长期调整突破延后 5 分钟，让起涨预测先补日线）、允许唤醒、
 允许电池、错过就补。反复触发是安全的：`--if-needed` 跑过就不再跑、不在窗口只拉一次
 远端、正在跑就退出（`state/lock/<线>.json` 进程锁）。
+卡住的不算「在跑」：每一步都有时限，整条流程最长 5 小时（起涨预测）/ 6 小时
+（长期调整突破），跑超了的旧实例由下一次触发结束并接手（2026-09-29 起涨预测
+挂了 14 小时之后加的，CLAUDE.md 教训 43）。
 
 两条线的目标日都是「最近一个已收盘的交易日」：北京次日 07:00 补跑出的就是前一天那份，
 和按时跑一模一样。长期调整突破 2026-09-28 起才有清单，之前的交易日计划任务不补。
@@ -125,7 +128,8 @@ PowerShell 的 `New-ScheduledTaskSettingsSet` 默认 `DisallowStartIfOnBatteries
 schtasks /Query /TN DailyReport-Local-Pullback /V /FO LIST
 ```
 
-日志在 `tools/local_flow_<线>.log`（一线一个文件）。
+日志在 `tools/local_flow_<线>.log`（一线一个文件）。那个文件被卡死的旧进程占着时，
+这一轮写到 `tools/local_flow_<线>_busy.log`（再被占着就写带时间戳的一份）。
 
 ---
 

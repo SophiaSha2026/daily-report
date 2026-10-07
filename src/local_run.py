@@ -65,6 +65,7 @@ import re
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -244,13 +245,58 @@ def load_env() -> None:
 # 拉远端一律走 sync_repo()，所以那个口子连同 sh() 一起去掉了。
 
 
-def py(*args: str) -> int:
+def _kill_tree(pid: int) -> None:
+    """结束一个进程和它起的全部子孙进程。从不抛异常。
+
+    Windows 上 taskkill /T 按父子关系一路杀下去（新浪那几个进程池子进程
+    也在里面）；只杀父进程的话子进程成了孤儿，继续占着日志文件和锁。
+    """
+    if pid <= 0:
+        return
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
+                           capture_output=True, timeout=60,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        else:
+            import signal
+            os.kill(pid, signal.SIGKILL)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# 子阶段超时被结束时 py() 返回的退出码（和 GNU timeout 同一个数）
+TIMEOUT_RC = 124
+
+# 每个子阶段最多跑多久：(总时长, 多久没有一行输出算卡住)，单位秒，None = 不看。
+# 2026-09-29 16:30 起涨预测补日线时一个新浪请求挂住，local_run 就在 py() 里
+# 陪着等了 14 小时，那天的清单次日 06:31 手动重跑才发出去（教训 43）。
+# 时限按正常耗时的好几倍给：只拦「卡死」，不拦「慢」。超时就结束这一步的整棵
+# 进程树，这一轮按失败退出，计划任务下一次敲门（15~30 分钟）重跑。
+STEP_LIMIT = {
+    # 补日线平时一两分钟。缺好几天会退化成新浪全量刷新（约 70 分钟），那条路
+    # 每 200 只打一行进度，所以另看「20 分钟一行输出都没有」
+    "backfill": (120 * 60, 20 * 60),
+    "build": (60 * 60, None),         # 特征表，平时 13 分钟
+    "scan": (45 * 60, None),          # 打分，平时一两分钟；换了特征口径会重训模型
+    "send": (20 * 60, None),          # 面板 + 邮件，平时半分钟
+    "pb_scan": (20 * 60, None),       # 长期调整突破扫描，平时 20 秒
+    "pb_send": (20 * 60, None),       # 另加等到 17:58 的时间，见 flow_pullback
+}
+
+
+def py(*args: str, timeout: float | None = None, idle: float | None = None) -> int:
     """跑一个子阶段，输出原样透传，顺带认出细进度写进进度文件。
 
     以前是 subprocess.run 直接继承 stdout。现在读管道再原样写出去（按字节、
     不按行，tqdm 的回车刷新照样实时），同时在输出里认「做到第几个了」
     （_SUB），控制台首页的进度条读它。stderr 并进 stdout：计划任务那条路本来
     就是 `>> log 2>&1`，控制台那条路本来就 stderr=STDOUT，最终落点不变。
+
+    timeout / idle（秒）：跑满 timeout、或者 idle 秒没有任何输出，就结束这一步
+    的整棵进程树，返回 TIMEOUT_RC。流程里每一次调用都必须给 timeout
+    （selftest_gui 用 AST 钉住）：子进程挂住时 local_run 不能陪着挂（教训 43）。
+    读管道放在单独的线程里：孙进程没杀干净的话管道一直不关，主线程也不能等它。
     """
     try:
         sys.stdout.flush()
@@ -259,13 +305,19 @@ def py(*args: str) -> int:
     proc = subprocess.Popen([PY, *args], cwd=ROOT, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
     out = getattr(sys.stdout, "buffer", None)
-    tail = b""
-    try:
+    last = [time.monotonic()]
+
+    def pump() -> None:
+        tail = b""
         while True:
-            chunk = (proc.stdout.read1(65536) if hasattr(proc.stdout, "read1")
-                     else proc.stdout.read(4096))
+            try:
+                chunk = (proc.stdout.read1(65536) if hasattr(proc.stdout, "read1")
+                         else proc.stdout.read(4096))
+            except Exception:  # noqa: BLE001
+                return
             if not chunk:
-                break
+                return
+            last[0] = time.monotonic()
             if out is not None:
                 try:
                     out.write(chunk)
@@ -277,19 +329,68 @@ def py(*args: str) -> int:
                 _scan_sub(tail)
             except Exception:  # noqa: BLE001
                 pass
-    finally:
-        rc = proc.wait()
+
+    reader = threading.Thread(target=pump, daemon=True)
+    reader.start()
+    t0, why = time.monotonic(), ""
+    while True:
+        try:
+            rc = proc.wait(timeout=2)
+            break
+        except subprocess.TimeoutExpired:
+            pass
+        now = time.monotonic()
+        if timeout and now - t0 > timeout:
+            why = f"跑了 {timeout / 60:.0f} 分钟还没结束"
+        elif idle and now - last[0] > idle:
+            why = f"{idle / 60:.0f} 分钟没有任何输出"
+        else:
+            continue
+        _kill_tree(proc.pid)
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            pass
+        break
+    reader.join(timeout=10)
+    if why:
+        log.error("子阶段 %s %s，当作卡死，已结束它和它的子进程（退出码 %d）",
+                  " ".join(args[:3]), why, TIMEOUT_RC)
+        return TIMEOUT_RC
     return rc
 
 
 # ---------------------------------------------------------------------
 #  git 标记
 # ---------------------------------------------------------------------
+# 一条 git 命令最多等多久（秒）。pull / push 走网络，连接半死时会一直等下去，
+# 和 2026-09-29 那个新浪请求一样（教训 43）。本地命令几秒钟，给足了
+GIT_TIMEOUT = 180
+
+
 def _git(*args: str) -> tuple[int, str]:
-    """跑一条 git，返回 (退出码, 合并后的输出)。从不抛异常。"""
-    r = subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
-                       text=True, encoding="utf-8", errors="replace")
-    return r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
+    """跑一条 git，返回 (退出码, 合并后的输出)。从不抛异常。
+
+    超过 GIT_TIMEOUT 就结束整棵进程树（git push 会再起 git-remote-https），
+    按失败返回：推送失败有 push_status 和下一轮重试兜着，被打断留下的
+    index.lock 由 _git_unstick 清。
+    """
+    try:
+        p = subprocess.Popen(["git", *args], cwd=ROOT, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True,
+                             encoding="utf-8", errors="replace")
+    except Exception as e:  # noqa: BLE001
+        return 1, f"git 起不来: {e}"
+    try:
+        so, se = p.communicate(timeout=GIT_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        _kill_tree(p.pid)
+        try:
+            p.communicate(timeout=10)
+        except Exception:  # noqa: BLE001
+            pass
+        return TIMEOUT_RC, f"git {' '.join(args[:2])} 超过 {GIT_TIMEOUT} 秒没结束，已结束"
+    return p.returncode, ((so or "") + (se or "")).strip()
 
 
 def _git_unstick() -> None:
@@ -625,13 +726,13 @@ def lock_path(flow: str) -> Path:
 PROBE_GRACE = 60
 
 
-def _parse_scan(lines: list[str], flow: str, now_utc: dt.datetime,
-                own_pid: int) -> dict | None:
-    """把 PowerShell 那几行 `pid|创建时刻|命令行` 解析成「谁在跑」。
+def _scan_entries(lines: list[str], flow: str, now_utc: dt.datetime,
+                  own_pid: int) -> list[dict]:
+    """把 PowerShell 那几行 `pid|创建时刻|命令行` 解析成这条线的全部实例。
 
-    抽成纯函数是为了能离线自测：真机上进程表里可能正好有一条线在跑，
-    结果不可复现。
+    每项 {pid, at（北京时间，问不出来是空串）, age（秒，问不出来是 None）}。
     """
+    got = []
     for line in lines:
         pid, _, rest = line.partition("|")
         created, _, cmd = rest.partition("|")
@@ -639,29 +740,59 @@ def _parse_scan(lines: list[str], flow: str, now_utc: dt.datetime,
             continue
         if "local_run.py" not in cmd or f"--flow {flow}" not in cmd:
             continue
-        at = ""
+        at, age = "", None
         try:
             c = dt.datetime.strptime(created.strip(), "%Y-%m-%dT%H:%M:%S")
             c = c.replace(tzinfo=dt.timezone.utc)
-            if (now_utc - c).total_seconds() < PROBE_GRACE:
-                continue                      # 还在判定阶段的探针，不算
+            age = (now_utc - c).total_seconds()
             at = c.astimezone(dt.timezone(dt.timedelta(hours=8))
                               ).isoformat(timespec="seconds")
         except ValueError:
-            pass    # 时刻问不出来：按老规矩算它在跑（宁可多退一次，别双发）
-        return {"pid": int(pid), "flow": flow, "at": at, "source": "进程表"}
+            pass
+        got.append({"pid": int(pid), "at": at, "age": age})
+    return got
+
+
+def _parse_scan(lines: list[str], flow: str, now_utc: dt.datetime,
+                own_pid: int) -> dict | None:
+    """进程表里「谁在跑」。
+
+    抽成纯函数是为了能离线自测：真机上进程表里可能正好有一条线在跑，
+    结果不可复现。
+    """
+    for e in _scan_entries(lines, flow, now_utc, own_pid):
+        if e["age"] is not None and e["age"] < PROBE_GRACE:
+            continue                          # 还在判定阶段的探针，不算
+        if e["age"] is not None and e["age"] > MAX_RUN.get(flow, 3) * 3600:
+            continue                          # 跑超了最长时间：卡死的，见 _parse_stuck
+        # 时刻问不出来：按老规矩算它在跑（宁可多退一次，别双发）
+        return {"pid": e["pid"], "flow": flow, "at": e["at"], "source": "进程表"}
     return None
 
 
-def _scan_processes(flow: str) -> dict | None:
-    """锁之外再看一眼进程表：有没有别的 `local_run.py --flow <flow>` 在跑。
+def _parse_stuck(lines: list[str], flow: str, now_utc: dt.datetime,
+                 own_pid: int) -> list[int]:
+    """进程表里这条线跑超了 MAX_RUN 的实例：卡死了，下一个实例接管时结束它们。
 
-    锁文件可能被手删、也可能是旧版本代码起的进程根本没写锁（2026-09-14
-    晚上就是）。进程表是事实，锁只是快捷方式。只在 Windows 上做，
-    别处返回 None。
+    2026-09-29 16:30 起的起涨预测挂在一个新浪请求上 14 小时。它的锁三小时后
+    就算过期了，可进程表那一层还一直说「在跑」，之后每一次触发都退出（教训 43）。
+    流程里每一步都有时限（STEP_LIMIT），整条流程也有（main 里的看门狗），
+    正常情况下活不到 MAX_RUN；活到了，就是卡在那些时限管不到的地方。
     """
+    lim = MAX_RUN.get(flow, 3) * 3600
+    return [e["pid"] for e in _scan_entries(lines, flow, now_utc, own_pid)
+            if e["age"] is not None and e["age"] > lim]
+
+
+# 进程表查询的真实实现只在这个仓库里生效：自测把 ROOT 换成临时目录时，
+# 进程表里的实例属于真仓库，「接管」绝不能去结束它们（教训 17）
+_REPO = Path(__file__).resolve().parent.parent
+
+
+def _proc_lines() -> list[str]:
+    """PowerShell 列出全部 python.exe：`pid|创建时刻(UTC)|命令行`。非 Windows 空表。"""
     if sys.platform != "win32":
-        return None
+        return []
     # 创建时刻问不出来时留空串，_parse_scan 会按「在跑」处理（保守那一侧）。
     # 别写成 $_.CreationDate.ToUniversalTime() 直接拼：CreationDate 偶尔是
     # $null，在 $null 上调方法会让整行报错消失，那一条就成了「没在跑」。
@@ -675,9 +806,27 @@ def _scan_processes(flow: str) -> dict | None:
                            encoding="utf-8", errors="replace", timeout=20,
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except Exception:  # noqa: BLE001
-        return None
-    return _parse_scan((r.stdout or "").splitlines(), flow,
-                       dt.datetime.now(dt.timezone.utc), os.getpid())
+        return []
+    return (r.stdout or "").splitlines()
+
+
+def _scan_processes(flow: str) -> dict | None:
+    """锁之外再看一眼进程表：有没有别的 `local_run.py --flow <flow>` 在跑。
+
+    锁文件可能被手删、也可能是旧版本代码起的进程根本没写锁（2026-09-14
+    晚上就是）。进程表是事实，锁只是快捷方式。只在 Windows 上做，
+    别处返回 None。
+    """
+    return _parse_scan(_proc_lines(), flow, dt.datetime.now(dt.timezone.utc),
+                       os.getpid())
+
+
+def _scan_stuck(flow: str) -> list[int]:
+    """进程表里这条线卡死的实例（跑超了 MAX_RUN）。自测的临时 ROOT 下一律空表。"""
+    if ROOT != _REPO:
+        return []
+    return _parse_stuck(_proc_lines(), flow, dt.datetime.now(dt.timezone.utc),
+                        os.getpid())
 
 
 def _lock_holds(flow: str, info: dict) -> bool:
@@ -722,12 +871,53 @@ def running_instance(flow: str) -> dict | None:
     return _scan_processes(flow)
 
 
+def _stale_lock_pid(flow: str) -> int:
+    """锁里记的进程还活着、确实是写锁的那一代，锁却老过 MAX_RUN：卡死了，返回 pid。
+
+    只认带 ctime 的锁：没有进程身份就分不清是卡死的流程还是被复用了号的
+    别的进程，宁可不杀（进程表那一层还会按命令行认一遍）。
+    """
+    try:
+        info = json.loads(lock_path(flow).read_text(encoding="utf-8"))
+        pid = int(info.get("pid", 0) or 0)
+        age = (now_bj() - dt.datetime.fromisoformat(info["at"])).total_seconds()
+    except Exception:  # noqa: BLE001
+        return 0
+    if pid <= 0 or pid == os.getpid() or age <= MAX_RUN.get(flow, 3) * 3600:
+        return 0
+    ct = _pid_ctime(pid)
+    if not ct or info.get("ctime") is None or int(info["ctime"]) != ct:
+        return 0
+    return pid
+
+
+def take_over_stuck(flow: str) -> list[int]:
+    """这条线卡死的旧实例：结束它们的整棵进程树，返回结束了哪些 pid。
+
+    只结束跑超了 MAX_RUN 的（锁和进程表两处认）。流程自己有看门狗
+    （py 的 STEP_LIMIT、main 的总时限），活到 MAX_RUN 的一定是卡在看门狗
+    管不到的地方。不结束它的话，它一直占着日志文件和进程表里的「在跑」，
+    之后每一次触发都白来（2026-09-29，教训 43）。
+    """
+    pids = set(_scan_stuck(flow))
+    sp = _stale_lock_pid(flow)
+    if sp:
+        pids.add(sp)
+    for pid in sorted(pids):
+        log.warning("%s 上一个实例（pid %d）跑了 %d 小时还没结束，当作卡死："
+                    "结束它和它的子进程，这次接手", FLOWS[flow][1], pid,
+                    MAX_RUN.get(flow, 3))
+        _kill_tree(pid)
+    return sorted(pids)
+
+
 def acquire_lock(flow: str) -> bool:
     """抢这条线的锁。拿到返回 True，别人在跑返回 False。
 
     必须原子：以前是「先 running_instance 查一遍、再 write_text」，
     同一秒起的两个实例（控制台点击撞上计划任务）双双查到「没人在跑」，
     后写的那个把前一个的锁覆盖掉。O_EXCL 保证只有一个能建出文件。
+    没人在跑、但有跑超了 MAX_RUN 的卡死实例：先结束它再抢（take_over_stuck）。
     """
     other = running_instance(flow)
     if other:
@@ -735,6 +925,7 @@ def acquire_lock(flow: str) -> bool:
                  FLOWS[flow][1], other.get("pid"),
                  f"，{other.get('at', '')[11:19]} 起" if other.get("at") else "")
         return False
+    take_over_stuck(flow)
     p = lock_path(flow)
     p.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps({"pid": os.getpid(), "flow": flow,
@@ -900,24 +1091,52 @@ def _daily_covers(daily, target: str) -> tuple[bool, str]:
 UPDATE_SHORT_MAX = 50
 
 
-def _update_short(target: str) -> tuple[list[str], str]:
-    """补数据那一步自己记的账：哪些票没拉到目标日。返回 (代码, 说明)。
+def _update_short(target: str) -> tuple[list[str], list[str], str]:
+    """补数据那一步自己记的账：哪些票没拉到目标日。返回 (老票, 新票, 说明)。
 
     退出码 0 不等于做了事（教训 27）：refetch_codes 拉不到目标日的票只在
     backfill 的日志里留一行，而它写进了 state/breakout/update_status.json，
     这里把它读出来，让「今天到底缺了谁」变成一个能被判断的对象（教训 16）。
+
+    「新票」是日线表里本来就没有历史的（新上市、首次回填漏掉的）。新浪整段
+    重拉要 ≥60 根才算拉到，上市不满 60 天的新股天天都「没拉到」；它们也不在
+    前一天的横截面里，缺了不会让池子变残缺。以前和除权票混在一起数，
+    09-28 的 57 只里 27 只是新股，把 50 只的上限占掉一半（教训 42、43）。
+    只有老票算进 UPDATE_SHORT_MAX。旧版的账没有 new_codes，全当老票（保守）。
     """
     try:
         st = json.loads((ROOT / "state" / "breakout" / "update_status.json")
                         .read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
-        return [], "没有 update_status.json（补数据那步没写账）"
+        return [], [], "没有 update_status.json（补数据那步没写账）"
     if str(st.get("date") or "") != target:
-        return [], f"update_status.json 是 {st.get('date')} 的，不是 {target}"
-    short = [str(x) for x in (st.get("short") or [])]
-    return short, (f"补数据记账：追加 {st.get('appended')} 只，"
-                   f"整段重拉没拉到目标日 {len(short)} 只，"
-                   f"快照没回 {st.get('missing')} 只")
+        return [], [], f"update_status.json 是 {st.get('date')} 的，不是 {target}"
+    new = {str(x) for x in (st.get("new_codes") or [])}
+    allx = [str(x) for x in (st.get("short") or [])]
+    short = [c for c in allx if c not in new]
+    fresh = [c for c in allx if c in new]
+    return short, fresh, (f"补数据记账：追加 {st.get('appended')} 只，"
+                          f"整段重拉没拉到目标日 {len(allx)} 只"
+                          f"（其中新股 {len(fresh)} 只），"
+                          f"快照没回 {st.get('missing')} 只")
+
+
+# 补跑到目标日次日这个时刻（北京）还挡在 UPDATE_SHORT_MAX 上，就不再挡：
+# 没补齐的票剔出清单，其余照发。再等就过了开盘，一份少几只的清单也比没有强
+# （用户 2026-09-30：「保证只要开机状态，就发送清单」）。
+# 16:30 到这时候计划任务已经重拉了二三十轮，新浪还没出当天的 K 线，
+# 这几只今天就是判不了。
+SHORT_LATE = (7, 0)
+
+
+def short_gate_late(target: str) -> bool:
+    """现在是不是已经到了目标日次日（或更晚）的 SHORT_LATE 之后。"""
+    now = now_bj()
+    try:
+        days = (now.date() - dt.date.fromisoformat(target)).days
+    except ValueError:
+        return False
+    return days > 1 or (days == 1 and (now.hour, now.minute) >= SHORT_LATE)
 
 
 def _mail_sent_date(rel: str, date: str) -> str:
@@ -960,9 +1179,17 @@ FLOWS = {
 # 09-24 当成漏发补一封。计划任务（--if-needed）不补这之前的日子；手动照跑。
 START = {"pullback": "2026-09-28"}
 
-# 一次最多跑多久（小时）。锁比这个老就当死锁，防 PID 重用误判。
-# pullback 手动 16:00 起跑的话要等到 17:58 才发信，给到 4 小时
-MAX_RUN = {"breakout": 3, "pullback": 4}
+# 一次最多跑多久（小时）。三处用它：
+#   · main 的总看门狗：自己跑到 MAX_RUN 前 5 分钟还没结束，就结束自己的整棵进程树
+#   · 锁比这个老就当死锁（防 PID 重用误判）
+#   · 进程表里跑超了它的同线实例当卡死，下一个实例接管时结束（take_over_stuck）
+# 必须盖得住各步 STEP_LIMIT 之和，否则流程内的看门狗还没来得及出手就被当成卡死
+# （selftest_gui 钉住）。平时起涨预测 15 分钟、长期调整突破几分钟到两小时
+# （16:00 手动起跑要等到 17:58 发信）。
+#   breakout  补日线 120 + 特征 60 + 打分 45 + 真值 10 + 发信 20 = 255 分钟
+#   pullback  等起涨预测补日线 45 + 自己补 120 + 扫描 20 + 等到 17:58 最多约 120
+#             + 发信 20 = 325 分钟
+MAX_RUN = {"breakout": 5, "pullback": 6}
 
 
 def in_window(flow: str) -> bool:
@@ -1158,10 +1385,25 @@ def ensure_daily(target: str) -> tuple[bool, str]:
         if ran:
             return False, why
         log.info("日线还没到 %s（%s），自己补", target, why)
-        rc = py("src/breakout/backfill.py", "--stage", "update", "--target", target)
+        rc = py("src/breakout/backfill.py", "--stage", "update", "--target", target,
+                timeout=STEP_LIMIT["backfill"][0], idle=STEP_LIMIT["backfill"][1])
         ran = True
         if rc != 0:
             return False, f"补数据失败（退出码 {rc}）"
+
+
+def pullback_send_at(target: str) -> dt.datetime:
+    """长期调整突破目标日的发信时刻（pullback.send_time，读 config.yaml）。
+
+    只用来给发信那一步定时限（STEP_LIMIT 另加等待的时间）。读不到按 17:58。
+    """
+    try:
+        import pullback as P
+        return P.send_time(target, P.cfg())
+    except Exception:  # noqa: BLE001
+        d = dt.date.fromisoformat(target)
+        return dt.datetime(d.year, d.month, d.day, 17, 58,
+                           tzinfo=dt.timezone(dt.timedelta(hours=8)))
 
 
 def flow_pullback(dry: bool) -> int:
@@ -1189,15 +1431,17 @@ def flow_pullback(dry: bool) -> int:
         log.error("%s，今天不出清单", why)
         return 1
     log.info("%s", why)
-    short, note = _update_short(d)
-    if short:
+    short, fresh, note = _update_short(d)
+    if short or fresh:
         # 这条线逐只判，缺几只只是那几只今天判不了；不像起涨预测要在全市场
         # 横截面上排名，所以只提醒不挡
-        log.warning("%s；没拉到 %s 的 %d 只今天判不了：%s", note, d, len(short),
-                    ",".join(short[:20]))
+        miss = short + fresh
+        log.warning("%s；没拉到 %s 的 %d 只今天判不了：%s", note, d, len(miss),
+                    ",".join(miss[:20]))
 
     step(3, n, "扫描")
-    rc = py("src/pullback.py", "--stage", "scan", "--target", d)
+    rc = py("src/pullback.py", "--stage", "scan", "--target", d,
+            timeout=STEP_LIMIT["pb_scan"][0])
     if rc != 0:
         log.error("扫描失败（退出码 %d），今天不出清单", rc)
         return rc
@@ -1209,8 +1453,11 @@ def flow_pullback(dry: bool) -> int:
     step(4, n, "面板 + 邮件（北京 17:58 发）")
     if dry:
         os.environ["SKIP_MAIL"] = "1"
+    # 时限另加「等到 17:58」的那一段：16:00 手动起跑要等将近两小时
+    wait = 0.0 if dry else max(0.0, (pullback_send_at(d) - now_bj()).total_seconds())
     rc = py("src/pullback.py", "--stage", "send", "--target", d,
-            *(["--no-wait"] if dry else []))
+            *(["--no-wait"] if dry else []),
+            timeout=STEP_LIMIT["pb_send"][0] + wait)
     # 退出码 0 不等于发了信（教训 27）：SKIP_MAIL 那条路也是 0。只认
     # pullback.stage_send 在 SMTP 之后落的 out_pullback/mail_sent.json
     sent_at = _mail_sent_date("out_pullback/mail_sent.json", d)
@@ -1250,7 +1497,8 @@ def flow_breakout(dry: bool) -> int:
     step(2, n, f"补 {d} 日线 + 重算特征表")
     # 目标日由编排层算一次传下去：每个子阶段各判一次，跨午夜补跑那一段
     # （北京 00:00~08:30）两边早晚会分叉，一边按「今天」一边按「最近已收盘」。
-    rc = py("src/breakout/backfill.py", "--stage", "update", "--target", d)
+    rc = py("src/breakout/backfill.py", "--stage", "update", "--target", d,
+            timeout=STEP_LIMIT["backfill"][0], idle=STEP_LIMIT["backfill"][1])
     if rc != 0:
         log.error("补数据失败（退出码 %d），今天不出清单", rc)
         return rc
@@ -1262,21 +1510,31 @@ def flow_breakout(dry: bool) -> int:
     log.info("%s", why)
     # 补数据那一步自己记的账。短几只是常态，成片补不上就不该出清单：
     # 那天的横截面百分位、板块中性化、市场宽度都在残缺的池子里算。
-    short, note = _update_short(d)
+    short, fresh, note = _update_short(d)
     log.info("%s", note)
-    if short:
-        log.warning("有 %d 只没拉到 %s：%s", len(short), d, ",".join(short[:20]))
+    if short or fresh:
+        miss = short + fresh
+        log.warning("有 %d 只没拉到 %s：%s", len(miss), d, ",".join(miss[:20]))
+    # 上次的遗留，这一轮不许带进去
+    os.environ.pop("BREAKOUT_SHORT_EXCLUDE", None)
     if len(short) > UPDATE_SHORT_MAX:
-        log.error("补不上目标日的票 %d 只，超过 %d 只的上限，不出清单",
-                  len(short), UPDATE_SHORT_MAX)
-        return 1
-    rc = py("src/breakout/build.py")
+        if not short_gate_late(d):
+            log.error("补不上目标日的票 %d 只（新股不算），超过 %d 只的上限，这一轮不出清单；"
+                      "%s 次日 %02d:%02d 起不再挡，把它们剔出清单照发",
+                      len(short), UPDATE_SHORT_MAX, d, *SHORT_LATE)
+            return 1
+        log.warning("补不上目标日的票 %d 只，超过 %d 只的上限，但已经过了 %s 次日 "
+                    "%02d:%02d：这 %d 只剔出清单，其余照发",
+                    len(short), UPDATE_SHORT_MAX, d, *SHORT_LATE, len(short))
+        os.environ["BREAKOUT_SHORT_EXCLUDE"] = ",".join(short)
+    rc = py("src/breakout/build.py", timeout=STEP_LIMIT["build"][0])
     if rc != 0:
         log.error("特征表没建出来（退出码 %d），今天不出清单", rc)
         return rc
 
     step(3, n, "打分 + 出清单")
-    rc = py("src/breakout/daily.py", "--stage", "scan")
+    rc = py("src/breakout/daily.py", "--stage", "scan",
+            timeout=STEP_LIMIT["scan"][0])
     if rc != 0:
         return rc
 
@@ -1289,7 +1547,8 @@ def flow_breakout(dry: bool) -> int:
     step(4, n, "面板 + 邮件")
     if dry:
         os.environ["SKIP_MAIL"] = "1"
-    rc = py("src/breakout/daily.py", "--stage", "send")
+    rc = py("src/breakout/daily.py", "--stage", "send",
+            timeout=STEP_LIMIT["send"][0])
     # 退出码 0 不等于发了信（教训 27）：send 阶段的 SKIP_MAIL 分支、
     # 以及任何「面板建好了但 send_mail 没走到」的路都返回 0。只认
     # daily.py 在 send_mail 之后落的 out_breakout/mail_sent.json，
@@ -1305,6 +1564,35 @@ def flow_breakout(dry: bool) -> int:
     push_all(f"起涨预测 {d} [local]",
              [f"data/breakout/{d[:7]}", "out_breakout", "state/breakout"], dry)
     return rc
+
+
+def arm_deadline(flow: str) -> threading.Timer:
+    """整条流程的总时限：跑到 MAX_RUN 前 5 分钟还没结束，就结束自己的整棵进程树。
+
+    STEP_LIMIT 管的是子阶段；local_run 自己也可能卡在某个没有时限的调用里。
+    这一道兜住它：先写进度、放锁，再结束自己和全部子进程，下一次触发重跑
+    （2026-09-29，教训 43）。正常的流程远活不到这里（MAX_RUN 盖得住各步时限之和）。
+    """
+    sec = MAX_RUN.get(flow, 3) * 3600 - 300
+
+    def fire() -> None:
+        log.error("%s 跑了 %.1f 小时还没结束，当作卡死：结束自己和全部子进程，"
+                  "下一次触发重跑", FLOWS[flow][1], sec / 3600)
+        try:
+            _PROG.update({"running": False, "rc": TIMEOUT_RC,
+                          "finished_at": now_bj().isoformat(timespec="seconds")})
+            _write_progress(force=True)
+            release_lock(flow)
+            sys.stdout.flush()
+        except Exception:  # noqa: BLE001
+            pass
+        _kill_tree(os.getpid())
+        os._exit(TIMEOUT_RC)
+
+    t = threading.Timer(sec, fire)
+    t.daemon = True
+    t.start()
+    return t
 
 
 def main() -> int:
@@ -1354,6 +1642,7 @@ def main() -> int:
                   "started_at": now_bj().isoformat(timespec="seconds")})
     _write_progress(force=True)
     keep_awake(True)
+    deadline = arm_deadline(a.flow)
     rc = 1
     try:
         load_env()
@@ -1367,6 +1656,7 @@ def main() -> int:
                  (now_bj() - t0).total_seconds(), rc)
         return rc
     finally:
+        deadline.cancel()
         keep_awake(False)
         _PROG.update({"running": False, "rc": rc,
                       "finished_at": now_bj().isoformat(timespec="seconds")})

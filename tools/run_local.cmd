@@ -33,6 +33,14 @@ REM  Log: tools/local_flow_<flow>.log (gitignored). One file per flow: while
 REM  a long flow (pullback waits until 17:58 to mail) holds its log open,
 REM  a second cmd cannot append to the same file ("being used by another
 REM  process") and the other tasks would silently not run at all.
+REM
+REM  WHY THE BUSY-LOG FALLBACK:
+REM  The same thing happens within ONE flow when a run hangs: 2026-09-29 a
+REM  breakout run hung for 14 hours and held local_flow_breakout.log open, so
+REM  every later trigger failed to append, python never started, and the task
+REM  still reported exit 0 (lesson 43). If the header line cannot be written,
+REM  switch to local_flow_<flow>_busy.log, and if that is held too, to a
+REM  timestamped one. local_run.py then takes over the stuck instance itself.
 REM ===========================================================================
 setlocal
 set "ROOT=%~dp0.."
@@ -49,7 +57,7 @@ set "PYTHONIOENCODING=utf-8"
 set "PYTHONUTF8=1"
 
 for /f "delims=" %%i in ('powershell -NoProfile -Command "(Get-Date).ToUniversalTime().AddHours(8).ToString('s')"') do set "NOW=%%i"
-echo [%NOW%] === run_local %FLOW% === >> "%LOG%"
+(echo [%NOW%] === run_local %FLOW% ===) >> "%LOG%" 2>nul || call :busylog
 
 cd /d "%ROOT%"
 if /i "%FLOW%"=="sync" (
@@ -62,3 +70,13 @@ set "RC=%ERRORLEVEL%"
 for /f "delims=" %%i in ('powershell -NoProfile -Command "(Get-Date).ToUniversalTime().AddHours(8).ToString('s')"') do set "NOW=%%i"
 echo [%NOW%] === run_local %FLOW% exit=%RC% === >> "%LOG%"
 exit /b %RC%
+
+:busylog
+REM Main log is held by a hung run (see header). Try the _busy log, then a
+REM timestamped one; either way write the run header so the GUI can split runs.
+set "LOG=%~dp0local_flow_%FLOW%_busy.log"
+(echo [%NOW%] === run_local %FLOW% === main log is held by another process) >> "%LOG%" 2>nul && goto :eof
+set "STAMP=%NOW::=%"
+set "LOG=%~dp0local_flow_%FLOW%_%STAMP%.log"
+echo [%NOW%] === run_local %FLOW% === main and busy logs are held >> "%LOG%"
+goto :eof
