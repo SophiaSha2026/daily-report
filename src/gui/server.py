@@ -27,6 +27,7 @@ import os
 import re
 import secrets
 import subprocess
+import sys
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -192,6 +193,28 @@ class Handler(BaseHTTPRequestHandler):
                     f'<span style="font-size:12px">跑一次对应的流程就会有</span>'
                     f'</body>')
             return self._html(f.read_text(encoding="utf-8"))
+
+        if p == "/api/predict":
+            # 单只股票预测（2026-10-07 用户要求）：只读，不改任何产物，所以不要 token。
+            # 代码只认 6 位数字，直接拼进命令行也不会有注入
+            code = (q.get("code", [""])[0] or "").strip()
+            if not re.fullmatch(r"\d{6}", code):
+                return self._json({"ok": False, "error": "代码要是 6 位数字"}, 400)
+            try:
+                r = subprocess.run(
+                    [sys.executable, str(ROOT / "tools" / "predict_one.py"), code, "--json"],
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    timeout=180, cwd=str(ROOT),
+                    # 子进程不设这两个就按本机代码页（GBK）打印，这边按 utf-8 读成乱码
+                    env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                line = (r.stdout or "").strip().splitlines()
+                out = json.loads(line[-1]) if line else {"ok": False, "error": "没有输出"}
+            except subprocess.TimeoutExpired:
+                out = {"ok": False, "error": "超过 180 秒没算完"}
+            except Exception as e:  # noqa: BLE001
+                out = {"ok": False, "error": str(e)}
+            return self._json(out)
 
         if p == "/api/logfile":
             # 计划任务自动跑的输出，每条线一个文件（tools/local_flow_<flow>.log，

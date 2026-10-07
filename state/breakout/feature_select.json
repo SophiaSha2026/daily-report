@@ -1,8 +1,8 @@
 {
  "fingerprint": "28d0fb539ceaa459ec8a163badf718d3",
- "fit_date": "2026-09-17",
+ "fit_date": "2026-10-07",
  "start": 102,
- "end": 51,
+ "end": 50,
  "keep": [
   "turn_pct__mean",
   "boll_width__last",
@@ -34,25 +34,24 @@
   "x_squeeze_burst__last",
   "rs60__slope",
   "dist_52w_high__slope",
-  "chip_dev__slope",
   "gdhs_level__slope",
+  "chip_dev__slope",
+  "mkt_ret5__slope",
   "turn_pct__slope",
   "dist_52w_high__last",
+  "mkt_ret5__last",
   "atr_ratio__slope",
   "gdhs_chg3__mean",
-  "mkt_ret5__last",
-  "mkt_ret5__slope",
   "vol_ratio5__mean",
   "boll_width__slope",
   "rs20__slope",
   "chip_win__slope",
   "chip_conc_chg20__last",
-  "mkt_ret5__mean",
-  "mkt_breadth__last",
   "ma20_slope5__slope",
-  "rs_accel__mean",
-  "chip_peak__slope",
+  "mkt_breadth__last",
+  "mkt_ret5__mean",
   "ma_align__slope",
+  "chip_peak__slope",
   "vol_ratio5__last",
   "x_light_top__slope"
  ],
@@ -84,6 +83,8 @@
   ],
   "ic_unstable": [
    "gdhs_stale_days__slope",
+   "rs_accel__last",
+   "rs_accel__mean",
    "mkt_breadth__slope"
   ],
   "collinear": [
@@ -111,19 +112,223 @@
    "turn_std20__mean",
    "gdhs_chg3__last",
    "dist_52w_high__mean",
-   "chip_conc_chg20__mean",
-   "rs_accel__last"
+   "chip_conc_chg20__mean"
   ]
  },
  "n_dropped": {
   "ic_too_weak": 23,
-  "ic_unstable": 2,
-  "collinear": 26
+  "ic_unstable": 4,
+  "collinear": 25
+ },
+ "ic_table": {
+  "turn_pct__mean": {
+   "ic": 0.077,
+   "flip": 0.03
+  },
+  "boll_width__last": {
+   "ic": 0.0688,
+   "flip": 0.0
+  },
+  "dist_52w_low__last": {
+   "ic": 0.0601,
+   "flip": 0.06
+  },
+  "amt_ma20__last": {
+   "ic": 0.0584,
+   "flip": 0.09
+  },
+  "above_ma60__last": {
+   "ic": 0.0489,
+   "flip": 0.03
+  },
+  "rs60__last": {
+   "ic": 0.0454,
+   "flip": 0.21
+  },
+  "chip_win__last": {
+   "ic": 0.0406,
+   "flip": 0.06
+  },
+  "ma_align__mean": {
+   "ic": 0.0394,
+   "flip": 0.09
+  },
+  "rs20__last": {
+   "ic": 0.0376,
+   "flip": 0.15
+  },
+  "chip_dev__mean": {
+   "ic": 0.034,
+   "flip": 0.24
+  },
+  "atr_ratio__last": {
+   "ic": 0.0337,
+   "flip": 0.12
+  },
+  "ma20_slope5__mean": {
+   "ic": 0.0327,
+   "flip": 0.18
+  },
+  "up_vol_share20__last": {
+   "ic": 0.0295,
+   "flip": 0.12
+  },
+  "chip_conc90__last": {
+   "ic": 0.0295,
+   "flip": 0.03
+  },
+  "chip_peak__last": {
+   "ic": -0.0274,
+   "flip": 0.15
+  },
+  "x_light_top__last": {
+   "ic": -0.0227,
+   "flip": 0.09
+  },
+  "gdhs_level__last": {
+   "ic": 0.0219,
+   "flip": 0.24
+  },
+  "x_holder_chip__last": {
+   "ic": -0.0207,
+   "flip": 0.12
+  },
+  "dist_52w_low__slope": {
+   "ic": 0.0195,
+   "flip": 0.06
+  },
+  "vol_compress__last": {
+   "ic": 0.0189,
+   "flip": 0.03
+  },
+  "vol_ratio20__last": {
+   "ic": 0.0176,
+   "flip": 0.06
+  },
+  "amt_ma20__slope": {
+   "ic": 0.0172,
+   "flip": 0.15
+  },
+  "vol_compress__mean": {
+   "ic": 0.017,
+   "flip": 0.21
+  },
+  "range_compress__last": {
+   "ic": 0.0164,
+   "flip": 0.18
+  },
+  "x_squeeze_burst__mean": {
+   "ic": -0.0157,
+   "flip": 0.12
+  },
+  "range_compress__mean": {
+   "ic": 0.015,
+   "flip": 0.24
+  },
+  "turn_std20__last": {
+   "ic": 0.0149,
+   "flip": 0.12
+  },
+  "x_squeeze_burst__last": {
+   "ic": -0.0137,
+   "flip": 0.12
+  },
+  "rs60__slope": {
+   "ic": 0.0131,
+   "flip": 0.12
+  },
+  "dist_52w_high__slope": {
+   "ic": 0.0125,
+   "flip": 0.09
+  },
+  "gdhs_level__slope": {
+   "ic": 0.0125,
+   "flip": 0.24
+  },
+  "chip_dev__slope": {
+   "ic": 0.0124,
+   "flip": 0.12
+  },
+  "mkt_ret5__slope": {
+   "ic": 0.0122,
+   "flip": 0.39
+  },
+  "turn_pct__slope": {
+   "ic": 0.0117,
+   "flip": 0.03
+  },
+  "dist_52w_high__last": {
+   "ic": 0.0114,
+   "flip": 0.36
+  },
+  "mkt_ret5__last": {
+   "ic": 0.0114,
+   "flip": 0.33
+  },
+  "atr_ratio__slope": {
+   "ic": 0.0113,
+   "flip": 0.24
+  },
+  "gdhs_chg3__mean": {
+   "ic": 0.0111,
+   "flip": 0.3
+  },
+  "vol_ratio5__mean": {
+   "ic": 0.0097,
+   "flip": 0.18
+  },
+  "boll_width__slope": {
+   "ic": 0.0096,
+   "flip": 0.18
+  },
+  "rs20__slope": {
+   "ic": 0.0096,
+   "flip": 0.24
+  },
+  "chip_win__slope": {
+   "ic": 0.0092,
+   "flip": 0.12
+  },
+  "chip_conc_chg20__last": {
+   "ic": 0.0089,
+   "flip": 0.36
+  },
+  "ma20_slope5__slope": {
+   "ic": 0.0077,
+   "flip": 0.24
+  },
+  "mkt_breadth__last": {
+   "ic": 0.0077,
+   "flip": 0.36
+  },
+  "mkt_ret5__mean": {
+   "ic": 0.0074,
+   "flip": 0.27
+  },
+  "ma_align__slope": {
+   "ic": 0.007,
+   "flip": 0.15
+  },
+  "chip_peak__slope": {
+   "ic": -0.007,
+   "flip": 0.18
+  },
+  "vol_ratio5__last": {
+   "ic": 0.0068,
+   "flip": 0.09
+  },
+  "x_light_top__slope": {
+   "ic": -0.0052,
+   "flip": 0.15
+  }
  },
  "l1_zero": [
   "rs60__last",
-  "dist_52w_low__slope",
-  "range_compress__last",
-  "vol_ratio5__mean"
+  "ma_align__mean",
+  "x_squeeze_burst__mean",
+  "x_squeeze_burst__last",
+  "mkt_ret5__slope",
+  "turn_pct__slope",
+  "rs20__slope"
  ]
 }

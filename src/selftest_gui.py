@@ -562,7 +562,7 @@ def check_resend_guard() -> None:
     local_run.ROOT = tmp
     local_run.now_bj = lambda: dt.datetime(2026, 9, 29, 18, 0, tzinfo=tz)
     local_run.target_date = lambda flow: d
-    local_run.py = lambda *a: (ran.append(a) or 1)       # 真往下跑就在第一步失败早退
+    local_run.py = lambda *a, **k: (ran.append(a) or 1)  # 真往下跑就在第一步失败早退
     local_run.sync_repo = lambda: True
     local_run.push_marker = lambda *a, **k: ran.append(("push_marker",) + a[:2])
     local_run.push_all = lambda *a, **k: ran.append(("push_all", a[0]))
@@ -1275,6 +1275,11 @@ def check_http() -> None:
 
         ck(call("/api/status", host="evil.example.com")[0] == 403,
            "伪造 Host 被挡（防 DNS rebinding）")
+        # 单只股票预测（2026-10-07）：只读 GET，不要 token；代码不是 6 位数字直接 400，
+        # 不起子进程（起了就要读 2.7 GB 的特征表，自测不许碰）
+        ck(call("/api/predict?code=12ab")[0] == 400, "GET /api/predict 代码不合法回 400")
+        ck(call("/api/predict?code=600000", host="evil.example.com")[0] == 403,
+           "/api/predict 也受 Host 白名单保护")
         ck(call("/api/run", "POST")[0] == 403, "POST 无 token 被挡")
         ck(call("/api/run", "POST", token="wrong")[0] == 403,
            "POST 错 token 被挡")
@@ -1587,6 +1592,7 @@ def check_breakout_flow() -> None:
     """
     print("\n[起涨预测：补到没有 / 发出去没有]")
     import datetime as dt
+    import os
     import tempfile
     import local_run
     try:
@@ -1621,16 +1627,17 @@ def check_breakout_flow() -> None:
                      ).to_parquet(tmp / "data" / "breakout" / "daily.parquet",
                                   index=False)
 
-    def write_status(short: list) -> None:
+    def write_status(short: list, new: list | None = None) -> None:
         (tmp / "state" / "breakout").mkdir(parents=True, exist_ok=True)
         (tmp / "state" / "breakout" / "update_status.json").write_text(
             json.dumps({"date": d, "appended": len(real), "missing": 0,
-                        "short": short, "ok": True}), encoding="utf-8")
+                        "short": short, "new_codes": new or [], "ok": True}),
+            encoding="utf-8")
 
     def mk_py(send_writes: str):
         """跑子阶段的假实现。send_writes 决定 send 那一步写哪个日期的
         mail_sent.json（空串 = 一个字都不写，模拟 SKIP_MAIL / 半路 return 0）。"""
-        def _py(*a):
+        def _py(*a, **k):
             ran.append(a)
             if a[:3] == ("src/breakout/daily.py", "--stage", "send") \
                     and send_writes:
@@ -1688,6 +1695,50 @@ def check_breakout_flow() -> None:
         ck(local_run.flow_breakout(False) == 0,
            "只差 3 只（新上市/长期停牌）-> 照常出清单，只留一条 warning")
 
+        # 新股（日线表里本来没有历史）不算「成片补不上」：新浪整段重拉要 ≥60 根，
+        # 上市不满 60 天的天天都没拉到。09-28 的 57 只里 27 只是新股（教训 42、43）
+        ran.clear()
+        write_status(real[:60], new=real[10:60])
+        ck(local_run.flow_breakout(False) == 0
+           and [a for a in ran if a and a[0] == "src/breakout/build.py"],
+           "没拉到 60 只但其中 50 只是新股 -> 老票只差 10 只，照常出清单")
+
+        # 成片补不上、一直挡到次日早上：不再挡，没补齐的剔出清单照发
+        seen: dict = {}
+        base_py = mk_py(d)
+
+        def spy(*a, **k):
+            if a and a[0] in ("src/breakout/build.py", "src/breakout/daily.py"):
+                seen[a[:3]] = os.environ.get("BREAKOUT_SHORT_EXCLUDE", "")
+            return base_py(*a, **k)
+
+        write_status(real[:local_run.UPDATE_SHORT_MAX + 1])
+        local_run.py = spy
+        for (dd, hh, mm), want in [((16, 23, 30), False), ((17, 6, 59), False),
+                                   ((17, 7, 0), True), ((19, 1, 0), True)]:
+            local_run.now_bj = lambda: dt.datetime(2026, 9, dd, hh, mm, tzinfo=tz)
+            ck(local_run.short_gate_late(d) is want,
+               f"目标日 {d}，北京 09-{dd} {hh:02d}:{mm:02d} -> 不再挡 {want}")
+        local_run.now_bj = lambda: dt.datetime(2026, 9, 17, 7, 30, tzinfo=tz)
+        ran.clear()
+        seen.clear()
+        rc = local_run.flow_breakout(False)
+        skip = seen.get(("src/breakout/daily.py", "--stage", "scan"), "")
+        ck(rc == 0 and len(skip.split(",")) == local_run.UPDATE_SHORT_MAX + 1,
+           f"次日 07:30 还差 {local_run.UPDATE_SHORT_MAX + 1} 只 -> 照发，"
+           "没补齐的那几只交给打分那一步剔出清单")
+        write_status(real[:3])
+        ran.clear()
+        seen.clear()
+        local_run.flow_breakout(False)
+        ck(seen.get(("src/breakout/daily.py", "--stage", "scan"), "x") == "",
+           "下一次正常的一轮不带上一次的剔除名单")
+        local_run.now_bj = lambda: dt.datetime(2026, 9, 16, 18, 0, tzinfo=tz)
+        local_run.py = mk_py(d)
+        dsrc = (ROOT / "src" / "breakout" / "daily.py").read_text(encoding="utf-8")
+        ck('"BREAKOUT_SHORT_EXCLUDE"' in dsrc and '"short_excluded"' in dsrc,
+           "打分那一步认这份名单，并把剔了几只写进 run_meta（邮件抬头照实印）")
+
         # 目标日行数比前一日少 8%：覆盖率那道闸放得过，行数这道放不过
         ran.clear()
         write_daily(92)
@@ -1695,6 +1746,7 @@ def check_breakout_flow() -> None:
            and not [a for a in ran if a and a[0] == "src/breakout/daily.py"],
            "目标日行数只有前一日的 92% -> 不打分不发信")
     finally:
+        os.environ.pop("BREAKOUT_SHORT_EXCLUDE", None)
         (local_run.ROOT, local_run.now_bj, local_run.target_date, local_run.py,
          local_run.sync_repo, local_run.push_marker, local_run.push_all,
          local_run.truth_and_regime) = o
@@ -1737,7 +1789,7 @@ def check_pullback_flow() -> None:
                      ).to_parquet(tmp / "data" / "breakout" / "daily.parquet", index=False)
 
     def mk_py(scan_date: str, send_writes: str, update_fills: bool = True):
-        def _py(*a):
+        def _py(*a, **k):
             ran.append(a)
             if a[:3] == ("src/breakout/backfill.py", "--stage", "update") and update_fills:
                 write_daily(True)
@@ -2253,6 +2305,148 @@ def check_progress_file() -> None:
             L._PROG.clear()
 
 
+def check_watchdogs() -> None:
+    """卡死不能拖垮整条线（2026-09-29 起涨预测挂了 14 小时，教训 43）。
+
+    五道：子阶段有时限（py）、git 有时限、整条流程有总时限（arm_deadline）、
+    下一次触发能接管跑超了 MAX_RUN 的旧实例、run_local.cmd 在日志被占着时
+    换一份日志照跑。前两道真起子进程测；后面的测纯函数 + 源码接线。
+    """
+    print("\n[卡死看门狗]")
+    import datetime as dt
+    import os
+    import subprocess
+    import tempfile
+    import time
+    import local_run as L
+
+    # 1. py()：跑满时限 / 太久没输出，结束整棵进程树（含孙进程），返回 TIMEOUT_RC
+    td = Path(tempfile.mkdtemp(prefix="wd_"))
+    pidf = td / "grandchild.pid"
+    child = td / "child.py"
+    child.write_text(
+        "import subprocess, sys, time\n"
+        "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
+        f"open(r'{pidf}', 'w').write(str(g.pid))\n"
+        "print('started', flush=True)\n"
+        "time.sleep(120)\n", encoding="utf-8")
+    t0 = time.monotonic()
+    rc = L.py(str(child), timeout=6)
+    took = time.monotonic() - t0
+    ck(rc == L.TIMEOUT_RC and took < 60,
+       f"子阶段跑满时限 -> 结束并返回 {L.TIMEOUT_RC}（实际 rc={rc}，{took:.0f} 秒）")
+    try:
+        gpid = int(pidf.read_text())
+    except Exception:  # noqa: BLE001
+        gpid = 0
+    alive = gpid and L._pid_alive(gpid)
+    if alive:
+        L._kill_tree(gpid)
+    ck(gpid and not alive, "孙进程（进程池子进程那一类）一起结束，不留孤儿占着日志")
+    quiet = td / "quiet.py"
+    quiet.write_text("import time\nprint('一行', flush=True)\ntime.sleep(120)\n",
+                     encoding="utf-8")
+    t0 = time.monotonic()
+    rc = L.py(str(quiet), timeout=600, idle=5)
+    ck(rc == L.TIMEOUT_RC and time.monotonic() - t0 < 60,
+       "太久没有任何输出（idle）-> 当卡死结束，不用等满总时限")
+
+    # 2. 流程里每一次 py() 都带 timeout（AST 钉住）；git 也有时限
+    tree = _tree("src/local_run.py")
+    for fn in ("flow_breakout", "flow_pullback", "ensure_daily"):
+        f = _func(tree, fn)
+        pys = _calls(f, "py")
+        ck(pys and all(any(k.arg == "timeout" for k in c.keywords) for c in pys),
+           f"{fn} 里每一次 py() 都带 timeout（{len(pys)} 处）")
+    g = _func(tree, "_git")
+    ck(any(k.arg == "timeout" for c in ast.walk(g) if isinstance(c, ast.Call)
+           for k in c.keywords), "_git 等 git 结束有时限（pull / push 连接半死时不陪着等）")
+    rb = (ROOT / "tools" / "rerun_breakout.py").read_text(encoding="utf-8")
+    ck("timeout=" in rb, "tools/rerun_breakout.py 调 py() 也带时限")
+
+    # 3. 总时限：MAX_RUN 盖得住各步时限之和，否则流程内的看门狗没出手就被当卡死
+    S = L.STEP_LIMIT
+    bk = S["backfill"][0] + S["build"][0] + S["scan"][0] + 600 + S["send"][0]
+    pb = (L.PULLBACK_WAIT_DAILY_MIN * 60 + S["backfill"][0] + S["pb_scan"][0]
+          + (17 * 60 + 58 - 16 * 60) * 60 + S["pb_send"][0])
+    ck(bk <= L.MAX_RUN["breakout"] * 3600 - 300,
+       f"起涨预测各步时限之和 {bk / 60:.0f} 分钟 < 总时限 {L.MAX_RUN['breakout']} 小时减 5 分钟")
+    ck(pb <= L.MAX_RUN["pullback"] * 3600 - 300,
+       f"长期调整突破各步时限之和（含 16:00 起跑等到 17:58）{pb / 60:.0f} 分钟 < 总时限")
+    m = _func(tree, "main")
+    ck(_calls(m, "arm_deadline") and "deadline.cancel()" in ast.unparse(m),
+       "main 开跑就上总时限，跑完撤掉")
+    t = L.arm_deadline("breakout")
+    t.cancel()
+    ck(abs(t.interval - (L.MAX_RUN["breakout"] * 3600 - 300)) < 1,
+       "总时限 = MAX_RUN 前 5 分钟")
+
+    # 4. 接管：进程表里跑超了 MAX_RUN 的同线实例不算「在跑」，算卡死
+    now = dt.datetime(2026, 9, 30, 0, 0, 0, tzinfo=dt.timezone.utc)
+    lim = L.MAX_RUN["breakout"]
+    old = (now - dt.timedelta(hours=lim + 1)).strftime("%Y-%m-%dT%H:%M:%S")
+    mid = (now - dt.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+    lines = [f"5001|{old}|python.exe src/local_run.py --flow breakout --if-needed",
+             f"5002|{mid}|python.exe src/local_run.py --flow pullback"]
+    ck(L._parse_scan(lines, "breakout", now, 1) is None,
+       f"跑了 {lim + 1} 小时的起涨预测不算在跑（09-29 那种卡死的，以前每次触发都被它挡回去）")
+    ck(L._parse_stuck(lines, "breakout", now, 1) == [5001], "它被认成卡死、等着被接管")
+    ck(L._parse_stuck(lines, "pullback", now, 1) == [], "跑了 1 小时的长期调整突破不算卡死")
+    ck(L._parse_stuck(["5003||python.exe src/local_run.py --flow breakout"],
+                      "breakout", now, 1) == [],
+       "创建时刻问不出来的不当卡死（宁可不杀）")
+
+    o = (L.ROOT, L._scan_processes)
+    L.ROOT = td
+    L._scan_processes = lambda flow: None
+    kid = None
+    try:
+        ck(L._scan_stuck("breakout") == [],
+           "自测的临时 ROOT 下不查真进程表（接管绝不能碰真仓库在跑的流程，教训 17）")
+        kid = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(60)"])
+        lp = L.lock_path("breakout")
+        lp.parent.mkdir(parents=True, exist_ok=True)
+        stale = (L.now_bj() - dt.timedelta(hours=lim + 1)).isoformat(timespec="seconds")
+        if sys.platform == "win32":
+            lp.write_text(json.dumps({"pid": kid.pid, "flow": "breakout", "at": stale,
+                                      "ctime": L._pid_ctime(kid.pid)}), encoding="utf-8")
+            ck(L.acquire_lock("breakout") is True, "锁里的进程跑超了 MAX_RUN -> 抢得到")
+            try:
+                kid.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                pass
+            ck(kid.poll() is not None, "而且把那个卡死的进程结束了（它不会半夜醒来再发一封）")
+            L.release_lock("breakout")
+        kid2 = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(60)"])
+        lp.write_text(json.dumps({"pid": kid2.pid, "flow": "breakout", "at": stale}),
+                      encoding="utf-8")
+        ck(L._stale_lock_pid("breakout") == 0,
+           "没有进程身份（ctime）的旧锁不杀：分不清是卡死的流程还是被复用了号的别的进程")
+        kid2.kill()
+        kid2.wait()
+        lp.write_text(json.dumps({"pid": os.getpid(), "flow": "breakout", "at": stale,
+                                  "ctime": L._pid_ctime(os.getpid())}), encoding="utf-8")
+        ck(L._stale_lock_pid("breakout") == 0, "自己的锁永远不杀自己")
+        lp.unlink()
+    finally:
+        if kid is not None and kid.poll() is None:
+            kid.kill()
+            kid.wait()
+        L.ROOT, L._scan_processes = o
+
+    # 5. run_local.cmd：主日志被卡死的进程占着时，换一份日志照跑
+    cmd = (ROOT / "tools" / "run_local.cmd").read_text(encoding="ascii")
+    ck("|| call :busylog" in cmd and ":busylog" in cmd and "_busy.log" in cmd,
+       "run_local.cmd 写不进主日志就换 _busy.log / 带时间戳的日志（以前 python 根本不起，"
+       "退出码还是 0）")
+
+    # 6. 新浪进程池、第三方库的 requests 都有时限
+    bf = (ROOT / "src" / "breakout" / "backfill.py").read_text(encoding="utf-8")
+    ck("ProcessPoolExecutor(" not in bf and "it.next(timeout=SINA_IDLE)" in bf,
+       "新浪进程池每只结果最多等 SINA_IDLE 秒（以前 map 一挂就永远不返回）")
+    ck(bf.count("_net_guard()") >= 2, "新浪子进程和 backfill 主进程都补了 requests 默认超时")
+
+
 def main() -> int:
     import time
     t0 = time.time()
@@ -2270,6 +2464,7 @@ def main() -> int:
     check_line_error()
     check_resend_guard()
     check_scan_and_lock()
+    check_watchdogs()
     check_push_wiring()
     check_push_paths_not_ignored()
     check_git_lock()

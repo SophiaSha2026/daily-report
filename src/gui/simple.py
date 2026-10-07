@@ -361,6 +361,13 @@ a.more{color:var(--dim);font-size:13px}
 <div class="dim">北京时间</div>
 <div class="bar-top" id="pills"></div>
 <div id="lines"></div>
+<h2>查一只股票 · 用起涨预测的模型给它打分</h2>
+<div class="card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<input id="pcode" inputmode="numeric" maxlength="6" placeholder="6 位代码，如 300829"
+ style="font:inherit;padding:8px 10px;width:150px;background:transparent;color:inherit;border:1px solid var(--line);border-radius:6px"
+ onkeydown="if(event.key==='Enter')predict()">
+<button onclick="predict()" id="pbtn">预测</button><span class="dim" id="phint"></span></div>
+<pre id="pout" class="dim" style="white-space:pre-wrap;margin:10px 0 0;font:13px/1.5 ui-monospace,Consolas,monospace"></pre></div>
 <h2>起涨预测 · 每份清单 20 天内涨超 50% 的只数</h2>
 <div class="card"><div class="lists" id="lists"></div></div>
 <h2 id="pt">长期调整突破 · 今天的和以前成立过的</h2>
@@ -429,6 +436,28 @@ function pattern(p){
   if(p.n_today!=null) bits.push(`${esc((p.date||"").slice(5))} 清单 A ${p.n_today} 只`
     +(p.n_b!=null?` · B（二次进攻前）${p.n_b} 只`:""));
   $("#pm").textContent=bits.join(" · ");
+}
+async function predict(){
+  const code=$("#pcode").value.trim();
+  if(!/^\d{6}$/.test(code)){$("#phint").textContent="要 6 位数字";return}
+  const b=$("#pbtn");b.disabled=true;$("#phint").textContent="算中（几秒）";$("#pout").textContent="";
+  try{
+    const r=await (await fetch("/api/predict?code="+code)).json();
+    $("#phint").textContent="";
+    if(!r.ok){$("#pout").textContent=r.error||"失败";return}
+    const bd={main:"主板",star:"科创",chinext:"创业",bj:"北交"}[r.board]||r.board;
+    const L=[];
+    L.push(`${r.code} ${r.name||""}  打分日 ${r.score_date}`+(r.stale?`（这只票最后一行是 ${r.last_row}）`:""));
+    L.push(`分数 ${r.score} / 100（预测值 ${r.p.toFixed(4)}，含${bd}系数 ${r.board_adj.toFixed(3)}）  全市场第 ${r.rank??"-"} / ${r.n_pool}，当天够格 ${r.n_qualified} 只`);
+    if(r.is_st)L.push("ST：清单 A 不收");else if(!r.eligible)L.push("上市不足 120 个交易日：清单 A 不收");
+    L.push((r.qualified?"够格：会上清单 A":`不够格（上清单要 ≥${r.score_min} 分且当天前 ${r.cap_a} 名）`)+`  连续够格 ${r.streak} 天`);
+    L.push(`近 ${r.history.length} 天分数  `+r.history.map(h=>h.date.slice(5)+":"+h.score).join(" "));
+    if(r.perf_bin){const p=r.perf_bin;L.push(`历史：${p.lo}~${p.hi-1} 分这档验证集命中 ${(100*p.hit).toFixed(1)}%（随便买 ${r.base}%，${p.lift.toFixed(1)} 倍，n=${p.n}）`)}
+    if(r.qualified){const p=r.perf_streak;L.push(`      连续够格 ${p.k} 天这档：${p.hit.toFixed(1)}%（${p.lift.toFixed(1)} 倍）`)}
+    L.push("注："+r.note);
+    $("#pout").textContent=L.join("\n");
+  }catch(e){$("#phint").textContent="";$("#pout").textContent="请求失败："+e}
+  finally{b.disabled=false}
 }
 async function load(){
   try{

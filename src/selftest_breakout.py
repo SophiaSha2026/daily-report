@@ -680,21 +680,10 @@ def check_refetch_short() -> None:
         ds_ = pd.date_range("2026-01-01", end, freq="B").strftime("%Y-%m-%d")
         return pd.DataFrame({"code": code, "date": ds_, "close": 10.0})
 
-    class _Pool:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *a):
-            return False
-
-        def map(self, fn, it, chunksize=None):
-            for c in it:
-                yield c, fake(c)
-
     tmp = Path(tempfile.mkdtemp(prefix="short_"))
-    raw, pool = B.RAW, B.ProcessPoolExecutor
+    raw, pool = B.RAW, B._sina_map
     B.RAW = tmp
-    B.ProcessPoolExecutor = lambda max_workers=None: _Pool()
+    B._sina_map = lambda cs: [(c, fake(c)) for c in cs]
     try:
         ok, short = B.refetch_codes(["600000", "600001", "600002"],
                                     target=target)
@@ -709,7 +698,67 @@ def check_refetch_short() -> None:
         ck(ok2 == ["600001"] and short2 == ["600000"] and got == {"600001"},
            "only_complete：没拉到目标日的不落分片（否则会清掉快照补的当天那根）")
     finally:
-        B.RAW, B.ProcessPoolExecutor = raw, pool
+        B.RAW, B._sina_map = raw, pool
+
+
+def _stuck_one(code: str):
+    """check_sina_pool 用的假新浪：模块级（进程池要 pickle）。STUCK 那只永远不回来。"""
+    if code == "STUCK":
+        time.sleep(300)
+    return code, pd.DataFrame({"code": [code]})
+
+
+def check_sina_pool() -> None:
+    """新浪进程池：一只卡住不能让整步卡住（2026-09-29 挂了 14 小时，教训 43）。"""
+    print("\n[新浪进程池看门狗]")
+    import backfill as B
+    cs = _real_codes(3)
+    idle = B.SINA_IDLE
+    B.SINA_IDLE = 5
+    t0 = time.monotonic()
+    try:
+        got = B._sina_map([cs[0], "STUCK", cs[1], cs[2]], fn=_stuck_one)
+    finally:
+        B.SINA_IDLE = idle
+    took = time.monotonic() - t0
+    ck([c for c, _ in got] == [cs[0], "STUCK", cs[1], cs[2]], "按传入顺序返回，一只不少")
+    ck(all(d is not None for c, d in got if c != "STUCK") and dict(got)["STUCK"] is None,
+       "回来了的照常用，卡住的那只按没拉到算（进 short，快照补当天那根）")
+    ck(took < 90, f"卡住的那只等满 SINA_IDLE 就结束进程池，不陪着等（{took:.0f} 秒）")
+
+
+def check_http_timeout() -> None:
+    """第三方库裸调 requests（不带 timeout）也要有时限：akshare 的新浪日线就是这样，
+    连接半死时永远等下去（教训 43）。本机起一个只收连接不回话的端口测。"""
+    print("\n[requests 默认超时]")
+    import socket
+    import threading
+    import requests
+    sys.path.insert(0, str(ROOT / "src"))
+    import datasource as ds
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(4)
+    held: list = []
+    threading.Thread(target=lambda: held.append(srv.accept()), daemon=True).start()
+    orig = requests.Session.request
+    try:
+        ds.http_timeout(2)
+        t0 = time.monotonic()
+        err = None
+        try:
+            requests.get(f"http://127.0.0.1:{srv.getsockname()[1]}/")
+        except requests.exceptions.Timeout as e:
+            err = e
+        took = time.monotonic() - t0
+        ck(err is not None and took < 20,
+           f"不带 timeout 的 requests.get 在默认时限后抛超时（{took:.1f} 秒）")
+        ds.http_timeout(99)
+        ck(getattr(requests.Session.request, "_default_timeout", None) == 2,
+           "重复调用不叠补丁、不改时限")
+    finally:
+        requests.Session.request = orig
+        srv.close()
 
 
 def check_update_status() -> None:
@@ -1273,6 +1322,64 @@ def check_risk_scope() -> None:
                  "CAP_PERF 暂按逐月滚动缓存实算的 11.36%/220 填")
 
 
+def check_month_weights() -> None:
+    """按月等权（实验 15）：一份实现、默认生效、生产和回测都走它（教训 34 / 26）。"""
+    print("\n[样本权重·按月等权]")
+    import ast
+    import model as M
+    df = pd.DataFrame({
+        "date": ["2024-09-02"] * 100 + ["2024-10-08"] * 10 + ["2024-11-04"] * 1})
+    w = M.month_weights(df)
+    s_ = pd.Series(w).groupby(df["date"].str[:7]).sum()
+    ck(np.allclose(s_.to_numpy(), s_.iloc[0]),
+       f"每个月的权重总和相等（{s_.round(3).to_dict()}）")
+    ck(abs(w.mean() - 1.0) < 1e-9, "权重均值为 1（不改变正则强度的量纲）")
+    ck(M.DEFAULT_WEIGHTING == "month" and M.L1Lgbm().weighting == "month"
+       and M.L0Logistic().weighting == "month",
+       "L0 / L1 默认按月等权")
+    try:
+        M.month_weights(pd.DataFrame({"x": [1, 2]}))
+        ck(False, "没有 date 列必须抛（静默退化成等权就是教训 26）")
+    except KeyError:
+        ck(True, "没有 date 列直接抛 KeyError")
+
+    # 权重真的到了 LightGBM：等权和按月等权的预测必须不一样（教训 32）
+    rng = np.random.default_rng(5)
+    n = 6000
+    d = pd.DataFrame({"date": np.repeat(["2024-08-01", "2024-09-02", "2024-10-08"],
+                                        [500, 5000, 500])})
+    d["f0__last"] = rng.normal(size=n)
+    d["f1__last"] = rng.normal(size=n)
+    d["y"] = ((d["f0__last"] > 0.8) | ((d["date"] == "2024-09-02")
+                                       & (d["f1__last"] > 0.3))).astype(float)
+    feats = ["f0__last", "f1__last"]
+    te = d.iloc[::7]
+    p_m = M.L1Lgbm(n_estimators=60, weighting="month").fit(d, feats, "y").predict_proba(te)
+    p_n = M.L1Lgbm(n_estimators=60, weighting="none").fit(d, feats, "y").predict_proba(te)
+    p_w = M.L1Lgbm(n_estimators=60, weighting="none").fit(
+        d, feats, "y", w=M.month_weights(d)).predict_proba(te)
+    ck(np.abs(p_m - p_n).max() > 1e-3, "按月等权和等权的预测不同（权重真的进了模型）")
+    ck(np.allclose(p_m, p_w), "显式传 month_weights 和默认口径逐位相同（一份实现）")
+
+    # 接线：生产和建缓存的那两处 L1Lgbm 不许把权重关掉；model.json 记口径
+    for fn, func_name in (("daily.py", "load_or_fit"), ("exp_window.py", "build_cache"),
+                          ("exp_calib.py", None)):
+        src = ast.parse((ROOT / "src" / "breakout" / fn).read_text(encoding="utf-8"))
+        calls = [n for n in ast.walk(src) if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Attribute) and n.func.attr == "L1Lgbm"]
+        off = [n for n in calls if any(k.arg == "weighting" for k in n.keywords)]
+        ck(calls and not off, f"{fn} 的 L1Lgbm 用默认权重口径（{len(calls)} 处，没有显式 weighting）")
+    dsrc = (ROOT / "src" / "breakout" / "daily.py").read_text(encoding="utf-8")
+    ck('"weighting": M.DEFAULT_WEIGHTING' in dsrc and 'meta.get("weighting"' in dsrc,
+       "model.json 记权重口径，load_or_fit 口径不一致就重训")
+    meta_p = ROOT / "state" / "breakout" / "model.json"
+    if meta_p.exists():
+        import json
+        meta = json.loads(meta_p.read_text(encoding="utf-8"))
+        ck(meta.get("weighting") == M.DEFAULT_WEIGHTING,
+           f"生产模型是按 {meta.get('weighting')} 训的（和 DEFAULT_WEIGHTING 一致）")
+
+
 def check_board_factors() -> None:
     """板块系数的拟合窗口不能和评估窗口重叠（否则成绩是样本内的）。"""
     print("\n[板块校正·不许偷看]")
@@ -1578,8 +1685,11 @@ def check_table_shape() -> None:
     # 所以判 <=；区间必须真的把点估计盖住，而且印在表里
     ck(lo <= top[1] <= hi and f"{lo:.1f}~{hi:.1f}%" in html,
        f"连续 {top[0]} 天那档印了 Wilson 区间 {lo:.1f}~{hi:.1f}%")
-    ck(E.STREAK_PERF[0][3] < E.SMALL_N and "color:#7c8794" in html,
-       f"样本少于 {E.SMALL_N} 的行灰掉")
+    # 哪一档样本少不是固定的：09-16 那组连续≥5 天只有 24 席，实验 15 之后最小一档
+    # 也有 53 席。有少于 SMALL_N 的档就必须灰，一个都没有就不许有灰行
+    small = [r for r in E.STREAK_PERF if r[3] < E.SMALL_N]
+    ck(("color:#7c8794" in html) == bool(small),
+       f"样本少于 {E.SMALL_N} 的行灰掉（{len(small)} 档样本少）")
 
 
 def check_chip_grid_overflow() -> None:
@@ -2888,6 +2998,8 @@ def main() -> int:
     check_holders_refresh()
     check_holders_partial()
     check_refetch_short()
+    check_sina_pool()
+    check_http_timeout()
     check_update_share_drift()
     check_update_coverage()
     check_update_gap()
@@ -2904,6 +3016,7 @@ def main() -> int:
     check_backtest_universe()
     check_acceptance_base()
     check_board_factors()
+    check_month_weights()
     check_purge_suspension()
     check_fselect_purge()
     check_fselect()

@@ -109,7 +109,10 @@ src/
   breakout/features.py   三层变换（横截面百分位->中性化->正交）+ 六组特征
   breakout/fselect.py    四道筛。**别改回 select.py**，和标准库冲突
   breakout/build.py      组装训练表
-  breakout/model.py      L0 逻辑回归 / L1 LightGBM / L2 GRU / L3 集成
+  breakout/model.py      L0 逻辑回归 / L1 LightGBM / L2 GRU / L3 集成。fit 默认**按月等权**
+                         （month_weights，2026-10-06 实验 15：924 那两个月占训练正样本
+                         近半，等权后验证集前 10 命中 9.95% -> 13.53%），model.json 记
+                         weighting，口径不一致 load_or_fit 自动重训
   breakout/validate.py   走向前 + 验收表；validate.pick 是选票规则的唯一实现
   breakout/arena.py      模型对比主脚本，封存数据的纪律在这里用代码强制
   breakout/daily.py      每日流程：打分 -> 风险剔除 -> 清单A/B
@@ -146,6 +149,9 @@ tools/rebuild_all.py     起涨预测口径改动之后的重建重训流水
 tools/update_perf.py     按实验产物改写 export.py 的成绩常量（默认 --from fixed）
 tools/rerun_breakout.py / resend_breakout.py   起涨预测重算 / 补发历史清单
 tools/dump_st.py         当前 ST 名单 -> cache/st_codes.json（回测剔 ST 用）
+tools/predict_one.py     单只股票预测：python tools/predict_one.py 600000。用生产模型 + 特征表给一只票
+                         打分（分数 / 名次 / 够不够格 / 近 20 天分数 / 历史命中率）。控制台首页
+                         「查一只股票」和 /api/predict 调它（2026-10-07）
 cache/                   codes.csv（代码表）、st_codes.json
 data/breakout/           daily.parquet（三年日线，gitignore）、train.parquet（特征表，
                          gitignore）、YYYY-MM/breakout_*.parquet（每日清单 A，入库）
@@ -661,6 +667,27 @@ GitHub runner 上用 Playwright 起 chromium 也一样能过（早盘的板块�
     快照补的当天那根清掉。selftest_breakout 钉住「重试真的重拉」。
     和教训 15 同一类：**重试之前先问一句，这次重试和上次有哪一点不一样。**
 
+43. **一个请求挂住，整条线跟着挂一夜**（2026-09-29）：16:30 起涨预测补日线，从新浪整段
+    重拉 43 只，进程池里一个 akshare 请求没带 timeout（`stock_zh_a_daily` 裸调
+    `requests.get`），连接半死就一直等。`ProcessPoolExecutor.map` 不返回，backfill 不退出，
+    local_run 的 `py()` 陪着等，一共 14 小时，清单次日 06:31 手动重跑才发出去。
+    三道本该兜底的都没兜住：计划任务 `IgnoreNew`，3 小时内不起新实例；3 小时后起了，
+    run_local.cmd 往被占着的日志里 `>>` 失败，python 根本没启动，退出码还是 0（实测）；
+    就算起了，进程表里那个卡死的 local_run 一直算「在跑」，锁过期也没用。
+    长期调整突破等了 45 分钟自己补了日线，照常发出，所以只丢了一条线。
+    现在每一层都有尽头：第三方库的 requests 补默认超时（`ds.http_timeout`，30 秒）；
+    新浪进程池每只最多等 10 分钟，等不到就结束池子、按没拉到算（`backfill._sina_map`）；
+    `py()` 每一步有时限（`local_run.STEP_LIMIT`，AST 钉住每次调用都带），超时结束整棵
+    进程树；`_git` 180 秒；整条流程总时限 `MAX_RUN`（起涨预测 5 小时、长期调整突破
+    6 小时，`arm_deadline` 到点结束自己）；下一次触发看到跑超了 `MAX_RUN` 的同线实例就
+    结束它、接手（`take_over_stuck`）；run_local.cmd 写不进主日志就换 `_busy.log`。
+    同一天还改了两处「开着机也不出清单」：新股不再算进 50 只的上限（09-28 的 57 只里
+    27 只是新股）；补跑到目标日次日 07:00 还超上限，就把没补齐的剔出清单照发
+    （`SHORT_LATE`，邮件抬头印「日线没补齐不参与 N 只」）。用户的要求是
+    「只要开机，就发清单」。
+    教训 15 说失败恢复要能从失败中恢复；这一条是另一面：**「卡住」不是失败，
+    不会触发任何重试，必须有一道时限把它判成失败，而且下一个实例要能接手。**
+
 ### 本地为主、云端托底（2026-09-15 起）
 
 用户方针（2026-09-15 定）：**手动 > 本机自动 > 云端。** 控制台手点随时优先；
@@ -686,6 +713,10 @@ DailyReport-Local-Sync       每天每 30 分钟只拉远端
   邮件顶部写「补发于」。试跑（`--dry`）带 `--no-wait` 不等。
 - **进程锁** `state/lock/<flow>.json`：控制台按钮和计划任务同一入口，后来者退出 0。
   2026-09-14 两边各起一个竞价线，发了两封一样的邮件。
+- **卡死看门狗**（教训 43）：每一步子阶段有时限（`STEP_LIMIT`），整条流程有总时限
+  （`MAX_RUN`，必须盖得住各步时限之和，selftest_gui 钉住）。跑超 `MAX_RUN` 的旧实例
+  不算「在跑」，下一次触发结束它并接手；run_local.cmd 写不进主日志时换
+  `tools/local_flow_<线>_busy.log`（再不行换带时间戳的）。
 - **日线写锁** `state/lock/daily_update.json`：两条线都会去补 `data/breakout/daily.parquet`
   （`backfill.py --stage update`，merge / refresh / sina 三个入口也拿同一把）。
   长期调整突破先看补到没有（`daily_ready`，和起涨预测同一份闸），起涨预测在跑就等它，

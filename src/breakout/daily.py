@@ -274,6 +274,11 @@ def load_or_fit(df: pd.DataFrame, force: bool = False,
                 # 旧模型在新语义的列上打分，列被删还会 KeyError。自动重训。
                 log.info("特征表指纹变了（%s -> %s），重训",
                          str(meta.get("fingerprint"))[:8], fp[:8])
+            elif meta.get("weighting", "none") != M.DEFAULT_WEIGHTING:
+                # 样本权重口径变了（实验 15 起按月等权）而模型是旧口径训的：
+                # 和指纹变了一样，自动重训
+                log.info("模型按 %s 权重训的，现在是 %s，重训",
+                         meta.get("weighting", "none"), M.DEFAULT_WEIGHTING)
             elif age <= MODEL_MAX_AGE:
                 log.info("用已有模型（%s 训练，%d 天前，%d 个特征）",
                          meta["fit_date"], age, len(meta["feats"]))
@@ -344,6 +349,7 @@ def load_or_fit(df: pd.DataFrame, force: bool = False,
         {"feats": feats, "quantiles": [float(x) for x in q],
          "fit_date": now_bj().strftime("%Y-%m-%d"), "train_cut": cut,
          "fingerprint": fp, "select_file": sel_p.name,
+         "weighting": M.DEFAULT_WEIGHTING,
          "importance_gain": imp},
         ensure_ascii=False), encoding="utf-8")
     log.info("模型已保存：%d 个特征 -> %s", len(feats), p)
@@ -466,6 +472,21 @@ def risk_filter(codes: list[str]) -> dict[str, str]:
         log.warning("定增检查跳过：%s", e)
 
     return bad
+
+
+def risk_skip(skip: set[str]):
+    """risk_filter 再加一条：今天日线没补齐的票也剔。返回给 select_a 的 risk_fn。
+
+    只在 local_run 补跑到次日早上还没补齐时用（BREAKOUT_SHORT_EXCLUDE，教训 43）：
+    除权后新浪还没出整段、历史没重新复权的票，特征里有一个假缺口，不能上清单。
+    """
+    def fn(cand: list[str]) -> dict[str, str]:
+        bad = risk_filter(cand)
+        for c in cand:
+            if c in skip and c not in bad:
+                bad[c] = "今天日线没补齐（除权后历史还没重拉）"
+        return bad
+    return fn
 
 
 def select_a(today: pd.DataFrame, proba, q, risk_fn=None,
@@ -756,9 +777,18 @@ def stage_scan(force_fit: bool = False) -> int:
     elig = today["code"].map(cnt).fillna(0) >= MIN_HISTORY_DAYS
 
     log.info("风险剔除中（ST / 减持 / 解禁 / 增发）")
+    # 今天日线没补齐的票（除权后新浪还没出整段、历史没重新复权）：只在补跑到
+    # 次日早上还没补齐时由 local_run 传进来，剔出清单、其余照发（教训 43）。
+    # 平时为空，这一段不起作用
+    import os
+    skip = {c for c in os.environ.get("BREAKOUT_SHORT_EXCLUDE", "").split(",") if c}
     # 选票和风险剔除只有 select_a 一份实现，tools/rerun_breakout.py 共用它
     picks, bad, n_q, n_ok = select_a(today, proba, obj["quantiles"],
+                                     risk_fn=risk_skip(skip) if skip else None,
                                      eligible=elig)
+    if skip:
+        log.warning("日线没补齐的 %d 只不上清单：%s", len(skip),
+                    ",".join(sorted(skip)[:20]))
     # 「够格」数的是门槛，「清单 A」数的是截断后的，两个数分开印：
     # 以前这行拿 len(picks) 冒充够格数，满员日和刚好够 10 只的日子打出来
     # 一模一样，够格 200 只也看不出来（S7）
@@ -790,6 +820,8 @@ def stage_scan(force_fit: bool = False) -> int:
     pool = update_pool(picks, date)
 
     blist = build_list_b(df, pool)
+    if skip and len(blist):
+        blist = blist[~blist["code"].isin(skip)].reset_index(drop=True)
     log.info("清单 B：%d 只（A 池 %d 只）", len(blist), len(pool))
 
     OUT.mkdir(parents=True, exist_ok=True)
@@ -798,7 +830,6 @@ def stage_scan(force_fit: bool = False) -> int:
                         force_ascii=False, indent=2)
     blist.to_json(OUT / "list_b.json", orient="records",
                   force_ascii=False, indent=2)
-    import os
     (OUT / "run_meta.json").write_text(json.dumps(
         {"date": date, "n_a": len(picks), "n_b": len(blist),
          # 规则要跟着清单一起落盘：邮件和面板按它印「上榜条件是 ≥N 分前 M 名」，
@@ -815,6 +846,8 @@ def stage_scan(force_fit: bool = False) -> int:
          # 够格总数也落盘：清单永远是 10 只，看不出门槛有没有起作用。
          # n_qualified > cap_a 就说明当天是上限在决定清单，不是门槛
          "n_qualified": n_q, "n_ok": n_ok,
+         # 日线没补齐、剔出清单的只数（平时 0）。邮件和面板抬头照实印出来
+         "short_excluded": len(skip),
          # 试跑也走到这里；不标 dry 的话计划任务会把试跑当「今天跑完了」
          "dry": bool(os.environ.get("DRY_RUN"))},
         ensure_ascii=False), encoding="utf-8")

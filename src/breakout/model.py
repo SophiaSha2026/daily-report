@@ -20,6 +20,19 @@ y_t0（真正的起涨点）的正样本率比 y_up 低一个量级——一段�
 这里用**按月分层的负样本下采样**：每个月内按固定比例抽负样本，
 保持每月的正负比一致。这一手同时干掉两件事：不平衡，以及 2024-09
 那个月的样本量碾压其他月份（设计文档 2.1）。
+
+下采样压不住 924（2026-10-06，实验 15）
+---------------------------------------
+上面那段只对负样本充裕的月份成立。2024-09 当月 32% 的行是正样本，负样本不够
+配到 1:12，整月全进，正负比 1:2。结果训练样本里 2024-09 占 46% 的正样本
+（2025-03 那个月的训练集，32,010 / 69,252），模型学的「起涨长什么样」将近一半
+来自同一段行情。所以 L0 / L1 的 fit 默认再加一层 **按月等权**（month_weights：
+每个月的样本权重总和相等），验证集前 10 命中 9.95% -> 13.53%，按天配对 t=4.5，
+换种子 t=4.6，每个板块内都赢。时间衰减 / 滚动窗口 / 续训都不如它
+（docs/breakout_log.md 实验 15）。L2 的损失里没接这个权重（它只是比较用的尺子）。
+
+权重的唯一实现是 month_weights，生产（daily.load_or_fit）和回测（exp_window /
+exp_calib / arena）都经 L1Lgbm.fit 默认拿到它，不许各自再算一份（教训 34）。
 """
 from __future__ import annotations
 
@@ -32,6 +45,27 @@ log = logging.getLogger("model")
 
 NEG_PER_POS = 12       # 每个正样本配多少负样本
 SEED = 7
+# 样本权重口径。"month" = 按月等权（实验 15），"none" = 等权。生产模型的 model.json
+# 记它，口径不一致就重训（daily.load_or_fit）
+DEFAULT_WEIGHTING = "month"
+
+
+def month_weights(df: pd.DataFrame) -> np.ndarray:
+    """按月等权：每个月（date 前 7 位）的权重总和相等，全体均值 1。
+
+    没有 date 列直接抛：权重静默退化成等权就是教训 26 那种「规则写了没人执行」。
+    """
+    mon = df["date"].astype(str).str[:7]
+    w = 1.0 / mon.map(mon.value_counts()).to_numpy(float)
+    return w / w.mean()
+
+
+def sample_weights(df: pd.DataFrame, weighting: str) -> np.ndarray | None:
+    if weighting == "month":
+        return month_weights(df)
+    if weighting == "none":
+        return None
+    raise ValueError(f"未知的权重口径 {weighting!r}")
 
 
 def stratified_sample(df: pd.DataFrame, y: str,
@@ -75,14 +109,15 @@ class L0Logistic:
     模块 docstring：线性 L1 会砍掉 GBDT 要的组合特征）。"""
     name = "L0_logistic"
 
-    def __init__(self, C: float = 0.05):
+    def __init__(self, C: float = 0.05, weighting: str = DEFAULT_WEIGHTING):
         self.C = C
+        self.weighting = weighting
         self.m = None
         self.cols: list[str] = []
         self.mu = None
         self.sd = None
 
-    def fit(self, df, cols, y):
+    def fit(self, df, cols, y, w=None):
         # sklearn 1.8 起 penalty 被 l1_ratio 取代，但 liblinear 还认 penalty。
         # 警告每月刷一次会把走向前的日志淹掉，这里就地静音。
         import warnings
@@ -97,7 +132,8 @@ class L0Logistic:
         self.mu, self.sd = X.mean(0), X.std(0) + 1e-9
         self.m = LogisticRegression(
             penalty="l1", C=self.C, solver="liblinear", max_iter=2000)
-        self.m.fit((X - self.mu) / self.sd, yy)
+        w = sample_weights(df, self.weighting) if w is None else np.asarray(w, float)
+        self.m.fit((X - self.mu) / self.sd, yy, sample_weight=w)
         nz = int((self.m.coef_[0] != 0).sum())
         log.info("  L0 拟合完成，非零系数 %d/%d", nz, len(cols))
         return self
@@ -114,22 +150,25 @@ class L0Logistic:
 class L1Lgbm:
     name = "L1_lightgbm"
 
-    def __init__(self, **kw):
+    def __init__(self, weighting: str = DEFAULT_WEIGHTING, **kw):
         self.p = dict(
             objective="binary", n_estimators=400, learning_rate=0.04,
             num_leaves=31, min_child_samples=200,
             subsample=0.8, subsample_freq=1, colsample_bytree=0.7,
             reg_lambda=5.0, random_state=SEED, n_jobs=4, verbose=-1)
         self.p.update(kw)
+        self.weighting = weighting
         self.m = None
         self.cols: list[str] = []
 
-    def fit(self, df, cols, y):
+    def fit(self, df, cols, y, w=None):
+        """w 显式给了就用它，否则按 self.weighting 从 df 的月份算（默认按月等权）。"""
         import lightgbm as lgb
         self.cols = cols
         X, yy = _xy(df, cols, y)
         self.m = lgb.LGBMClassifier(**self.p)
-        self.m.fit(X, yy)
+        w = sample_weights(df, self.weighting) if w is None else np.asarray(w, float)
+        self.m.fit(X, yy, sample_weight=w)
         return self
 
     def predict_proba(self, df):

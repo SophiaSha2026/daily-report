@@ -51,14 +51,16 @@ import os
 import random
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pandas as pd
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-OUT = ROOT / "data" / "breakout"
+# BACKFILL_OUT / BACKFILL_HIST_START 两个环境变量只给实验用（实验 16 第 6 条：
+# 把 2019 年起的日线拉到另一张表，不碰生产）。不设就是生产的目录和起点。
+OUT = Path(os.environ.get("BACKFILL_OUT") or str(ROOT / "data" / "breakout"))
 RAW = OUT / "raw"
 STATE = ROOT / "state" / "breakout"
 
@@ -88,7 +90,7 @@ FAIL_STREAK = 8
 COOLDOWN = 150.0
 
 BARS = 800             # 腾讯一次最多给这么多，约 3.28 年
-HIST_START = "2023-01-01"   # 日线表只保留这之后的（特征最长窗口 250 天，三年够用）
+HIST_START = os.environ.get("BACKFILL_HIST_START") or "2023-01-01"   # 日线表只保留这之后的（特征最长窗口 250 天，三年够用）
 # 腾讯换手率反推出来的流通股本 vs 昨天那根新浪 K 线的股本，超过这个就整段重拉。
 # 解禁 / 增发 / 回购注销都不动价格，昨收核对一个都接不住（daily.parquet 实测
 # 股本跳升 ≥1.25 倍的 3649 次里 3624 次价格不变）。见 _snap_row。
@@ -340,12 +342,29 @@ def merge_daily(pattern: str = "daily_*.parquet") -> int:
 #  所以这里用**多进程**，每个进程一个独立 V8 实例。
 SINA_WORKERS = 4
 LIMIT = {"n": 0}
+# 新浪进程池的看门狗（秒）：这么久一只结果都没回来，就当池子卡死，结束子进程，
+# 没回来的按没拉到算。单只最坏情形（每个请求都等满 ds.HTTP_TIMEOUT、重试三轮）
+# 不到 5 分钟，10 分钟不会误杀正常的慢请求（2026-09-29，教训 43）
+SINA_IDLE = 600
+
+
+def _net_guard() -> None:
+    """这个进程里没写 timeout 的 requests 调用补默认超时（ds.http_timeout）。
+
+    主进程（股东人数也走 akshare）和每个新浪子进程都要调：spawn 起的子进程
+    是全新的解释器，主进程打的补丁带不过去。"""
+    src = str(ROOT / "src")
+    if src not in sys.path:
+        sys.path.insert(0, src)
+    import datasource as ds
+    ds.http_timeout()
 
 
 def _sina_one(code: str):
-    """必须是模块级函数：ProcessPoolExecutor 要 pickle 它。"""
+    """必须是模块级函数：进程池要 pickle 它。"""
     import warnings
     warnings.filterwarnings("ignore")
+    _net_guard()
     import akshare as ak
     sym = prefix(code)
     for attempt in range(3):
@@ -370,6 +389,38 @@ def _sina_one(code: str):
         except Exception:
             time.sleep(1.5 * (attempt + 1))
     return code, None
+
+
+def _sina_map(cs: list[str], fn=None) -> list[tuple[str, pd.DataFrame | None]]:
+    """新浪逐只拉（多进程），按 cs 的顺序返回 [(代码, 表或 None)]。
+
+    起新浪进程池只有这一处，refetch_codes 和 stage_daily_sina 都走它。
+    以前是 ProcessPoolExecutor.map：一个子进程挂住，map 就永远不返回，
+    2026-09-29 16:30 起涨预测挂在这里 14 小时（教训 43）。现在每只结果最多
+    等 SINA_IDLE 秒，等不到就 terminate 整个池子，没回来的按没拉到算：这一步
+    只会「少几只」，不会「卡住」。
+    fn 只给自测换成一个会卡住的假实现（必须是模块级函数，进程池要 pickle）。
+    """
+    if not cs:
+        return []
+    fn = fn or _sina_one
+    import multiprocessing as mp
+    got: dict[str, pd.DataFrame | None] = {}
+    pool = mp.get_context("spawn").Pool(min(SINA_WORKERS, len(cs)))
+    try:
+        it = pool.imap_unordered(fn, cs)
+        for _ in cs:
+            try:
+                c, d = it.next(timeout=SINA_IDLE)
+            except mp.TimeoutError:
+                log.warning("新浪 %d 秒没有一只回来，结束进程池；还没回来的 %d 只按没拉到算",
+                            SINA_IDLE, len(cs) - len(got))
+                break
+            got[c] = d
+    finally:
+        pool.terminate()
+        pool.join()
+    return [(c, got.get(c)) for c in cs]
 
 
 def stage_daily_sina() -> int:
@@ -403,13 +454,12 @@ def stage_daily_sina() -> int:
     STEP = 200
     for i in range(0, len(todo), STEP):
         chunk = todo[i:i + STEP]
-        with ProcessPoolExecutor(max_workers=SINA_WORKERS) as ex:
-            for c, d in ex.map(_sina_one, chunk, chunksize=4):
-                if d is None:
-                    failed.append(c)
-                else:
-                    buf.append(d)
-                    done.add(c)
+        for c, d in _sina_map(chunk):
+            if d is None:
+                failed.append(c)
+            else:
+                buf.append(d)
+                done.add(c)
         if buf:
             # 重拉的分片带时间戳：merge 按文件名排序、后者覆盖前者，
             # 它们必须排在原始分片 sina_0000.. 之后
@@ -479,11 +529,10 @@ def refetch_codes(cs: list[str], target: str | None = None,
     if not cs:
         return [], []
     buf, got = [], {}
-    with ProcessPoolExecutor(max_workers=SINA_WORKERS) as ex:
-        for c, d in ex.map(_sina_one, cs, chunksize=2):
-            if d is not None:
-                buf.append(d)
-                got[c] = str(d["date"].max())
+    for c, d in _sina_map(cs):
+        if d is not None:
+            buf.append(d)
+            got[c] = str(d["date"].max())
     n_ok = len(buf)
     if only_complete and target:
         # 重试那条路：还没拉到目标日的不落分片。_ref 对它的代码是整段权威，
@@ -771,6 +820,9 @@ def _stage_update(target: str = "") -> int:
              len(rows), r["stale"], len(newcodes), len(refetch), missing)
     status = {"date": target, "requested": len(cs), "appended": len(rows),
               "stale": r["stale"], "newcodes": len(newcodes),
+              # 哪几只是新票：local_run 数「成片补不上」时不算它们（教训 43）。
+              # 和下面 refetch_codes 的截断同一个 200
+              "new_codes": newcodes[:200],
               "refetch": len(refetch), "refetch_only": len(ref_only),
               "missing": missing, "missing_codes": r["noq"][:20],
               "prev_n": prev_n, "covered": covered,
@@ -993,6 +1045,7 @@ def main() -> int:
     ap.add_argument("--target", default="",
                     help="目标日 YYYY-MM-DD，由编排层传入（只 --stage update 用）")
     a = ap.parse_args()
+    _net_guard()        # 股东人数等主进程里的 akshare 调用也不许无限等（教训 43）
     if a.stage == "update":
         return stage_update(target=a.target)      # 锁在 stage_update 里拿
     if a.stage in ("merge", "refresh", "sina"):
