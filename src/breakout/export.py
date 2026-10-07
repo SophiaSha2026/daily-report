@@ -380,6 +380,8 @@ def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
             nq_txt += f"（已按前 {cap} 名截断）"
     md = meta.get("model_date")
     md_txt = f" · 模型训练于 {md}" if md else ""
+    if meta.get("refit_rejected"):
+        md_txt += "（最近一次重训没过验收，沿用旧模型）"
     # 期望命中率怎么印（2026-09-16 用户定）：**先看是不是满员日，再按近期基准折算**。
     #
     # 以前印的是按本份清单板块构成加权的数。那个修法解决的是「清单里科创占

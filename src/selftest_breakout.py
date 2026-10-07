@@ -1380,6 +1380,73 @@ def check_month_weights() -> None:
            f"生产模型是按 {meta.get('weighting')} 训的（和 DEFAULT_WEIGHTING 一致）")
 
 
+def check_accept_model() -> None:
+    """重训验收（计划 3.7）：坏模型不上线、正常重训永远过得去、接线在 save_model 之前。"""
+    print("\n[重训验收]")
+    import ast
+    import lightgbm as lgb
+    import daily as D
+    rng = np.random.default_rng(3)
+    n_days, per_day = 90, 300
+    dates = pd.date_range("2025-01-01", periods=n_days, freq="B").strftime("%Y-%m-%d")
+    df = pd.DataFrame({"date": np.repeat(dates, per_day),
+                       "code": np.tile([f"{i:06d}" for i in range(per_day)], n_days)})
+    for i in range(12):
+        df[f"f{i}__last"] = rng.normal(size=len(df)).astype("float32")
+    # 标签由 f0 决定（有信号），加噪音
+    df["y_up"] = ((df["f0__last"] + 0.7 * rng.normal(size=len(df))) > 1.6).astype(float)
+    feats = [c for c in df.columns if "__" in c]
+    cut = dates[-5]
+    tr = df[df["date"] < cut]
+    X = tr[feats].to_numpy(np.float32)
+    good = lgb.LGBMClassifier(n_estimators=60, verbose=-1, random_state=1).fit(X, tr["y_up"])
+    # 坏模型：标签打乱
+    bad = lgb.LGBMClassifier(n_estimators=60, verbose=-1, random_state=1).fit(
+        X, rng.permutation(tr["y_up"].to_numpy()))
+    q_good = np.quantile(good.predict_proba(X)[:, 1], np.linspace(0, 1, 101))
+    q_bad = np.quantile(bad.predict_proba(X)[:, 1], np.linspace(0, 1, 101))
+    old_good = {"booster": good.booster_, "feats": feats, "quantiles": q_good, "fit_date": "2025-04-01"}
+    old_bad = {"booster": bad.booster_, "feats": feats, "quantiles": q_bad, "fit_date": "2025-04-01"}
+
+    v1 = D.accept_model(good.booster_, feats, q_good, old_bad, df, cut)
+    ck(v1["accepted"], f"好模型对坏旧模型：通过（{v1['reasons']}）")
+    v2 = D.accept_model(bad.booster_, feats, q_bad, old_good, df, cut)
+    ck(not v2["accepted"] and any("旧模型" in r for r in v2["reasons"]),
+       f"坏模型对好旧模型：挡下，理由指向旧模型（{v2['reasons']}）")
+    v3 = D.accept_model(good.booster_, feats, q_good, old_good, df, cut)
+    ck(v3["accepted"], "同一个模型重训：通过（正常重训永远过得去）")
+    v4 = D.accept_model(good.booster_, feats, q_good, None, df, cut)
+    ck(v4["accepted"] and "old" not in v4, "没有旧模型：只做下限检查，通过")
+    # 刻度失真：分位点全是 0，所有票都 ≥97 分
+    v5 = D.accept_model(good.booster_, feats, np.zeros(101), old_good, df, cut)
+    ck(not v5["accepted"] and any("刻度" in r for r in v5["reasons"]),
+       f"分位点坏了（人人 100 分）：挡下（{v5['reasons']}）")
+    few = lgb.LGBMClassifier(n_estimators=30, verbose=-1, random_state=1).fit(
+        tr[feats[:3]].to_numpy(np.float32), tr["y_up"])
+    q_few = np.quantile(few.predict_proba(tr[feats[:3]].to_numpy(np.float32))[:, 1],
+                        np.linspace(0, 1, 101))
+    v6 = D.accept_model(few.booster_, feats[:3], q_few, old_good, df, cut)
+    ck(not v6["accepted"] and any("入模列数" in r for r in v6["reasons"]), "入模列数太少：挡下")
+
+    # 接线：load_or_fit 里 accept_model 在 save_model 之前；run_meta 带 refit_rejected
+    src = (ROOT / "src" / "breakout" / "daily.py").read_text(encoding="utf-8")
+    fn = next(f for f in ast.walk(ast.parse(src))
+              if isinstance(f, ast.FunctionDef) and f.name == "load_or_fit")
+    names = []
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Call):
+            f_ = node.func
+            nm = f_.id if isinstance(f_, ast.Name) else getattr(f_, "attr", "")
+            if nm in ("accept_model", "save_model"):
+                names.append((nm, node.lineno))
+    acc = [ln for nm, ln in names if nm == "accept_model"]
+    sav = [ln for nm, ln in names if nm == "save_model"]
+    ck(acc and sav and acc[0] < sav[0], "load_or_fit 先验收再 save_model")
+    ck('"refit_rejected": refit_rejected_recently()' in src, "run_meta 带 refit_rejected")
+    esrc = (ROOT / "src" / "breakout" / "export.py").read_text(encoding="utf-8")
+    ck('meta.get("refit_rejected")' in esrc, "邮件抬头读 refit_rejected")
+
+
 def check_board_factors() -> None:
     """板块系数的拟合窗口不能和评估窗口重叠（否则成绩是样本内的）。"""
     print("\n[板块校正·不许偷看]")
@@ -3027,6 +3094,7 @@ def main() -> int:
     check_acceptance_base()
     check_board_factors()
     check_month_weights()
+    check_accept_model()
     check_purge_suspension()
     check_fselect_purge()
     check_fselect()

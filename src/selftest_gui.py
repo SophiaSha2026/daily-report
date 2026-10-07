@@ -2366,7 +2366,7 @@ def check_watchdogs() -> None:
 
     # 3. 总时限：MAX_RUN 盖得住各步时限之和，否则流程内的看门狗没出手就被当卡死
     S = L.STEP_LIMIT
-    bk = S["backfill"][0] + S["build"][0] + S["scan"][0] + 600 + S["send"][0]
+    bk = S["backfill"][0] + S["build"][0] + S["chain"][0] + S["scan"][0] + 600 + S["send"][0]
     pb = (L.PULLBACK_WAIT_DAILY_MIN * 60 + S["backfill"][0] + S["pb_scan"][0]
           + (17 * 60 + 58 - 16 * 60) * 60 + S["pb_send"][0])
     ck(bk <= L.MAX_RUN["breakout"] * 3600 - 300,
@@ -2447,6 +2447,29 @@ def check_watchdogs() -> None:
     ck(bf.count("_net_guard()") >= 2, "新浪子进程和 backfill 主进程都补了 requests 默认超时")
 
 
+def check_refit_chain_wiring() -> None:
+    """月度重估链（计划 3.6）：模型到期那天在打分之前跑，有时限，失败不挡发信。"""
+    print("\n[月度重估链·接线]")
+    import ast
+    import local_run as L
+    src = (ROOT / "src" / "local_run.py").read_text(encoding="utf-8")
+    fn = next(f for f in ast.walk(ast.parse(src))
+              if isinstance(f, ast.FunctionDef) and f.name == "flow_breakout")
+    calls = [(n.lineno, [a.value for a in n.args if isinstance(a, ast.Constant)])
+             for n in ast.walk(fn) if isinstance(n, ast.Call)
+             and isinstance(n.func, ast.Name) and n.func.id == "py"]
+    chain = [ln for ln, args in calls if any("refit_chain" in str(a) for a in args)]
+    scan = [ln for ln, args in calls if "scan" in args]
+    ck(chain and scan and chain[0] < scan[0], "flow_breakout 在打分之前调 tools/refit_chain.py")
+    ck("chain" in L.STEP_LIMIT and L.STEP_LIMIT["chain"][0] >= 20 * 60,
+       "重估链有自己的时限（≥20 分钟）")
+    ck(callable(getattr(L, "model_due", None)), "model_due 存在")
+    seg = src.split("def flow_breakout(")[1].split("\ndef ")[0]
+    ck('"src/breakout/export.py"' in seg,
+       "起涨预测推送路径带 src/breakout/export.py（常量由重估链改写）")
+    ck((ROOT / "tools" / "refit_chain.py").exists(), "tools/refit_chain.py 在")
+
+
 def main() -> int:
     import time
     t0 = time.time()
@@ -2483,6 +2506,7 @@ def main() -> int:
     check_log_time_bj()
     check_task_sentinel()
     check_http()
+    check_refit_chain_wiring()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")

@@ -279,6 +279,9 @@ STEP_LIMIT = {
     "backfill": (120 * 60, 20 * 60),
     "build": (60 * 60, None),         # 特征表，平时 13 分钟
     "scan": (45 * 60, None),          # 打分，平时一两分钟；换了特征口径会重训模型
+    # 月度重估链（模型到期那天，打分之前）：逐月滚动成绩表 + 收缩板块系数 + 分档 +
+    # 邮件常量 + 按板块命中率 + 自测，平时 12 分钟。失败不挡发信（邮件防呆会打星号）
+    "chain": (35 * 60, None),
     "send": (20 * 60, None),          # 面板 + 邮件，平时半分钟
     "pb_scan": (20 * 60, None),       # 长期调整突破扫描，平时 20 秒
     "pb_send": (20 * 60, None),       # 另加等到 17:58 的时间，见 flow_pullback
@@ -1533,6 +1536,14 @@ def flow_breakout(dry: bool) -> int:
         return rc
 
     step(3, n, "打分 + 出清单")
+    # 模型到期那天先跑月度重估链（计划 3.6）：成绩表 / 板块系数 / 邮件常量和当天要重训的
+    # 模型同一天刷新，否则邮件的失效保护会把当天的清单标成「旧规则的成绩」。
+    # 教训 36 那条流水以前是手跑的，漏一步就是数字悄悄属于另一套规则
+    if not dry and model_due():
+        log.info("模型到期，先跑月度重估链（tools/refit_chain.py）")
+        rc = py("tools/refit_chain.py", timeout=STEP_LIMIT["chain"][0])
+        if rc != 0:
+            log.warning("月度重估链没跑完（退出码 %d），照常打分；邮件会按防呆标注", rc)
     rc = py("src/breakout/daily.py", "--stage", "scan",
             timeout=STEP_LIMIT["scan"][0])
     if rc != 0:
@@ -1561,9 +1572,30 @@ def flow_breakout(dry: bool) -> int:
         log.error("send 退出码 0 但 out_breakout/mail_sent.json 不是 %s 的，"
                   "不推 sent 标记（云端 20:30 会发「本机没跑」提醒）", d)
         rc = 1
+    # export.py 的成绩常量由月度重估链改写（tools/update_perf.py），改了要一起推
     push_all(f"起涨预测 {d} [local]",
-             [f"data/breakout/{d[:7]}", "out_breakout", "state/breakout"], dry)
+             [f"data/breakout/{d[:7]}", "out_breakout", "state/breakout",
+              "src/breakout/export.py"], dry)
     return rc
+
+
+def model_due() -> bool:
+    """起涨预测的模型今天会不会重训：没有模型、到了 MODEL_MAX_AGE、或权重口径不一致。
+    判据和 daily.load_or_fit 同源（读同一份 model.json，常量从 daily 取）。"""
+    try:
+        sys.path.insert(0, str(ROOT / "src" / "breakout"))
+        import daily as D
+        import model as M
+        st = D.model_status()
+        if not st.get("exists"):
+            return True
+        if st.get("days_to_refit", 1) <= 0:
+            return True
+        meta = json.loads((D.model_path().with_suffix(".json")).read_text(encoding="utf-8"))
+        return meta.get("weighting", "none") != M.DEFAULT_WEIGHTING
+    except Exception as e:  # noqa: BLE001
+        log.warning("判不出模型到没到期（%s），按没到期", e)
+        return False
 
 
 def arm_deadline(flow: str) -> threading.Timer:

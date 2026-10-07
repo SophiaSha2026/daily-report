@@ -249,6 +249,116 @@ def feature_fingerprint(df: pd.DataFrame,
     return hashlib.md5(key.encode("utf-8")).hexdigest()
 
 
+ACCEPT_WINDOW = 60       # 验收窗口：训练截止日之前的 60 个交易日
+ACCEPT_TOP10_DROP = 0.03  # 新模型在这段上的前 10 命中比旧模型低这么多、且 AP 也低，判坏
+ACCEPT_FEATS = (10, 150)  # 入模列数的合理范围
+ACCEPT_QUAL_MAX = 200     # 窗口内每天 ≥SCORE_MIN 分只数的中位数超过它 = 刻度失真
+REFIT_STATUS = STATE / "refit_status.json"
+
+
+def _load_existing(p: Path, meta_p: Path) -> dict | None:
+    """磁盘上现有的模型（不管多老、指纹对不对），给验收当对照。读不出来就 None。"""
+    if not (p.exists() and meta_p.exists()):
+        return None
+    try:
+        import lightgbm as lgb
+        meta = json.loads(meta_p.read_text(encoding="utf-8"))
+        return {"booster": lgb.Booster(model_file=str(p)), "feats": list(meta["feats"]),
+                "quantiles": np.array(meta["quantiles"]), "fit_date": meta.get("fit_date", ""),
+                "train_cut": meta.get("train_cut", "")}
+    except Exception as e:  # noqa: BLE001
+        log.warning("旧模型读不出来（%s），这次重训没有对照", e)
+        return None
+
+
+def _eval_window(df: pd.DataFrame, cut: str, days: int = ACCEPT_WINDOW) -> pd.DataFrame:
+    dates = sorted(df["date"].unique())
+    i = dates.index(cut) if cut in dates else len(dates)
+    win = set(dates[max(i - days, 0):i])
+    w = df[df["date"].isin(win)]
+    return w[np.isfinite(w["y_up"])]
+
+
+def _top10_hit(w: pd.DataFrame, p: np.ndarray, k: int = 10) -> float:
+    t = w[["date", "y_up"]].assign(_p=p).sort_values(["date", "_p"], ascending=[True, False])
+    t["_r"] = t.groupby("date").cumcount() + 1
+    t = t[t["_r"] <= k]
+    return float(t["y_up"].mean()) if len(t) else float("nan")
+
+
+def accept_model(booster, feats: list[str], q: np.ndarray, old: dict | None,
+                 df: pd.DataFrame, cut: str) -> dict:
+    """重训验收（计划 3.7）：一次坏重训不许直接上线。
+
+    不是选模型，是防事故：特征表坏了一列、刻度算错、训练样本被截空，模型照样能
+    训出来、打出分、发出去。验收窗口是训练截止日前 60 个交易日 —— 新模型见过这段
+    （样本内），旧模型大多没见过；**新模型在自己学过的数据上还明显不如旧模型**，
+    才判坏。所以这不是公平比较，是下限检查，正常重训永远过得去。
+
+    判坏（任一）：入模列数不在 ACCEPT_FEATS 内；预测值有 NaN；窗口内每天 ≥SCORE_MIN
+    分的只数中位数超过 ACCEPT_QUAL_MAX（刻度失真，97 分放行半个市场）；有旧模型且新模型
+    前 10 命中低于旧模型 ACCEPT_TOP10_DROP 以上**同时** AP 也更低。
+    """
+    from sklearn.metrics import average_precision_score
+    reasons: list[str] = []
+    out = {"accepted": True, "reasons": reasons, "at": now_bj().isoformat(timespec="seconds"),
+           "cut": cut, "n_feats": len(feats)}
+    if not (ACCEPT_FEATS[0] <= len(feats) <= ACCEPT_FEATS[1]):
+        reasons.append(f"入模列数 {len(feats)} 不在 {ACCEPT_FEATS} 内")
+    w = _eval_window(df, cut)
+    out["window_rows"] = int(len(w))
+    if len(w) < 1000:
+        reasons.append(f"验收窗口只有 {len(w)} 行")
+    else:
+        X = np.nan_to_num(w[feats].to_numpy(np.float32), nan=0.0, posinf=0.0, neginf=0.0)
+        p = booster.predict(X)
+        if not np.isfinite(p).all():
+            reasons.append("预测值有 NaN")
+        else:
+            sc = to_score(p, q)
+            qual = pd.Series(sc >= SCORE_MIN).groupby(w["date"].to_numpy()).sum()
+            out["qual_median"] = float(qual.median())
+            if qual.median() > ACCEPT_QUAL_MAX:
+                reasons.append(f"窗口内每天 ≥{SCORE_MIN} 分中位数 {qual.median():.0f} 只，刻度失真")
+            out["new"] = {"top10": _top10_hit(w, p),
+                          "ap": float(average_precision_score(w["y_up"], p))}
+            if old is not None and all(c in w.columns for c in old["feats"]):
+                Xo = np.nan_to_num(w[old["feats"]].to_numpy(np.float32), nan=0.0,
+                                   posinf=0.0, neginf=0.0)
+                po = old["booster"].predict(Xo)
+                out["old"] = {"top10": _top10_hit(w, po),
+                              "ap": float(average_precision_score(w["y_up"], po)),
+                              "fit_date": old.get("fit_date", "")}
+                if (out["new"]["top10"] < out["old"]["top10"] - ACCEPT_TOP10_DROP
+                        and out["new"]["ap"] < out["old"]["ap"]):
+                    reasons.append("在自己训练过的近 %d 天上前 10 命中 %.1f%% 比旧模型 %.1f%% 低、"
+                                   "AP %.4f 也比 %.4f 低" % (
+                                       ACCEPT_WINDOW, 100 * out["new"]["top10"],
+                                       100 * out["old"]["top10"], out["new"]["ap"],
+                                       out["old"]["ap"]))
+    out["accepted"] = not reasons
+    return out
+
+
+def _write_refit_status(v: dict) -> None:
+    try:
+        STATE.mkdir(parents=True, exist_ok=True)
+        REFIT_STATUS.write_text(json.dumps(v, ensure_ascii=False, indent=1, default=float),
+                                encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        log.warning("refit_status 没落盘: %s", e)
+
+
+def refit_rejected_recently(days: int = 35) -> bool:
+    """上一次重训被验收挡下、而且还在重训周期内。邮件抬头和控制台印一句。"""
+    try:
+        v = json.loads(REFIT_STATUS.read_text(encoding="utf-8"))
+        at = dt.date.fromisoformat(str(v.get("at", ""))[:10])
+        return (not v.get("accepted", True)) and (now_bj().date() - at).days <= days
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def load_or_fit(df: pd.DataFrame, force: bool = False,
                 gap: int = TRAIN_END_GAP):
     """加载模型；没有或太旧就重训。
@@ -315,6 +425,20 @@ def load_or_fit(df: pd.DataFrame, force: bool = False,
     # exp_window.build_cache（132~134 行）用的是同一套构造，改这里必须同步改
     # 那边，否则回测的 97 分和生产的 97 分不是同一个刻度（教训 30）。
     q = np.quantile(mdl.predict_proba(trs), np.linspace(0, 1, 101))
+    # 验收（计划 3.7）：没过就保留旧模型，状态落盘给邮件抬头和控制台。
+    # 没有旧模型（首次）只做下限检查；下限都过不去就只能带病上线并出声
+    old = _load_existing(p, meta_p)
+    verdict = accept_model(mdl.m.booster_, feats, q, old, df, cut)
+    _write_refit_status(verdict)
+    if not verdict["accepted"]:
+        if old is not None:
+            log.error("重训后的模型没过验收，保留 %s 训的旧模型：%s",
+                      old.get("fit_date", "?"), "；".join(verdict["reasons"]))
+            return old
+        log.error("重训后的模型没过验收（%s），但没有旧模型可退，照用", "；".join(verdict["reasons"]))
+    else:
+        log.info("重训验收通过：前 10 命中 %.1f%%%s", 100 * verdict.get("new", {}).get("top10", float("nan")),
+                 ("（旧模型 %.1f%%）" % (100 * verdict["old"]["top10"])) if verdict.get("old") else "")
     STATE.mkdir(parents=True, exist_ok=True)
     mdl.m.booster_.save_model(str(p))
     # 这次筛选的记录和模型一起落盘。out_breakout/feature_select.json 是实验
@@ -848,6 +972,8 @@ def stage_scan(force_fit: bool = False) -> int:
          "n_qualified": n_q, "n_ok": n_ok,
          # 日线没补齐、剔出清单的只数（平时 0）。邮件和面板抬头照实印出来
          "short_excluded": len(skip),
+         # 上次重训没过验收、沿用旧模型（计划 3.7）。抬头印一句，别让人以为模型是新的
+         "refit_rejected": refit_rejected_recently(),
          # 试跑也走到这里；不标 dry 的话计划任务会把试跑当「今天跑完了」
          "dry": bool(os.environ.get("DRY_RUN"))},
         ensure_ascii=False), encoding="utf-8")
