@@ -215,8 +215,9 @@ def compare(a: pd.DataFrame, b: pd.DataFrame, y: str = "y_open", k: int = 10,
     md = (ma - mb).dropna()
     mse = float(md.std(ddof=1) / np.sqrt(len(md))) if len(md) > 1 else float("nan")
     worst3 = md.sort_values().head(3)
-    ea = a["date"].nunique() - prod_picks(a)["date"].nunique()
-    eb = b["date"].nunique() - prod_picks(b)["date"].nunique()
+    # 没有 score 列的表（别的目标线、只比名次的实验）就没有「生产规则」，空榜按 0
+    ea = (a["date"].nunique() - prod_picks(a)["date"].nunique()) if "score" in a.columns else 0
+    eb = (b["date"].nunique() - prod_picks(b)["date"].nunique()) if "score" in b.columns else 0
     res = {"diff_day": float(d.mean()), "se_day": se,
            "t_day": float(d.mean() / se) if se and se > 0 else float("nan"), "days": int(len(d)),
            "diff_month": float(md.mean()), "t_month": float(md.mean() / mse) if mse and mse > 0 else float("nan"),

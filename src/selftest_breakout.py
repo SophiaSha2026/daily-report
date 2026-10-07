@@ -1447,6 +1447,28 @@ def check_accept_model() -> None:
     ck('meta.get("refit_rejected")' in esrc, "邮件抬头读 refit_rejected")
 
 
+def check_drift_note() -> None:
+    """打分分布漂移告警（计划 4.3）：纯函数两种异常 + 接线。"""
+    print("\n[打分分布漂移]")
+    import daily as D
+    hist = [{"date": f"2025-01-{i:02d}", "n_qualified": 5 + (i % 7)} for i in range(1, 31)]
+    ck(D.drift_note(hist, {"date": "2025-02-01", "n_qualified": 8}) == "", "正常日子不出声")
+    msg = D.drift_note(hist, {"date": "2025-02-01", "n_qualified": 60})
+    ck("分数分布异常" in msg, f"够格只数暴涨出声（{msg}）")
+    ck(D.drift_note(hist, {"date": "2025-02-01", "n_qualified": 20}) == "",
+       "20 只不到近 60 天最多的 1.5 倍、也不到 30 只，不出声")
+    zeros = hist[:-4] + [{"date": f"2025-02-0{i}", "n_qualified": 0} for i in range(1, 5)]
+    ck("连续 5" in D.drift_note(zeros, {"date": "2025-02-05", "n_qualified": 0}),
+       "连续 5 天 0 只够格出声")
+    ck(D.drift_note(zeros, {"date": "2025-02-05", "n_qualified": 1}) == "", "第 5 天有 1 只就不出声")
+    ck(D.drift_note(hist[:10], {"date": "2025-02-01", "n_qualified": 500}) == "", "历史不足 20 天不判")
+    src = (ROOT / "src" / "breakout" / "daily.py").read_text(encoding="utf-8")
+    ck('"drift_note": drift' in src and "record_score_stats(stats_row)" in src,
+       "stage_scan 记 score_stats 并把 drift_note 写进 run_meta")
+    esrc = (ROOT / "src" / "breakout" / "export.py").read_text(encoding="utf-8")
+    ck('meta.get("drift_note")' in esrc, "邮件抬头印 drift_note")
+
+
 def check_board_factors() -> None:
     """板块系数的拟合窗口不能和评估窗口重叠（否则成绩是样本内的）。"""
     print("\n[板块校正·不许偷看]")
@@ -3095,6 +3117,7 @@ def main() -> int:
     check_board_factors()
     check_month_weights()
     check_accept_model()
+    check_drift_note()
     check_purge_suspension()
     check_fselect_purge()
     check_fselect()

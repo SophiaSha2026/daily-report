@@ -868,6 +868,56 @@ def count_streak(code: str, date: str) -> int:
     return n
 
 
+SCORE_STATS = STATE / "score_stats.jsonl"
+DRIFT_LOOKBACK = 60
+DRIFT_ZERO_DAYS = 5
+DRIFT_SPIKE = 1.5
+
+
+def drift_note(hist: list[dict], today: dict) -> str:
+    """打分分布漂移（计划 4.3）：和近 DRIFT_LOOKBACK 天比，当天够格只数异常就给一句话。
+
+    两种异常：够格只数超过近 60 天最大值的 DRIFT_SPIKE 倍（且 ≥ 30 只，刻度或特征表可能坏了）；
+    连续 DRIFT_ZERO_DAYS 天（含当天）一只都不够格（空榜是常态，但连着一周没有一只要出声）。
+    历史不足 20 天不判。纯函数，自测钉住。"""
+    past = [h for h in hist if h.get("date") != today.get("date")][-DRIFT_LOOKBACK:]
+    if len(past) < 20:
+        return ""
+    nq = int(today.get("n_qualified", 0))
+    mx = max(int(h.get("n_qualified", 0)) for h in past)
+    if nq >= 30 and nq > DRIFT_SPIKE * max(mx, 1):
+        return f"当天 ≥{SCORE_MIN} 分 {nq} 只，超过近 {len(past)} 天最多的 {mx} 只的 {DRIFT_SPIKE} 倍，分数分布异常"
+    recent = past[-(DRIFT_ZERO_DAYS - 1):] if DRIFT_ZERO_DAYS > 1 else []
+    if nq == 0 and len(recent) == DRIFT_ZERO_DAYS - 1 and all(int(h.get("n_qualified", 0)) == 0 for h in recent):
+        return f"连续 {DRIFT_ZERO_DAYS} 个交易日没有任何股票够格，查一下特征表和模型"
+    return ""
+
+
+def record_score_stats(row: dict) -> list[dict]:
+    """把当天的打分统计追加到 state/breakout/score_stats.jsonl（同一天重跑覆盖），返回全部历史。"""
+    hist: dict[str, dict] = {}
+    try:
+        if SCORE_STATS.exists():
+            for line in SCORE_STATS.read_text(encoding="utf-8").splitlines():
+                try:
+                    j = json.loads(line)
+                    hist[j["date"]] = j
+                except Exception:  # noqa: BLE001
+                    pass
+    except Exception as e:  # noqa: BLE001
+        log.warning("score_stats 读不出来: %s", e)
+    hist[row["date"]] = row
+    rows = [hist[k] for k in sorted(hist)]
+    try:
+        STATE.mkdir(parents=True, exist_ok=True)
+        tmp = SCORE_STATS.with_suffix(".tmp")
+        tmp.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+        tmp.replace(SCORE_STATS)
+    except Exception as e:  # noqa: BLE001
+        log.warning("score_stats 没落盘: %s", e)
+    return rows
+
+
 def stage_scan(force_fit: bool = False) -> int:
     """打分日永远是特征表的最后一天。以前有个 --asof 能指定历史日，但风险
     剔除用的是今天的 ST/减持/解禁、A 池会被改坏进池日期，补发不安全，
@@ -916,6 +966,14 @@ def stage_scan(force_fit: bool = False) -> int:
     # 「够格」数的是门槛，「清单 A」数的是截断后的，两个数分开印：
     # 以前这行拿 len(picks) 冒充够格数，满员日和刚好够 10 只的日子打出来
     # 一模一样，够格 200 只也看不出来（S7）
+    # 打分分布漂移（计划 4.3）：当天的够格只数和前 10 名预测值均值记下来，和近 60 天比
+    stats_row = {"date": date, "n_qualified": int(n_q), "n_ok": int(n_ok), "pool": int(elig.sum()),
+                 "top10_p_mean": float(np.sort(proba)[-10:].mean()) if len(proba) >= 10 else None,
+                 "model_date": obj["fit_date"], "dry": bool(os.environ.get("DRY_RUN"))}
+    drift = drift_note([r for r in record_score_stats(stats_row) if not r.get("dry")], stats_row) \
+        if not stats_row["dry"] else ""
+    if drift:
+        log.warning("打分分布漂移：%s", drift)
     log.info("≥%d 分 %d 只，剔除 %d 只后 %d 只，取前 %d -> 清单 A %d 只",
              SCORE_MIN, n_q, len(bad), n_ok, CAP_A, len(picks))
     if n_q > CAP_A:
@@ -974,6 +1032,8 @@ def stage_scan(force_fit: bool = False) -> int:
          "short_excluded": len(skip),
          # 上次重训没过验收、沿用旧模型（计划 3.7）。抬头印一句，别让人以为模型是新的
          "refit_rejected": refit_rejected_recently(),
+         # 打分分布漂移那句话（计划 4.3），平时空串
+         "drift_note": drift,
          # 试跑也走到这里；不标 dry 的话计划任务会把试跑当「今天跑完了」
          "dry": bool(os.environ.get("DRY_RUN"))},
         ensure_ascii=False), encoding="utf-8")
