@@ -122,7 +122,13 @@ src/
                          truth / regime 以前只有学习会诊在算，2026-09-27 起
                          local_run.flow_breakout 每天发信前算（truth_and_regime）
   breakout/board_adj.py  板块校正因子的经验贝叶斯收缩（生产在用，state/breakout/board_adj.json）
-  breakout/exp_*.py      一次性实验脚本，成绩表 STREAK_PERF 来自 exp_window.py
+  breakout/evalkit.py    评估制度（2026-10-07，docs/breakout_plan_2026-10.md 第 1 节）：开发集 2024-06..2025-12
+                         逐月走向前、确认集 2026-01..08 每季度只看一次（out_breakout/confirm_used.json）、
+                         预登记、按天聚类 / 按天按月配对、过线判定。新实验一律走它
+  breakout/buyable.py    买得到口径的标签 y_open（次日开盘起算、一字板不可买），不进模型指纹，
+                         从 daily.parquet 现算并缓存 raw/labels_open.parquet。邮件成绩 2026-10-07 起按它印
+  breakout/exp_*.py      一次性实验脚本，成绩表 STREAK_PERF 来自 exp_window.py（W5 行，买得到口径；
+                         W5close 行是收盘口径，给 CLOSE_PERF）
   selftest_breakout.py   离线自测
   ── 控制台（GUI）──
   gui/simple.py          首页傻瓜页：两条线各一行（状态 / 多久没跑 / 进度条 / 一个按钮）

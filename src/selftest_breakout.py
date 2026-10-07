@@ -1630,7 +1630,17 @@ def check_table_shape() -> None:
     grid = json.loads(wg.read_text(encoding="utf-8"))["grid"]
     w5 = {int(re.search(r"连续≥(\d)天", r["label"]).group(1)): r
           for r in grid if r["kind"] == "W5"}
-    base = 100 * json.loads(sc.read_text(encoding="utf-8"))["base"]
+    cal = json.loads(sc.read_text(encoding="utf-8"))
+    # 2026-10-07 起邮件按买得到口径：BASE 对 base_open，产物必须声明 label=y_open
+    gj = json.loads(wg.read_text(encoding="utf-8"))
+    ck(gj.get("label") == "y_open" and "base_open" in cal,
+       "window_grid / score_calibration 都是买得到口径的产物（label=y_open, base_open）")
+    base = 100 * cal.get("base_open", cal["base"])
+    w5c_ = [r for r in grid if r["kind"] == "W5close" and "连续≥1天" in r["label"]]
+    if w5c_:
+        ck(abs(100 * w5c_[0]["hit"] - E.CLOSE_PERF[0]) < 0.06 and int(w5c_[0]["n"]) == E.CLOSE_PERF[1],
+           f"CLOSE_PERF 和 window_grid 的收盘口径行一致（{100 * w5c_[0]['hit']:.1f}%/{w5c_[0]['n']}）")
+    ck("次日开盘买入" in html, "邮件写明准确率按次日开盘买入算")
     bad = []
     for need, hit, lift, n in E.STREAK_PERF:
         r = w5.get(need)

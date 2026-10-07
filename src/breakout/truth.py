@@ -78,10 +78,19 @@ def compute(window: int = UP_WINDOW, threshold: float = UP_THRESHOLD,
     if not files or not dp.exists():
         return {"lists": [], "picks": [], "by": {}, "window": window,
                 "threshold": threshold}
-    px = pd.read_parquet(dp, columns=["code", "date", "high", "close"])
+    px = pd.read_parquet(dp, columns=["code", "date", "open", "high", "low", "close"])
     px["date"] = px["date"].astype(str)
     if asof:
         px = px[px["date"] <= asof]
+    # 买得到口径（次日开盘起算、一字板不可买）并列算一份：邮件 2026-10-07 起按它印成绩，
+    # 实盘真值也要有同一口径才能对得上。失败不阻断（研究性列）
+    open_key = None
+    try:
+        import buyable as B
+        ob = B.compute(px, window, threshold)
+        open_key = ob.set_index(["code", "date"])["y_open"]
+    except Exception as e:  # noqa: BLE001
+        log.warning("买得到口径的真值算不出来（%s），只出收盘口径", e)
     px = _future_max(px, window)
     px["rise"] = px["fut_max"] / px["close"] - 1.0
     px["rise"] = px["rise"].where(px["avail"] > 0)
@@ -102,6 +111,12 @@ def compute(window: int = UP_WINDOW, threshold: float = UP_THRESHOLD,
         part = day[day["avail"] > 0]
         base_sofar = float((part["rise"] > threshold).mean()) if len(part) else None
         n_bars = int(day["avail"].max()) if len(day) else 0
+        base_open_final = None
+        if open_key is not None and len(fin):
+            yo = open_key.reindex(pd.MultiIndex.from_arrays([fin["code"].astype(str).str.zfill(6),
+                                                             fin["date"]]))
+            yo = yo[np.isfinite(yo)]
+            base_open_final = float(yo.mean()) if len(yo) else None
         rows = []
         for r in d.itertuples():
             code = str(r.code).zfill(6)
@@ -112,6 +127,10 @@ def compute(window: int = UP_WINDOW, threshold: float = UP_THRESHOLD,
                 continue
             avail = int(k["avail"])
             rise = float(k["rise"]) if avail > 0 and np.isfinite(k["rise"]) else None
+            hit_open = None
+            if open_key is not None and avail >= window:
+                v = open_key.get((code, date))
+                hit_open = bool(v > 0) if v is not None and np.isfinite(v) else None
             rows.append({
                 "date": date, "code": code, "name": getattr(r, "name", "") or "",
                 "score": float(getattr(r, "score", 0) or 0),
@@ -121,10 +140,13 @@ def compute(window: int = UP_WINDOW, threshold: float = UP_THRESHOLD,
                 "avail": avail, "final": avail >= window,
                 "rise": rise,
                 "hit": (rise > threshold) if rise is not None else None,
+                "hit_open": hit_open,
             })
         n_fin = sum(1 for x in rows if x.get("final"))
         k_fin = sum(1 for x in rows if x.get("final") and x.get("hit"))
         k_sofar = sum(1 for x in rows if x.get("hit"))
+        n_open = sum(1 for x in rows if x.get("hit_open") is not None)
+        k_open = sum(1 for x in rows if x.get("hit_open"))
         lo, hi = wilson(k_fin, n_fin)
         lists.append({
             "date": date, "n": len(rows), "bars": n_bars,
@@ -134,6 +156,9 @@ def compute(window: int = UP_WINDOW, threshold: float = UP_THRESHOLD,
             "ci_lo": lo if n_fin else None, "ci_hi": hi if n_fin else None,
             "hits_sofar": k_sofar,
             "base_final": base_final, "base_sofar": base_sofar,
+            "n_open": n_open, "hits_open": k_open,
+            "hit_rate_open": (k_open / n_open) if n_open else None,
+            "base_open_final": base_open_final,
             "max_rise": max((x["rise"] for x in rows if x["rise"] is not None),
                             default=None),
         })
@@ -235,14 +260,16 @@ def validation_by_board(refresh: bool = False) -> dict:
         import features as F
         d = pd.read_parquet(src)
         ok = d[(d["score"] >= D.SCORE_MIN) & (d["rank"] <= D.CAP_A)].copy()
-        ok = ok[np.isfinite(ok["y_up"])]
+        # 2026-10-07 起按买得到口径（缓存里的 y_open 列）；老缓存没有就退回收盘口径
+        ycol = "y_open" if "y_open" in ok.columns else "y_up"
+        ok = ok[np.isfinite(ok[ycol])]
         if not len(ok):
             return {}
         ok["board"] = ok["code"].map(F.board_of)
-        out = {"overall": {"n": int(len(ok)), "hit": float(ok["y_up"].mean())},
-               "boards": {}}
+        out = {"overall": {"n": int(len(ok)), "hit": float(ok[ycol].mean())},
+               "boards": {}, "label": ycol}
         for b, g in ok.groupby("board"):
-            k, n = int(g["y_up"].sum()), int(len(g))
+            k, n = int(g[ycol].sum()), int(len(g))
             lo, hi = wilson(k, n)
             out["boards"][str(b)] = {"n": n, "hits": k, "hit": k / n,
                                      "ci_lo": lo, "ci_hi": hi}

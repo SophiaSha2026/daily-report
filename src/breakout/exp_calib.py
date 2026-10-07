@@ -28,6 +28,7 @@ import pandas as pd     # noqa: E402
 
 import arena as A       # noqa: E402
 import build as BD      # noqa: E402
+import exp_window as EW
 import fselect as FS    # noqa: E402
 import model as M       # noqa: E402
 import validate as V    # noqa: E402
@@ -53,6 +54,7 @@ def main() -> int:
         te = df[df["date"].str[:7] == m].copy()
         tr = tr[np.isfinite(tr["y_up"])]
         te = te[np.isfinite(te["y_up"])]
+        te = EW._with_open(te)
         # 生产的候选池不含 ST（daily.risk_filter），分档表和基准也不能含，
         # 否则邮件里的「95 分以上 8.2%」描述的不是线上那条规则。次新不用
         # 在这里剔：build.assemble 建表时已按 MIN_HIST 砍掉了预热行。
@@ -71,7 +73,8 @@ def main() -> int:
         adj = te["board"].map(D.BOARD_ADJ).fillna(1.0).to_numpy(float)
         score = np.clip(np.searchsorted(q, p * adj), 0, 100)
         rows.append(pd.DataFrame({"month": m, "score": score,
-                                  "y": te["y_up"].to_numpy(float)}))
+                                  "y": te["y_up"].to_numpy(float),
+                                  "y_open": te["y_open"].to_numpy(float)}))
         print(f"  {m} 完成（{len(te)} 只）")
 
     d = pd.concat(rows, ignore_index=True)
@@ -95,6 +98,18 @@ def main() -> int:
     print(f"{'全市场':>10s} {len(d):10,d} {int(d['y'].sum()):10,d} "
           f"{100 * base:7.2f}% {1.0:9.2f}x")
 
+    # 买得到口径（次日开盘起算、一字板不可买）：邮件印的 BASE 从 2026-10-07 起是它
+    do = d[np.isfinite(d["y_open"])]
+    base_open = float(do["y_open"].mean())
+    out_open = []
+    for lo, hi in bins:
+        g = do[(do["score"] >= lo) & (do["score"] < hi)]
+        if len(g):
+            h = float(g["y_open"].mean())
+            out_open.append({"lo": lo, "hi": hi, "n": int(len(g)), "hit": h, "lift": h / base_open})
+    print(f"买得到口径：全市场 {100 * base_open:.2f}%，" + "，".join(
+        f"{o['lo']}~{o['hi'] - 1} 分 {100 * o['hit']:.2f}%" for o in out_open[-3:]))
+
     hits = [o["hit"] for o in out]
     mono = all(hits[i] <= hits[i + 1] for i in range(len(hits) - 1))
     print(f"\n分档命中率单调上升：{'是' if mono else '否'}")
@@ -108,6 +123,7 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "score_calibration.json").write_text(
         json.dumps({"base": base, "monotonic": mono, "bins": out,
+                    "base_open": base_open, "bins_open": out_open,
                     # 产物自己声明口径，见 validate.rule_stamp
                     "st_excluded": len(V.st_codes()),
                     "min_hist": BD.MIN_HIST},

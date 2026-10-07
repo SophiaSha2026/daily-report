@@ -85,6 +85,19 @@ def board_factors(picks: pd.DataFrame, before_month: str,
     return out
 
 
+def _with_open(d: pd.DataFrame) -> pd.DataFrame:
+    """并上买得到口径的标签 y_open（buyable.open_labels，次日开盘起算、一字板不可买）。
+
+    邮件里印的成绩从 2026-10-07 起按这个口径（计划 2.1）；收盘口径 y_up 并列保留。"""
+    import buyable as B
+    if "y_open" in d.columns:
+        return d
+    lab = B.open_labels()[["code", "date", "y_open"]]
+    d = d.copy()
+    d["code"] = d["code"].astype(str).str.zfill(6)
+    return d.merge(lab, on=["code", "date"], how="left")
+
+
 def production_rank(d: pd.DataFrame, st: set[str] | None = None) -> pd.DataFrame:
     """按生产口径重排每天的名次：先剔 ST，再按预测值补位。
 
@@ -157,8 +170,9 @@ def build_cache(adj_mode: str = "fixed") -> tuple[pd.DataFrame, float]:
         te["_p"] = p0 * adj
         te["score"] = np.clip(np.searchsorted(q, te["_p"]), 0, 100)
         te = production_rank(te)
+        te = _with_open(te)
         keep.append(te[te["rank"] <= RANK_KEEP][
-            ["date", "code", "board", "rank", "score", "_p", "_p0", "y_up"]])
+            ["date", "code", "board", "rank", "score", "_p", "_p0", "y_up", "y_open"]])
         prod = te[(te["score"] >= D.SCORE_MIN) & (te["rank"] <= D.CAP_A)]
         hist.append(prod[["date", "board", "y_up"]])
         print("  " + m + " 完成", flush=True)
@@ -181,10 +195,12 @@ def build_cache(adj_mode: str = "fixed") -> tuple[pd.DataFrame, float]:
         # 生产的候选池不含 ST，基准也不能含：分子剔了分母不剔，倍数是虚的
         vm = vm[~vm["code"].astype(str).isin(st)]
     base = float(vm["y_up"].mean(skipna=True))
+    vo = _with_open(vm[["code", "date"]].copy())
+    base_open = float(vo["y_open"].mean(skipna=True))
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     d.to_parquet(CACHE, index=False)
     (CACHE.parent / "wf_base.json").write_text(
-        json.dumps({"base": base, "st_excluded": len(st),
+        json.dumps({"base": base, "base_open": base_open, "st_excluded": len(st),
                     "min_hist": BD.MIN_HIST}), encoding="utf-8")
     # 每月的分位点：重算「不带校正」的分数要用同一把尺子
     (CACHE.parent / "wf_q.json").write_text(
@@ -199,6 +215,13 @@ def load_cache(refit: bool, adj_mode: str = "fixed") -> tuple[pd.DataFrame, floa
                           .read_text(encoding="utf-8"))["base"]
         return d, base
     return build_cache(adj_mode)
+
+
+def base_open_cached() -> float | None:
+    f = CACHE.parent / "wf_base.json"
+    if not f.exists():
+        return None
+    return json.loads(f.read_text(encoding="utf-8")).get("base_open")
 
 
 def reprice(d: pd.DataFrame, qmap: dict) -> pd.DataFrame:
@@ -225,7 +248,7 @@ def reprice(d: pd.DataFrame, qmap: dict) -> pd.DataFrame:
 
 def grid_payload(days: int, base: float, win: int, rows: list,
                  all_dates: list, adj_mode: str, adj: dict,
-                 n_st: int = 0) -> dict:
+                 n_st: int = 0, base_open: float | None = None) -> dict:
     """产物自己声明板块校正是怎么来的。
 
     只写成绩不写口径，下一个人（或下一个我）就会拿一份样本内成绩当证据用。
@@ -236,7 +259,8 @@ def grid_payload(days: int, base: float, win: int, rows: list,
     fit = ADJ_FIT_WINDOW if adj_mode == "fixed" else None
     applied = adj_mode != "none"
     overlap = bool(fit and ev[0] and fit[0] <= ev[1] and ev[0] <= fit[1])
-    return {"days": days, "base": base, "win": win, "grid": rows,
+    return {"days": days, "base": base, "base_open": base_open, "label": "y_open",
+            "win": win, "grid": rows,
             "drop": os.environ.get("WF_DROP", ""),
             "board_adj": dict(adj), "board_adj_applied": applied,
             "board_adj_mode": adj_mode, "adj_fit_window": fit,
@@ -277,27 +301,37 @@ def main() -> int:
     st = V.st_codes()
     d = production_rank(d, st)
 
+    d = _with_open(d)
+    base_open = base_open_cached()
+    if base_open is None:
+        vo = _with_open(d[["code", "date"]].drop_duplicates())
+        base_open = float(vo["y_open"].mean(skipna=True))
+
     all_dates = sorted(d["date"].unique())
     di = {x: i for i, x in enumerate(all_dates)}
     d["_i"] = d["date"].map(di)
     days = len(all_dates)
     W = a.win
-    print("\n验证集 %d 个交易日（%s ~ %s），全市场基准 %.2f%%，窗口 %d 天\n"
-          % (days, all_dates[0], all_dates[-1], 100 * base, W))
+    print("\n验证集 %d 个交易日（%s ~ %s），全市场基准 收盘 %.2f%% / 买得到 %.2f%%，窗口 %d 天\n"
+          % (days, all_dates[0], all_dates[-1], 100 * base, 100 * base_open, W))
 
     rows = []
 
-    def rec(label: str, g: pd.DataFrame, kind: str) -> None:
+    def rec(label: str, g: pd.DataFrame, kind: str, y: str = "y_up") -> None:
         if len(g) < 20:
             return
-        hit = float(g["y_up"].mean())
+        g = g[np.isfinite(g[y])]
+        if len(g) < 20:
+            return
+        hit = float(g[y].mean())
+        b_ = base_open if y == "y_open" else base
         nd = g["date"].nunique()
         per_day = len(g) / days
         se = float(np.sqrt(hit * (1 - hit) / len(g)))
         rows.append({"kind": kind, "label": label, "n": int(len(g)),
                      "empty": int(days - nd), "per_day": per_day,
-                     "hit": hit, "se": se, "lift": hit / base,
-                     "per_month": 21 * per_day * hit})
+                     "hit": hit, "se": se, "lift": hit / b_,
+                     "per_month": 21 * per_day * hit, "y": y})
 
     # ---- 窗口内够格次数 ----
     for thr in (95, 97, 98):
@@ -350,9 +384,13 @@ def main() -> int:
                 s_ += 1
             streak[j] = s_
         ok["streak"] = streak
+        # W5 = 邮件印的那组，买得到口径（次日开盘起算、一字板不可买）；
+        # W5close = 同一批名额按收盘口径，给邮件里那句「按收盘价口径是 X%」
         for k in range(1, 6):
             rec("生产口径 ≥%d分且前%d名 连续≥%d天" % (thr, D.CAP_A, k),
-                ok[ok["streak"] >= k], "W5")
+                ok[ok["streak"] >= k], "W5", "y_open")
+            rec("收盘口径 ≥%d分且前%d名 连续≥%d天" % (thr, D.CAP_A, k),
+                ok[ok["streak"] >= k], "W5close", "y_up")
 
     # ---- W3：不要求当天够格，窗口内 >= k 次就上 ----
     for thr in (97,):
@@ -386,7 +424,7 @@ def main() -> int:
     for n in (1, 3, 5, 10):
         rec("近%d日均值 前%d名" % (W, n), dd[dd["mrank"] <= n], "W4")
 
-    order = {"W5": 0, "W1": 1, "W1x": 2, "W2": 3, "W3": 4, "W4": 5}
+    order = {"W5": 0, "W5close": 1, "W1": 2, "W1x": 3, "W2": 4, "W3": 5, "W4": 6}
     rows.sort(key=lambda r: (order[r["kind"]], -r["hit"]))
     print("%-34s%6s%6s%7s%10s%7s%7s%9s"
           % ("规则", "样本", "每天", "空仓天", "准确率", "±", "倍数", "每月命中"))
@@ -405,7 +443,7 @@ def main() -> int:
                   else f"window_grid_{a.adj}.json")
     out = Path(os.environ.get("WF_OUT", str(dflt)))
     payload = grid_payload(days, base, W, rows, all_dates, a.adj, adj_used,
-                           n_st=len(st))
+                           n_st=len(st), base_open=base_open)
     if payload["adj_inconsistent"]:
         print("\n注意：板块校正的拟合区间 %s 和这次评估的区间 %s 重叠，"
               "下面的成绩含样本内增益（反事实见 --adj none）"

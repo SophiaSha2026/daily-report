@@ -43,6 +43,14 @@ def w5(grid: dict) -> dict[int, dict]:
     return out
 
 
+def w5close(grid: dict) -> dict | None:
+    """同一批名额按收盘口径的「全部上榜」那一行（kind=W5close，连续≥1）。"""
+    for r in grid.get("grid", []):
+        if r.get("kind") == "W5close" and "连续≥1天" in r.get("label", ""):
+            return r
+    return None
+
+
 def w5c(grid: dict) -> dict | None:
     """满员日那一行（kind=W5c）。exp_window 还没写就返回 None。"""
     for r in grid.get("grid", []):
@@ -76,7 +84,11 @@ def cap_split(arm: str) -> tuple[tuple, tuple] | None:
         print(f"[!] 没有 {f.name}，满员日那组跳过", flush=True)
         return None
     d = pd.read_parquet(f)
-    d = d[d["y_up"].notna()]
+    # 2026-10-07 起按买得到口径（y_open）；老缓存没有这列就退回收盘口径并出声
+    ycol = "y_open" if "y_open" in d.columns else "y_up"
+    if ycol != "y_open":
+        print("[!] 缓存没有 y_open 列，满员日那组按收盘口径算；先 exp_window --refit", flush=True)
+    d = d[d[ycol].notna()]
     ok = d[d["score"] >= D.SCORE_MIN]
     if ok.empty:
         return None
@@ -87,7 +99,7 @@ def cap_split(arm: str) -> tuple[tuple, tuple] | None:
     for flag in (True, False):
         g = picks[picks["capped"] == flag]
         n = int(len(g))
-        out.append((round(100 * float(g["y_up"].mean()), 1) if n else float("nan"),
+        out.append((round(100 * float(g[ycol].mean()), 1) if n else float("nan"),
                     n, int(g["date"].nunique())))
     return out[0], out[1]
 
@@ -109,8 +121,8 @@ def load(arm: str) -> tuple[dict, dict, dict]:
 def show(arm: str) -> None:
     grid, cal, board = load(arm)
     rows = w5(grid)
-    base = 100 * float(cal["base"])
-    print(f"[{arm}] {grid.get('days')} 个交易日，基准 {base:.2f}%，"
+    base = 100 * float(cal.get("base_open", cal["base"]))
+    print(f"[{arm}] {grid.get('days')} 个交易日，基准（买得到口径）{base:.2f}%，"
           f"板块系数 {grid.get('board_adj_mode', '?')}")
     for k in sorted(rows, reverse=True):
         r = rows[k]
@@ -163,7 +175,12 @@ def rewrite(arm: str) -> None:
     rows = w5(grid)
     if len(rows) < 2:
         raise SystemExit(f"W5 行只有 {len(rows)} 条，连「全部上榜」和「连续 2 天」都凑不齐")
-    base = round(100 * float(cal["base"]), 2)
+    # BASE / STREAK_PERF 从 2026-10-07 起是买得到口径（次日开盘起算、一字板不可买），
+    # 收盘口径的整体命中另写进 CLOSE_PERF 给邮件那句对照
+    if "base_open" not in cal or grid.get("label") != "y_open":
+        raise SystemExit("产物还是收盘口径（score_calibration 缺 base_open 或 grid.label != y_open），"
+                         "先重跑 exp_window.py --refit --adj shrink --save-adj 和 exp_calib.py")
+    base = round(100 * float(cal["base_open"]), 2)
     lines = []
     # 有几档写几档。板块系数一改，高档次可能一个样本都没有（star=1.0 之后
     # 连续 5 天就没了），硬要 5 条会把上一轮的旧数字留在表里。
@@ -193,6 +210,10 @@ def rewrite(arm: str) -> None:
                         f"NONCAP_PERF = ({h2}, {n2}, {d2})", s2, count=1)
             print(f"满员日 {h1}%（{n1} 席 / {d1} 天） vs "
                   f"非满员 {h2}%（{n2} 席 / {d2} 天）")
+    cl = w5close(grid)
+    if cl:
+        s2 = re.sub(r"CLOSE_PERF = \([\d., ]+\)",
+                    f"CLOSE_PERF = ({round(100 * cl['hit'], 1)}, {int(cl['n'])})", s2, count=1)
     if s2 == s:
         raise SystemExit("一个常量都没改到，正则和文件对不上了")
     EXPORT.write_text(s2, encoding="utf-8")
