@@ -1,26 +1,82 @@
 [
   {
-    "code":"300300",
-    "name":"海峡创新",
-    "score":98.0,
+    "code":"920779",
+    "name":"武汉蓝电",
+    "score":99.0,
     "streak":3,
-    "close":11.13,
+    "close":33.13,
+    "board":"bj"
+  },
+  {
+    "code":"605303",
+    "name":"园林股份",
+    "score":100.0,
+    "streak":1,
+    "close":31.53,
+    "board":"main"
+  },
+  {
+    "code":"301190",
+    "name":"善水科技",
+    "score":99.0,
+    "streak":1,
+    "close":39.52,
     "board":"chinext"
   },
   {
-    "code":"920779",
-    "name":"武汉蓝电",
-    "score":97.0,
-    "streak":2,
-    "close":28.6,
-    "board":"bj"
+    "code":"001317",
+    "name":"三羊马",
+    "score":99.0,
+    "streak":1,
+    "close":66.28,
+    "board":"main"
   },
   {
-    "code":"920427",
-    "name":"华维设计",
-    "score":97.0,
+    "code":"002244",
+    "name":"滨江集团",
+    "score":98.0,
     "streak":1,
-    "close":10.78,
-    "board":"bj"
+    "close":10.21,
+    "board":"main"
+  },
+  {
+    "code":"603657",
+    "name":"春光科技",
+    "score":98.0,
+    "streak":1,
+    "close":37.37,
+    "board":"main"
+  },
+  {
+    "code":"688655",
+    "name":"迅捷兴",
+    "score":98.0,
+    "streak":1,
+    "close":67.81,
+    "board":"star"
+  },
+  {
+    "code":"002285",
+    "name":"世联行",
+    "score":98.0,
+    "streak":1,
+    "close":3.21,
+    "board":"main"
+  },
+  {
+    "code":"603073",
+    "name":"彩蝶实业",
+    "score":98.0,
+    "streak":1,
+    "close":22.97,
+    "board":"main"
+  },
+  {
+    "code":"603186",
+    "name":"华正新材",
+    "score":98.0,
+    "streak":1,
+    "close":224.25,
+    "board":"main"
   }
 ]
