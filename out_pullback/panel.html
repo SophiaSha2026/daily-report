@@ -96,7 +96,7 @@ if(location.hash.length>1 && L[location.hash.slice(1)]) pick(location.hash.slice
    带上 ?v=<新stamp> 就是不同的缓存键，必然回源。
    stamp.txt 的请求也带 cb=<随机> 绕开缓存，否则查的还是旧的。
    --------------------------------------------------------------------- */
-const STAMP='20261008-175800', PDATE='2026-10-08', LAGOK=('true'==='true');
+const STAMP='20261008-181042', PDATE='2026-10-08', LAGOK=('true'==='true');
 function bjToday(){
   // Date.now() 已经是 UTC 毫秒，加 8 小时再按 UTC 取日期就是北京日期。
   // 以前还加了一次 getTimezoneOffset，美东浏览器算成北京 +4 小时，
