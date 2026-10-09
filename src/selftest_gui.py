@@ -1962,20 +1962,6 @@ def _steps(rel: str, job: str) -> list:
     return _wf(rel)["jobs"][job]["steps"]
 
 
-def _joined(run: str) -> list[str]:
-    """把 shell 的反斜杠续行接回一行，方便按行找条件。"""
-    out, buf = [], ""
-    for ln in run.splitlines():
-        if ln.rstrip().endswith("\\"):
-            buf += ln.rstrip()[:-1]
-            continue
-        out.append(buf + ln)
-        buf = ""
-    if buf:
-        out.append(buf)
-    return out
-
-
 def check_pages_wiring() -> None:
     """Pages 由 pages.yml 在推送后发布（2026-09-27 起，以前押在早盘的 auction.yml 上）。"""
     print("\n[Pages 发布]")

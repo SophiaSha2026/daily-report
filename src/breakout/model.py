@@ -1,10 +1,9 @@
 """
-模型擂台：四层模型，同一个走向前协议下比成绩。
+模型擂台：三层模型，同一个逐月滚动协议下比成绩（L3 集成 2026-10-08 删除，从没被调用过）。
 
     L0  逻辑回归 + L1     ← 尺子，不是备胎
     L1  LightGBM
     L2  GRU 序列模型       (torch，没装就自动跳过)
-    L3  L1+L2 概率加权     (仅当两者误差互补)
 
 L0 为什么是尺子
 ---------------
@@ -281,17 +280,3 @@ class L2Gru:
                 out.append(torch.sigmoid(
                     self.m(torch.from_numpy(X[i:i + 4096]))).numpy())
         return np.concatenate(out) if out else np.zeros(len(X))
-
-
-class L3Blend:
-    name = "L3_blend"
-
-    def __init__(self, a, b, w: float = 0.5):
-        self.a, self.b, self.w = a, b, w
-
-    def fit(self, df, cols, y):
-        return self
-
-    def predict_proba(self, df):
-        return self.w * self.a.predict_proba(df) + \
-            (1 - self.w) * self.b.predict_proba(df)

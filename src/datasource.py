@@ -366,21 +366,6 @@ def _sina_code_list(timeout: float = 8.0) -> list[str]:
     return sorted(set(codes))
 
 
-def load_code_list() -> list[str]:
-    """
-    全市场 6 位代码表。优先读仓库里的缓存（每周刷新一次），
-    缓存缺失时才现场拉取。代码表变动极慢，缓存完全够用。
-    """
-    import pandas as pd
-    p = _ROOT / "cache" / "codes.csv"
-    if p.exists():
-        codes = pd.read_csv(p, dtype=str)["code"].tolist()
-        if len(codes) > 3000:
-            return codes
-        log.warning("代码表缓存过短(%d)，重新拉取", len(codes))
-    return refresh_code_list()
-
-
 def refresh_code_list() -> list[str]:
     """
     多源兜底拉取代码表，成功即写入缓存。

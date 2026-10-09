@@ -109,13 +109,16 @@ src/
   breakout/features.py   三层变换（横截面百分位->中性化->正交）+ 六组特征
   breakout/fselect.py    四道筛。**别改回 select.py**，和标准库冲突
   breakout/build.py      组装训练表
-  breakout/model.py      L0 逻辑回归 / L1 LightGBM / L2 GRU / L3 集成。fit 默认**按月等权**
+  breakout/model.py      L0 逻辑回归 / L1 LightGBM（生产）/ L2 GRU。fit 默认**按月等权**
                          （month_weights，2026-10-06 实验 15：924 那两个月占训练正样本
                          近半，等权后验证集前 10 命中 9.95% -> 13.53%），model.json 记
                          weighting，口径不一致 load_or_fit 自动重训
   breakout/validate.py   走向前 + 验收表；validate.pick 是选票规则的唯一实现
-  breakout/arena.py      模型对比主脚本，封存数据的纪律在这里用代码强制
-  breakout/daily.py      每日流程：打分 -> 风险剔除 -> 清单A/B
+  breakout/arena.py      模型对比（2026-09-12 旧协议，验证集 2025-03..12）+ 训练表读取 load()。
+                         封存数据的纪律在这里用代码强制；新实验走 evalkit
+  breakout/daily.py      每日流程：打分 -> 风险剔除 -> 清单A/B。重训验收 accept_model（新模型
+                         不如旧的就保留旧的，state/breakout/refit_status.json）、打分分布漂移
+                         drift_note（state/breakout/score_stats.jsonl），两者都印在邮件抬头
   breakout/export.py     面板 + 邮件
   breakout/truth.py      历史清单的真值（之后 20 根涨没涨）+ 同期全市场基准
   breakout/regime.py     每日市场环境指标 state/regime_daily.jsonl（含滚动 20 根基准率）
@@ -127,8 +130,12 @@ src/
                          预登记、按天聚类 / 按天按月配对、过线判定。新实验一律走它
   breakout/buyable.py    买得到口径的标签 y_open（次日开盘起算、一字板不可买），不进模型指纹，
                          从 daily.parquet 现算并缓存 raw/labels_open.parquet。邮件成绩 2026-10-07 起按它印
-  breakout/exp_*.py      一次性实验脚本，成绩表 STREAK_PERF 来自 exp_window.py（W5 行，买得到口径；
-                         W5close 行是收盘口径，给 CLOSE_PERF）
+  breakout/exp_window.py 生产用的实验脚本：逐月滚动成绩表 + 收缩板块系数（STREAK_PERF 来自 W5 行，
+                         买得到口径；W5close 行是收盘口径，给 CLOSE_PERF）
+  breakout/exp_calib.py  生产用：分数分档（BASE 的来源）。这两个由 tools/refit_chain.py 调
+  breakout/exp_time.py / exp_acc.py / exp_w1.py / exp_w2.py / exp_cont.py
+                         实验 15~19 的复现脚本，结论在 docs/breakout_log.md，生产不调。
+                         更早的 exp_* 2026-10-08 搬到 archive/breakout_experiments/
   selftest_breakout.py   离线自测
   ── 控制台（GUI）──
   gui/simple.py          首页傻瓜页：两条线各一行（状态 / 多久没跑 / 进度条 / 一个按钮）
@@ -151,8 +158,11 @@ tools/evening_check.py   晚间托底检查（只在云端跑）
 tools/e2e_check.py       端到端运行时测试（联网、分钟级，试跑不发信不推送）
 tools/probe.py           数据源可达性探针（控制台「检查数据源」）：晚间线实际连的五个主机 +
                          依赖 + SMTP 登录
-tools/rebuild_all.py     起涨预测口径改动之后的重建重训流水
-tools/update_perf.py     按实验产物改写 export.py 的成绩常量（默认 --from fixed）
+tools/rebuild_all.py     起涨预测口径改动之后的重建重训：建特征表 -> 重训 -> refit_chain
+tools/refit_chain.py     月度重估链（教训 36 那条流水一条命令）：成绩表 -> 提升网格 -> 分档 ->
+                         邮件常量 -> 按板块命中率 -> 自测。模型到期那天 flow_breakout 打分前自动跑，
+                         控制台「月度重估」手动跑
+tools/update_perf.py     按实验产物改写 export.py 的成绩常量（只认收缩那一臂、买得到口径）
 tools/rerun_breakout.py / resend_breakout.py   起涨预测重算 / 补发历史清单
 tools/dump_st.py         当前 ST 名单 -> cache/st_codes.json（回测剔 ST 用）
 tools/predict_one.py     单只股票预测：python tools/predict_one.py 600000。用生产模型 + 特征表给一只票
@@ -174,6 +184,9 @@ state/                   breakout/（模型、overrides、board_adj、update_sta
                          lock/daily_update.json 日线写锁
 archive/morning/         早盘系统归档（不执行）。RESTORE.md 先读
 archive/pullback_v1/     回调形态 v1 归档（不执行）
+archive/breakout_experiments/  起涨预测实验 2~14 的旧脚本和产物（不执行，README 有对照表）
+docs/                    breakout_design.md（最初设计）、breakout_log.md（实验 1~19 全记录）、
+                         breakout_plan_2026-10.md（稳定化计划和过线标准）
 tools/gui.cmd            控制台入口（桌面快捷方式指向它）
 tools/run_local.cmd      计划任务调的本地流程入口，带 --if-needed
 ```
@@ -693,6 +706,13 @@ GitHub runner 上用 Playwright 起 chromium 也一样能过（早盘的板块�
     「只要开机，就发清单」。
     教训 15 说失败恢复要能从失败中恢复；这一条是另一面：**「卡住」不是失败，
     不会触发任何重试，必须有一道时限把它判成失败，而且下一个实例要能接手。**
+
+44. **路径写成模块常量，自测改不到它**（2026-10-07 ~ 10-08）— 重训验收的状态文件写成
+    `REFIT_STATUS = STATE / "refit_status.json"`，导入时就定死。自测照惯例把 `daily.STATE`
+    换成临时目录，这个常量还指着生产目录，于是自测里 7 列假数据的「验收不过」写进了生产文件、
+    被流程提交，10-08 的起涨预测邮件抬头误印「沿用旧模型」。教训 17 的又一例，形态更隐蔽：
+    自测**有**重定向，只是没覆盖到。现在凡是写 `state/` 的路径一律写成函数（调用时按 STATE 算），
+    selftest_breakout 钉住「生产的状态文件没被自测碰过」。
 
 ### 本地为主、云端托底（2026-09-15 起）
 

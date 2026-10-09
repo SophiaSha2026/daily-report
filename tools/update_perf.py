@@ -5,8 +5,7 @@
 （历史教训 30）。selftest_breakout 会逐位对账两边，所以这两件事只能一起做。
 
     python tools/update_perf.py --show          只打印产物里的数，不改文件
-    python tools/update_perf.py --from fixed    按生产在用的板块系数那一臂写（默认）
-    python tools/update_perf.py --from rolling  按滚动校正臂写（要显式指定）
+    python tools/update_perf.py                 按生产在用的那一臂（收缩系数，window_grid.json）写
 
 **默认必须是 fixed，因为生产用的就是它。** 2026-09-16 之前默认是 rolling，
 理由是「滚动臂每月只用过去的月份估系数，是最诚实的数」—— 那个理由对，
@@ -79,7 +78,7 @@ def cap_split(arm: str) -> tuple[tuple, tuple] | None:
         print(f"[!] 满员日那组算不了（{e}）", flush=True)
         return None
     f = (ROOT / "data" / "breakout" / "raw"
-         / ("wf_scores.parquet" if arm == "fixed" else "wf_rolling.parquet"))
+         / "wf_scores.parquet")
     if not f.exists():
         print(f"[!] 没有 {f.name}，满员日那组跳过", flush=True)
         return None
@@ -105,10 +104,9 @@ def cap_split(arm: str) -> tuple[tuple, tuple] | None:
 
 
 def load(arm: str) -> tuple[dict, dict, dict]:
-    f = OUT / ("window_grid.json" if arm == "fixed" else "window_grid_rolling.json")
+    f = OUT / "window_grid.json"
     if not f.exists():
-        raise SystemExit(f"没有 {f.name}，先跑 exp_window.py"
-                         + ("" if arm == "fixed" else " --adj rolling"))
+        raise SystemExit(f"没有 {f.name}，先跑 tools/refit_chain.py")
     grid = json.loads(f.read_text(encoding="utf-8"))
     cal = json.loads((OUT / "score_calibration.json").read_text(encoding="utf-8"))
     board = {}
@@ -223,11 +221,13 @@ def rewrite(arm: str) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--from", dest="arm", choices=["fixed", "rolling"], default="fixed")
+    # 2026-10-08 起只有一臂：滚动臂（rolling，各板块各信各的）早被收缩估计取代，
+    # 它的产物还是收盘口径的旧模型，按它写常量会被买得到口径那道守卫挡下
+    ap.add_argument("--from", dest="arm", choices=["fixed"], default="fixed")
     ap.add_argument("--show", action="store_true")
     a = ap.parse_args()
     if a.show:
-        for arm in ("fixed", "rolling"):
+        for arm in ("fixed",):
             try:
                 show(arm)
             except SystemExit as e:

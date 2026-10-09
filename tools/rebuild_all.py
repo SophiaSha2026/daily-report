@@ -9,11 +9,10 @@
     python tools/rebuild_all.py --dry             只打印要跑什么
 
 顺序有讲究：
-  起涨预测  build（特征表，约 20 分钟）-> refit（模型，指纹变了本来也会自动重训）
-            -> exp_window --adj shrink --save-adj（逐月滚动 + 重估板块系数，
-               成绩表 STREAK_PERF 和 state/breakout/board_adj.json 都从这来）
-            -> exp_calib（分数分档，BASE / SCORE_TABLE 的来源）
-            -> truth.validation_by_board（按板块命中率，邮件的加权期望用）
+  起涨预测  build（特征表，约 20 分钟）-> refit（模型，指纹变了本来也会自动重训，
+            重训验收 daily.accept_model 在这一步里）
+            -> tools/refit_chain.py（逐月滚动 + 收缩板块系数 + 分档 + 邮件常量 +
+               按板块命中率 + 自测；和每月模型到期那天自动跑的是同一条）
   （早盘那条 build-train 2026-09-27 随早盘系统归档；长期调整突破没有训练表，
    规则改了跑 python src/pullback_backtest.py 看频率就行）
 
@@ -84,73 +83,18 @@ def step_refit() -> bool:
     return m.get("fit_date") == dt.date.today().isoformat() or bool(m.get("feats"))
 
 
-def step_window() -> bool:
-    """逐月滚动 + 板块系数重估。**生产在用的是收缩臂**（2026-09-16 用户批准）。
+def step_chain() -> bool:
+    """成绩表 / 板块系数 / 分档 / 邮件常量 / 按板块命中率 / 自测：一律交给 tools/refit_chain.py。
 
-    以前这里跑的是 `--refit`（固定臂，用 daily.BOARD_ADJ 那四个写死的数）。
-    板块系数改成收缩之后再跑固定臂，等于「用收缩估出来的系数、又在同一段
-    数据上评成绩」——样本内那个老毛病原样回来，而且会把 window_grid.json
-    覆盖成另一套口径。--save-adj 顺带把下一期该用的因子写进
-    state/breakout/board_adj.json，生产读它，所以重建和更新系数是同一步。
+    以前这几步在这里另写了一份（逐月滚动直接写 window_grid.json、板块系数没四舍五入、
+    不改写邮件常量、还多跑一个早就不用的滚动臂），和每月自动跑的那条链各演各的（教训 34）。
     """
-    if run([sys.executable, str(ROOT / "src" / "breakout" / "exp_window.py"),
-            "--refit", "--adj", "shrink", "--save-adj"],
-           env_extra={"WF_OUT": str(OUT / "window_grid.json")}) != 0:
-        return False
-    g = json.loads((OUT / "window_grid.json").read_text(encoding="utf-8"))
-    w5 = [r for r in g["grid"] if r["kind"] == "W5"]
-    log.info("逐月滚动：%d 个交易日，基准 %.2f%%", g["days"], 100 * g["base"])
-    for r in sorted(w5, key=lambda x: x["label"]):
-        log.info("  %s  n=%d  命中 %.1f%%  ±%.1f", r["label"], r["n"],
-                 100 * r["hit"], 100 * r["se"])
-    return len(w5) >= 5
-
-
-def step_window_rolling() -> bool:
-    """滚动臂：每个板块各信各的（不收缩）。只当对照，**邮件不用它**。
-
-    2026-09-16 实测：它和收缩臂整体命中接近，但清单构成被小样本板块掀翻
-    （北交所 19 个名额的 26.3% 变成因子 2.37，主板 67%/科创 30% -> 主板 54%/
-    北交 31%），那是另一套策略。留着是为了下次有人问「不收缩会怎样」时
-    有现成的数，成绩表不从这里取。
-    """
-    if run([sys.executable, str(ROOT / "src" / "breakout" / "exp_window.py"),
-            "--refit", "--adj", "rolling"]) != 0:
-        return False
-    f = OUT / "window_grid_rolling.json"
-    if not f.exists():
-        log.error("没写出 %s", f.name)
-        return False
-    g = json.loads(f.read_text(encoding="utf-8"))
-    for r in sorted([x for x in g["grid"] if x["kind"] == "W5"], key=lambda x: x["label"]):
-        log.info("  [滚动校正] %s  n=%d  命中 %.1f%%  ±%.1f", r["label"], r["n"],
-                 100 * r["hit"], 100 * r["se"])
-    return True
-
-
-def step_calib() -> bool:
-    if run([sys.executable, str(ROOT / "src" / "breakout" / "exp_calib.py")]) != 0:
-        return False
-    c = json.loads((OUT / "score_calibration.json").read_text(encoding="utf-8"))
-    log.info("分数分档：基准 %.2f%%，单调 %s", 100 * c["base"], c.get("monotonic"))
-    return True
-
-
-def step_board() -> bool:
-    import truth as T
-    b = T.validation_by_board(refresh=True)
-    if not b:
-        log.error("按板块命中率算不出来")
-        return False
-    for k, v in sorted(b["boards"].items(), key=lambda x: -x[1]["n"]):
-        log.info("  %-8s n=%-4d 命中 %.1f%%", k, v["n"], 100 * v["hit"])
-    return True
+    return run([sys.executable, str(ROOT / "tools" / "refit_chain.py")], timeout=3600) == 0
 
 
 STEPS = {
     "breakout": [("建特征表", step_build), ("重训模型", step_refit),
-                 ("逐月滚动", step_window), ("逐月滚动-滚动校正", step_window_rolling),
-                 ("分数分档", step_calib), ("按板块命中率", step_board)],
+                 ("月度重估链", step_chain)],
 }
 
 

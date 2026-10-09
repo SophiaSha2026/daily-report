@@ -253,7 +253,11 @@ ACCEPT_WINDOW = 60       # 验收窗口：训练截止日之前的 60 个交易�
 ACCEPT_TOP10_DROP = 0.03  # 新模型在这段上的前 10 命中比旧模型低这么多、且 AP 也低，判坏
 ACCEPT_FEATS = (10, 150)  # 入模列数的合理范围
 ACCEPT_QUAL_MAX = 200     # 窗口内每天 ≥SCORE_MIN 分只数的中位数超过它 = 刻度失真
-REFIT_STATUS = STATE / "refit_status.json"
+def refit_status_path() -> Path:
+    """调用时按 STATE 现算。写成模块常量的话，自测把 STATE 换成临时目录也改不到它，
+    2026-10-07 自测就这样把假数据的验收结果写进了生产文件，10-08 的邮件抬头误印
+    「沿用旧模型」（教训 17 同一类）。score_stats_path 同理。"""
+    return STATE / "refit_status.json"
 
 
 def _load_existing(p: Path, meta_p: Path) -> dict | None:
@@ -343,7 +347,7 @@ def accept_model(booster, feats: list[str], q: np.ndarray, old: dict | None,
 def _write_refit_status(v: dict) -> None:
     try:
         STATE.mkdir(parents=True, exist_ok=True)
-        REFIT_STATUS.write_text(json.dumps(v, ensure_ascii=False, indent=1, default=float),
+        refit_status_path().write_text(json.dumps(v, ensure_ascii=False, indent=1, default=float),
                                 encoding="utf-8")
     except Exception as e:  # noqa: BLE001
         log.warning("refit_status 没落盘: %s", e)
@@ -352,7 +356,7 @@ def _write_refit_status(v: dict) -> None:
 def refit_rejected_recently(days: int = 35) -> bool:
     """上一次重训被验收挡下、而且还在重训周期内。邮件抬头和控制台印一句。"""
     try:
-        v = json.loads(REFIT_STATUS.read_text(encoding="utf-8"))
+        v = json.loads(refit_status_path().read_text(encoding="utf-8"))
         at = dt.date.fromisoformat(str(v.get("at", ""))[:10])
         return (not v.get("accepted", True)) and (now_bj().date() - at).days <= days
     except Exception:  # noqa: BLE001
@@ -868,7 +872,8 @@ def count_streak(code: str, date: str) -> int:
     return n
 
 
-SCORE_STATS = STATE / "score_stats.jsonl"
+def score_stats_path() -> Path:
+    return STATE / "score_stats.jsonl"
 DRIFT_LOOKBACK = 60
 DRIFT_ZERO_DAYS = 5
 DRIFT_SPIKE = 1.5
@@ -897,8 +902,8 @@ def record_score_stats(row: dict) -> list[dict]:
     """把当天的打分统计追加到 state/breakout/score_stats.jsonl（同一天重跑覆盖），返回全部历史。"""
     hist: dict[str, dict] = {}
     try:
-        if SCORE_STATS.exists():
-            for line in SCORE_STATS.read_text(encoding="utf-8").splitlines():
+        if score_stats_path().exists():
+            for line in score_stats_path().read_text(encoding="utf-8").splitlines():
                 try:
                     j = json.loads(line)
                     hist[j["date"]] = j
@@ -910,9 +915,9 @@ def record_score_stats(row: dict) -> list[dict]:
     rows = [hist[k] for k in sorted(hist)]
     try:
         STATE.mkdir(parents=True, exist_ok=True)
-        tmp = SCORE_STATS.with_suffix(".tmp")
+        tmp = score_stats_path().with_suffix(".tmp")
         tmp.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-        tmp.replace(SCORE_STATS)
+        tmp.replace(score_stats_path())
     except Exception as e:  # noqa: BLE001
         log.warning("score_stats 没落盘: %s", e)
     return rows

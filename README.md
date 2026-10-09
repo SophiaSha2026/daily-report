@@ -12,6 +12,8 @@
 > 量化筛选工具，非投资建议。
 
 - **日常怎么用、没收到邮件怎么办**：`OPERATIONS.md`
+- **单只股票预测**：控制台首页「查一只股票」，或 `python tools/predict_one.py <代码>`
+- **起涨预测的实验记录和改进计划**：`docs/breakout_log.md`、`docs/breakout_plan_2026-10.md`
 - **改代码之前**：`CLAUDE.md`（架构、文件地图、硬约束、历史教训）
 - **长期调整突破的规则和每个阈值的来历**：`src/pullback.py` 开头，阈值在 `config.yaml`
 - **早盘系统（09:27:30 竞价强弱榜 + 参数自学）**：2026-09-27 整体归档，见 `archive/morning/RESTORE.md`

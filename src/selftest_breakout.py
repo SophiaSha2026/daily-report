@@ -1104,10 +1104,13 @@ def check_pick_rule() -> None:
         "board": ["main"] * 100,
         "y_up": rng.random(100).round()})
     pr = rng.random(100)
-    old = V.daily_topn(many, pr, 10, "y_up")
     new = V.pick_days(many, pr, q, score_min=0, cap=10, board_adj={})
-    ck(old["code"].tolist() == new["code"].tolist(),
-       "score_min=0 且不校正时逐行退化成 daily_topn")
+    st_ = V.st_codes()           # pick 默认剔 ST 再补位，对照也得剔
+    exp = (many.assign(_p=pr)[~many["code"].isin(st_)]
+               .sort_values(["date", "_p"], ascending=[True, False])
+               .groupby("date").head(10))
+    ck(sorted(new["code"]) == sorted(exp["code"]),
+       "score_min=0 且不校正时退化成每天按预测值取前 10")
 
     # 空仓月 != 零命中月
     bm = pd.DataFrame([{"month": "2025-03", "n_pick": 0, "hit": np.nan,
@@ -1427,6 +1430,24 @@ def check_accept_model() -> None:
                         np.linspace(0, 1, 101))
     v6 = D.accept_model(few.booster_, feats[:3], q_few, old_good, df, cut)
     ck(not v6["accepted"] and any("入模列数" in r for r in v6["reasons"]), "入模列数太少：挡下")
+
+    # 状态文件跟着 STATE 走：自测把 STATE 换成临时目录，写出来的必须落在临时目录，
+    # 生产的 refit_status.json / score_stats.jsonl 一个字节都不许动（2026-10-07 就动了）
+    import tempfile
+    prod = {p_: (p_.stat().st_mtime if p_.exists() else None)
+            for p_ in (D.refit_status_path(), D.score_stats_path())}
+    keep_state = D.STATE
+    tmp = Path(tempfile.mkdtemp(prefix="state_"))
+    D.STATE = tmp
+    try:
+        D._write_refit_status({"accepted": False, "reasons": ["自测"], "at": "2025-01-01T00:00:00"})
+        D.record_score_stats({"date": "2025-01-01", "n_qualified": 1})
+        ck((tmp / "refit_status.json").exists() and (tmp / "score_stats.jsonl").exists(),
+           "换了 STATE 之后两份状态文件写进临时目录")
+    finally:
+        D.STATE = keep_state
+    ck(all((p_.stat().st_mtime if p_.exists() else None) == m for p_, m in prod.items()),
+       "生产的 refit_status.json / score_stats.jsonl 没被自测碰过")
 
     # 接线：load_or_fit 里 accept_model 在 save_model 之前；run_meta 带 refit_rejected
     src = (ROOT / "src" / "breakout" / "daily.py").read_text(encoding="utf-8")
@@ -2073,9 +2094,6 @@ def check_backtest_universe() -> None:
        f"pick 剔 ST 之后仍给满 10 只（{sel['code'].tolist()}）")
     ck({"600010", "600011"} <= set(sel["code"]),
        "11、12 名补位（先取 10 再删的话这两只永远进不来）")
-    tn = V.daily_topn(day.assign(p=p), p, 10, "y_up", st=st)
-    ck(set(tn["code"]) == set(sel["code"]),
-       "daily_topn 和 pick 选出同一批票（两条路同一个口径）")
     ck(len(V.pick(day, p, q, score_min=0, cap=10, board_adj={}, st=set())) == 10
        and "600001" in set(V.pick(day, p, q, score_min=0, cap=10,
                                   board_adj={}, st=set())["code"]),
@@ -2084,7 +2102,7 @@ def check_backtest_universe() -> None:
     vsrc = (ROOT / "src" / "breakout" / "validate.py").read_text(encoding="utf-8")
     fn = {f.name: f for f in ast.walk(ast.parse(vsrc))
           if isinstance(f, ast.FunctionDef)}
-    for name in ("pick", "daily_topn"):
+    for name in ("pick",):
         calls = {n.func.id for n in ast.walk(fn[name])
                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
         ck("st_codes" in calls, f"{name} 默认走 st_codes()（唯一来源）")

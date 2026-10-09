@@ -129,13 +129,23 @@ ACTIONS: dict[str, dict] = {
         "desc": "筹码分布、量价指标、股东人数等，再按当天全市场排名归一。"
                 "约 13 分钟，产出 426 万行 x 87 个指标。",
     },
+    "bk_chain": {
+        "no": "2-8", "name": "月度重估", "group": "2 辅助工具",
+        "cmd": ["tools/refit_chain.py"],
+        "mail": False, "danger": False,
+        "what": "重算邮件里印的准确率、板块系数和分数分档",
+        "desc": "逐月滚动成绩表 -> 收缩板块系数 -> 分数分档 -> 改写邮件常量 -> 按板块命中率 -> 自测，"
+                "约 15 分钟。模型到期那天流程会自己跑；手改了 state/breakout/overrides.json "
+                "之后点一次。",
+    },
     "bk_arena": {
         "no": "2-4", "name": "比模型", "group": "2 辅助工具",
         "cmd": ["src/breakout/arena.py"],
         "mail": False, "danger": False,
         "what": "试几种模型，看哪个预测得准",
-        "desc": "读不到封存的那 9 个月数据 —— 那段只许最终验收时用一次。"
-                "约 25 分钟。",
+        "desc": "线性模型 / 树模型 / 序列模型在 2025-03..12 上比（2026-09-12 的旧协议，"
+                "结论是树模型，生产在用）。新实验走 src/breakout/evalkit.py 的开发集协议。"
+                "读不到封存的那 9 个月数据。约 25 分钟。",
     },
     "refresh_meta": {
         "no": "2-5", "name": "更新股票名单", "group": "2 辅助工具",
@@ -184,7 +194,8 @@ ACTIONS: dict[str, dict] = {
 # （写锁在 backfill 里，这里是让人点之前就知道「它会自己做这一步」）。
 CONFLICTS = {"bk_backfill": ("breakout", "pullback"),
              "bk_refresh": ("breakout", "pullback"),
-             "bk_build": ("breakout",), "bk_refit": ("breakout",)}
+             "bk_build": ("breakout",), "bk_refit": ("breakout",),
+             "bk_chain": ("breakout",)}
 FLOW_NAMES = {"breakout": "起涨预测", "pullback": "长期调整突破"}
 
 

@@ -1,6 +1,8 @@
 # 爆发线（breakout）设计
 
 > 状态：**设计稿，待批准**。2026-09-12 起草。
+> 2026-10-08 注：已实施并多次修订（按月等权、买得到口径、评估制度），现状以 CLAUDE.md、
+> docs/breakout_log.md（实验 1~19）和 docs/breakout_plan_2026-10.md 为准，本文只留作最初的设计依据。
 > 2026-09-27 注：早盘系统（竞价线 + 学习线）已整体归档。文中借鉴的 `learn/`
 > 下的实现（model_select / optimize / gate）在 `archive/morning/src/learn/`；
 > 「竞价线 / 形态线」指归档前的另两条线；依赖以 `requirements-breakout.txt` 为准，

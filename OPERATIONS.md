@@ -147,13 +147,20 @@ schtasks /Query /TN DailyReport-Local-Pullback /V /FO LIST
   历史最后一根的票整段重拉（除权）；没有历史的新票整段拉；股东人数表过期就刷一次。
 - 全量刷新 `backfill.py --stage refresh`：新浪整段重拉 + 股东人数，拉完把分片收拢。
   机器几天没开时自动走这条（约 70 分钟）。
-- 特征表 `build.py` 每天重算；模型 30 天重训，特征列指纹变了也自动重训。
+- 特征表 `build.py` 每天重算；模型 30 天重训，特征列指纹或样本权重口径变了也自动重训。
+  重训后自动验收（新模型不如旧的就保留旧的），没过的话邮件抬头写「沿用旧模型」。
+- 模型到期那天，打分之前先跑月度重估链 `tools/refit_chain.py`（约 15 分钟）：成绩表、
+  板块系数、分数分档、邮件常量、按板块命中率一起刷新。失败不挡发信。
+- 每天记一行打分统计（`state/breakout/score_stats.jsonl`）；够格只数暴涨或连续 5 天为 0，
+  邮件抬头印「注意」。
 - 每天发信前算一次市场环境（`state/regime_daily.jsonl`）和历史清单真值
   （`state/breakout/truth.json`）：邮件里的「近期基准」和控制台的清单图读它们。
-- 邮件里的准确率来自 `out_breakout/window_grid.json`，改了口径要重跑
-  `exp_window.py --refit` 和 `tools/update_perf.py`，`selftest_breakout` 钉住常量和产物一致。
+- 邮件里的准确率按**收到邮件次日开盘买入**算（一字板买不进算没中），来自
+  `out_breakout/window_grid.json`；收盘价口径另印一句对照。改了口径跑 `tools/refit_chain.py`
+  （控制台「月度重估」），`selftest_breakout` 钉住常量和产物一致。
+- 想看某一只票模型怎么打分：控制台首页「查一只股票」，或 `python tools/predict_one.py 600000`。
 - `state/breakout/overrides.json` 是学习会诊批准过的常量覆盖（会诊已随早盘系统归档），
-  照常生效；要改就手改，改完按 `CLAUDE.md` 教训 36 那条流水把成绩表重跑一遍。
+  照常生效；要改就手改，改完点控制台「月度重估」（就是教训 36 那条流水）。
 
 ## 六、想改参数
 

@@ -1245,3 +1245,23 @@ CAP_PERF / NONCAP_PERF 为买得到口径，新常量 CLOSE_PERF 给邮件那句
   成绩里继续写明「剔 ST 按当前名单」。
 - **日线抽检（4.4，不做）**：每天追加的那根本来就来自腾讯快照，再拿腾讯核一遍是同源对同源；
   除权重拉的票已经按昨收核对。
+
+## 2026-10-08 · 全仓清理
+
+- 实验 2~14 的旧脚本（exp_target / exp_widen / exp_precision / exp_rank / exp_persist）和没有代码读的
+  旧产物（persist_grid / precision_grid / rank_analysis / window_grid_exp9_* / exp10_* / nomkt / rolling）
+  搬到 `archive/breakout_experiments/`，本日志里提到它们的路径按那里找。
+- 删掉从没被调用的 `model.L3Blend`、`datasource.load_code_list`、`selftest_gui._joined`，
+  以及 `validate.daily_topn`（`validate.pick` 的第二份实现，只剩自测在拿它和 pick 对账）。
+- `tools/rebuild_all.py` 后半段改成调 `tools/refit_chain.py`：以前它另写了一份重估流程，
+  板块系数不四舍五入（邮件防呆会把当天清单误标成旧规则）、不改写邮件常量、还跑已废弃的滚动臂。
+- `tools/update_perf.py` 去掉 rolling 臂；`evalkit.load_frame(with_confirm=True)` 必须写明实验和候选，
+  并过 `confirm_guard`（确认集每季度一次的纪律以前写了没接上）。
+- 控制台加「月度重估」按钮（2-8）。
+- **清理时抓到的真问题**：10-07 加重训验收时，`refit_status.json` 和 `score_stats.jsonl` 的路径写成了
+  模块常量（`STATE / ...`，导入时就定死）。自测把 `daily.STATE` 换成临时目录，改不到这两个常量，
+  于是自测里拿 7 列假数据跑的「验收不过」写进了生产文件并被提交，`refit_rejected_recently()` 读到它，
+  **10-08 的邮件和面板抬头误印「最近一次重训没过验收，沿用旧模型」**（实际 10-07 的重训是通过的，
+  那天用的就是新模型）。改成调用时按 STATE 现算（`refit_status_path` / `score_stats_path`），
+  生产文件用当前模型重建（通过），selftest_breakout 加一条「生产的两份状态文件没被自测碰过」。
+  打分统计没受影响（自测没走到 stage_scan）。

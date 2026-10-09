@@ -70,10 +70,18 @@ def months_in(span: tuple[str, str]) -> list[str]:
     return out
 
 
-def load_frame(with_confirm: bool = False) -> pd.DataFrame:
-    """训练表 + 买得到标签。with_confirm=False 时 2026 年整段不可见。"""
+def load_frame(with_confirm: bool = False, experiment: str = "",
+               candidate: str = "") -> pd.DataFrame:
+    """训练表 + 买得到标签。with_confirm=False 时 2026 年整段不可见。
+
+    with_confirm=True 要看确认集：必须说明是哪个实验的哪个候选，并且先过 confirm_guard
+    （本季度看过就拒绝，看了就记账）。纪律写成代码，和 arena 的封存数据同一个思路。"""
     import arena as A
     import buyable as B
+    if with_confirm:
+        if not (experiment and candidate):
+            raise SystemExit("看确认集要写明 experiment 和 candidate（记进 confirm_used.json）")
+        confirm_guard(experiment, candidate)
     df = A.load(with_holdout=with_confirm)
     df["code"] = df["code"].astype(str).str.zfill(6)
     lab = B.open_labels()

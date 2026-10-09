@@ -76,29 +76,6 @@ def st_codes(path: Path | None = None) -> set[str]:
     return _ST[key]
 
 
-def daily_topn(df: pd.DataFrame, proba: np.ndarray,
-               n: int = TOP_N, y: str = "y_up",
-               st: set[str] | None = None) -> pd.DataFrame:
-    """按天取前 n 只，算命中率。
-
-    必须**按天**取，不能全局取 top：全局 top 会集中落在少数几个大行情日
-    （2024-09 那种），算出来的命中率反映的是"挑对了日子"而不是"挑对了票"。
-    清单 A 是每天都要出的，评估口径必须和使用口径一致。
-    """
-    d = df[["date", "code", y]].copy()
-    d["p"] = proba
-    d = d[np.isfinite(d[y])]
-    if not len(d):
-        return pd.DataFrame(columns=["date", "code", "p", y])
-    d = d.sort_values(["date", "p"], ascending=[True, False])
-    # ST 在**取前 n 名之前**剔：生产是剔完再从 11 名之后补位的，
-    # 先取 10 再删等于每天少给几只，两条路的样本集不一样
-    bad = st_codes() if st is None else st
-    if bad:
-        d = d[~d["code"].astype(str).isin(bad)]
-    return d.groupby("date", sort=False).head(n)
-
-
 def pick(day: pd.DataFrame, proba: np.ndarray, q: np.ndarray | None,
          score_min: int | None = None, cap: int | None = None,
          board_adj: dict | None = None,
@@ -115,7 +92,8 @@ def pick(day: pd.DataFrame, proba: np.ndarray, q: np.ndarray | None,
     验收对上线规则没有证明力。
 
     参数给 None 表示「用生产值」（daily.SCORE_MIN / CAP_A / BOARD_ADJ）。
-    board_adj={} 且 score_min=0 时逐行退化成 daily_topn，给旧实验复算用。
+    board_adj={} 且 score_min=0 时退化成「每天按预测值取前 cap 只」，给旧实验复算用
+    （以前另有一份 daily_topn 干这件事，2026-10-08 删掉，只留这一份）。
     """
     import daily as D
     d = day.copy()
@@ -144,7 +122,8 @@ def pick(day: pd.DataFrame, proba: np.ndarray, q: np.ndarray | None,
 def pick_days(df: pd.DataFrame, proba: np.ndarray, q: np.ndarray | None,
               score_min: int | None = None, cap: int | None = None,
               board_adj: dict | None = None) -> pd.DataFrame:
-    """对多天逐日调 pick。必须**按天**取，理由见 daily_topn。"""
+    """对多天逐日调 pick。必须**按天**取：全局取 top 会集中落在少数几个大行情日，
+    算出来的是「挑对了日子」而不是「挑对了票」。"""
     d = df.copy()
     d["_proba"] = np.asarray(proba, dtype=float)
     out = [pick(g, g["_proba"].to_numpy(), q, score_min=score_min, cap=cap,
