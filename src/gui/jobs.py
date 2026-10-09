@@ -129,15 +129,6 @@ ACTIONS: dict[str, dict] = {
         "desc": "筹码分布、量价指标、股东人数等，再按当天全市场排名归一。"
                 "约 13 分钟，产出 426 万行 x 87 个指标。",
     },
-    "bk_chain": {
-        "no": "2-8", "name": "月度重估", "group": "2 辅助工具",
-        "cmd": ["tools/refit_chain.py"],
-        "mail": False, "danger": False,
-        "what": "重算邮件里印的准确率、板块系数和分数分档",
-        "desc": "逐月滚动成绩表 -> 收缩板块系数 -> 分数分档 -> 改写邮件常量 -> 按板块命中率 -> 自测，"
-                "约 15 分钟。模型到期那天流程会自己跑；手改了 state/breakout/overrides.json "
-                "之后点一次。",
-    },
     "bk_arena": {
         "no": "2-4", "name": "比模型", "group": "2 辅助工具",
         "cmd": ["src/breakout/arena.py"],
@@ -165,6 +156,15 @@ ACTIONS: dict[str, dict] = {
         "cmd": ["src/build_site.py"], "mail": False, "danger": False,
         "what": "把两个面板打包成网站目录（本机预览用）",
         "desc": "手机上看的网站由 GitHub 在每次推送后自动发布，平时不用点。",
+    },
+    "bk_chain": {
+        "no": "2-8", "name": "月度重估", "group": "2 辅助工具",
+        "cmd": ["tools/refit_chain.py"],
+        "mail": False, "danger": False,
+        "what": "重算邮件里印的准确率、板块系数和分数分档",
+        "desc": "逐月滚动成绩表 -> 收缩板块系数 -> 分数分档 -> 改写邮件常量 -> 按板块命中率 -> 自测，"
+                "约 15 分钟。模型到期那天流程会自己跑；手改了 state/breakout/overrides.json "
+                "之后点一次。",
     },
     "selftest_breakout": {
         "no": "3-1", "name": "检查起涨预测", "group": "3 检查",
