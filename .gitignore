@@ -71,3 +71,6 @@ archive/morning/tools/scheduled_tasks/
 
 # 早盘系统归档时移过来的旧运行日志（原来就是 gitignore 的）
 archive/morning/tools/logs/
+
+# 单股 AI 分析的结果（每次几 KB，个人用，能重跑）
+state/ai_analysis/
