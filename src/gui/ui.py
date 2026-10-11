@@ -1,16 +1,35 @@
 """
-控制台的单页界面。
+详细控制台（/full）。首页傻瓜页在 simple.py。
 
 为什么把 HTML 塞在 Python 字符串里而不是放 static/ 目录
 ------------------------------------------------------
-只有一个页面，而且它要跟着后端的字段一起改。拆成文件之后，改一个
-字段名要同时动两处、还要处理静态文件路由和缓存。等到第二个页面出现
-再拆不迟。
+页面要跟着后端的字段一起改。拆成文件之后，改一个字段名要同时动两处、
+还要处理静态文件路由和缓存。
 
-样式沿用 panel_style.PANEL_CSS 的配色（#14161a 底、#c1440e 强调），
-这样右侧 iframe 里嵌的两个面板和外壳是同一套视觉，不会像两个软件。
-故意不 import 那份 CSS：面板的 CSS 要跟着邮件正文走，控制台的不用，
-共用会让两边互相绊住。
+布局（2026-10-11 瘦身，用户：「文字越少越好，界面越干净越好，只留必要交互」）
+------------------------------------------------------------------------------
+    顶栏   北京时间、健康灯、首页 / 两个面板的链接（新标签页打开）
+    左栏   三组按钮：跑 / 查 / 修。按钮来自 jobs.ACTIONS（按 group 分组、组内按 no
+           排序），每个只印 name 和 what 一句，desc 收进鼠标悬停提示。
+           「修」组另外挂两样不在 ACTIONS 里的：重试推送（/api/push）、
+           计划任务启停（/api/task，任务表来自 /api/status 的 tasks）
+    右边   「状态」一页：两条线 + 同步的状态表 -> 当前任务的输出（打开页面时
+           自动接上最近一个任务）-> 折叠区：排期、自动运行日志、配置
+以前的总览 / 运行 / 面板 / 排期 / 运行记录 / 配置六页合成了这一页；面板 iframe
+改成顶栏链接；成绩说明、触发规则长表、优先级和 --if-needed 清单不再平铺，
+排期表的细则收进悬停提示（数据照旧来自 status.RULES）。
+
+接线要点（selftest_gui 钉住的，删文字时别删到它们）
+--------------------------------------------------
+- 顶栏面板链接的 data-p 必须和 server.PANELS 的键一致，href 由 data-p 拼出来。
+- pickState：报错对象最优先（run_meta 带 error 时退出码 0、日期也对，只看 done
+  会一路绿灯，教训 16）；done 和 sent 是两件事（run_meta 扫描阶段就落盘，发信是
+  后面的子进程），「跑完了但邮件没发出去」标红。
+- 顶栏「N 条线还没跑」把没发出去和带报错的也算进去，否则写「正常」就没人去补。
+- 会发邮件的按钮点前确认一次（2026-09-14 误点重发过一次上一交易日的清单）。
+- 排期说明里的 UTC 锚点要和 tools/setup_tasks.ps1 一致（selftest 逐字比对）。
+- 计划任务「上次结果」是 Windows HRESULT：0x41301 正在运行、0x41303 没跑过、
+  0x41306 被终止、0x800710E0 上次触发时已有实例在跑（IgnoreNew）。
 """
 
 PAGE = r"""<!doctype html>
@@ -21,130 +40,54 @@ PAGE = r"""<!doctype html>
 *{box-sizing:border-box}
 body{font:14px/1.55 -apple-system,'Microsoft YaHei',sans-serif;margin:0;
      background:#14161a;color:#e6e6e6;height:100vh;display:flex;flex-direction:column}
-header{display:flex;align-items:center;gap:14px;padding:10px 16px;
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;flex-wrap:wrap;
        background:#1a1d23;border-bottom:1px solid #2a2f38;flex:none}
 header h1{font-size:15px;margin:0;font-weight:600}
-header .clock{color:#8f9aa8;font-size:12px;font-family:Consolas,monospace}
 header .spacer{flex:1}
+header a{color:#8f9aa8;font-size:13px;text-decoration:none}
+header a:hover{color:#e6e6e6}
+.clock{color:#8f9aa8;font-size:12px;font-family:Consolas,monospace}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 .dot.ok{background:#3fb950}.dot.bad{background:#f85149}.dot.warn{background:#d29922}
 .dot.idle{background:#484f58}
 main{flex:1;display:flex;min-height:0}
-nav{width:132px;flex:none;background:#1a1d23;border-right:1px solid #2a2f38;
-    padding:10px 0;display:flex;flex-direction:column}
-nav button{background:none;border:none;color:#8f9aa8;text-align:left;
-           padding:9px 16px;font-size:13px;cursor:pointer;border-left:2px solid transparent}
-nav button:hover{color:#e6e6e6;background:#20242b}
-nav button.on{color:#e6e6e6;background:#20242b;border-left-color:#c1440e}
-nav .gap{flex:1}
+aside{width:300px;flex:none;overflow:auto;background:#1a1d23;
+      border-right:1px solid #2a2f38;padding:4px 0 16px}
+aside h2{font-size:13px;color:#c1440e;font-weight:600;margin:14px 16px 4px}
+.act{display:flex;align-items:center;gap:10px;padding:6px 16px}
+.act:hover{background:#20242b}
+.act .tx{flex:1;min-width:0}
+.act .nm{font-size:13.5px;font-weight:600}
+.act .ml{font-size:11px;font-weight:400;color:#ff8f8f;border:1px solid #5c2626;
+         border-radius:3px;padding:0 5px;margin-left:6px}
+.act .what{font-size:12px;color:#7d8590;line-height:1.45}
+button.go{flex:none;background:#2a2f38;color:#e6e6e6;border:1px solid #3a4149;
+          border-radius:5px;padding:4px 12px;font-size:13px;font-family:inherit;cursor:pointer}
+button.go:hover{background:#39404b}
+button.go.danger{border-color:#7a3520}
+button.go.danger:hover{background:#8a3a18}
+button.go:disabled{opacity:.45;cursor:not-allowed}
 section{flex:1;overflow:auto;padding:16px;min-width:0}
-section.flush{padding:0}
-h2{font-size:14px;margin:0 0 10px;font-weight:600}
-h2 .hint{font-weight:400;color:#7d8590;font-size:12px;margin-left:8px}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
-.card{background:#1a1d23;border:1px solid #2a2f38;border-radius:6px;padding:12px}
-.card.bad{border-color:#5c2626;background:#1f1717}
-.card.warn{border-color:#5c4a1a}
-.card h3{margin:0 0 8px;font-size:13px;font-weight:600;display:flex;align-items:center}
-.card h3 .t{flex:1}
-.kv{display:flex;justify-content:space-between;font-size:12px;color:#8f9aa8;
-    padding:3px 0;gap:10px}
-.kv b{color:#e6e6e6;font-weight:600;font-family:Consolas,monospace;
-      text-align:right;word-break:break-all}
+h3{font-size:14px;margin:18px 0 8px;font-weight:600;display:flex;align-items:center;gap:10px}
+.hint{font-weight:400;color:#7d8590;font-size:12px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{background:#1e2229;text-align:left;padding:6px 9px;border-bottom:1px solid #333;
+   font-weight:600;white-space:nowrap}
+td{padding:6px 9px;border-bottom:1px solid #232830;vertical-align:top}
+table.sum td:first-child{font-weight:600;white-space:nowrap;width:1%}
+table.sum td:nth-child(2){white-space:nowrap;width:1%}
+.muted{color:#7d8590}
+.mono{font-family:Consolas,monospace;font-size:12px}
 .prob{color:#ff8f8f;font-size:12px;margin-top:8px;line-height:1.6}
-.prob div{margin-top:3px}
-.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-button.act{background:#2a2f38;color:#e6e6e6;border:1px solid #3a4149;
-     border-radius:5px;padding:6px 12px;font-size:13px;cursor:pointer}
-button.act:hover{background:#39404b}
-button.act:disabled{opacity:.4;cursor:not-allowed}
-button.act.danger{border-color:#7a3520}
-button.act.danger:hover{background:#8a3a18}
-button.act.on{background:#c1440e;border-color:#c1440e}
-.grp{margin-bottom:16px}
-.grp>.lbl{color:#7d8590;font-size:12px;margin-bottom:6px}
-.desc{color:#7d8590;font-size:12px;margin:-6px 0 10px;line-height:1.6;
-      min-height:2.6em;border-left:2px solid #2a2f38;padding-left:10px}
 pre.log{background:#0e1014;border:1px solid #2a2f38;border-radius:6px;
     padding:10px 12px;font:12px/1.6 Consolas,monospace;color:#c9d1d9;
     white-space:pre-wrap;word-break:break-all;margin:0;
-    max-height:calc(100vh - 300px);overflow:auto;min-height:180px}
+    max-height:60vh;overflow:auto;min-height:120px}
 pre.log .e{color:#ff8f8f}
 pre.log .w{color:#e3b341}
 pre.log .s{color:#7fb3ff}
-table{border-collapse:collapse;width:100%;font-size:13px}
-th{background:#1e2229;text-align:left;padding:7px 9px;border-bottom:1px solid #333;
-   font-weight:600;white-space:nowrap}
-td{padding:7px 9px;border-bottom:1px solid #232830;vertical-align:top}
-tr:hover td{background:#1b1f26}
-.mono{font-family:Consolas,monospace;font-size:12px}
-.muted{color:#7d8590}
-iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
-.tabs{display:flex;gap:2px;background:#1a1d23;border-bottom:1px solid #2a2f38;
-   flex:none;overflow-x:auto;white-space:nowrap}
-.tabs button{flex:none}
-.tabs button{background:none;border:none;color:#8f9aa8;padding:9px 16px;
-   font-size:13px;cursor:pointer;border-bottom:2px solid transparent}
-.tabs button.on{color:#e6e6e6;border-bottom-color:#c1440e}
-.tabs .tabgrp{align-self:center;font-family:var(--mono);font-size:10px;
-   letter-spacing:.1em;color:#6B7683;padding:0 8px 0 14px}
-.tabs .tabsep{align-self:center;width:1px;height:16px;background:#2a2f38;
-   margin:0 4px}
-.frame{display:flex;flex-direction:column;height:100%}
-.frame>.body{flex:1;min-height:0}
-
-/* ==== 系统卡片（总览）==== */
-.sys{background:var(--surface,#1a1d23);border:1px solid #2a2f38;border-radius:8px;
-     margin-bottom:14px;overflow:hidden}
-.sys>.hd{display:flex;align-items:baseline;gap:10px;padding:12px 16px;
-     background:#20242b;border-bottom:1px solid #2a2f38}
-.sys>.hd .n{font:700 15px/1 var(--mono,Consolas);color:#c1440e}
-.sys>.hd .t{font-size:15px;font-weight:650}
-.sys>.hd .w{margin-left:auto;font-size:12px;color:#7d8590}
-.item{display:grid;grid-template-columns:44px 1fr auto;gap:12px;
-      align-items:center;padding:12px 16px;border-bottom:1px solid #232830}
-.item:last-child{border-bottom:none}
-.item .no{font:700 13px/1 var(--mono,Consolas);color:#7d8590}
-.item .nm{font-size:14px;font-weight:600}
-.item .sub{font-size:12px;color:#7d8590;margin-top:3px}
-.item .st{text-align:right;font-size:13px;white-space:nowrap}
-.item .st b{display:block;font:700 17px/1.2 var(--mono,Consolas)}
-.st.ok b{color:#3fb950}.st.no b{color:#7d8590}.st.warn b{color:#d29922}
-.st.bad b{color:#f85149}
-/* ==== 运行页的大按钮 ==== */
-.act-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
-     gap:10px;margin-bottom:20px}
-.act-card{background:#1a1d23;border:1px solid #2a2f38;border-radius:8px;
-     padding:14px 16px;display:flex;flex-direction:column;gap:8px}
-.act-card.danger{border-color:#5c2626}
-.act-card .top{display:flex;align-items:baseline;gap:9px}
-.act-card .no{font:700 12px/1 var(--mono,Consolas);color:#c1440e}
-.act-card .nm{font-size:15px;font-weight:650}
-.act-card .ml{margin-left:auto;font-size:11px;color:#ff8f8f;
-     border:1px solid #5c2626;border-radius:3px;padding:1px 6px}
-.act-card .what{font-size:13px;color:#b4becA;line-height:1.55;flex:1}
-.act-card .go{align-self:flex-start;background:#2a2f38;color:#e6e6e6;
-     border:1px solid #3a4149;border-radius:5px;padding:6px 16px;
-     font-size:13px;cursor:pointer}
-.act-card .go:hover{background:#39404b}
-.act-card.danger .go{border-color:#7a3520}
-.act-card.danger .go:hover{background:#8a3a18}
-.act-card .go:disabled{opacity:.45;cursor:not-allowed}
-.act-card .more{font-size:11.5px;color:#6B7683;line-height:1.5;display:none}
-.act-card.open .more{display:block}
-.act-card .tg{font-size:11px;color:#6B7683;background:none;border:none;
-     cursor:pointer;padding:0;align-self:flex-start}
-/* ==== 成绩块（嵌在系统卡片里）==== */
-.perfbox{padding:12px 16px 14px;background:#171a1f;border-top:1px solid #232830}
-.perfbox .pt{font-size:12px;color:#7d8590;margin-bottom:9px}
-.perfbox .pn{font-size:12.5px;color:#b4beca;line-height:1.65;margin-top:9px}
-/* ==== 成绩条 ==== */
-.perf{display:flex;align-items:center;gap:10px;margin-top:6px}
-.perf .lbl{font-size:11.5px;color:#7d8590;width:64px;flex:none}
-.perf .bar2{flex:1;height:12px;background:#232830;border-radius:3px;overflow:hidden}
-.perf .bar2 i{display:block;height:100%;background:#c1440e}
-.perf .bar2.grey i{background:#3a4149}
-.perf .v{font:600 12px/1 var(--mono,Consolas);width:52px;text-align:right}
+details{margin-top:14px;border-top:1px solid #2a2f38;padding-top:10px}
+summary{cursor:pointer;color:#8f9aa8;font-size:13px;margin-bottom:8px}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
    background:#c1440e;padding:8px 18px;border-radius:5px;opacity:0;
    transition:.25s;font-size:13px;pointer-events:none;z-index:9}
@@ -153,57 +96,30 @@ iframe{width:100%;height:100%;border:none;background:#14161a;display:block}
    border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite;
    margin-right:6px;vertical-align:-1px}
 @keyframes sp{to{transform:rotate(360deg)}}
+@media (max-width:760px){body{height:auto}main{flex-direction:column}
+  aside{width:auto;border-right:none;border-bottom:1px solid #2a2f38}section{overflow:visible}}
 </style></head><body>
 
 <header>
   <h1>A股流水线</h1>
   <span class="clock" id="clock">...</span>
-  <span class="spacer"></span>
   <span class="clock" id="health"></span>
+  <span class="spacer"></span>
+  <a href="/">首页</a>
+  <a data-p="breakout" target="_blank">起涨预测面板</a>
+  <a data-p="pullback" target="_blank">长期调整突破面板</a>
 </header>
 
 <main>
-  <nav>
-    <button data-v="home" class="on">总览</button>
-    <button data-v="run">运行</button>
-    <button data-v="panel">面板</button>
-    <button data-v="sched">排期</button>
-    <button data-v="log">运行记录</button>
-    <button data-v="conf">配置</button>
-    <span class="gap"></span>
-  </nav>
-
-  <section id="v-home"></section>
-
-  <section id="v-run" hidden>
-    <div id="runbar"></div>
-      <h2>输出 <span class="hint" id="joblbl"></span>
-      <button class="act" id="stopbtn" hidden style="float:right;padding:3px 10px">停止</button>
-    </h2>
-    <pre class="log" id="joblog">还没有跑过任何东西。</pre>
-  </section>
-
-  <section id="v-panel" hidden class="flush">
-    <div class="frame">
-      <div class="tabs">
-        <span class="tabgrp">晚间系统</span>
-        <button data-p="breakout" class="on">起涨预测</button>
-        <button data-p="pullback">长期调整突破</button>
-      </div>
-      <div class="body"><iframe id="pframe" src="/panel/breakout"></iframe></div>
-    </div>
-  </section>
-
-  <section id="v-sched" hidden></section>
-
-  <section id="v-log" hidden>
-    <h2>自动运行记录<span class="hint">计划任务每天自己跑的输出，北京时间（09-28 以前的行是美东时间）。手动跑的记录在「运行」页</span></h2>
-    <pre class="log" id="flowlog">读取中...</pre>
-  </section>
-
-  <section id="v-conf" hidden>
-    <h2>参数配置<span class="hint">只读。所有阈值都在这里，要改请直接编辑 config.yaml 并跑一次自检</span></h2>
-    <pre class="log" id="confbody" style="max-height:calc(100vh - 150px)">读取中...</pre>
+  <aside id="acts"></aside>
+  <section>
+    <div id="sum"></div>
+    <h3>输出 <span class="hint" id="joblbl"></span>
+      <button class="go" id="stopbtn" hidden>停止</button></h3>
+    <pre class="log" id="joblog">还没有</pre>
+    <details id="d-sched"><summary>排期</summary><div id="sched"></div></details>
+    <details id="d-log"><summary>自动运行日志</summary><pre class="log" id="flowlog"></pre></details>
+    <details id="d-conf"><summary>配置（只读）</summary><pre class="log" id="confbody"></pre></details>
   </section>
 </main>
 
@@ -229,278 +145,135 @@ async function api(path, body) {
   return j;
 }
 
-/* ---------------- 导航 ---------------- */
-let view = "home";
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
-  document.querySelectorAll("nav button").forEach(x =>
-    x.classList.toggle("on", x === b));
-  view = b.dataset.v;
-  ["home","run","panel","sched","log","conf"].forEach(v =>
-    $("#v-" + v).hidden = v !== view);
-  if (view === "log") loadFlowLog();
-  if (view === "conf") loadConf();
-  if (view === "home" || view === "sched") refresh();
-});
+document.querySelectorAll("a[data-p]").forEach(a => a.href = "/panel/" + a.dataset.p);
 
-document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
-  document.querySelectorAll(".tabs button").forEach(x =>
-    x.classList.toggle("on", x === b));
-  $("#pframe").src = "/panel/" + b.dataset.p;
-});
+/* ---------------- 状态 ---------------- */
+function pickState(l) {
+  const day = "目标日 " + (l.target || "-") +
+    ((l.n === undefined || l.n === null) ? "" : " · 清单 " + l.n + " 只");
+  if (l.before_start) return ["idle", "未上线", (l.since || "").slice(5) + " 起"];
+  if (l.error) return ["bad", "有报错", String(l.error).slice(0, 60)];
+  if (l.done && l.sent === false) return ["bad", "邮件没发出去", day];
+  if (l.done) return ["ok", "已完成", day];
+  if (l.dry) return ["warn", "只试跑过", "没发信"];
+  return ["warn", "没跑", "目标日 " + (l.target || "-")];
+}
 
-/* ---------------- 总览 ---------------- */
-function card(title, dotClass, rows, probs, cls) {
-  const c = el("div", "card" + (cls ? " " + cls : ""));
-  const h = el("h3");
-  h.appendChild(Object.assign(el("span", "dot " + dotClass), {}));
-  h.appendChild(el("span", "t", title));
-  c.appendChild(h);
-  rows.forEach(([k, v]) => {
-    const r = el("div", "kv"); r.appendChild(el("span", null, k));
-    r.appendChild(el("b", null, v)); c.appendChild(r);
-  });
-  if (probs && probs.length) {
+function sumRow(t, name, cls, big, small) {
+  const tr = el("tr"), td = el("td");
+  tr.appendChild(el("td", null, name));
+  td.appendChild(el("span", "dot " + cls)); td.appendChild(document.createTextNode(big));
+  tr.appendChild(td); tr.appendChild(el("td", "muted", small || ""));
+  t.appendChild(tr);
+}
+
+function renderSum(s) {
+  const t = el("table", "sum");
+  s.lines.forEach(l => { const [c, big, small] = pickState(l); sumRow(t, l.name, c, big, small); });
+  const sy = s.sync;
+  sumRow(t, "同步", sy.ok ? "ok" : "bad", sy.ok ? "正常" : "有问题",
+    "上次推送 " + (sy.last_push || "无记录") + (sy.last_push_ok === false ? " 失败" : ""));
+  const fb = s.cloud_fallback || {};
+  const cloud = (s.cloud_cron_live || []).concat((fb.missing || []).map(x => "托底没开：" + x));
+  if (cloud.length) sumRow(t, "云端", "warn", "有问题", "");
+  const box = $("#sum"); box.innerHTML = ""; box.appendChild(t);
+  const probs = (sy.problems || []).concat(cloud);
+  if (probs.length) {
     const p = el("div", "prob");
-    probs.forEach(x => p.appendChild(el("div", null, "• " + x)));
-    c.appendChild(p);
+    probs.forEach(x => p.appendChild(el("div", null, x)));
+    box.appendChild(p);
   }
-  return c;
 }
 
-function sysItem(no, name, sub, stateCls, big, small) {
-  const d = el("div", "item");
-  d.appendChild(el("div", "no", no));
-  const mid = el("div");
-  mid.appendChild(el("div", "nm", name));
-  if (sub) mid.appendChild(el("div", "sub", sub));
-  d.appendChild(mid);
-  const st = el("div", "st " + stateCls);
-  st.appendChild(el("b", null, big));
-  if (small) st.appendChild(el("div", null, small));
-  d.appendChild(st);
-  return d;
-}
+/* ---------------- 左栏：跑 / 查 / 修 ---------------- */
+let curJob = null, logOffset = 0, logTimer = null, acts = [];
+const byNo = (a, b) => String(a.no).localeCompare(String(b.no), undefined, { numeric: true });
 
-function sysCard(no, title, when, items) {
-  const c = el("div", "sys");
-  const hd = el("div", "hd");
-  hd.appendChild(el("span", "n", no));
-  hd.appendChild(el("span", "t", title));
-  hd.appendChild(el("span", "w", when));
-  c.appendChild(hd);
-  items.forEach(x => c.appendChild(x));
-  return c;
-}
-
-function lineOf(s, key) { return s.lines.find(l => l.key === key) || {}; }
-
-function pickState(l, s) {
-  // 四种状态：跑完了(ok) / 跑完但没发出去(bad) / 只试跑过(warn) / 该跑没跑(warn)
-  // 没有「周末不用跑」：两条线的目标日都是最近一个已收盘交易日，北京周六
-  // 凌晨（美东周五）正是补周五清单的时段，那会儿显示「周末不用跑」会把
-  // 真正该报的「没跑」盖掉。
-  //
-  // done 和 sent 是两件事：run_meta 在采样/扫描阶段就落盘，发信是后面的
-  // 子进程。只按 done 上绿灯的话，「采样成功、enrich 挂了没发信」和正常
-  // 日子在界面上一模一样（教训 16：失败必须有一个能被界面查询的对象）。
-  const n = (l.n === undefined || l.n === null) ? "已完成" : l.n + " 只";
-  // 出错对象最优先：研究性步骤挂掉时把异常写进 run_meta 就继续往下走
-  // （不阻断业务），退出码 0、日期也对，只按 done 上绿灯的话，这一天和
-  // 正常日子在界面上一模一样（教训 16）。
-  if (l.before_start) return ["no", "还没开始", (l.since || "").slice(5) + " 起每天发"];
-  if (l.error) return ["bad", "有报错", String(l.error).slice(0, 40)];
-  if (l.done && l.sent === false)
-    return ["bad", n + "，邮件没发出去", "数据 " + (l.date || "-")];
-  if (l.done) return ["ok", n, "数据 " + (l.date || "-")];
-  if (l.dry) return ["warn", "只试跑过", "没发信，真跑还没做"];
-  return ["warn", "没跑", "数据 " + (l.date || "无")];
-}
-
-function perfRow(lbl, val, unit, barPct, grey) {
-  const r = el("div", "perf");
-  r.appendChild(el("div", "lbl", lbl));
-  const bar = el("div", "bar2" + (grey ? " grey" : ""));
-  const i2 = el("i"); i2.style.width = Math.max(barPct, 2) + "%";
-  bar.appendChild(i2); r.appendChild(bar);
-  r.appendChild(el("div", "v", val + unit));
+function actRow(nm, what, tip, btn) {
+  const r = el("div", "act"), tx = el("div", "tx");
+  if (tip) r.title = tip;
+  tx.appendChild(nm);
+  if (what) tx.appendChild(el("div", "what", what));
+  r.appendChild(tx); r.appendChild(btn);
   return r;
 }
 
-function perfBlock(title, rows, note) {
-  // 成绩块，塞在系统卡片的**里面**，紧挨着它说的那条线。
-  const d = el("div", "perfbox");
-  d.appendChild(el("div", "pt", title));
-  rows.forEach(r => d.appendChild(r));
-  if (note) d.appendChild(el("div", "pn", note));
-  return d;
-}
-
-function renderHome(s) {
-  const box = $("#v-home"); box.innerHTML = "";
-  const h = el("h2", null, "今天");
-  h.appendChild(Object.assign(el("span", "hint"),
-    { textContent: `北京 ${s.bj} 周${s.weekday}` +
-      (s.weekend ? "（周末：两条线仍会补上一个交易日）" : "") }));
-  box.appendChild(h);
-
-  // ===== 晚间系统 =====（2026-09-27 早盘系统归档后仓库里只剩这一个）
-  const bk = lineOf(s, "breakout"), pb = lineOf(s, "pullback");
-  const [bs, bb, bm] = pickState(bk, s);
-  const [ps, pbb, pm] = pickState(pb, s);
-  const mo = s.model || {};
-  const c2 = sysCard("1", "晚间系统", "起涨预测 17:00 后、长期调整突破 17:58 发邮件", [
-    sysItem("1-1", "起涨预测", "挑出可能要涨的股票发给你", bs, bb, bm),
-    sysItem("1-2", "模型自学", "用最新数据重新学习，每 30 天一次",
-            mo.exists ? "ok" : "warn",
-            mo.exists ? mo.age_days + " 天前" : "没训练",
-            mo.exists ? mo.days_to_refit + " 天后重学" : "点 1-2 训练"),
-    sysItem("1-3", "长期调整突破", "清单 A：二次进攻那天发给你；清单 B：缩量调整完、还在等二次进攻的",
-            ps, pbb, pm),
-  ]);
-  // 口径必须和邮件/面板里印的一致（export.STREAK_PERF）。之前这里挂的是
-  // 14.43%，那是**旧规则**（每天固定前 10 只、不设门槛）在封存数据上的
-  // 验收成绩；现在的规则是「≥97 分才上，按连续天数排」，拿旧数字给新规则
-  // 背书就是在骗自己。封存数据只许看一次，已经用掉了，所以下面这组是
-  // 验证集（2025-03~12，207 个交易日）算的。
-  // 三个数和 export.STREAK_PERF 一致：hit2 = 连续 2 天以上，hitAll = 全部上榜。
-  // 实验 10（偷看、未净化、筹码网格三处漏洞都修掉之后）连续信号只剩「略高」，
-  // 3 天以上样本不到 100 只，不再单独当一档说。
-  // 2026-09-16 起从服务端读 window_grid.json（和 export.STREAK_PERF 同源），
-  // 读不到才退回下面这组手抄值。
-  const bp = s.breakout_perf || {};
-  const hit2 = bp.exists ? bp.hit2 : 15.7, hitAll = bp.exists ? bp.hit_all : 12.6,
-        base = bp.exists ? bp.base : 2.93;
-  c2.appendChild(perfBlock(
-    "起涨预测：100 只票里，有多少会在接下来一个月内涨超 50%？（验证集 207 个交易日）", [
-    perfRow("连续上榜 2 天以上的", hit2.toFixed(1) + " 只", "", 100, false),
-    perfRow("清单上的全部", hitAll.toFixed(1) + " 只", "",
-            hitAll / hit2 * 100, false),
-    perfRow("随便买", base.toFixed(1) + " 只", "", base / hit2 * 100, true),
-  ], "清单上的票 100 只里约 " + hitAll.toFixed(0) + " 只会在一个月内涨超 50%，"
-   + "随便买是 " + base.toFixed(1) + " 只，差 4 倍多。连续上榜 2 天以上的略高（"
-   + hit2.toFixed(0) + " 只），再往上样本太少不作数。"
-   + "反过来说：清单上仍有近 9 成涨不到 50%，这份清单是提高出黑马的密度，"
-   + "不是「选出来的都会涨」。这组数字是把偷看和未净化的回测都修掉之后的，"
-   + "比早先发布的低，那才是真的。"));
-  // 长期调整突破的历史频率：扫描时用同一个判定函数在三年全市场上现数的
-  const ph = s.pullback_hist || {};
-  if (ph.exists) {
-    let note = ph.from.slice(0, 7) + " ~ " + ph.to.slice(0, 7) + " 同口径共 " + ph.n
-      + " 次，平均每月约 " + ph.per_month + " 次，大多数交易日是空榜，空榜也发信写明。";
-    if (ph.n_final) note += "走满 " + ph.bars + " 天的 " + ph.n_final + " 次里，之后最高价涨幅中位 "
-      + (ph.max_up_median > 0 ? "+" : "") + ph.max_up_median + "%，第 " + ph.bars
-      + " 天收盘中位 " + (ph.ret_median > 0 ? "+" : "") + ph.ret_median + "%（只描述历史，不是预测）。";
-    c2.appendChild(perfBlock("长期调整突破：多久出一次？", [], note));
-  }
-  box.appendChild(c2);
-
-  return renderSync(box, s);
-}
-
-function renderSync(box, s) {
-  const h2 = el("h2", null, "系统健康");
-  h2.appendChild(Object.assign(el("span", "hint"),
-    { textContent: "这里红了才需要管，平时不用看" }));
-  box.appendChild(h2);
-
-  const g2 = el("div", "cards");
-  const sy = s.sync;
-  const syncCard = card("和 GitHub 的同步", sy.ok ? "ok" : "bad", [
-    ["本地没上传的", sy.ahead + " 次改动"],
-    ["远端没下载的", sy.behind + " 次改动"],
-    ["上次上传", (sy.last_push || "无记录")
-      + (sy.last_push_ok === false ? " 失败" : "")],
-  ], sy.problems, sy.ok ? "" : "bad");
-  if (!sy.ok) {
-    const b = el("button", "act", "重试上传");
-    b.style.marginTop = "10px";
-    b.onclick = async () => {
-      b.disabled = true; b.textContent = "上传中…";
-      try { const r = await api("/api/push", {});
-        // 推成功了卡片就该转绿：push_main 两头都写 push_status，
-        // refresh() 重读的就是它。以前这里无论成败都说「已重试」，
-        // 而卡片因为没人改 push_status 一直红着。
-        toast(r.ok ? "已上传" : "上传失败，看日志");
-        alert(r.log || "(无输出)"); refresh(); }
-      catch (e) { toast("失败: " + e.message); }
-      finally { b.disabled = false; b.textContent = "重试上传"; }
-    };
-    syncCard.appendChild(b);
-  }
-  g2.appendChild(syncCard);
-
-  const live = s.cloud_cron_live || [];
-  const fb = s.cloud_fallback || { on: [], missing: [], unexpected: [] };
-  const fbBad = live.length || (fb.missing || []).length;
-  const probs = [].concat(live, (fb.missing || []).map(x => "托底没开：" + x));
-  g2.appendChild(card("云端托底", fbBad ? "warn" : "ok",
-    [["角色", "本机为主，云端只在本机没跑时补位"],
-     ["开着的托底", (fb.on || []).length + " 条"],
-     ["不该开的", live.length ? live.length + " 条还在自动跑" : "无"]],
-    probs.length ? probs : (fb.on || []), fbBad ? "warn" : ""));
-  box.appendChild(g2);
-}
-
-/* ---------------- 运行 ---------------- */
-let curJob = null, logOffset = 0, logTimer = null, lastActions = null;
-
-function renderRun(a) {
-  lastActions = a.actions || [];
-  const bar = $("#runbar");
-  if (bar.dataset.built) { syncRunButtons(a); return; }
-  bar.innerHTML = "";
-  const groups = {};
-  a.actions.forEach(x => (groups[x.group] = groups[x.group] || []).push(x));
-  Object.keys(groups).sort().forEach(name => {
-    const h = el("h2", null, name);
-    h.style.cssText = "margin:4px 0 12px";
-    bar.appendChild(h);
-    const grid = el("div", "act-grid");
-    groups[name].forEach(x => grid.appendChild(actCard(x)));
-    bar.appendChild(grid);
+function buildActs(list) {
+  const box = $("#acts"), groups = {};
+  list.slice().sort(byNo).forEach(x => {
+    if (!groups[x.group]) {
+      box.appendChild(el("h2", null, x.group));
+      groups[x.group] = box.appendChild(el("div"));
+    }
+    const nm = el("div", "nm", x.name);
+    if (x.mail) nm.appendChild(el("span", "ml", "会发邮件"));
+    const b = el("button", "go" + (x.danger ? " danger" : ""), "跑");
+    b.dataset.key = x.key; b.onclick = () => run(x.key);
+    groups[x.group].appendChild(actRow(nm, x.what, x.desc, b));
   });
-  bar.dataset.built = "1";
-  syncRunButtons(a);
+  const fix = groups["修"] || box.appendChild(el("div"));
+  const pb = el("button", "go", "推送");
+  pb.onclick = () => retryPush(pb);
+  fix.appendChild(actRow(el("div", "nm", "重试推送"), "推送失败时用", "", pb));
+  const tk = el("div"); tk.id = "tasks"; fix.appendChild(tk);
 }
 
-function actCard(x) {
-  const c = el("div", "act-card" + (x.danger ? " danger" : ""));
-  const top = el("div", "top");
-  top.appendChild(el("span", "no", x.no || ""));
-  top.appendChild(el("span", "nm", x.name));
-  if (x.mail) top.appendChild(el("span", "ml", "会发邮件"));
-  c.appendChild(top);
-  c.appendChild(el("div", "what", x.what || x.desc || ""));
-
-  const tg = el("button", "tg", "详细说明 ▾");
-  const more = el("div", "more", x.desc || "");
-  tg.onclick = () => {
-    c.classList.toggle("open");
-    tg.textContent = c.classList.contains("open") ? "收起 ▴" : "详细说明 ▾";
-  };
-  if (x.desc && x.desc !== x.what) { c.appendChild(tg); c.appendChild(more); }
-
-  const go = el("button", "go", "运行");
-  go.dataset.key = x.key;
-  go.onclick = () => run(x.key);
-  c.appendChild(go);
-  return c;
-}
-
-function syncRunButtons(a) {
+function renderActs(a) {
+  acts = a.actions || [];
+  const box = $("#acts");
+  if (!box.dataset.built) {
+    buildActs(acts); box.dataset.built = "1";
+    if (lastStatus) renderTasks(lastStatus);
+  }
   const running = new Set(a.running);
-  document.querySelectorAll("#runbar button.go").forEach(b => {
+  box.querySelectorAll("button[data-key]").forEach(b => {
     const r = running.has(b.dataset.key);
-    b.disabled = r;
-    b.textContent = r ? "正在跑…" : "运行";
+    b.disabled = r; b.textContent = r ? "在跑" : "跑";
   });
+  if (!curJob && (a.jobs || []).length) {
+    curJob = a.jobs[0].id; logOffset = 0; $("#joblog").textContent = ""; pollLog();
+  }
+}
+
+function taskName(s, n) {
+  const l = s.lines.find(x => x.task === n);
+  return l ? l.name : (/Sync$/.test(n) ? "同步" : n);
+}
+
+function renderTasks(s) {
+  const box = $("#tasks");
+  if (!box) return;
+  const names = Object.keys(s.tasks || {}).sort();
+  const sig = JSON.stringify(names.map(n => [n, s.tasks[n].state]));
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig; box.innerHTML = "";
+  names.forEach(n => {
+    const on = s.tasks[n].state === "Ready" || s.tasks[n].state === "Running";
+    const b = el("button", "go", on ? "停用" : "启用");
+    b.onclick = async () => {
+      b.disabled = true;
+      try { await api("/api/task", { name: n, enable: !on }); toast("已改"); }
+      catch (e) { toast(e.message); }
+      finally { b.disabled = false; refresh(); }
+    };
+    box.appendChild(actRow(el("div", "nm", "计划任务 · " + taskName(s, n)),
+      on ? "启用中" : "已停用", n, b));
+  });
+}
+
+async function retryPush(b) {
+  b.disabled = true;
+  try {
+    const r = await api("/api/push", {});
+    toast(r.ok ? "已推送" : "推送失败");
+    alert(r.log || ""); refresh();
+  } catch (e) { toast(e.message); }
+  finally { b.disabled = false; }
 }
 
 async function run(key) {
-  // 会发邮件的按钮点了就真的发，没有第二道门。2026-09-14 一次误点把上一交易日的
-  // 清单又发了一遍，所以这里先问一句。
-  const a = (lastActions || []).find(x => x.key === key);
-  if (a && a.mail && !confirm(`「${a.name}」会真的发邮件到你邮箱，确定运行？`)) return;
+  const a = acts.find(x => x.key === key);
+  if (a && a.mail && !confirm(`「${a.name}」会真的发邮件，确定？`)) return;
   try {
     const j = await api("/api/run", { key });
     curJob = j.id; logOffset = 0; $("#joblog").textContent = "";
@@ -511,12 +284,12 @@ async function run(key) {
 }
 
 $("#stopbtn").onclick = async () => {
-  if (!curJob) return;
-  if (!confirm("终止这次运行？整棵进程树都会被杀掉。")) return;
-  try { await api("/api/stop", { id: curJob }); toast("已终止"); }
+  if (!curJob || !confirm("停掉这次运行？")) return;
+  try { await api("/api/stop", { id: curJob }); toast("已停"); }
   catch (e) { toast(e.message); }
 };
 
+/* ---------------- 输出 ---------------- */
 function colorize(line) {
   const s = esc(line);
   if (/ERROR|错误|失败|Traceback|退出码 [1-9]/.test(line))
@@ -533,165 +306,103 @@ async function pollLog() {
     if (j.new && j.new.length) {
       const pre = $("#joblog");
       const stick = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
-      pre.insertAdjacentHTML("beforeend",
-        j.new.map(colorize).join("\n") + "\n");
+      pre.insertAdjacentHTML("beforeend", j.new.map(colorize).join("\n") + "\n");
       if (stick) pre.scrollTop = pre.scrollHeight;
       logOffset = j.next;
     }
     $("#joblbl").innerHTML = j.running
-      ? `<span class="spin"></span>${esc(j.name)} 已跑 ${j.secs}s`
-      : `${esc(j.name)} 结束，退出码 ${j.rc}，耗时 ${j.secs}s`;
+      ? `<span class="spin"></span>${esc(j.name)} ${j.secs}s`
+      : `${esc(j.name)} 结束，退出码 ${j.rc}，${j.secs}s`;
     $("#stopbtn").hidden = !j.running;
     clearTimeout(logTimer);
     if (j.running) logTimer = setTimeout(pollLog, 1000);
     else { refreshActions(); refresh(); }
   } catch (e) {
-    $("#joblbl").textContent = "日志中断: " + e.message;
+    $("#joblbl").textContent = e.message;
   }
 }
 
-/* ---------------- 触发规则 ---------------- */
-function renderRules(box, r) {
-  if (!r) return;
-  const h = el("h2", null, "触发规则");
-  h.appendChild(Object.assign(el("span", "hint"),
-    { textContent: "现在 " + r.now + "。每条线：什么时候触发、什么条件下真的跑、云端怎么补位" }));
-  box.appendChild(h);
-
-  const t = el("table");
-  t.innerHTML = "<tr><th>线</th><th>本机什么时候触发</th><th>开跑窗口</th><th>自动开跑</th>" +
-    "<th>目标日</th><th>现在会怎样</th><th>云端规则</th></tr>";
-  (r.lines || []).forEach(x => {
-    const tr = el("tr");
-    const vcls = x.done ? "ok" : (/开跑/.test(x.verdict) ? "warn" : "idle");
-    tr.innerHTML =
-      `<td><b>${esc(x.name)}</b><div class="muted mono" style="font-size:11px">${esc(x.task || "手动")}</div></td>` +
-      `<td style="font-size:12px">${esc(x.local_when)}<div class="muted" style="font-size:11px;margin-top:4px">步骤：${esc(x.steps)}</div></td>` +
-      `<td class="mono" style="font-size:12px">${esc(x.window)}</td>` +
-      `<td class="mono" style="font-size:12px">${esc(x.auto_from || "")}</td>` +
-      `<td style="font-size:12px"><span class="mono">${esc(x.target)}</span><div class="muted" style="font-size:11px">${esc(x.target_rule)}</div></td>` +
-      `<td style="font-size:12px"><span class="dot ${vcls}"></span>${esc(x.verdict)}</td>` +
-      `<td style="font-size:12px">${esc(x.cloud)}</td>`;
-    t.appendChild(tr);
-  });
-  box.appendChild(t);
-
-  const cond = el("div", "muted");
-  cond.style.cssText = "font-size:12px;margin-top:10px;line-height:1.8";
-  cond.innerHTML = "<b>优先级：</b><br>" + (r.priority || []).map(esc).join("<br>") +
-    "<br><b>计划任务每次敲门，按顺序过这几道检查（--if-needed）：</b><br>" +
-    (r.if_needed || []).map((x, i) => (i + 1) + ". " + esc(x)).join("<br>") +
-    "<br><b>手动：</b>" + esc(r.manual || "") +
-    "<br><b>第三层触发：</b>" + esc(r.worker || "");
-  box.appendChild(cond);
-}
-
-// 计划任务的「上次结果」。Windows 用 HRESULT 报状态，裸数字看不懂：
-//   0x41301 正在运行  0x41303 还没跑过  0x41306 被终止
-//   0x800710E0 上次触发时已有实例在跑，新触发被忽略（MultipleInstances=IgnoreNew）
+/* ---------------- 折叠区 ---------------- */
 function rcText(rc) {
   if (rc === 0) return "成功";
   if (rc === null || rc === undefined) return "";
-  const m = { 267009: "正在运行", 267011: "还没跑过", 267014: "被终止",
-              2147946720: "已在跑，新触发被忽略", 1: "退出码 1（看运行记录）" };
+  const m = { 267009: "在跑", 267011: "没跑过", 267014: "被终止",
+              2147946720: "已在跑，忽略", 1: "退出码 1" };
   return m[rc] || ("码 " + rc);
 }
+const TASK_ST = { Ready: "启用", Running: "在跑", Disabled: "停用" };
 
-/* ---------------- 排期 ---------------- */
 function renderSched(s) {
-  const box = $("#v-sched"); box.innerHTML = "";
-  const h = el("h2", null, "Windows 计划任务");
-  h.appendChild(Object.assign(el("span", "hint"),
-    { textContent: "每天自动运行靠这个。「上次/下次」是北京时间；" +
-                   "排期按 UTC 锚定，北京时刻不随美东夏令时漂" }));
-  box.appendChild(h);
-
+  const box = $("#sched"); box.innerHTML = "";
   const t = el("table");
-  t.innerHTML = "<tr><th>任务</th><th>状态</th><th>上次</th><th>结果</th>" +
-    "<th>下次</th><th></th></tr>";
-  const names = Object.keys(s.tasks).sort();
-  if (!names.length) t.innerHTML += '<tr><td colspan="6" class="muted">' +
-    "查不到 DailyReport-* 任务</td></tr>";
+  t.innerHTML = "<tr><th>计划任务</th><th>状态</th><th>上次</th><th>结果</th><th>下次</th></tr>";
+  const names = Object.keys(s.tasks || {}).sort();
+  if (!names.length) t.innerHTML += '<tr><td colspan="5" class="muted">查不到</td></tr>';
   names.forEach(n => {
     const d = s.tasks[n], tr = el("tr");
-    const on = d.state === "Ready" || d.state === "Running";
-    const legacy = n.indexOf("Trigger") >= 0;
-    tr.innerHTML =
-      `<td class="mono">${esc(n)}${legacy ?
-        '<div class="muted" style="font-size:11px">旧的云端派发，已弃用</div>' : ""}</td>` +
-      `<td><span class="dot ${on ? (legacy ? "warn" : "ok") : "idle"}"></span>` +
-        `${esc(d.state)}</td>` +
+    tr.title = n;
+    tr.innerHTML = `<td>${esc(taskName(s, n))}</td><td>${esc(TASK_ST[d.state] || d.state)}</td>` +
       `<td class="mono muted">${esc(d.last)}</td>` +
-      `<td class="mono ${d.rc ? "" : "muted"}">${d.never ? "还没跑过" : rcText(d.rc)}</td>` +
+      `<td class="mono">${d.never ? "没跑过" : rcText(d.rc)}</td>` +
       `<td class="mono muted">${esc(d.next)}</td>`;
-    const td = el("td");
-    const b = el("button", "act", on ? "停用" : "启用");
-    b.style.padding = "3px 10px";
-    b.onclick = async () => {
-      b.disabled = true;
-      try { await api("/api/task", { name: n, enable: !on }); toast("已改"); }
-      catch (e) { toast(e.message); }
-      finally { b.disabled = false; refresh(true); }
-    };
-    td.appendChild(b); tr.appendChild(td); t.appendChild(tr);
+    t.appendChild(tr);
   });
   box.appendChild(t);
-
-  renderRules(box, s.rules);
-
-  const tip = el("div", "muted");
-  tip.style.cssText = "font-size:12px;margin-top:14px;line-height:1.8";
-  tip.innerHTML =
-    "起涨预测 <b>DailyReport-Local-Evening</b>：北京周一到周五 16:30 起每 30 分钟，持续 16 小时。" +
-    "目标日是最近一个已收盘的交易日，北京 16:00 到次日 08:30 都能补跑，结果一样。<br>" +
-    "长期调整突破 <b>DailyReport-Local-Pullback</b>：北京周一到周五 17:40 起每 15 分钟，持续 15 小时。" +
-    "扫描几秒钟，跑完等到 17:58 发信；机器 17:58 没开着就开机后补发，邮件里写明补发时刻。<br>" +
-    "两条线的触发器按 <b>UTC</b> 锚定（Evening 08:30Z / Pullback 09:40Z），北京时刻固定不漂。<br>" +
-    "同步远端 <b>DailyReport-Local-Sync</b>：每 30 分钟拉一次 GitHub 上的最新产物。<br>" +
-    "反复重试是因为笔记本可能整段时间不在线（2026-08-27 就漏发过一次）。" +
-    "反复敲是安全的：流程会先查目标日跑过没有、有没有正在跑，跑完了再敲直接退出，不会重发邮件。" +
-    "本机整天没开时云端算不了（数据都在本机），北京 20:30 发一封提醒，开机后自动补。" +
-    "排期定义在 tools/setup_tasks.ps1。";
+  const r = s.rules || {}, t2 = el("table");
+  t2.style.marginTop = "10px";
+  t2.innerHTML = "<tr><th></th><th>开跑窗口</th><th>自动开跑</th><th>现在触发会怎样</th></tr>";
+  (r.lines || []).forEach(x => {
+    const tr = el("tr");
+    tr.title = [x.local_when, x.steps, x.cloud].join("\n\n");
+    tr.innerHTML = `<td><b>${esc(x.name)}</b></td><td class="mono">${esc(x.window)}</td>` +
+      `<td class="mono">${esc(x.auto_from)}</td><td>${esc(x.verdict)}</td>`;
+    t2.appendChild(tr);
+  });
+  box.appendChild(t2);
+  const tip = el("div", "muted",
+    "触发器按 UTC 锚定（起涨预测 08:30Z、长期调整突破 09:40Z），北京时刻固定；" +
+    "定义在 tools/setup_tasks.ps1。细则悬停看。");
+  tip.style.cssText = "font-size:12px;margin-top:8px";
+  tip.title = [r.manual].concat(r.priority || [], r.if_needed || [], [r.worker]).join("\n");
   box.appendChild(tip);
 }
 
-/* ---------------- 其它页 ---------------- */
 async function loadFlowLog() {
   try { const j = await api("/api/logfile");
     $("#flowlog").innerHTML = j.text.split("\n").map(colorize).join("\n");
     const p = $("#flowlog"); p.scrollTop = p.scrollHeight;
-  } catch (e) { $("#flowlog").textContent = "读取失败: " + e.message; }
+  } catch (e) { $("#flowlog").textContent = e.message; }
 }
 async function loadConf() {
   try { const j = await api("/api/config"); $("#confbody").textContent = j.text; }
-  catch (e) { $("#confbody").textContent = "读取失败: " + e.message; }
+  catch (e) { $("#confbody").textContent = e.message; }
 }
+$("#d-sched").addEventListener("toggle", () => {
+  if ($("#d-sched").open && lastStatus) renderSched(lastStatus); });
+$("#d-log").addEventListener("toggle", () => { if ($("#d-log").open) loadFlowLog(); });
+$("#d-conf").addEventListener("toggle", () => { if ($("#d-conf").open) loadConf(); });
 
 /* ---------------- 刷新循环 ---------------- */
 let lastStatus = null;
-async function refresh(force) {
+async function refresh() {
   try {
     const s = await api("/api/status");
     lastStatus = s;
     $("#clock").textContent = "北京 " + s.bj;
     const bad = !s.sync.ok || (s.cloud_cron_live || []).length;
-    // 两条线的目标日都是上一个已收盘交易日，周六没补出来是真没跑，不能被
-    // 「周末」两个字盖住（教训 16）。「跑完了但邮件没发出去」也算没跑完，
-    // 顶栏写「一切正常」就没人去补了（计划任务会自己重跑：done_for 对两条线
-    // 都要求 sent 标记，见 local_run.SENT_REQUIRED）。
     const undone = s.lines.filter(l => !l.before_start
       && (!l.done || l.sent === false || l.error)).length;
     $("#health").innerHTML = bad
-      ? '<span class="dot bad"></span>有问题，看总览'
-      : (undone ? '<span class="dot warn"></span>' + undone + " 条线今天还没跑"
+      ? '<span class="dot bad"></span>有问题'
+      : (undone ? '<span class="dot warn"></span>' + undone + " 条线还没跑"
         : (s.weekend ? '<span class="dot idle"></span>周末'
-          : '<span class="dot ok"></span>一切正常'));
-    if (view === "home") renderHome(s);
-    if (view === "sched") renderSched(s);
+          : '<span class="dot ok"></span>正常'));
+    renderSum(s); renderTasks(s);
+    if ($("#d-sched").open) renderSched(s);
   } catch (e) { $("#health").textContent = "状态获取失败"; }
 }
 async function refreshActions() {
-  try { renderRun(await api("/api/actions")); } catch (e) {}
+  try { renderActs(await api("/api/actions")); } catch (e) {}
 }
 
 refresh(); refreshActions();

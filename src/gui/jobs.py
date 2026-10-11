@@ -41,16 +41,19 @@ PY = sys.executable
 # 环境变量和各流程自己的 dry 分支。写在这里是为了让人点之前就知道
 # 这一下会不会有邮件飞出去。
 ACTIONS: dict[str, dict] = {
-    # no    界面上的编号。1=晚间系统 2=辅助工具 3=检查
-    #       （2026-09-27 早盘系统归档，它的 1-x 按钮一起搬走，晚间系统顶上来）
-    # what  一句人话，说清楚点了会发生什么
+    # group 详细控制台左栏的三组：跑 / 查 / 修（2026-10-11 控制台瘦身，以前是
+    #       「1 晚间系统 / 2 辅助工具 / 3 检查」）。组的先后按组里最小的 no
+    # no    同组内的排序键，不再印在界面上。1=跑 2=查 3=修；正式和试跑同号，
+    #       按这张表里的先后排（正式在前）
+    # what  一句人话，说清楚点了会发生什么。界面上只印 name 和这一句，
+    #       desc 收进鼠标悬停提示
     # mail  会不会真的往外发邮件。这一列是给人看的，不是开关
     #
     # 和计划任务走同一个入口（local_run.py --flow breakout）：补当天日线、
     # 重算特征、打分、发信、推仓库，一步不少。以前这里直接调 daily.py，
     # 不补数据，2026-09-14 用户点了一下，把 09-11 的清单又发了一遍。
     "breakout": {
-        "no": "1-1", "name": "起涨预测", "group": "1 晚间系统",
+        "no": "1-1", "name": "起涨预测", "group": "跑",
         "cmd": ["src/local_run.py", "--flow", "breakout"],
         "mail": True, "danger": True,
         "what": "把最近一个收盘日可能要涨的股票发到你邮箱",
@@ -60,14 +63,14 @@ ACTIONS: dict[str, dict] = {
                 "结果一样。已经在跑、或目标日已经跑完并发过信，都直接退出。",
     },
     "breakout_dry": {
-        "no": "1-1", "name": "起涨预测（试跑）", "group": "1 晚间系统",
+        "no": "1-1", "name": "起涨预测（试跑）", "group": "跑",
         "cmd": ["src/local_run.py", "--flow", "breakout", "--dry"],
         "mail": False, "danger": False,
         "what": "跑一遍看看会选出哪些股票，不发邮件",
         "desc": "和上面一样，但不发信、不上传。",
     },
     "bk_refit": {
-        "no": "1-2", "name": "模型自学", "group": "1 晚间系统",
+        "no": "1-4", "name": "模型自学", "group": "跑",
         "cmd": ["src/breakout/daily.py", "--stage", "refit"],
         "mail": False, "danger": False,
         "what": "用最新数据重新训练起涨预测的模型",
@@ -75,25 +78,24 @@ ACTIONS: dict[str, dict] = {
                 "这里是「我现在就想让它重学一遍」的入口。约 5 分钟。",
     },
     "pullback": {
-        "no": "1-3", "name": "长期调整突破", "group": "1 晚间系统",
+        "no": "1-2", "name": "长期调整突破", "group": "跑",
         "cmd": ["src/local_run.py", "--flow", "pullback"],
         "mail": True, "danger": True,
-        "what": "清单 A：横盘 3 个月 -> 倍量大阳线 -> 缩量调整 -> 二次进攻那天；"
-                "清单 B：走完前三步、还在等二次进攻的",
+        "what": "横盘、首阳、缩量调整之后二次进攻的股票，17:58 发到你邮箱",
         "desc": "日线补到最近一个收盘日（起涨预测在补就等它）-> 全市场扫三段形态（几秒）-> "
                 "北京 17:58 发邮件（17:58 前点也等到 17:58，过了就立即发）。"
                 "三年回测平均每月一两次，空榜是常态，空榜也发信写明。"
                 "目标日已经发过信直接退出，不会重发。",
     },
     "pullback_dry": {
-        "no": "1-3", "name": "长期调整突破（试跑）", "group": "1 晚间系统",
+        "no": "1-2", "name": "长期调整突破（试跑）", "group": "跑",
         "cmd": ["src/local_run.py", "--flow", "pullback", "--dry"],
         "mail": False, "danger": False,
         "what": "扫一遍看看今天有没有，不发邮件、不等 17:58",
         "desc": "和上面一样，但不发信、不上传，面板照样生成。",
     },
     "pullback_backtest": {
-        "no": "1-4", "name": "长期调整突破·回看三年", "group": "1 晚间系统",
+        "no": "1-8", "name": "长期调整突破·回看三年", "group": "跑",
         "cmd": ["src/pullback_backtest.py", "--grid"],
         "mail": False, "danger": False,
         "what": "按现在的规则把三年全市场扫一遍：多久出一次、卡在哪一步",
@@ -106,7 +108,7 @@ ACTIONS: dict[str, dict] = {
     # 用户在「日线只到 X」的时候点它纯属白等（教训 22 的同一处）。
     # 每日增量是 --stage update，和计划任务、两条晚间线走的是同一条。
     "bk_backfill": {
-        "no": "2-1", "name": "补数据", "group": "2 辅助工具",
+        "no": "1-5", "name": "补数据", "group": "跑",
         "cmd": ["src/breakout/backfill.py", "--stage", "update"],
         "mail": False, "danger": False,
         "what": "把最近一个收盘日的日线追加进去，两条晚间线都要用",
@@ -115,14 +117,14 @@ ACTIONS: dict[str, dict] = {
                 "从没回填过请先点「全量回填」。",
     },
     "bk_refresh": {
-        "no": "2-2", "name": "全量回填", "group": "2 辅助工具",
+        "no": "1-6", "name": "全量回填", "group": "跑",
         "cmd": ["src/breakout/backfill.py", "--stage", "refresh"],
         "mail": False, "danger": False,
         "what": "重新下载全市场三年日线",
         "desc": "首次回填或数据坏了才用，约 70 分钟。中断了再点会接着跑。",
     },
     "bk_build": {
-        "no": "2-3", "name": "算特征", "group": "2 辅助工具",
+        "no": "1-7", "name": "算特征", "group": "跑",
         "cmd": ["src/breakout/build.py"],
         "mail": False, "danger": False,
         "what": "把日线算成起涨预测模型能用的数据",
@@ -130,7 +132,7 @@ ACTIONS: dict[str, dict] = {
                 "约 13 分钟，产出 426 万行 x 87 个指标。",
     },
     "bk_arena": {
-        "no": "2-4", "name": "比模型", "group": "2 辅助工具",
+        "no": "2-4", "name": "比模型", "group": "查",
         "cmd": ["src/breakout/arena.py"],
         "mail": False, "danger": False,
         "what": "试几种模型，看哪个预测得准",
@@ -139,26 +141,26 @@ ACTIONS: dict[str, dict] = {
                 "读不到封存的那 9 个月数据。约 25 分钟。",
     },
     "refresh_meta": {
-        "no": "2-5", "name": "更新股票名单", "group": "2 辅助工具",
+        "no": "3-1", "name": "更新股票名单", "group": "修",
         "cmd": ["src/refresh_meta.py"], "mail": False, "danger": False,
         "what": "重新下载全市场股票代码表",
         "desc": "新股上市后补进来。每周一次就够。",
     },
     "sync": {
-        "no": "2-6", "name": "同步远端产物", "group": "2 辅助工具",
+        "no": "3-2", "name": "同步远端产物", "group": "修",
         "cmd": ["src/local_run.py", "--sync"],
         "mail": False, "danger": False,
         "what": "把 GitHub 上的最新产物拉到本机",
         "desc": "计划任务每 30 分钟会自动拉一次，这里是手动入口。几秒钟。",
     },
     "build_site": {
-        "no": "2-7", "name": "重建网页", "group": "2 辅助工具",
+        "no": "3-3", "name": "重建网页", "group": "修",
         "cmd": ["src/build_site.py"], "mail": False, "danger": False,
         "what": "把两个面板打包成网站目录（本机预览用）",
         "desc": "手机上看的网站由 GitHub 在每次推送后自动发布，平时不用点。",
     },
     "bk_chain": {
-        "no": "2-8", "name": "月度重估", "group": "2 辅助工具",
+        "no": "1-3", "name": "月度重估", "group": "跑",
         "cmd": ["tools/refit_chain.py"],
         "mail": False, "danger": False,
         "what": "重算邮件里印的准确率、板块系数和分数分档",
@@ -167,21 +169,21 @@ ACTIONS: dict[str, dict] = {
                 "之后点一次。",
     },
     "selftest_breakout": {
-        "no": "3-1", "name": "检查起涨预测", "group": "3 检查",
+        "no": "2-1", "name": "检查起涨预测", "group": "查",
         "cmd": ["src/selftest_breakout.py"], "mail": False, "danger": False,
         "what": "确认起涨预测没被改坏，特别是没偷看未来数据",
         "desc": "筹码算法的六条数学性质、涨跌标注、偷看未来检测、"
                 "当天排名是否抹掉了大盘涨跌。",
     },
     "selftest_pullback": {
-        "no": "3-2", "name": "检查长期调整突破", "group": "3 检查",
+        "no": "2-2", "name": "检查长期调整突破", "group": "查",
         "cmd": ["src/selftest_pullback.py"], "mail": False, "danger": False,
         "what": "确认长期调整突破的每条规则都还在起作用",
         "desc": "每条准入规则各一个用例（横盘、首阳、调整、二次进攻、股本跳变）"
                 "+ 产物和发信接线，条数在自测输出里。",
     },
     "probe": {
-        "no": "3-3", "name": "检查数据源", "group": "3 检查",
+        "no": "2-3", "name": "检查数据源", "group": "查",
         "cmd": ["tools/probe.py"], "mail": False, "danger": False,
         "what": "看看行情数据下载得通不通",
         "desc": "逐个探测数据源。东方财富连不上不影响出榜，只是慢一点。",

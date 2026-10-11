@@ -2433,6 +2433,60 @@ def check_watchdogs() -> None:
     ck(bf.count("_net_guard()") >= 2, "新浪子进程和 backfill 主进程都补了 requests 默认超时")
 
 
+def check_frontend_backend_alignment() -> None:
+    """前后端对齐（计划 2026-10-10 第 5 项）：页面调的每条路由后端都有；每个按钮的脚本存在、
+    参数被脚本的 argparse 认得（含 choices）。静态查，不起子进程。"""
+    print("\n[前后端对齐]")
+    import ast
+    import re
+    from gui import simple, ui
+    from gui.jobs import ACTIONS
+    ssrc = (ROOT / "src" / "gui" / "server.py").read_text(encoding="utf-8")
+    exact = set(re.findall(r'p == "(/[^"]*)"', ssrc))
+    prefix = set(re.findall(r'p\.startswith\("(/[^"]*)"\)', ssrc))
+    used = set()
+    for page in (simple.PAGE, ui.PAGE):
+        used |= set(re.findall(r'fetch\(\s*[`"\']([^`"\'?$]+)', page))
+        used |= set(re.findall(r'api\(\s*[`"\']([^`"\'?$]+)', page))
+    missing = [u for u in used
+               if u not in exact and not any(u.startswith(pf) for pf in prefix)]
+    ck(used and not missing, f"页面调的 {len(used)} 条路由后端都有（缺 {missing}）")
+    # 页面里写死的按钮键（动态按钮来自 /api/actions，不在这里）
+    keys = set()
+    for page in (simple.PAGE, ui.PAGE):
+        keys |= set(re.findall(r"run\(\s*['\"]([a-z_]+)['\"]", page))
+    ck(keys <= set(ACTIONS), f"页面写死的按钮键都在 ACTIONS 里（多出 {sorted(keys - set(ACTIONS))}）")
+
+    bad = []
+    for key, a in ACTIONS.items():
+        script = ROOT / a["cmd"][0]
+        if not script.exists():
+            bad.append(f"{key}: 脚本 {a['cmd'][0]} 不存在")
+            continue
+        tree = ast.parse(script.read_text(encoding="utf-8"))
+        flags, choices = set(), {}
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Call) and getattr(n.func, "attr", "") == "add_argument":
+                names = [c.value for c in n.args if isinstance(c, ast.Constant)]
+                flags |= set(names)
+                ch = [kw.value for kw in n.keywords if kw.arg == "choices"]
+                if ch:
+                    vals = {c.value for c in ast.walk(ch[0]) if isinstance(c, ast.Constant)}
+                    if vals:                  # choices=list(FLOWS) 这种静态读不出来，不判
+                        for nm in names:
+                            choices[nm] = vals
+        args = a["cmd"][1:]
+        for i, tok in enumerate(args):
+            if tok.startswith("--"):
+                if tok not in flags:
+                    bad.append(f"{key}: {a['cmd'][0]} 不认 {tok}")
+                elif tok in choices and i + 1 < len(args) and args[i + 1] not in choices[tok]:
+                    bad.append(f"{key}: {tok} 不接受 {args[i + 1]}（只有 {sorted(choices[tok])}）")
+    ck(not bad, "每个按钮的脚本存在且参数被 argparse 认得" + ("：" + "；".join(bad) if bad else ""))
+    groups = {a["group"] for a in ACTIONS.values()}
+    ck(groups == {"跑", "查", "修"}, f"按钮只分跑 / 查 / 修三组（实得 {sorted(groups)}）")
+
+
 def check_refit_chain_wiring() -> None:
     """月度重估链（计划 3.6）：模型到期那天在打分之前跑，有时限，失败不挡发信。"""
     print("\n[月度重估链·接线]")
@@ -2493,6 +2547,7 @@ def main() -> int:
     check_task_sentinel()
     check_http()
     check_refit_chain_wiring()
+    check_frontend_backend_alignment()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")

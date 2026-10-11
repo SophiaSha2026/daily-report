@@ -82,10 +82,6 @@ def _mdhm(iso: str) -> str:
     return s
 
 
-def today_bj() -> str:
-    return now_bj().strftime("%Y-%m-%d")
-
-
 def _json(rel: str) -> dict:
     try:
         return json.loads((ROOT / rel).read_text(encoding="utf-8"))
@@ -322,7 +318,8 @@ def line_status(tasks: dict) -> list[dict]:
             "before_start": bool(since) and d < since,
             "done": done, "dry": dry, "sent": sent, "error": err,
             "date": meta.get("date", ""), "target": d,
-            "n": meta.get("n"), "panel_date": pdate, "panel_mtime": pmtime,
+            # 起涨预测的 run_meta 记的是 n_a（清单 A 只数），长期调整突破记 n
+            "n": meta.get("n", meta.get("n_a")), "panel_date": pdate, "panel_mtime": pmtime,
             "task": ln["task"], "task_state": t.get("state", ""),
             "task_last": t.get("last", ""), "task_rc": t.get("rc"),
             "task_next": t.get("next", ""),

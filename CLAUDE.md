@@ -140,12 +140,14 @@ src/
                          更早的 exp_* 2026-10-08 搬到 archive/breakout_experiments/
   selftest_breakout.py   离线自测
   ── 控制台（GUI）──
-  gui/simple.py          首页傻瓜页：两条线各一行（状态 / 多久没跑 / 进度条 / 一个按钮）
-                         + 下次开机 + 插没插电 + 两块小图。全部北京时间。详细控制台在 /full
+  gui/simple.py          首页：一屏，两条线各一张卡片（状态词 / 上次跑通 / 目标日 / 清单只数 / 一个按钮）
+                         + 查一只股票 + 一行系统状态（下次开机 / 插电 / 推送）+ 一张小图。中文 150 字以内，
+                         只用统一名称（2026-10-11 瘦身）。详细控制台在 /full
   gui/server.py          HTTP 服务。标准库 ThreadingHTTPServer，零第三方依赖。
                          Windows 上端口独占（SO_EXCLUSIVEADDRUSE），双击图标会顶掉旧控制台
-  gui/ui.py              详细控制台（HTML/CSS/JS 都在这个字符串里）
-  gui/jobs.py            按钮表 ACTIONS + 子进程任务
+  gui/ui.py              详细控制台（HTML/CSS/JS 都在这个字符串里）：左栏按钮分「跑 / 查 / 修」三组，
+                         右边一个「状态」页（当前任务输出 + 折叠的排期 / 日志 / 配置），中文 320 字
+  gui/jobs.py            按钮表 ACTIONS（group = 跑 / 查 / 修，no 只排序不显示）+ 子进程任务
   gui/status.py          状态汇总：流程 / 同步 / 排期 / 面板四类信号
   selftest_gui.py        控制台和编排层的接线自测
 .github/workflows/       只有 evening_check 带 cron

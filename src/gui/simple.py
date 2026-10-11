@@ -1,10 +1,12 @@
 """
 傻瓜页（控制台首页，2026-09-18 用户要求）。
 
-一屏，字越少越好：
-    每条线一行：按钮 / 跑了没 / 多久没跑 / 进度条
-    下面：两张小图
-全部北京时间。旧的详细控制台挪到 /full。
+一屏，字越少越好（2026-10-11 再瘦一轮，页面中文 315 -> 150 以内）：
+    两条线各一张卡片：名称 / 状态词 / 一句话 / 跑按钮，在跑时才有进度条
+    查一只股票：输入框 + 预测按钮
+    一行系统状态：下次开机、插没插电、推送成没成
+    一张小图：起涨预测每份清单的命中数
+全部北京时间。详细控制台在 /full。
 
 2026-09-27 早盘系统（早盘选股 + 参数自学 + 学习会诊）整体归档，这一页只剩
 晚间两条线：起涨预测、长期调整突破。
@@ -13,7 +15,8 @@
     跑没跑、跑到哪   local_run 的锁 + state/lock/progress_<线>.json（local_run 写）
     上次跑通         state/sent/<线>_<日>.json 的修改时间
     失败原因         tools/local_flow_<线>.log 里最后一次运行那一段
-    小图             state/breakout/truth.json、out_pullback/history.json
+    小图             state/breakout/truth.json（长期调整突破那句「以前成立过 N 次」读
+                     out_pullback/run_meta.json）
 """
 from __future__ import annotations
 
@@ -322,160 +325,172 @@ def snapshot() -> dict:
 
 # ---------------------------------------------------------------------
 #  页面
-# ---------------------------------------------------------------------
+#
+# 2026-10-11 瘦身（用户：「文字越少越好，界面越干净越好，只留必要交互」）。
+# 页面里只放给人看的字，说明写在这里，不写进 JS（JS 注释也算进页面字数）：
+#   - 状态词只有四个：已完成 / 在跑 / 还没跑 / 出错。stalled（在跑但
+#     STALL_MIN 分钟没动静）也叫「在跑」，状态块标红，一句话里写多久没动。
+#   - 「清单 N 只」：起涨预测从小图数据（truth.json 的 lists）里找目标日那份，
+#     长期调整突破读 charts.pattern（它的 run_meta）。都在 /api/simple 里。
+#   - 「以前成立过 N 次」只给长期调整突破：空榜是常态，不写这一句会以为坏了。
+#   - 「推送失败」只在 /api/status 里（sync.last_push_ok），那个接口最多每分钟
+#     git fetch 一次，首页一分钟问一次，红了链到 /full 的「修 -> 重试推送」。
+#   - 底部两个面板链接按 /api/simple 的 lines 拼（名称和键都从 LINES 来，
+#     页面里不再写死线名）。
+#   - 长期调整突破「今天的和以前成立过的」那张表 2026-10-11 删掉，charts() 的
+#     pattern.recent 留着没删（后端数据结构不为界面改）。
 PAGE = r"""<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>A股流水线</title>
 <style>
-:root{--bg:#121417;--card:#1b1e23;--line:#2a2e35;--fg:#e8eaed;--dim:#7d8590;
---ok:#3fb950;--run:#4b8ef0;--bad:#f0524f;--warn:#e3a23b}
+:root{--bg:#121417;--card:#1b1e23;--line:#2a2e35;--fg:#e8eaed;--dim:#7d8590;--run:#4b8ef0}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);
-font:15px/1.4 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
-.wrap{max-width:720px;margin:0 auto;padding:18px 16px 40px}
-.top{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
-.clock{font-size:34px;font-weight:600;letter-spacing:1px}
+font:15px/1.45 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:16px 16px 28px}
+.top{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.clock{font-size:32px;font-weight:600;letter-spacing:1px}
 .dim{color:var(--dim);font-size:13px}
-.bar-top{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 18px}
-.pill{padding:5px 10px;border-radius:14px;background:var(--card);font-size:13px}
-.pill.bad{background:#3a1f1f;color:#ff8a87}.pill.ok{background:#1d3324;color:#7ee29a}
-.pill.warn{background:#3a2e17;color:#f3c26b}
-.row{display:grid;grid-template-columns:14px 1fr auto;gap:12px;align-items:center;
-background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px}
-.dot{width:12px;height:12px;border-radius:50%;background:var(--dim)}
-.dot.done{background:var(--ok)}.dot.running{background:var(--run);animation:p 1.2s infinite}
-.dot.failed,.dot.stalled{background:var(--bad)}.dot.wait,.dot.off{background:#4a4f57}
-@keyframes p{50%{opacity:.35}}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+.card{background:var(--card);border-radius:12px;padding:14px 16px}
+.hd{display:flex;align-items:center;gap:10px}
 .name{font-size:17px;font-weight:600}
-.meta{font-size:13px;color:var(--dim);margin-top:2px}
-.meta b{color:var(--fg);font-weight:500}
-.note.failed,.note.stalled{color:#ff8a87}.note.done{color:#7ee29a}.note.running{color:#8fb8ff}
-.prog{height:6px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}
+.st{font-size:12px;padding:2px 9px;border-radius:10px;background:var(--line);color:var(--dim)}
+.st.done{background:#1d3324;color:#7ee29a}.st.running{background:#1b2a44;color:#8fb8ff}
+.st.failed,.st.stalled{background:#3a1f1f;color:#ff8a87}
+.hd button{margin-left:auto}
+.say{font-size:13px;color:var(--dim);margin-top:8px}
+.say .bad{color:#ff8a87}
+.prog{height:6px;background:var(--line);border-radius:3px;margin-top:10px;overflow:hidden}
 .prog i{display:block;height:100%;background:var(--run);transition:width .6s}
 .prog.ind i{width:30%;animation:ind 1.4s infinite}
 @keyframes ind{0%{margin-left:-30%}100%{margin-left:100%}}
-button{border:0;border-radius:9px;padding:9px 18px;font-size:15px;font-weight:600;
-background:#2f6fe0;color:#fff;cursor:pointer;min-width:72px}
-button:disabled{background:#2a2e35;color:#6b7280;cursor:default}
-h2{font-size:14px;color:var(--dim);font-weight:500;margin:26px 0 10px}
-.card{background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px}
-.lists{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
-.lst{background:#15171b;border-radius:8px;padding:8px;font-size:12px;color:var(--dim)}
-.lst b{display:block;font-size:18px;color:var(--fg)}
-.lst.new{outline:1px solid #2f6fe0}
-.mini{height:4px;background:var(--line);border-radius:2px;margin-top:6px;overflow:hidden}
+button{border:0;border-radius:8px;padding:7px 16px;font-family:inherit;font-size:14px;
+font-weight:600;background:#2f6fe0;color:#fff;cursor:pointer}
+button:disabled{background:var(--line);color:#6b7280;cursor:default}
+.ask{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+input{font:inherit;padding:6px 10px;width:150px;background:transparent;color:inherit;
+border:1px solid var(--line);border-radius:8px}
+#pout{white-space:pre-wrap;margin:8px 0 0;font:13px/1.5 ui-monospace,Consolas,monospace;color:var(--dim)}
+#pout:empty{display:none}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.pill{padding:4px 10px;border-radius:14px;background:var(--card);font-size:13px;color:var(--fg);text-decoration:none}
+.pill.ok{background:#1d3324;color:#7ee29a}.pill.bad{background:#3a1f1f;color:#ff8a87}
+.pill.warn{background:#3a2e17;color:#f3c26b}
+h2{font-size:13px;color:var(--dim);font-weight:500;margin:0 0 8px}
+.lists{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px}
+.lst{background:#15171b;border-radius:8px;padding:6px 8px;font-size:12px;color:var(--dim)}
+.lst b{display:block;font-size:17px;color:var(--fg)}
+.mini{height:3px;background:var(--line);border-radius:2px;margin-top:5px;overflow:hidden}
 .mini i{display:block;height:100%;background:#6b7280}
-a.more{color:var(--dim);font-size:13px}
-.links{display:flex;gap:16px;margin-top:22px;flex-wrap:wrap}
+.links{display:flex;gap:16px;margin-top:16px;flex-wrap:wrap}
+.links a{color:var(--dim);font-size:13px}
 </style></head><body><div class="wrap">
 <div class="top"><div class="clock" id="clock">--:--</div><div class="dim" id="date"></div></div>
-<div class="dim">北京时间</div>
-<div class="bar-top" id="pills"></div>
-<div id="lines"></div>
-<h2>查一只股票 · 用起涨预测的模型给它打分</h2>
-<div class="card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-<input id="pcode" inputmode="numeric" maxlength="6" placeholder="6 位代码，如 300829"
- style="font:inherit;padding:8px 10px;width:150px;background:transparent;color:inherit;border:1px solid var(--line);border-radius:6px"
- onkeydown="if(event.key==='Enter')predict()">
-<button onclick="predict()" id="pbtn">预测</button><span class="dim" id="phint"></span></div>
-<pre id="pout" class="dim" style="white-space:pre-wrap;margin:10px 0 0;font:13px/1.5 ui-monospace,Consolas,monospace"></pre></div>
-<h2>起涨预测 · 每份清单 20 天内涨超 50% 的只数</h2>
-<div class="card"><div class="lists" id="lists"></div></div>
-<h2 id="pt">长期调整突破 · 今天的和以前成立过的</h2>
-<div class="card"><div class="lists" id="pattern"></div><div class="meta" id="pm"></div></div>
-<div class="links"><a class="more" href="/full?token=__TOKEN__">详细控制台</a>
-<a class="more" href="/panel/breakout" target="_blank">起涨预测面板</a>
-<a class="more" href="/panel/pullback" target="_blank">长期调整突破面板</a></div>
+<div class="cards" id="lines"></div>
+<div class="ask"><input id="pcode" inputmode="numeric" maxlength="6" placeholder="代码"
+ onkeydown="if(event.key==='Enter')predict()"><button onclick="predict()" id="pbtn">预测</button>
+<span class="dim" id="phint"></span></div>
+<pre id="pout"></pre>
+<div class="pills" id="pills"></div>
+<div class="card" id="chart" hidden><h2>起涨预测清单 · 20 天内涨超 50% 的只数</h2>
+<div class="lists" id="lists"></div></div>
+<div class="links" id="links"><a href="/full?token=__TOKEN__">详细控制台</a></div>
 </div>
 <script>
 const TOKEN="__TOKEN__";
 const $=s=>document.querySelector(s);
 function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+const WORD={done:"已完成",running:"在跑",failed:"出错",wait:"还没跑"};WORD.stalled=WORD.running;
+let snap=null,push=null;
 async function run(key,btn){
-  btn.disabled=true;btn.textContent="启动中";
+  btn.disabled=true;btn.textContent="…";
   try{
     const r=await fetch("/api/run?token="+TOKEN,{method:"POST",
       headers:{"Content-Type":"application/json"},body:JSON.stringify({key})});
     const j=await r.json();
-    if(!r.ok) alert(j.error||"没启动成功");
-  }catch(e){alert("没启动成功")}
+    if(!r.ok) alert(j.error||r.status);
+  }catch(e){alert(e)}
   setTimeout(load,800);
 }
-function pills(s){
-  const p=[],w=s.window||{},pw=s.power||{};
-  if(w.now) p.push(`<span class="pill warn">现在要开着电脑 · 到 ${w.end}</span>`);
-  else if(w.start) p.push(`<span class="pill">下次开机 ${esc(w.start)} · 还有 ${esc(w.in)}</span>`);
-  if(pw.has_battery){
-    if(pw.plugged) p.push(`<span class="pill ok">插着电</span>`);
-    else p.push(`<span class="pill bad">没插电 ${pw.pct??""}%</span>`);
-  }
-  $("#pills").innerHTML=p.join("");
+function count(l,c){
+  const md=(l.target||"").slice(5);
+  if(l.key==="pullback") return (c.pattern.date||"").slice(5)===md?c.pattern.n_today:null;
+  const x=(c.lists||[]).find(r=>r.d===md);
+  return x?x.n:null;
+}
+function say(l,c){
+  const b=[],red=l.state==="failed"||l.state==="stalled";
+  if(l.state!=="done"&&l.note) b.push(red?`<span class="bad">${esc(l.note)}</span>`:esc(l.note));
+  if(l.pct!=null) b.push(l.pct.toFixed(0)+"%");
+  b.push("上次跑通 "+esc(l.ago));
+  if(l.target) b.push("目标日 "+esc(l.target.slice(5)));
+  const n=l.state==="done"?count(l,c):null;
+  if(n!=null) b.push(`清单 ${n} 只`);
+  if(l.key==="pullback"&&c.pattern.n!=null) b.push(`以前成立过 ${c.pattern.n} 次`);
+  return b.join(" · ");
 }
 function lines(s){
   $("#lines").innerHTML=s.lines.map(l=>{
-    const bar=l.state==="running"||l.state==="stalled"
-      ?(l.pct==null?`<div class="prog ind"><i></i></div>`
-        :`<div class="prog"><i style="width:${l.pct.toFixed(0)}%"></i></div>`):"";
-    const btn=`<button ${l.can_run?"":"disabled"} onclick="run('${l.key}',this)">`+
-      (l.state==="running"||l.state==="stalled"?"在跑":l.state==="done"?"已完成":"跑")+`</button>`;
-    return `<div class="row"><div class="dot ${l.state}"></div><div>
-      <div class="name">${esc(l.name)}</div>
-      <div class="meta">上次跑通 <b>${esc(l.ago)}</b>
-        ${l.note?` · <span class="note ${l.state}">${esc(l.note)}</span>`:""}
-        ${l.pct!=null?` · ${l.pct.toFixed(0)}%`:""}</div>${bar}</div>${btn}</div>`;
+    const on=l.state==="running"||l.state==="stalled";
+    const bar=!on?"":l.pct==null?`<div class="prog ind"><i></i></div>`
+      :`<div class="prog"><i style="width:${l.pct.toFixed(0)}%"></i></div>`;
+    return `<div class="card"><div class="hd"><span class="name">${esc(l.name)}</span>
+      <span class="st ${l.state}">${WORD[l.state]||esc(l.state)}</span>
+      <button ${l.can_run?"":"disabled"} onclick="run('${l.key}',this)">跑</button></div>
+      <div class="say">${say(l,s.charts)}</div>${bar}</div>`;
   }).join("");
+  const lk=$("#links");
+  if(!lk.dataset.done){lk.dataset.done=1;lk.insertAdjacentHTML("beforeend",s.lines.map(l=>
+    `<a href="/panel/${esc(l.key)}" target="_blank">${esc(l.name)}面板</a>`).join(""))}
 }
-function lists(rows){
-  if(!rows.length){$("#lists").innerHTML='<div class="dim">还没有清单</div>';return}
-  $("#lists").innerHTML=rows.map(r=>`<div class="lst">${esc(r.d)}
-    <b>${r.hit}/${r.n}</b>${r.final?"已到期":`第 ${r.bars}/20 天`}
-    <div class="mini"><i style="width:${Math.min(100,r.bars/20*100)}%"></i></div></div>`).join("");
+function pills(s){
+  const p=[],w=s.window||{},pw=s.power||{};
+  if(w.now) p.push(`<span class="pill warn">保持开机到 ${esc(w.end)}</span>`);
+  else if(w.start) p.push(`<span class="pill">下次开机 ${esc(w.start)}–${esc(w.end)}</span>`);
+  if(pw.has_battery) p.push(pw.plugged?`<span class="pill ok">插着电</span>`
+    :`<span class="pill bad">没插电 ${pw.pct??""}%</span>`);
+  if(push===false) p.push(`<a class="pill bad" href="/full?token=${TOKEN}">推送失败</a>`);
+  else if(push===true) p.push(`<span class="pill ok">推送正常</span>`);
+  $("#pills").innerHTML=p.join("");
 }
-// 走满 20 个交易日的写「20 天最高」，还在走的写「至今最高」：两者不是一回事
-function upTxt(r){
-  if(r.up==null) return "";
-  const v=(r.up>0?"+":"")+Number(r.up).toFixed(1)+"%";
-  return (r.n_after!=null&&r.n_after<20?"至今最高 ":"20 天最高 ")+v;
-}
-function pattern(p){
-  const rows=p.recent||[];
-  $("#pattern").innerHTML=rows.length?rows.map(r=>`<div class="lst${r.new?" new":""}">${esc(r.d)}
-    <b>${esc(r.code)}</b>${esc(r.name||"")}<div>${r.new?"今天":upTxt(r)}</div></div>`).join("")
-    :'<div class="dim">还没有</div>';
-  const bits=[];
-  if(p.per_month!=null) bits.push(`三年同口径 ${p.n} 次，约每月 ${p.per_month} 次，空榜是常态`);
-  if(p.n_today!=null) bits.push(`${esc((p.date||"").slice(5))} 清单 A ${p.n_today} 只`
-    +(p.n_b!=null?` · B（二次进攻前）${p.n_b} 只`:""));
-  $("#pm").textContent=bits.join(" · ");
+function chart(rows){
+  $("#chart").hidden=!rows.length;
+  $("#lists").innerHTML=rows.map(r=>`<div class="lst">${esc(r.d)}<b>${r.hit}/${r.n}</b>
+    第 ${r.final?20:r.bars} 天<div class="mini"><i style="width:${Math.min(100,r.bars/20*100)}%"></i></div></div>`).join("");
 }
 async function predict(){
   const code=$("#pcode").value.trim();
-  if(!/^\d{6}$/.test(code)){$("#phint").textContent="要 6 位数字";return}
-  const b=$("#pbtn");b.disabled=true;$("#phint").textContent="算中（几秒）";$("#pout").textContent="";
+  if(!/^\d{6}$/.test(code)){$("#phint").textContent="6 位数字";return}
+  const b=$("#pbtn");b.disabled=true;$("#phint").textContent="…";$("#pout").textContent="";
   try{
     const r=await (await fetch("/api/predict?code="+code)).json();
     $("#phint").textContent="";
-    if(!r.ok){$("#pout").textContent=r.error||"失败";return}
-    const bd={main:"主板",star:"科创",chinext:"创业",bj:"北交"}[r.board]||r.board;
+    if(!r.ok){$("#pout").textContent=String(r.error);return}
     const L=[];
-    L.push(`${r.code} ${r.name||""}  打分日 ${r.score_date}`+(r.stale?`（这只票最后一行是 ${r.last_row}）`:""));
-    L.push(`分数 ${r.score} / 100（预测值 ${r.p.toFixed(4)}，含${bd}系数 ${r.board_adj.toFixed(3)}）  全市场第 ${r.rank??"-"} / ${r.n_pool}，当天够格 ${r.n_qualified} 只`);
-    if(r.is_st)L.push("ST：清单 A 不收");else if(!r.eligible)L.push("上市不足 120 个交易日：清单 A 不收");
-    L.push((r.qualified?"够格：会上清单 A":`不够格（上清单要 ≥${r.score_min} 分且当天前 ${r.cap_a} 名）`)+`  连续够格 ${r.streak} 天`);
-    L.push(`近 ${r.history.length} 天分数  `+r.history.map(h=>h.date.slice(5)+":"+h.score).join(" "));
-    if(r.perf_bin){const p=r.perf_bin;L.push(`历史：${p.lo}~${p.hi-1} 分这档验证集命中 ${(100*p.hit).toFixed(1)}%（随便买 ${r.base}%，${p.lift.toFixed(1)} 倍，n=${p.n}）`)}
-    if(r.qualified){const p=r.perf_streak;L.push(`      连续够格 ${p.k} 天这档：${p.hit.toFixed(1)}%（${p.lift.toFixed(1)} 倍）`)}
-    L.push("注："+r.note);
+    L.push(`${r.code} ${r.name||""}  ${r.score_date}`+(r.stale?`（数据到 ${r.last_row}）`:""));
+    L.push(`分数 ${r.score}/100  第 ${r.rank??"-"}/${r.n_pool}  当天够格 ${r.n_qualified} 只`);
+    L.push(`预测值 ${r.p.toFixed(4)} × 板块系数 ${r.board_adj.toFixed(3)}`);
+    if(r.is_st||!r.eligible)L.push((r.is_st?"ST":"上市不足 120 个交易日")+"，不进清单 A");
+    const k=r.perf_streak;
+    L.push((r.qualified?"够格，会上清单 A":`不够格：要 ≥${r.score_min} 分且前 ${r.cap_a} 名`)+`  连续够格 ${r.streak} 天`
+      +(r.qualified?`（这档 ${k.hit.toFixed(1)}%，${k.lift.toFixed(1)} 倍）`:""));
+    L.push(r.history.map(h=>h.date.slice(5)+":"+h.score).join(" "));
+    if(r.perf_bin){const p=r.perf_bin;L.push(`${p.lo}~${p.hi-1} 分历史命中 ${(100*p.hit).toFixed(1)}%（随便买 ${r.base}%，${p.lift.toFixed(1)} 倍，n=${p.n}）`)}
+    L.push(r.note);
     $("#pout").textContent=L.join("\n");
-  }catch(e){$("#phint").textContent="";$("#pout").textContent="请求失败："+e}
+  }catch(e){$("#phint").textContent="";$("#pout").textContent=String(e)}
   finally{b.disabled=false}
 }
 async function load(){
   try{
     const s=await (await fetch("/api/simple")).json();
-    $("#clock").textContent=s.now;$("#date").textContent=`${s.date} 周${s.wd}`;
-    pills(s);lines(s);
-    lists(s.charts.lists);pattern(s.charts.pattern);
+    $("#clock").textContent=s.now;$("#date").textContent=`北京 ${s.date} 周${s.wd}`;
+    snap=s;lines(s);pills(s);chart(s.charts.lists||[]);
   }catch(e){}
 }
-load();setInterval(load,5000);
+async function loadPush(){
+  try{const s=await (await fetch("/api/status")).json();push=s.sync.last_push_ok;if(snap)pills(snap)}
+  catch(e){}
+}
+load();loadPush();setInterval(load,5000);setInterval(loadPush,60000);
 </script></body></html>"""
