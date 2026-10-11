@@ -266,7 +266,9 @@ STEP_LIMIT = {
     "scan": (45 * 60, None),          # 打分，平时一两分钟；换了特征口径会重训模型
     # 月度重估链（模型到期那天，打分之前）：逐月滚动成绩表 + 收缩板块系数 + 分档 +
     # 邮件常量 + 按板块命中率 + 自测，平时 12 分钟。失败不挡发信（邮件防呆会打星号）
-    "chain": (35 * 60, None),
+    "chain": (30 * 60, None),
+    # Claude 每日复盘（发信之后，fail-open）：备材料几秒 + 一次 Opus 调用三到五分钟
+    "review": (10 * 60, None),
     "send": (20 * 60, None),          # 面板 + 邮件，平时半分钟
     "pb_scan": (20 * 60, None),       # 长期调整突破扫描，平时 20 秒
     "pb_send": (20 * 60, None),       # 另加等到 17:58 的时间，见 flow_pullback
@@ -1177,7 +1179,7 @@ START = {"pullback": "2026-09-28"}
 #   breakout  补日线 120 + 特征 60 + 打分 45 + 真值 10 + 发信 20 = 255 分钟
 #   pullback  等起涨预测补日线 45 + 自己补 120 + 扫描 20 + 等到 17:58 最多约 120
 #             + 发信 20 = 325 分钟
-MAX_RUN = {"breakout": 5, "pullback": 6}
+MAX_RUN = {"breakout": 6, "pullback": 6}   # 起涨预测 2026-10-11 从 5 改 6：加了月度重估链和 AI 复盘两步
 
 
 def in_window(flow: str) -> bool:
@@ -1553,6 +1555,7 @@ def flow_breakout(dry: bool) -> int:
     sent_at = _mail_sent_date("out_breakout/mail_sent.json", d)
     if rc == 0 and (sent_at or dry):
         push_marker("sent", "breakout", {"ok": True}, dry, d)
+        ai_review(d, dry)
     elif rc == 0:
         log.error("send 退出码 0 但 out_breakout/mail_sent.json 不是 %s 的，"
                   "不推 sent 标记（云端 20:30 会发「本机没跑」提醒）", d)
@@ -1562,6 +1565,25 @@ def flow_breakout(dry: bool) -> int:
              [f"data/breakout/{d[:7]}", "out_breakout", "state/breakout",
               "src/breakout/export.py"], dry)
     return rc
+
+
+def ai_review(d: str, dry: bool) -> None:
+    """Claude 每日复盘（计划 2026-10-10 第 9 项）：真发了信之后跑 tools/ai_review.py --daily，
+    周五再跑一次 --weekly。只分析、告警、提案，不改任何东西；失败不阻断，结论落
+    state/ai_review/latest_alert.json（次日邮件抬头和控制台首页读）。试跑不跑（花钱）。"""
+    if dry:
+        log.info("[dry] 不跑 AI 复盘")
+        return
+    try:
+        rc = py("tools/ai_review.py", "--daily", "--date", d, timeout=STEP_LIMIT["review"][0])
+        if rc != 0:
+            log.warning("AI 每日复盘没跑成（退出码 %d），不影响发信", rc)
+        if dt.date.fromisoformat(d).weekday() == 4:
+            rc = py("tools/ai_review.py", "--weekly", timeout=STEP_LIMIT["review"][0])
+            if rc != 0:
+                log.warning("AI 周评没跑成（退出码 %d）", rc)
+    except Exception as e:  # noqa: BLE001
+        log.warning("AI 复盘异常（不影响发信）: %s", e)
 
 
 def model_due() -> bool:

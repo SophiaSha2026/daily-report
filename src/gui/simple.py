@@ -320,7 +320,17 @@ def snapshot() -> dict:
             "wd": "一二三四五六日"[now.weekday()],
             "power": power(), "window": next_window(now),
             "lines": [line(ln, now) for ln in LINES],
-            "charts": charts()}
+            "charts": charts(), "ai": _ai_usage()}
+
+
+def _ai_usage() -> dict:
+    """claude.exe 的用量（今天 / 本月美元，超警戒线标红）。读不到就空。"""
+    try:
+        import ai_usage
+        t = ai_usage.totals()
+        return {"today": t["today_usd"], "month": t["month_usd"], "n": t["today_n"], "warn": t["warn"]}
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 # ---------------------------------------------------------------------
@@ -370,6 +380,7 @@ button:disabled{background:var(--line);color:#6b7280;cursor:default}
 .ask{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
 input{font:inherit;padding:6px 10px;width:150px;background:transparent;color:inherit;
 border:1px solid var(--line);border-radius:8px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--dim)}
 #pout{white-space:pre-wrap;margin:8px 0 0;font:13px/1.5 ui-monospace,Consolas,monospace;color:var(--dim)}
 #pout:empty{display:none}
 .pills{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
@@ -389,6 +400,7 @@ h2{font-size:13px;color:var(--dim);font-weight:500;margin:0 0 8px}
 <div class="cards" id="lines"></div>
 <div class="ask"><input id="pcode" inputmode="numeric" maxlength="6" placeholder="代码"
  onkeydown="if(event.key==='Enter')predict()"><button onclick="predict()" id="pbtn">预测</button>
+<button onclick="aiAnalyze()" id="abtn" class="ghost">AI 分析</button>
 <span class="dim" id="phint"></span></div>
 <pre id="pout"></pre>
 <div class="pills" id="pills"></div>
@@ -451,12 +463,35 @@ function pills(s){
     :`<span class="pill bad">没插电 ${pw.pct??""}%</span>`);
   if(push===false) p.push(`<a class="pill bad" href="/full?token=${TOKEN}">推送失败</a>`);
   else if(push===true) p.push(`<span class="pill ok">推送正常</span>`);
+  const ai=s.ai||{};
+  if(ai.n) p.push(`<span class="pill ${ai.warn?"bad":""}">AI 今天 ${ai.today} 美元</span>`);
   $("#pills").innerHTML=p.join("");
 }
 function chart(rows){
   $("#chart").hidden=!rows.length;
   $("#lists").innerHTML=rows.map(r=>`<div class="lst">${esc(r.d)}<b>${r.hit}/${r.n}</b>
     第 ${r.final?20:r.bars} 天<div class="mini"><i style="width:${Math.min(100,r.bars/20*100)}%"></i></div></div>`).join("");
+}
+let aiJob=null;
+async function aiAnalyze(){
+  const code=$("#pcode").value.trim();
+  if(!/^\d{6}$/.test(code)){$("#phint").textContent="6 位数字";return}
+  const b=$("#abtn");b.disabled=true;$("#phint").textContent="AI 分析中，三到五分钟";$("#pout").textContent="";
+  try{
+    const r=await (await fetch("/api/run?token="+TOKEN,{method:"POST",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify({key:"ai_analyze",args:[code]})})).json();
+    if(r.error){$("#phint").textContent="";$("#pout").textContent=r.error;b.disabled=false;return}
+    aiJob={id:r.id,from:0};pollAi();
+  }catch(e){$("#phint").textContent="";$("#pout").textContent="请求失败："+e;b.disabled=false}
+}
+async function pollAi(){
+  if(!aiJob)return;
+  try{
+    const j=await (await fetch(`/api/job/${aiJob.id}?from=${aiJob.from}`)).json();
+    if(j.new&&j.new.length){$("#pout").textContent+=j.new.join("\n")+"\n";aiJob.from=j.next}
+    if(j.running){setTimeout(pollAi,3000);return}
+    $("#phint").textContent=j.rc===0?"":"AI 分析没成功";$("#abtn").disabled=false;aiJob=null;
+  }catch(e){setTimeout(pollAi,5000)}
 }
 async function predict(){
   const code=$("#pcode").value.trim();

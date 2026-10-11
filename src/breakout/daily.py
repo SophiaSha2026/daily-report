@@ -34,14 +34,13 @@ import time
 import datetime as dt
 from pathlib import Path
 
-from bjtime import now_bj  # noqa: E402
-
 import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / "src"))
+from bjtime import now_bj   # noqa: E402  直接 `python src/breakout/daily.py` 时 src 不在路径上，要先 insert
 DATA = ROOT / "data" / "breakout"
 OUT = ROOT / "out_breakout"
 STATE = ROOT / "state" / "breakout"

@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-09-daily-3",
+ "date": "2026-10-09",
+ "status": "pending",
+ "created": "2026-10-11T13:06:30+08:00",
+ "type": "code",
+ "title": "stage_update 合并后对一次目标日行数",
+ "detail": "src/breakout/backfill.py stage_update 在 merge_daily 之后读一次目标日实际行数，和 status 里的 covered 相减，差额只数和代码（截断 20 个）写进 update_status；差额超过比例阈值时打 log.error 而不是静默。",
+ "expected_effect": "当天 covered 5508 对 实际 5503 这类 5 只的差额会留下代码，能直接看出是不是整段重拉分片把快照那一根清掉了，不用再逐只回溯。",
+ "risk": "合并后多读一次 parquet，几秒开销；阈值定紧了会在除权票多的日子（比如 09-28 那种 30 只除权）反复报 error。",
+ "how_to_verify": "对 2026-10-09 的分片重跑一次 merge 并打印差额；python src/selftest_breakout.py"
+}

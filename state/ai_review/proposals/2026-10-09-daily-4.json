@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-09-daily-4",
+ "date": "2026-10-09",
+ "status": "pending",
+ "created": "2026-10-11T13:06:30+08:00",
+ "type": "code",
+ "title": "界面对 push_status 判陈旧",
+ "detail": "src/gui/status.py 读 push_status 时除了 ok，再按 at 和当前北京时间算间隔，超过 90 分钟（Sync 是 30 分钟一次）就标成异常并显示「上次同步 N 小时前」，不要只凭 ok=true 显示绿色。",
+ "expected_effect": "像现在这种 30 小时没同步的状态在控制台首页一眼能看见，而不是显示成正常。",
+ "risk": "周末和长假机器关机期间会长期显示异常，可能被当成噪音；可以只在交易日或开机后超过 90 分钟才标红。",
+ "how_to_verify": "python src/selftest_gui.py；把 push_status.at 改成一天前看首页显示"
+}

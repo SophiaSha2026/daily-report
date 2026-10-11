@@ -1,0 +1,3 @@
+{"at": "2026-10-11T12:52:55+08:00", "kind": "analyze", "subject": "300829", "usd": 1.8029104999999996, "in": 887445, "out": 9723, "web": 0, "turns": 20, "ms": 245092, "model": "claude-haiku-4-5-20251001,claude-opus-5", "error": false}
+{"at": "2026-10-11T12:53:26+08:00", "kind": "probe", "subject": "model-check", "usd": 0.0, "in": 0, "out": 0, "web": 0, "turns": 1, "ms": 904, "model": "", "error": true}
+{"at": "2026-10-11T13:06:30+08:00", "kind": "review-daily", "subject": "2026-10-09", "usd": 1.5689819999999999, "in": 453540, "out": 17516, "web": 0, "turns": 8, "ms": 323423, "model": "claude-opus-5", "error": false}

@@ -1,0 +1,120 @@
+{
+ "kind": "daily",
+ "date": "2026-10-09",
+ "at": "2026-10-11T13:06:30+08:00",
+ "usd": 1.569,
+ "checked": [
+  "两条线 run_meta.date 均为 2026-10-09 = 目标日，dry 均为 false",
+  "mail_sent 与 sent_marker 两条线齐全（breakout 16:50:34、pullback 17:58:02+08:00）",
+  "起涨预测 n_qualified 14 / n_ok 13 / rejected 1 / short_excluded 0，对照 refit_status.qual_median 15.0 与 score_stats_60d（10-08 为 48/42）",
+  "refit_rejected=false、drift_note 为空，核对 daily.py:879 drift_note 的判定条件",
+  "model.fit_date 2026-10-07，距 2026-10-11 为 4 天，低于 model_max_age_days 30",
+  "update_status：requested 5548 / appended 5491 / stale 14 / missing 0 / short 48（老票 23、新股 25）/ refetch 23 / refetch_only 17 / filled 17 / closed true / ok true",
+  "short 老票 23 只对照 local_run.UPDATE_SHORT_MAX=50 与 SHORT_LATE 闸门",
+  "两条线日志尾：无 WARNING / ERROR / 超时 / 接手 / 推送失败字样",
+  "日志里 04:36~04:48 的时间戳对应 breakout/build.py 的本机时间（教训 39 的唯一例外），非时区漂移",
+  "退出码 0 且确有动作：邮件 16:50:34 发出、两次 git 推送、产物日期 = 目标日、总耗时 1236s / 1083s",
+  "清单 A 板块构成：main 4 / star 2 / chinext 2 / bj 2；board_adj main 1.1328 最高",
+  "清单 A 连续天数分布：streak 4 一只、streak 2 四只、streak 1 五只，n_streak3=1，MIN_STREAK=1",
+  "truth_recent_lists 12 份清单 final 全为 false，最老 2026-09-16 bars=11，20 根窗口未满",
+  "长期调整突破 n_pattern 0 / n 0；清单 B n_b_pattern 3 - 剔除 1（920706 减持）= n_b 2；hist 54 次 / 每月 1.5 次与 diag_all「成立 68」口径一致",
+  "push_status.ok=true，at=2026-10-10T06:45:06，距 now（2026-10-11T13:01）30 小时",
+  "regime_10d 当天：adv_share 0.5935、涨停 72 / 跌停 11、中位 +0.596%、成交额 18781.4 亿（较 10-08 +13.6%）；base20 全 null（未满 20 根，正常）",
+  "ai_usage：today 1.8 / warn_day 10、month 1.8 / warn_month 100，warn=false"
+ ],
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "src/breakout/daily.py:879 drift_note / state/breakout/score_stats.jsonl",
+   "evidence": "score_stats_60d 只有两行（2026-10-08、2026-10-09）；drift_note 的实现写明「历史不足 20 天不判」（past < 20 直接 return \"\"）。当天 run_meta.drift_note 为空，而 top10_p_mean 一天内从 0.4022 掉到 0.3343、n_qualified 从 48 掉到 14。",
+   "why": "邮件抬头印的空白分不清「没漂移」和「没判漂移」。状态文件在 2026-10-08 清理后被重建，漂移检测要再积累约 18 个交易日才会开始工作，这段时间内分数分布真坏了也不会出声。当天清单本身没错（14 只接近 qual_median 15）。",
+   "suggestion": "样本不足时输出明示文案，而不是空字符串"
+  },
+  {
+   "severity": "注意",
+   "where": "src/local_run.py:1084 _update_short / src/breakout/backfill.py:852",
+   "evidence": "update_status 里 filled=17，日志两条线都印「整段重拉没拉到目标日 48 只（其中新股 25 只）」「没拉到 2026-10-09 的 48 只今天判不了」。_update_short 只读 st['short'] 和 new_codes，不扣除 filled。",
+   "why": "那 17 只已经用腾讯快照补了当天一根 K 线，实际判得了。偏保守所以没造成错清单（老票 23 只 < UPDATE_SHORT_MAX 50，short_excluded=0），但「判不了 N 只」这个数和事实不符，一旦接近 50 只上限就会误判成「成片补不上、今天不出清单」。",
+   "suggestion": "账上记 filled 的代码列表，_update_short 扣掉它们再和 50 比"
+  },
+  {
+   "severity": "注意",
+   "where": "src/breakout/backfill.py:820 stage_update 的记账 / 合并后的日线表",
+   "evidence": "update_status 写 covered=5508、prev_n=5498、closed=true、missing=0；合并后 daily_ready 的检查印「2026-10-09 5503 行，前一日 2026-10-08 5508 行」。",
+   "why": "记账时算得 5508 只可覆盖，合并后目标日只有 5503 行，差 5 只，账上没有这一步对账，也没留下是哪 5 只。整段重拉分片把当天那根清掉是已知路径（教训 42 / backfill.py:843 的注释），filled=17 只兜住了一部分。5 只的量级不影响当天清单，但这条差额现在无法定位。",
+   "suggestion": "合并后把目标日实际行数和 covered 对一遍，差额和代码写进 update_status"
+  },
+  {
+   "severity": "注意",
+   "where": "state/push_status.json / src/gui/status.py",
+   "evidence": "push_status: {\"ok\": true, \"msg\": \"pull\", \"at\": \"2026-10-10T06:45:06+08:00\"}，而 now 是 2026-10-11T13:01。DailyReport-Local-Sync 是每 30 分钟一次。",
+   "why": "30 小时没有新记录，说明这段时间同步任务一次都没跑成（周末机器可能关着）。ok=true 是上一次成功的残留，控制台读这个对象时只看 ok 不看时间，陈旧和正常长得一样 —— 这正是教训 16 要「能被界面查询的对象」想避免的那种静默。不影响 10-09 的结果，但 10-12 开盘前要确认 Sync 恢复。",
+   "suggestion": "界面对 push_status 加时效判定"
+  },
+  {
+   "severity": "注意",
+   "where": "日志尾 04:36:41（src/breakout/build.py 的起点检查）",
+   "evidence": "「共同起点 2023-05-30 砍掉了 96 个交易日（全期最大 5522 只，起点当天 5039 只）。砍得这么多要核一下是不是该跑 backfill --stage refresh 把起点对齐」，紧接着又砍掉市场层预热 5 个交易日到 2023-12-01。",
+   "why": "这是代码自己写的待处理提示，只存在于日志一行，没有任何对象或界面承接，每天重复出现没人消化。训练表起点被砍到 2023-12-01，少了约 100 个交易日的样本。当天清单不受影响。",
+   "suggestion": "决定跑不跑 refresh 并把这条提示提到控制台状态"
+  },
+  {
+   "severity": "注意",
+   "where": "out_breakout/run_meta.json 的 pool 与 state/breakout/score_stats.jsonl 的 pool",
+   "evidence": "run_meta.pool=89（日志：「清单 B：8 只（A 池 89 只）」），score_stats 同一天 pool=5390；打分日志又印「全市场 5464 只」，pullback 的 n_stocks=5503。",
+   "why": "同一个字段名在两份产物里差两个数量级：一个是曾进过清单 A 的池，一个是当天可打分的全市场只数。复盘和界面取数时极易看错，属于教训 34 那类「同一个名词两份含义」。当天数字本身都对。",
+   "suggestion": "run_meta 里改成 b_pool 之类的独立名字"
+  },
+  {
+   "severity": "正常",
+   "where": "truth_recent_lists / state/breakout/truth.json",
+   "evidence": "12 份清单 final 全为 false，最老 2026-09-16 bars=11，hits_open / n_open 全 0，hit_rate_open 全 null。",
+   "why": "20 根窗口一份都没满，按设计还不该出命中率，不是故障。但「命中 vs 同期基准」这一项当天确实无法评估，regime 的 base20 同理（10 天窗口里最老 9-18 到 10-09 才 14 个交易日）。最早能定的是 2026-09-16 那份，约 9 个交易日后。",
+   "suggestion": "这一项等 2026-09-16 那份满 20 根后再看"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "code",
+   "title": "drift_note 基线不足时明示，不要返回空串",
+   "detail": "src/breakout/daily.py:879 drift_note：past < 20 天时不要 return \"\"，改成返回「基线只有 N 个交易日（不足 20），今天不判漂移」。邮件抬头和 run_meta 照原样印这句话，selftest_breakout 加一条用例钉住「历史 2 天时返回的不是空串」。",
+   "expected_effect": "从 10-10 起到基线补满的约 18 个交易日里，每封邮件都能看出漂移检测没在工作；之后自动恢复成正常判定，不改任何阈值。",
+   "risk": "邮件抬头多一行字。空串曾被当成「没漂移」的信号，改之前要确认 export.py 对 drift_note 是按真值判断而不是按非空判断。",
+   "how_to_verify": "python src/selftest_breakout.py 看断言失败数；本地构造 2 行 score_stats 调一次 drift_note"
+  },
+  {
+   "type": "code",
+   "title": "「今天判不了」扣掉已用快照补齐的那些票",
+   "detail": "src/breakout/backfill.py:852 把 filled 从只数改成代码列表（或并存 filled_codes）；src/local_run.py:1084 _update_short 里把 filled_codes 从 short 和 fresh 中扣掉再和 UPDATE_SHORT_MAX=50 比，日志的「没拉到目标日 N 只今天判不了」按扣除后的数印。",
+   "expected_effect": "当天这句话会从 48 只变成 31 只，和实际能判的票对上；临近 50 只上限时不再因为已补齐的票被误判成「成片补不上、不出清单」。",
+   "risk": "这是放宽闸门的一侧，快照补的那一根只有 OHLCV 精度（index 33/34/38），如果快照本身偏了，原来会被挡住的票现在会进池。建议只扣 filled 里真有当日行的，并保留 short 原始列表进账便于回溯。",
+   "how_to_verify": "python src/selftest_breakout.py 与 python src/selftest_gui.py；tools/e2e_check.py 看 --if-needed 判定不变"
+  },
+  {
+   "type": "code",
+   "title": "stage_update 合并后对一次目标日行数",
+   "detail": "src/breakout/backfill.py stage_update 在 merge_daily 之后读一次目标日实际行数，和 status 里的 covered 相减，差额只数和代码（截断 20 个）写进 update_status；差额超过比例阈值时打 log.error 而不是静默。",
+   "expected_effect": "当天 covered 5508 对 实际 5503 这类 5 只的差额会留下代码，能直接看出是不是整段重拉分片把快照那一根清掉了，不用再逐只回溯。",
+   "risk": "合并后多读一次 parquet，几秒开销；阈值定紧了会在除权票多的日子（比如 09-28 那种 30 只除权）反复报 error。",
+   "how_to_verify": "对 2026-10-09 的分片重跑一次 merge 并打印差额；python src/selftest_breakout.py"
+  },
+  {
+   "type": "code",
+   "title": "界面对 push_status 判陈旧",
+   "detail": "src/gui/status.py 读 push_status 时除了 ok，再按 at 和当前北京时间算间隔，超过 90 分钟（Sync 是 30 分钟一次）就标成异常并显示「上次同步 N 小时前」，不要只凭 ok=true 显示绿色。",
+   "expected_effect": "像现在这种 30 小时没同步的状态在控制台首页一眼能看见，而不是显示成正常。",
+   "risk": "周末和长假机器关机期间会长期显示异常，可能被当成噪音；可以只在交易日或开机后超过 90 分钟才标红。",
+   "how_to_verify": "python src/selftest_gui.py；把 push_status.at 改成一天前看首页显示"
+  },
+  {
+   "type": "process",
+   "title": "处理掉「共同起点砍掉 96 个交易日」这条挂了很久的提示",
+   "detail": "先确认 daily.parquet 里 2023-05-30 之前只有 5039 只有数据这件事还成不成立，再决定跑不跑一次 backfill --stage refresh 对齐起点；不跑就把这个判断写进 docs/breakout_log.md 并把日志降成一次性说明，要跑就按教训 36 的流水走（rebuild_all -> refit_chain -> 自测 -> 文档）。",
+   "expected_effect": "要么训练表多回约 100 个交易日的样本，要么这条每天出现的提示不再占着日志、不再让人每次复盘都要重新判断一遍。",
+   "risk": "stage refresh 是全量重拉，耗时长且会动 daily.parquet（两条线共用），必须在非交易时段、拿着写锁跑；重建后特征表和模型都要重做，口径变动按教训 36 的流水走完才能发信。",
+   "how_to_verify": "重建后对比训练表起点和行数、python src/selftest_breakout.py、tools/e2e_check.py"
+  }
+ ],
+ "severity": "注意",
+ "summary": "2026-10-09 两条线都按时跑通、没发错也没漏发：run_meta.date 都等于目标日 2026-10-09，dry 均为 false，mail_sent（16:50:34 / 17:58:02+08:00）和 sent 标记齐全，退出码 0，四次推送成功。起涨预测 ≥97 分 14 只、剔 1 只、取前 10，14 只接近 refit_status.qual_median 15.0，不是异常；模型 fit_date 2026-10-07（4 天，上限 30），当天用已有模型、不该重训也没重训；清单 A 板块分散（主板 4 / 科创 2 / 创业 2 / 北交所 2），连续天数 4 一只、2 四只、1 五只。长期调整突破 A 0 只、B 3 减 1（920706 减持）= 2 只，口径自洽。问题集中在监控和记账：drift_note 因 score_stats 只剩 2 行而结构性为空（判定要求 ≥20 天），未来约 18 个交易日漂移检测不工作，当天 top10_p_mean 0.4022→0.3343 落在这段盲区；「48 只今天判不了」没扣掉 filled=17 只已用快照补齐的票；记账 covered 5508 与合并后目标日实际 5503 行差 5 只无对账；push_status 停在 10-10 06:45，30 小时未更新而界面只看 ok。真值这一项当天核不了（12 份清单最老 bars=11，20 根未满），regime 当天不极端（涨停 72 / 跌停 11、中位 +0.596%、成交额 18781 亿）。AI 用量 1.8/10 日、1.8/100 月，未近警戒线。本次不建议改 SCORE_MIN / CAP_A / MIN_STREAK。"
+}

@@ -82,6 +82,8 @@ src/
                          ths_export.py 抽出来）
   bjtime.py              北京时间 now_bj / today_bj 和「最近一个已收盘交易日」last_closed 的唯一实现
                          （2026-10-10 前各有 8 份和 4 份）。不 import 重模块，控制台和云端都用
+  ai_usage.py            claude.exe 的统一调用（run_claude：Opus、JSON、schema、只读联网工具）和用量记账
+                         （state/ai_usage.jsonl，日 / 月警戒线只提示不拦截）。AI 只分析不排序（硬约束 1）
   localenv.py            tools/local.env -> os.environ。本机每个入口先调一次，
                          否则 SMTP 凭证静默缺失
   local_run.py           本地一键全流程。--flow breakout / pullback / --sync，
@@ -171,6 +173,12 @@ tools/rerun_breakout.py / resend_breakout.py   起涨预测重算 / 补发历史
 tools/dump_st.py         当前 ST 名单 -> cache/st_codes.json（回测剔 ST 用）
 tools/audit_repo.py      仓库审计：死模块 / 死函数 / 别名属性 / 重复实现 / 没人读的产物 / 文档漂移 /
                          配置键 / 依赖 / gitignore / 按钮和工作流接线。零输出才算干净，大改后必跑
+tools/ai_analyze.py      单股 AI 分析：python tools/ai_analyze.py 300829。本机备好 K 线事实 / 模型分数 / 股东户数 /
+                         减持定增 / 市场环境，Claude 联网查新闻后给立场、置信度、依据、风险（schema）。
+                         只给人看，不进清单邮件模型。控制台首页「AI 分析」= 按钮 ai_analyze（带代码参数）
+tools/ai_review.py       Claude 复盘：--daily 每日（起涨预测发信后 local_run 调，fail-open）、--weekly、
+                         --diff 改动前复核、--list / --apply 提案（param 走白名单 + 重估链，code 只记待办）。
+                         产物 state/ai_review/，latest_alert.json 进邮件抬头和控制台
 tools/predict_one.py     单只股票预测：python tools/predict_one.py 600000。用生产模型 + 特征表给一只票
                          打分（分数 / 名次 / 够不够格 / 近 20 天分数 / 历史命中率）。控制台首页
                          「查一只股票」和 /api/predict 调它（2026-10-07）
@@ -703,8 +711,8 @@ GitHub runner 上用 Playwright 起 chromium 也一样能过（早盘的板块�
     现在每一层都有尽头：第三方库的 requests 补默认超时（`ds.http_timeout`，30 秒）；
     新浪进程池每只最多等 10 分钟，等不到就结束池子、按没拉到算（`backfill._sina_map`）；
     `py()` 每一步有时限（`local_run.STEP_LIMIT`，AST 钉住每次调用都带），超时结束整棵
-    进程树；`_git` 180 秒；整条流程总时限 `MAX_RUN`（起涨预测 5 小时、长期调整突破
-    6 小时，`arm_deadline` 到点结束自己）；下一次触发看到跑超了 `MAX_RUN` 的同线实例就
+    进程树；`_git` 180 秒；整条流程总时限 `MAX_RUN`（两条线都是 6 小时；起涨预测 2026-10-11 从 5 改 6，
+    加了重估链和 AI 复盘两步，`arm_deadline` 到点结束自己）；下一次触发看到跑超了 `MAX_RUN` 的同线实例就
     结束它、接手（`take_over_stuck`）；run_local.cmd 写不进主日志就换 `_busy.log`。
     同一天还改了两处「开着机也不出清单」：新股不再算进 50 只的上限（09-28 的 57 只里
     27 只是新股）；补跑到目标日次日 07:00 还超上限，就把没补齐的剔出清单照发

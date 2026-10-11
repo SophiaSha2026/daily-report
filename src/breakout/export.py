@@ -55,11 +55,11 @@ log = logging.getLogger("breakout.export")
 BASE = 2.89                       # 全市场基准：验证集 10 个月里随便买一只涨超 50% 的比例
 STREAK_PERF = [
     # 连续天数下限, 准确率%, 相对随便买的倍数, 样本数
-    (5, 30.2, 10.4, 53),
-    (4, 25.0, 8.7, 84),
-    (3, 19.1, 6.6, 152),
-    (2, 16.7, 5.8, 335),
-    (1, 14.1, 4.9, 1053),
+    (5, 34.8, 12.0, 46),
+    (4, 27.5, 9.5, 80),
+    (3, 22.6, 7.8, 159),
+    (2, 20.1, 6.9, 349),
+    (1, 13.8, 4.8, 1069),
 ]
 PERF = {"base": BASE, "window": "验证集 207 个交易日"}
 # 上限主导的日子单独报一个数，它比总平均重要得多。
@@ -77,9 +77,9 @@ PERF = {"base": BASE, "window": "验证集 207 个交易日"}
 # 邮件次日开盘买入，之后 20 根最高价相对次日开盘涨超 50%，次日一字板买不进算没中
 # （buyable.py，实验 16 第 1 条：收盘口径的命中里 14.6% 是一字板）。
 # CLOSE_PERF 是同一批名额按收盘价口径的整体命中，只用来在邮件里对照一句。
-CLOSE_PERF = (17.6, 1053)             # 收盘口径：准确率%, 名额数（tools/update_perf.py 改写）
-CAP_PERF = (11.4, 350, 35)         # 满员日：准确率%, 名额数, 天数
-NONCAP_PERF = (15.4, 703, 153)        # 准确率%, 名额数, 天数
+CLOSE_PERF = (17.6, 1069)             # 收盘口径：准确率%, 名额数（tools/update_perf.py 改写）
+CAP_PERF = (11.0, 390, 39)         # 满员日：准确率%, 名额数, 天数
+NONCAP_PERF = (15.5, 679, 147)        # 准确率%, 名额数, 天数
 # STREAK_PERF / BASE 是在**这条规则**下测的（exp_window.py 的 W5 那几行）。
 # daily.py 的 SCORE_MIN / CAP_A 会被 state/breakout/overrides.json 覆盖
 # （手改那份文件就会变），规则一改这张成绩表就不适用了，必须在邮件里说清楚，
@@ -360,6 +360,33 @@ def _rows_b(b: pd.DataFrame) -> str:
     return "".join(out)
 
 
+def _ai_header_note(date: str) -> str:
+    """Claude 复盘（计划 2026-10-10 第 9 项）的两句话：上一次复盘判「严重 / 注意」就印一句，
+    AI 用量超过警戒线印一句。只读 state/ai_review/latest_alert.json 和 state/ai_usage.jsonl，
+    读不到就什么都不印（fail-open）。复盘在发信**之后**跑，所以这里印的是上一次的。"""
+    out = ""
+    try:
+        import json as _j
+        p = ROOT / "state" / "ai_review" / "latest_alert.json"
+        if p.exists():
+            al = _j.loads(p.read_text(encoding="utf-8"))
+            if al.get("severity") in ("严重", "注意") and al.get("summary"):
+                out += (f' · <b>AI 复盘（{str(al.get("date", ""))[5:]}）{al["severity"]}：'
+                        f'{str(al["summary"])[:120]}</b>')
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import sys as _s
+        _s.path.insert(0, str(ROOT / "src"))
+        import ai_usage
+        t = ai_usage.totals()
+        if t.get("warn"):
+            out += f' · <b>{t["note"]}</b>'
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
 def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
     """某一天的抬头 + 清单 A + 清单 B。面板按日期切换时整块替换。"""
     smin, cap = _rule(meta)
@@ -384,6 +411,7 @@ def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
         md_txt += "（最近一次重训没过验收，沿用旧模型）"
     if meta.get("drift_note"):
         md_txt += f" · <b>注意：{meta['drift_note']}</b>"
+    md_txt += _ai_header_note(date)
     # 期望命中率怎么印（2026-09-16 用户定）：**先看是不是满员日，再按近期基准折算**。
     #
     # 以前印的是按本份清单板块构成加权的数。那个修法解决的是「清单里科创占

@@ -216,6 +216,19 @@ class Handler(BaseHTTPRequestHandler):
                 out = {"ok": False, "error": str(e)}
             return self._json(out)
 
+        if p == "/api/ai":
+            # Claude 复盘的结论、待批准的提案、用量（计划 2026-10-10 第 9 项）。只读
+            try:
+                sys.path.insert(0, str(ROOT / "tools"))
+                sys.path.insert(0, str(ROOT / "src"))
+                import ai_review as AR
+                import ai_usage as AU
+                return self._json({"alert": AR.latest_alert(),
+                                   "proposals": AR.list_proposals("pending"),
+                                   "usage": AU.totals()})
+            except Exception as e:  # noqa: BLE001
+                return self._json({"alert": {}, "proposals": [], "usage": {}, "error": str(e)})
+
         if p == "/api/logfile":
             # 计划任务自动跑的输出，每条线一个文件（tools/local_flow_<flow>.log，
             # 一个文件被长流程占着时别的任务写不进去）。GUI 手动跑的日志走
@@ -257,7 +270,7 @@ class Handler(BaseHTTPRequestHandler):
         p = u.path
 
         if p == "/api/run":
-            j, err = REG.start(body.get("key", ""))
+            j, err = REG.start(body.get("key", ""), body.get("args") or [])
             if not j:
                 return self._json({"error": err}, 409)
             return self._json(j.brief())
@@ -275,6 +288,29 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/push":
             r = _retry_push()
             return self._json(r, 409 if r.get("busy") else 200)
+
+        if p == "/api/proposal":
+            # 用户批准 / 拒绝一个 AI 提案（带 token 的写操作）。批准 = 起一个任务跑
+            # tools/ai_review.py --apply <id>：param 走白名单写 overrides 再跑重估链，
+            # code 只记待办，流程只记录。AI 自己永远不会走到这里（第 0 节拍板）
+            pid, action = str(body.get("id", "")), str(body.get("action", ""))
+            if not re.fullmatch(r"[A-Za-z0-9_\-]+", pid) or action not in ("approve", "reject"):
+                return self._json({"error": "id 或 action 不合法"}, 400)
+            try:
+                sys.path.insert(0, str(ROOT / "tools"))
+                import ai_review as AR
+                if action == "reject":
+                    j = AR.set_status(pid, "rejected", "用户在控制台拒绝")
+                    return self._json({"ok": bool(j), "status": "rejected"} if j else {"error": "没有这个提案"}, 200 if j else 404)
+                j = AR.set_status(pid, "approved", "用户在控制台批准")
+                if not j:
+                    return self._json({"error": "没有这个提案"}, 404)
+                job, err = REG.start("ai_apply", [pid])
+                if not job:
+                    return self._json({"error": err}, 409)
+                return self._json({"ok": True, "status": "approved", "job": job.brief()})
+            except Exception as e:  # noqa: BLE001
+                return self._json({"error": str(e)}, 500)
 
         return self._json({"error": "not found"}, 404)
 

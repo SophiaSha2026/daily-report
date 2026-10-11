@@ -26,6 +26,7 @@ from __future__ import annotations
 import itertools
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -131,6 +132,22 @@ ACTIONS: dict[str, dict] = {
         "desc": "筹码分布、量价指标、股东人数等，再按当天全市场排名归一。"
                 "约 13 分钟，产出 426 万行 x 87 个指标。",
     },
+    "ai_analyze": {
+        "no": "2-5", "name": "AI 分析一只股票", "group": "查",
+        "cmd": ["tools/ai_analyze.py"], "arg": "code",
+        "mail": False, "danger": False,
+        "what": "把这只票的数据和最新新闻交给 Claude 做一次分析，三到五分钟，每次几美元",
+        "desc": "本机备好 K 线事实、模型分数、股东户数、减持 / 定增、市场环境，Claude（Opus）联网查新闻公告"
+                "后给出立场、置信度、依据、风险。结论只给人看，不进清单、不进邮件、不进模型。"
+                "首页「查一只股票」旁边的「AI 分析」就是它。用量记在 state/ai_usage.jsonl。",
+    },
+    "ai_apply": {
+        "no": "3-9", "name": "落地 AI 提案", "group": "修",
+        "cmd": ["tools/ai_review.py", "--apply"], "arg": "proposal",
+        "mail": False, "danger": False, "hidden": True,
+        "what": "用户批准一个 AI 提案后，把它落地（参数改动走白名单再跑月度重估，代码改动只记待办）",
+        "desc": "不在按钮栏显示，由「状态」页里提案旁边的「批准」触发。",
+    },
     "bk_arena": {
         "no": "2-4", "name": "比模型", "group": "查",
         "cmd": ["src/breakout/arena.py"],
@@ -214,11 +231,12 @@ _seq = itertools.count(1)
 class Job:
     """一次运行。输出攒在内存里，界面按 offset 拉增量。"""
 
-    def __init__(self, key: str) -> None:
+    def __init__(self, key: str, args: list[str] | None = None) -> None:
         act = ACTIONS[key]
         self.id = f"j{next(_seq)}"
         self.key = key
-        self.name = act["name"]
+        self.args = list(args or [])
+        self.name = act["name"] + (f"（{' '.join(self.args)}）" if self.args else "")
         self.started = dt.datetime.now()
         self.finished: dt.datetime | None = None
         self.rc: int | None = None
@@ -233,7 +251,7 @@ class Job:
             "PYTHONUTF8": "1",
         }
         self.proc = subprocess.Popen(
-            [PY, *act["cmd"]], cwd=ROOT, env=env,
+            [PY, *act["cmd"], *self.args], cwd=ROOT, env=env,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
@@ -317,9 +335,20 @@ class Registry:
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
 
-    def start(self, key: str) -> tuple[Job | None, str]:
+    def start(self, key: str, args: list[str] | None = None) -> tuple[Job | None, str]:
         if key not in ACTIONS:
             return None, f"未知动作 {key}"
+        # 只有声明了 arg 的按钮才收参数，而且格式钉死：参数要拼进命令行，不能让页面随便传
+        args = [str(x) for x in (args or [])]
+        want = ACTIONS[key].get("arg")
+        if want == "code":
+            if len(args) != 1 or not re.fullmatch(r"\d{6}", args[0]):
+                return None, "要一个 6 位股票代码"
+        elif want == "proposal":
+            if len(args) != 1 or not re.fullmatch(r"[A-Za-z0-9_\-]+", args[0]):
+                return None, "要一个提案 id"
+        elif args:
+            return None, f"{ACTIONS[key]['name']}不收参数"
         # 会和正在跑的流程抢同一批文件的按钮，流程在跑时不让点。
         # 「补数据」直接起 backfill.py，和流程里的补数据是同一步，流程正在跑
         # 时再点一下，两个进程抢着重写 daily.parquet。
@@ -350,7 +379,7 @@ class Registry:
                 if flow and _flow_of(j.key) == flow:
                     return None, (f"同一条线不能同时起两个："
                                   f"{ACTIONS[j.key]['name']}正在跑（{j.id}）")
-            j = Job(key)
+            j = Job(key, args)
             self._jobs[j.id] = j
             return j, ""
 

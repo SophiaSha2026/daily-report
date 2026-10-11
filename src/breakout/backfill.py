@@ -53,12 +53,13 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from bjtime import now_bj  # noqa: E402
 
 import pandas as pd
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+from bjtime import now_bj   # noqa: E402  直接当脚本跑时 src 不在路径上（e2e 2026-10-11 抓到）
 # BACKFILL_OUT / BACKFILL_HIST_START 两个环境变量只给实验用（实验 16 第 6 条：
 # 把 2019 年起的日线拉到另一张表，不碰生产）。不设就是生产的目录和起点。
 OUT = Path(os.environ.get("BACKFILL_OUT") or str(ROOT / "data" / "breakout"))

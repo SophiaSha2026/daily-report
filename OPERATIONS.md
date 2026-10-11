@@ -159,6 +159,10 @@ schtasks /Query /TN DailyReport-Local-Pullback /V /FO LIST
   `out_breakout/window_grid.json`；收盘价口径另印一句对照。改了口径跑 `tools/refit_chain.py`
   （控制台「月度重估」），`selftest_breakout` 钉住常量和产物一致。
 - 想看某一只票模型怎么打分：控制台首页「查一只股票」，或 `python tools/predict_one.py 600000`。
+- 想让 Claude 结合新闻分析一只票：首页「AI 分析」（三到五分钟，每次约 2 美元，结论只给人看）。
+- Claude 每天发信后自动复盘一次（约 1.5 美元），结论在控制台「状态」页，严重的印进次日邮件抬头；
+  它提的改动只有你在「状态」页点「批准」才会落地。用量超过警戒线（默认日 10 / 月 100 美元，
+  `tools/local.env` 的 AI_WARN_DAY_USD / AI_WARN_MONTH_USD）会提示，不拦截。
 - `state/breakout/overrides.json` 是学习会诊批准过的常量覆盖（会诊已随早盘系统归档），
   照常生效；要改就手改，改完点控制台「月度重估」（就是教训 36 那条流水）。
 

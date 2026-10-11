@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import sys
 import threading
 import urllib.error
@@ -2352,7 +2353,8 @@ def check_watchdogs() -> None:
 
     # 3. 总时限：MAX_RUN 盖得住各步时限之和，否则流程内的看门狗没出手就被当卡死
     S = L.STEP_LIMIT
-    bk = S["backfill"][0] + S["build"][0] + S["chain"][0] + S["scan"][0] + 600 + S["send"][0]
+    bk = (S["backfill"][0] + S["build"][0] + S["chain"][0] + S["scan"][0] + 600 + S["send"][0]
+          + 2 * S["review"][0])
     pb = (L.PULLBACK_WAIT_DAILY_MIN * 60 + S["backfill"][0] + S["pb_scan"][0]
           + (17 * 60 + 58 - 16 * 60) * 60 + S["pb_send"][0])
     ck(bk <= L.MAX_RUN["breakout"] * 3600 - 300,
@@ -2486,6 +2488,84 @@ def check_frontend_backend_alignment() -> None:
     groups = {a["group"] for a in ACTIONS.values()}
     ck(groups == {"跑", "查", "修"}, f"按钮只分跑 / 查 / 修三组（实得 {sorted(groups)}）")
 
+    # 每个脚本当**脚本**跑一次 --help：自测把 src 加进路径后 import 一切正常，直接
+    # `python src/breakout/backfill.py` 时 src 不在 sys.path，`from bjtime import` 当场炸
+    # （2026-10-11 端到端测试抓到，三条离线自测全绿）。--help 走完模块级 import 就退出。
+    import subprocess
+    import sys as _sys
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    scripts = sorted({a["cmd"][0] for a in ACTIONS.values()}
+                     | {"tools/predict_one.py", "tools/refit_chain.py", "tools/audit_repo.py",
+                        "tools/evening_check.py", "src/pullback.py", "src/corp_events.py"})
+    dead = []
+    for sc in scripts:
+        if "selftest" in sc:
+            continue
+        r = subprocess.run([_sys.executable, sc, "--help"], cwd=str(ROOT), env=env,
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            dead.append(f"{sc}: {(r.stderr or r.stdout).strip().splitlines()[-1][:100]}")
+    ck(not dead, f"{len(scripts)} 个脚本当脚本跑 --help 都能起来" + ("：" + "；".join(dead) if dead else ""))
+
+
+def check_ai_wiring() -> None:
+    """Claude 参与（计划 2026-10-10 第 8、9 项）：记账、提案状态机、落地白名单、fail-open 接线。
+    全部离线：不调 claude，产物写临时目录。"""
+    print("\n[AI 参与·接线]")
+    import ast
+    import json
+    import tempfile
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / "tools"))
+    import ai_review as AR
+    import ai_usage as AU
+    tmp = Path(tempfile.mkdtemp(prefix="ai_"))
+    keep = (AU.USAGE, AR.STATE, AR.PROPOSALS)
+    AU.USAGE, AR.STATE, AR.PROPOSALS = tmp / "usage.jsonl", tmp / "review", tmp / "review" / "proposals"
+    try:
+        AU.record("t", "x", {"total_cost_usd": 1.25, "usage": {"input_tokens": 10, "output_tokens": 5},
+                              "num_turns": 2, "duration_ms": 10, "modelUsage": {"m": {}}})
+        AU.record("t", "y", {"total_cost_usd": 0.5, "usage": {}})
+        t = AU.totals()
+        ck(abs(t["today_usd"] - 1.75) < 1e-9 and t["today_n"] == 2, f"记账累计 1.75 美元 2 次（实得 {t['today_usd']} / {t['today_n']}）")
+        ck(not t["warn"] and t["note"] == "", "没超警戒线不出声")
+        AU.record("t", "z", {"total_cost_usd": AU.WARN_DAY, "usage": {}})
+        ck(AU.totals()["warn"], "超过日警戒线 warn=True（只提示不拦截）")
+        r = {"severity": "注意", "summary": "s", "findings": [],
+             "proposals": [{"type": "param", "title": "p", "detail": "d", "param": "SCORE_MIN", "value": 98,
+                            "expected_effect": "e", "risk": "r"},
+                           {"type": "code", "title": "c", "detail": "d2", "expected_effect": "e", "risk": "r"}]}
+        AR._save_review("daily", "2026-10-09", r, 1.0)
+        ck((AR.STATE / "2026-10-09.json").exists() and AR.latest_alert().get("severity") == "注意",
+           "复盘落盘 + latest_alert")
+        ps = AR.list_proposals("pending")
+        ck(len(ps) == 2 and {p["type"] for p in ps} == {"param", "code"}, "两个提案都是 pending")
+        pid = next(p["id"] for p in ps if p["type"] == "code")
+        ck(AR.set_status(pid, "rejected")["status"] == "rejected" and len(AR.list_proposals("pending")) == 1,
+           "拒绝后不再待批")
+        ck(AR.set_status("no-such", "approved") is None, "不存在的提案返回 None")
+        bad = {"type": "param", "title": "x", "detail": "d", "param": "BOARD_ADJ_STAR", "value": 5,
+               "expected_effect": "e", "risk": "r"}
+        AR._save_proposal(bad, "bad-1", "2026-10-09")
+        ck(AR.apply_proposal("bad-1") == 1 and AR._json(AR.PROPOSALS / "bad-1.json")["status"] == "failed",
+           "白名单外的参数提案落地被拒、状态记 failed")
+        bad2 = {"type": "param", "title": "x", "detail": "d", "param": "SCORE_MIN", "value": 50,
+                "expected_effect": "e", "risk": "r"}
+        AR._save_proposal(bad2, "bad-2", "2026-10-09")
+        ck(AR.apply_proposal("bad-2") == 1, "白名单内但超出范围的值被拒（SCORE_MIN=50）")
+    finally:
+        AU.USAGE, AR.STATE, AR.PROPOSALS = keep
+    # 接线：flow_breakout 发信之后调 ai_review，且在 try 里（fail-open）；export 读 latest_alert
+    src = (ROOT / "src" / "local_run.py").read_text(encoding="utf-8")
+    fn = next(f_ for f_ in ast.walk(ast.parse(src)) if isinstance(f_, ast.FunctionDef) and f_.name == "ai_review")
+    has_try = any(isinstance(n, ast.Try) for n in ast.walk(fn))
+    ck(has_try and "ai_review(d, dry)" in src.split("def flow_breakout(")[1].split("\ndef ")[0],
+       "flow_breakout 发信后调 ai_review，且包在 try 里")
+    ck("review" in __import__("local_run").STEP_LIMIT, "AI 复盘有自己的时限")
+    esrc = (ROOT / "src" / "breakout" / "export.py").read_text(encoding="utf-8")
+    ck("latest_alert" in esrc and "ai_usage" in esrc, "邮件抬头读 AI 复盘结论和用量")
+    del json
+
 
 def check_refit_chain_wiring() -> None:
     """月度重估链（计划 3.6）：模型到期那天在打分之前跑，有时限，失败不挡发信。"""
@@ -2548,6 +2628,7 @@ def main() -> int:
     check_http()
     check_refit_chain_wiring()
     check_frontend_backend_alignment()
+    check_ai_wiring()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")

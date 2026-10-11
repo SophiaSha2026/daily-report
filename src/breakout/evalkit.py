@@ -131,6 +131,7 @@ def walk_forward(df: pd.DataFrame, months: list[str], fit_predict, name: str,
     st = V.st_codes()
     tops: dict[str, list] = {}
     alls: dict[str, list] = {}
+    qmap: dict[str, dict] = {}
     state: dict = {}
     t0 = time.time()
     for m in months:
@@ -146,6 +147,7 @@ def walk_forward(df: pd.DataFrame, months: list[str], fit_predict, name: str,
         res = fit_predict(tr, te, feats, m, state)
         for arm, (p_te, p_ref) in res.items():
             q = np.quantile(np.asarray(p_ref, float), np.linspace(0, 1, 101))
+            qmap.setdefault(arm, {})[m] = [float(x) for x in q]
             o = te[["date", "code", "board", "y_up", "y_open"]].copy()
             o["p"] = np.asarray(p_te, np.float32)
             alls.setdefault(arm, []).append(o[["date", "code", "p"]])
@@ -155,6 +157,7 @@ def walk_forward(df: pd.DataFrame, months: list[str], fit_predict, name: str,
             o["rank"] = o.groupby("date").cumcount() + 1
             tops.setdefault(arm, []).append(o[o["rank"] <= TOP_KEEP])
         print("  %s 完成 %.0fs（特征 %d 列）" % (m, time.time() - t0, len(feats)), flush=True)
+    (out_dir / "q.json").write_text(json.dumps(qmap), encoding="utf-8")
     out = {}
     for arm in tops:
         t = pd.concat(tops[arm], ignore_index=True)

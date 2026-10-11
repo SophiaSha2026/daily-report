@@ -185,7 +185,9 @@ def rewrite(arm: str) -> None:
     for k in sorted(rows, reverse=True):
         r = rows[k]
         hit = round(100 * r["hit"], 1)
-        lines.append(f"    ({k}, {hit}, {round(hit / base, 1)}, {int(r['n'])}),")
+        # 倍数从产物里取再四舍五入，不要拿四舍五入后的命中率再除：20.06%/2.89 = 6.93，
+        # 而 20.1/2.89 = 6.96 -> 7.0，自测对账 ±0.06 就红了（2026-10-11 月度重估链实测）
+        lines.append(f"    ({k}, {hit}, {round(float(r['lift']), 1)}, {int(r['n'])}),")
     s = EXPORT.read_text(encoding="utf-8")
     s2 = re.sub(r"BASE = [\d.]+", f"BASE = {base}", s, count=1)
     s2 = re.sub(r"STREAK_PERF = \[\n(?:.*\n)*?\]",
