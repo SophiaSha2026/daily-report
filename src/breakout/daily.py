@@ -34,6 +34,8 @@ import time
 import datetime as dt
 from pathlib import Path
 
+from bjtime import now_bj  # noqa: E402
+
 import numpy as np
 import pandas as pd
 
@@ -187,10 +189,6 @@ def load_board_adj() -> dict:
 BOARD_ADJ.update(load_board_adj())            # 收缩估计（有就用它）
 BOARD_ADJ.update(_OVR.get("BOARD_ADJ", {}))   # overrides.json 的人工覆盖，优先级最高
 RISE_MIN = 0.20     # 进池后至少涨过这么多，才谈得上「波段结束」
-
-
-def now_bj() -> dt.datetime:
-    return dt.datetime.utcnow() + dt.timedelta(hours=8)
 
 
 # ---------------------------------------------------------------
@@ -1051,14 +1049,9 @@ def stage_scan(force_fit: bool = False) -> int:
     return 0
 
 
-def load_env() -> None:
-    """tools/local.env -> os.environ（实现在 src/localenv.py，三个入口共用）。"""
+def stage_send() -> int:
     import localenv
     localenv.load()
-
-
-def stage_send() -> int:
-    load_env()
     import export as E
     meta = json.loads((OUT / "run_meta.json").read_text(encoding="utf-8"))
     date = meta["date"]

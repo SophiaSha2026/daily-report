@@ -56,7 +56,8 @@ def main() -> int:
                     help="特征表已经是最新的，不重算")
     a = ap.parse_args()
 
-    D.load_env()
+    import localenv
+    localenv.load()
     if not LR.acquire_lock("breakout"):
         log.error("起涨预测正在跑，等它结束再来")
         return 1

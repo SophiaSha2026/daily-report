@@ -1265,3 +1265,19 @@ CAP_PERF / NONCAP_PERF 为买得到口径，新常量 CLOSE_PERF 给邮件那句
   那天用的就是新模型）。改成调用时按 STATE 现算（`refit_status_path` / `score_stats_path`），
   生产文件用当前模型重建（通过），selftest_breakout 加一条「生产的两份状态文件没被自测碰过」。
   打分统计没受影响（自测没走到 stage_scan）。
+
+## 2026-10-10 · 计划第 1、2 项：审计脚本、重复实现合并、漂移
+
+- `tools/audit_repo.py`：死模块 / 死函数 / 别名属性 / 重复实现 / 没人读的产物 / 文档漂移 / 配置键 /
+  依赖 / gitignore / 按钮和工作流接线，十类检查，零输出才算干净。例外写在 ALLOW 里带理由。
+- 合并重复实现（教训 34）：`now_bj` 8 份（一半 naive 一半带时区）、`last_closed_trade_day` 4 份、
+  `load_env` 2 份、`board_of` 2 份 -> `src/bjtime.py` 一份（now_bj / today_bj / last_closed），
+  `datasource.board_of` 一份（pullback 直接用；features 那份在指纹里不能动，自测钉住代码表上逐只相同）。
+  `status.verdict` 改名 `trigger_verdict`、`pullback_backtest.report` 改名 `print_report`，
+  和另两处同名但不同义的函数分开。
+- 顺手抓到的漂移：控制台面板文件时间印的是本机美东时间（现在按北京）；控制台几处 naive 时间
+  和带时区的时钟比较会直接 TypeError（自测传 naive，生产传带时区），统一成带时区。
+- 核对 10-08、10-09 两天：10-09 抬头干净（refit_rejected False、drift 空），10-08 21:10 长期调整突破
+  退出码 1 是断网推送失败，次日自愈推上；云端 evening_check 两天都 success；三个计划任务的
+  注册时刻和 setup_tasks.ps1 的 UTC 定义一致。
+- `.gitignore` 去掉早没人写的 tools/trigger.log 两行。

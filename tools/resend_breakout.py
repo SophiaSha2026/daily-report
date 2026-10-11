@@ -46,7 +46,8 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
 
-    D.load_env()
+    import localenv
+    localenv.load()
     files = sorted(glob.glob(str(D.DATA / "*" / "breakout_*.parquet")))
     files = files[-a.days:]
     if not files:

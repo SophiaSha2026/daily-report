@@ -1490,6 +1490,19 @@ def check_drift_note() -> None:
     ck('meta.get("drift_note")' in esrc, "邮件抬头印 drift_note")
 
 
+def check_board_of_single() -> None:
+    """板块判定：features.board_of（指纹里）和 datasource.board_of（长期调整突破用）在代码表上逐只相同。"""
+    print("\n[板块判定·两份一致]")
+    import datasource as ds
+    import features as F
+    codes = pd.read_csv(ROOT / "cache" / "codes.csv", dtype=str)["code"].str.zfill(6).tolist()
+    bad = [c for c in codes if ds.board_of(c) != F.board_of(c)]
+    ck(not bad, f"代码表 {len(codes)} 只两份板块判定逐只相同（不同的 {bad[:5]}）")
+    psrc = (ROOT / "src" / "pullback.py").read_text(encoding="utf-8")
+    ck("board_of = ds.board_of" in psrc and "def board_of" not in psrc,
+       "pullback 直接用 datasource.board_of，没有自己的一份")
+
+
 def check_board_factors() -> None:
     """板块系数的拟合窗口不能和评估窗口重叠（否则成绩是样本内的）。"""
     print("\n[板块校正·不许偷看]")
@@ -2807,10 +2820,10 @@ def check_send_marker() -> None:
     def fake_send(m, c):
         cnt["n"] += 1
 
-    out, hist, lenv = D.OUT, D.recent_history, D.load_env
+    out, hist = D.OUT, D.recent_history
     conf, send, bht = E._conf, E._send, E.board_hit_table
     skip = os.environ.pop("SKIP_MAIL", None)
-    D.OUT, D.recent_history, D.load_env = tmp, (lambda n=30: []), (lambda: None)
+    D.OUT, D.recent_history = tmp, (lambda n=30: [])
     E._conf = lambda: {"user": "a@b.c", "to": ["a@b.c"]}
     E._send = fake_send
     E.board_hit_table = lambda: {}        # 不碰 out_breakout/board_hit.json
@@ -2838,7 +2851,7 @@ def check_send_marker() -> None:
         ck(raised and not (tmp / "mail_sent.json").exists(),
            "SMTP 异常时不落标记")
     finally:
-        D.OUT, D.recent_history, D.load_env = out, hist, lenv
+        D.OUT, D.recent_history = out, hist
         E._conf, E._send, E.board_hit_table = conf, send, bht
         os.environ.pop("SKIP_MAIL", None)
         if skip is not None:
@@ -3134,6 +3147,7 @@ def main() -> int:
     check_acceptance_base()
     check_board_factors()
     check_month_weights()
+    check_board_of_single()
     check_accept_model()
     check_drift_note()
     check_purge_suspension()

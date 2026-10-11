@@ -69,6 +69,8 @@ import threading
 import time
 from pathlib import Path
 
+from bjtime import last_closed, now_bj  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
@@ -80,10 +82,6 @@ log = logging.getLogger("local")
 
 ROOT = Path(__file__).resolve().parent.parent
 PY = sys.executable
-
-
-def now_bj() -> dt.datetime:
-    return dt.datetime.now(dt.timezone(dt.timedelta(hours=8)))
 
 
 def today() -> str:
@@ -128,17 +126,8 @@ def trade_dates() -> set[str]:
 
 
 def last_closed_trade_day(now: dt.datetime | None = None) -> str:
-    """最近一个已收盘的交易日：15:05 之后算当天，之前算上一个交易日。"""
-    now = now or now_bj()
-    d = now.date()
-    closed = (now.hour, now.minute) >= (15, 5)
-    tds = trade_dates()
-    for back in range(0, 15):
-        day = d - dt.timedelta(days=back)
-        ok = (day.isoformat() in tds) if tds else day.weekday() < 5
-        if ok and (back > 0 or closed):
-            return day.isoformat()
-    return d.isoformat()
+    """最近一个已收盘的交易日。判定只有 bjtime.last_closed 一份，这里只负责取日历（带缓存和退化）。"""
+    return last_closed(trade_dates(), now or now_bj())
 
 
 def target_date(flow: str) -> str:
@@ -233,10 +222,6 @@ def keep_awake(on: bool) -> None:
 # ---------------------------------------------------------------------
 #  环境
 # ---------------------------------------------------------------------
-def load_env() -> None:
-    """tools/local.env -> os.environ（实现在 src/localenv.py，三个入口共用）。"""
-    import localenv
-    localenv.load()
 
 
 # 这里以前还有一个通用的 sh()，flow_morning / flow_evening 用它直接跑
@@ -1677,7 +1662,8 @@ def main() -> int:
     deadline = arm_deadline(a.flow)
     rc = 1
     try:
-        load_env()
+        import localenv
+        localenv.load()
         if a.dry:
             os.environ["DRY_RUN"] = "1"      # 子阶段据此在 run_meta 里标 dry
         t0 = now_bj()

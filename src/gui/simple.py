@@ -22,6 +22,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from bjtime import BJ, now_bj  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -47,15 +48,19 @@ STEP_WEIGHT = {
 STALL_MIN = 15      # 在跑、但日志和进度文件这么多分钟都没动 -> 标「没动静」
 
 
-def now_bj() -> dt.datetime:
-    return dt.datetime.utcnow() + dt.timedelta(hours=8)
-
-
 def _bj_of(ts: float) -> dt.datetime:
-    return dt.datetime.utcfromtimestamp(ts) + dt.timedelta(hours=8)
+    """文件时间戳 -> 北京时间（带时区，和 now_bj 同类，能直接相减）。"""
+    return dt.datetime.fromtimestamp(ts, tz=BJ)
+
+
+def _aware(now: dt.datetime) -> dt.datetime:
+    """自测会传 naive 的北京时间；生产传的是 now_bj()（带时区）。统一成带时区再比较。"""
+    return now if now.tzinfo is not None else now.replace(tzinfo=BJ)
 
 
 def ago(t: dt.datetime | None, now: dt.datetime) -> str:
+    now = _aware(now)
+    t = _aware(t) if t is not None else None
     if not t:
         return "还没有"
     m = int((now - t).total_seconds() // 60)
@@ -117,6 +122,7 @@ def last_run_block(flow: str) -> tuple[int | None, str]:
 
 def progress(flow: str, running: dict | None, now: dt.datetime) -> dict:
     """进度 0~100 和一句在干什么。没有进度文件（老代码在跑）就只给不定进度。"""
+    now = _aware(now)
     pj = _json(ROOT / "state" / "lock" / f"progress_{flow}.json")
     if not running:
         return {}
@@ -145,13 +151,15 @@ def _idle_min(flow: str, now: dt.datetime) -> float | None:
     tools/local_flow_<线>.log，而那个日志停在上一次计划任务的时刻，手点一开跑
     就会被判成「很久没动静」。进度文件两条路都写。
     """
+    now = _aware(now)
     ts = []
     lp = _log(flow)
     if lp.exists():
         ts.append(_bj_of(lp.stat().st_mtime))
     pj = _json(ROOT / "state" / "lock" / f"progress_{flow}.json")
     try:
-        ts.append(dt.datetime.fromisoformat(str(pj["updated_at"])).replace(tzinfo=None))
+        t = dt.datetime.fromisoformat(str(pj["updated_at"]))
+        ts.append(t if t.tzinfo else t.replace(tzinfo=BJ))   # 进度文件写的是北京时间
     except Exception:  # noqa: BLE001
         pass
     if not ts:
@@ -160,6 +168,7 @@ def _idle_min(flow: str, now: dt.datetime) -> float | None:
 
 
 def line(ln: dict, now: dt.datetime) -> dict:
+    now = _aware(now)
     import local_run as L
     flow = ln["flow"]
     t_ok, d_ok = last_ok(flow)
@@ -239,6 +248,7 @@ def power() -> dict:
 
 def next_window(now: dt.datetime) -> dict:
     """现在在不在该开机的时段；不在的话下一段是几点、还有多久。"""
+    now = _aware(now)
     try:
         import local_run as L
         tds = L.trade_dates()
@@ -253,8 +263,8 @@ def next_window(now: dt.datetime) -> dict:
         if not trading(d):
             continue
         for (oh, om), (ch, cm) in WINDOWS:
-            a = dt.datetime(d.year, d.month, d.day, oh, om)
-            b = dt.datetime(d.year, d.month, d.day, ch, cm)
+            a = dt.datetime(d.year, d.month, d.day, oh, om, tzinfo=BJ)
+            b = dt.datetime(d.year, d.month, d.day, ch, cm, tzinfo=BJ)
             if a <= now < b:
                 return {"now": True, "start": a.strftime("%H:%M"),
                         "end": b.strftime("%H:%M")}

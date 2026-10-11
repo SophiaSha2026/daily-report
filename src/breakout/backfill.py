@@ -53,6 +53,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from bjtime import now_bj  # noqa: E402
 
 import pandas as pd
 import requests
@@ -482,9 +483,6 @@ def stage_daily_sina() -> int:
 # ---------------------------------------------------------------
 #  每日增量（腾讯快照）
 # ---------------------------------------------------------------
-def now_bj():
-    import datetime as dt
-    return dt.datetime.now(dt.timezone(dt.timedelta(hours=8)))
 
 
 def last_closed_trade_day(now=None) -> str:

@@ -80,6 +80,8 @@ src/
   mailer.py              SMTP 发信底层 + send_alert + skip_mail（SKIP_MAIL 的唯一判定）
   panel_style.py         两个面板共用的 PANEL_CSS / REFRESH_JS（2026-09-27 从已归档的
                          ths_export.py 抽出来）
+  bjtime.py              北京时间 now_bj / today_bj 和「最近一个已收盘交易日」last_closed 的唯一实现
+                         （2026-10-10 前各有 8 份和 4 份）。不 import 重模块，控制台和云端都用
   localenv.py            tools/local.env -> os.environ。本机每个入口先调一次，
                          否则 SMTP 凭证静默缺失
   local_run.py           本地一键全流程。--flow breakout / pullback / --sync，
@@ -151,7 +153,7 @@ src/
   evening_check.yml      8-晚间托底检查 20:30 BJT，两条线缺哪条就提醒哪条
   refresh_meta.yml       3-刷新代码表（手动）
                          （冒烟测试 smoke_test 测的是早盘在 runner 上用的源，随早盘归档）
-tools/external-trigger/  Cloudflare Worker：20:45 BJT 派发 evening_check。第三层触发，
+tools/external-trigger/  Cloudflare Worker（worker.js + wrangler.toml 的 crons）：20:45 BJT 派发 evening_check。第三层触发，
                          停一条线要连它一起停（历史教训 24）
 tools/setup_tasks.ps1    本机三个计划任务的唯一定义
 tools/evening_check.py   晚间托底检查（只在云端跑）
@@ -165,6 +167,8 @@ tools/refit_chain.py     月度重估链（教训 36 那条流水一条命令）
 tools/update_perf.py     按实验产物改写 export.py 的成绩常量（只认收缩那一臂、买得到口径）
 tools/rerun_breakout.py / resend_breakout.py   起涨预测重算 / 补发历史清单
 tools/dump_st.py         当前 ST 名单 -> cache/st_codes.json（回测剔 ST 用）
+tools/audit_repo.py      仓库审计：死模块 / 死函数 / 别名属性 / 重复实现 / 没人读的产物 / 文档漂移 /
+                         配置键 / 依赖 / gitignore / 按钮和工作流接线。零输出才算干净，大改后必跑
 tools/predict_one.py     单只股票预测：python tools/predict_one.py 600000。用生产模型 + 特征表给一只票
                          打分（分数 / 名次 / 够不够格 / 近 20 天分数 / 历史命中率）。控制台首页
                          「查一只股票」和 /api/predict 调它（2026-10-07）

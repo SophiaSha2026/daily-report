@@ -79,6 +79,8 @@ INTERACTIONS = [
 INTERACTION_VERSION = 2   # 进 daily.feature_fingerprint：改公式就重训
 
 
+# 板块判定在 datasource.board_of 另有一份给长期调整突破用；本函数在模型指纹里不能动，
+# selftest_breakout 钉住两份在代码表上逐只相同（2026-10-10）
 def board_of(code: str) -> str:
     if code[:3] == "688":
         return "star"

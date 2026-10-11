@@ -26,7 +26,6 @@ run_meta 仍然读，但只用来在正文里说「仓库里最新一份是哪�
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import json
 import subprocess
 import sys
@@ -35,6 +34,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
+from bjtime import last_closed, now_bj  # noqa: E402
 
 # 要检查的线：名字、run_meta、计划任务、日志、控制台按钮
 LINES = {
@@ -47,21 +47,6 @@ LINES = {
                  "log": "tools/local_flow_pullback.log",
                  "why_local": "三年全市场日线在本机，云端拉不到"},
 }
-
-
-def now_bj() -> dt.datetime:
-    return dt.datetime.now(dt.timezone(dt.timedelta(hours=8)))
-
-
-def last_closed_trade_day(tds: set[str], now: dt.datetime) -> str:
-    d = now.date()
-    closed = (now.hour, now.minute) >= (15, 5)
-    for back in range(0, 15):
-        day = d - dt.timedelta(days=back)
-        ok = (day.isoformat() in tds) if tds else day.weekday() < 5
-        if ok and (back > 0 or closed):
-            return day.isoformat()
-    return d.isoformat()
 
 
 def _origin_json(path: str) -> dict:
@@ -178,7 +163,7 @@ def main() -> int:
     if (today not in tds) if tds else now.weekday() >= 5:
         print(f"{today} 不是交易日，不检查")
         return 0
-    date = last_closed_trade_day(tds, now)
+    date = last_closed(tds, now)
     if date != today:
         print(f"现在 {now.strftime('%H:%M')} 还没收盘，目标日 {date} 不是今天，不检查")
         return 0

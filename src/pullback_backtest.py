@@ -46,7 +46,7 @@ def run(x: pd.DataFrame, c: dict, st: set[str]) -> tuple[pd.DataFrame, dict]:
     return P.history_pool(evf, st).reset_index(drop=True), diag
 
 
-def report(ev: pd.DataFrame, x: pd.DataFrame, diag: dict, bars: int, base_days: int) -> None:
+def print_report(ev: pd.DataFrame, x: pd.DataFrame, diag: dict, bars: int, base_days: int) -> None:
     st = P.history_stats(ev, x, bars, base_days)
     # 下面的分项和频率用同一批事件：全市场覆盖齐了之后那一段（P.coverage_start）
     ev = ev[ev["date"] >= st["from"]] if len(ev) else ev
@@ -110,7 +110,7 @@ def main() -> int:
     bars = int(c.get("output", {}).get("forward_bars", 20))
     base = int(c["base"]["days"])
     ev, diag = run(x, c, st)
-    report(ev, x, diag, bars, base)
+    print_report(ev, x, diag, bars, base)
     if a.grid:
         # 频率只有 history_stats 一份算法（以前这里另算 len/全表天数）
         s0 = P.history_stats(ev, x, bars, base)

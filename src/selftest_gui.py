@@ -920,7 +920,7 @@ def check_holiday() -> None:
         st.now_bj = lambda: dt.datetime(2026, 9, 27, 18, 0)
         st._trade_dates = lambda: {"2026-09-24", "2026-09-28"}
         try:
-            v = st.verdict("pullback", False, "2026-09-24")
+            v = st.trigger_verdict("pullback", False, "2026-09-24")
             ck("起才发清单" in v, f"排期页：目标日早于上线日 -> 照实说不补（{v[:30]}）")
         finally:
             st.now_bj, st._trade_dates = orig
@@ -1512,10 +1512,10 @@ def check_done_semantics() -> None:
             sp.write_text("{}", encoding="utf-8")
             ck(rows()[k]["sent"] is True, f"{k} 推过 sent 标记 -> 发出去了")
             sp.unlink()
-        v = st.verdict("pullback", True, d, dry=False, sent=False)
+        v = st.trigger_verdict("pullback", True, d, dry=False, sent=False)
         ck("没有发信记录" in v, f"排期页照实说「跑完了但没发信」（实际：{v[:40]}…）")
         # 试跑之后排期页不许说「已跑完，再触发直接退出」：计划任务到点真会跑
-        v = st.verdict("pullback", False, d, dry=True, sent=False)
+        v = st.trigger_verdict("pullback", False, d, dry=True, sent=False)
         ck("只试跑过" in v and "已跑完" not in v,
            f"试跑之后排期页不说「已跑完」（实际：{v[:40]}…）")
     finally:

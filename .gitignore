@@ -1,8 +1,6 @@
 __pycache__/
 *.pyc
-tools/trigger.log
 _site/
-tools/trigger.log*
 .wrangler/
 **/.wrangler/
 node_modules/

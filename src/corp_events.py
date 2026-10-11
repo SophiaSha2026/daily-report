@@ -52,6 +52,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from bjtime import now_bj  # noqa: E402
 
 import requests
 
@@ -115,10 +116,6 @@ def _get(url: str, params: dict, tries: int = 3) -> dict:
             last = e
             time.sleep(0.8 * (i + 1))
     raise RuntimeError(f"{url.split('/')[2]} 重试 {tries} 次仍失败：{last}")
-
-
-def now_bj() -> dt.datetime:
-    return dt.datetime.now(dt.timezone(dt.timedelta(hours=8)))
 
 
 def _day(s: str, k: int) -> str:

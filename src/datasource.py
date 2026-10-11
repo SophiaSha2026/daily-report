@@ -117,6 +117,23 @@ def to_symbol(code: str) -> str:
     return "sh" + c
 
 
+def board_of(code: str) -> str:
+    """板块：沪深主板 main / 创业板 chinext / 科创板 star / 北交所 bj。唯一实现。
+
+    代码段和 limit_pct 同一口径：30 创业、68 科创、首位 8/4/9 北交（920 段是 2024 年起的
+    北交所专属段）。features.board_of 是训练表那一份（在模型指纹里，不能动）；
+    现有代码表上两份逐只相同，selftest_breakout 钉住，哪天分叉了先修这里再按教训 36 重训。
+    """
+    c = str(code).zfill(6)
+    if c.startswith("30"):
+        return "chinext"
+    if c.startswith("68"):
+        return "star"
+    if c[0] in ("8", "4", "9"):
+        return "bj"
+    return "main"
+
+
 def limit_pct(code: str, name: str) -> float:
     """当日涨停幅度（百分比）。按板块：创业板/科创板 20%，北交所 30%，其余 10%。
 

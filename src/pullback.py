@@ -123,6 +123,8 @@ import time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from bjtime import last_closed, now_bj  # noqa: E402
+
 import numpy as np
 import pandas as pd
 import yaml
@@ -136,6 +138,10 @@ OUT = ROOT / "out_pullback"
 DATA_DIR = ROOT / "data" / "pullback"
 DAILY = ROOT / "data" / "breakout" / "daily.parquet"
 BJ = ZoneInfo("Asia/Shanghai")
+
+# 板块判定只有 datasource.board_of 一份（主板 main / 创业 chinext / 科创 star / 北交 bj，
+# 和 limit_pct 同一套代码段）。selftest_pullback 钉住四个板块的代码段。
+board_of = ds.board_of
 NAME = "长期调整突破"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
@@ -146,10 +152,6 @@ logging.Formatter.converter = staticmethod(lambda t: time.gmtime(t + 8 * 3600))
 log = logging.getLogger("pullback")
 
 
-def now_bj() -> dt.datetime:
-    return dt.datetime.now(BJ)
-
-
 def cfg() -> dict:
     return yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))["pullback"]
 
@@ -157,20 +159,6 @@ def cfg() -> dict:
 # ---------------------------------------------------------------------
 #  板块
 # ---------------------------------------------------------------------
-def board_of(code: str) -> str:
-    """沪深主板 main / 创业板 chinext / 科创板 star / 北交所 bj。
-
-    用户的规则按这个分：主板要涨停，另外三个要涨幅 ≥10%。代码段和
-    datasource.limit_pct 同一口径（北交所 8/4/9 三段，2026-09-15 漏过 9）。
-    """
-    c = str(code).zfill(6)
-    if c.startswith("30"):
-        return "chinext"
-    if c.startswith("68"):
-        return "star"
-    if c[0] in ("8", "4", "9"):
-        return "bj"
-    return "main"
 
 
 BOARD_NAME = {"main": "主板", "chinext": "创业板", "star": "科创板", "bj": "北交所"}
@@ -626,19 +614,13 @@ def load_daily(target: str) -> pd.DataFrame:
 
 
 def last_closed_trade_day() -> str:
-    """最近一个已收盘（15:05 后）的交易日。和 local_run.last_closed_trade_day 同口径。"""
-    now = now_bj()
-    closed = (now.hour, now.minute) >= (15, 5)
+    """最近一个已收盘的交易日。判定只有 bjtime.last_closed 一份；这里只负责取日历
+    （直接问 datasource，拿不到按周一到周五）。手动裸跑时的兜底，编排层用 --target 传进来。"""
     try:
         tds = set(ds.trade_dates())
     except Exception:  # noqa: BLE001
         tds = set()
-    for back in range(15):
-        day = now.date() - dt.timedelta(days=back)
-        ok = (day.isoformat() in tds) if tds else day.weekday() < 5
-        if ok and (back > 0 or closed):
-            return day.isoformat()
-    return now.date().isoformat()
+    return last_closed(tds, now_bj())
 
 
 def mark_risk(ev: pd.DataFrame, pb: dict, fresh_date: str = "") -> pd.DataFrame:

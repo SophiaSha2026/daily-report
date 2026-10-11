@@ -26,6 +26,7 @@ import time
 import datetime as dt
 import threading
 from pathlib import Path
+from bjtime import BJ, last_closed, now_bj  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -62,10 +63,6 @@ SENT_REQUIRED = {"breakout", "pullback"}
 # 两条晚间线目前都不写（失败直接非 0 退出）。归档前学习线用的
 # panel_error / shadow_error 2026-09-27 删掉。
 ERR_KEYS = ("error",)
-
-
-def now_bj() -> dt.datetime:
-    return dt.datetime.utcnow() + dt.timedelta(hours=8)
 
 
 def _utc_to_bj(s: str) -> str:
@@ -263,17 +260,9 @@ def _trade_dates() -> set:
 
 
 def target_date(key: str) -> str:
-    """这条线该产出哪一天。和 local_run.target_date 同一口径：
-    最近一个已收盘（15:05 后）的交易日。key 留着，调用方按线问。"""
-    now = now_bj()
-    tds = _trade_dates()
-    closed = (now.hour, now.minute) >= (15, 5)
-    for back in range(15):
-        day = now.date() - dt.timedelta(days=back)
-        ok = (day.isoformat() in tds) if tds else day.weekday() < 5
-        if ok and (back > 0 or closed):
-            return day.isoformat()
-    return today_bj()
+    """这条线该产出哪一天。判定只有 bjtime.last_closed 一份；控制台只读日历缓存文件
+    （不能 import akshare，教训 19）。key 留着，调用方按线问。"""
+    return last_closed(_trade_dates(), now_bj())
 
 
 def _sent_ok(ln: dict, d: str) -> bool | None:
@@ -320,7 +309,8 @@ def line_status(tasks: dict) -> list[dict]:
         panel = ROOT / ln["panel"]
         try:
             pdate = _json(ln["meta"]).get("date") or ""
-            pmtime = (dt.datetime.fromtimestamp(panel.stat().st_mtime)
+            # 面板文件时间也按北京时间印（以前是本机美东时间，和页面其它时间不是一个口径）
+            pmtime = (dt.datetime.fromtimestamp(panel.stat().st_mtime, tz=BJ)
                       .strftime("%m-%d %H:%M")) if panel.exists() else ""
         except Exception:  # noqa: BLE001
             pdate, pmtime = "", ""
@@ -453,7 +443,7 @@ def _local_run():
         return None
 
 
-def verdict(key: str, done: bool, target: str,
+def trigger_verdict(key: str, done: bool, target: str,
             dry: bool = False, sent: bool | None = None) -> str:
     """现在这一刻触发这条线，会发生什么。逐条复述 local_run.main 的判断。
 
@@ -532,7 +522,7 @@ def rules_status(lines: list[dict]) -> dict:
             "target_rule": r.get("target_rule", ""),
             "target": ln.get("target", ""),
             "done": ln.get("done"), "dry": ln.get("dry"), "sent": ln.get("sent"),
-            "verdict": verdict(ln["key"], bool(ln.get("done")),
+            "verdict": trigger_verdict(ln["key"], bool(ln.get("done")),
                                ln.get("target", ""),
                                dry=bool(ln.get("dry")), sent=ln.get("sent")),
             "steps": r.get("steps", ""),
