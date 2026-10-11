@@ -2567,6 +2567,30 @@ def check_ai_wiring() -> None:
     del json
 
 
+def check_push_stale() -> None:
+    """推送状态陈旧要算不正常（AI 复盘 2026-10-09 抓到：断网 30 小时界面照样绿）。"""
+    print("\n[推送状态·陈旧]")
+    import json
+    import tempfile
+    from gui import status as st
+    real = st.ROOT
+    tmp = Path(tempfile.mkdtemp(prefix="push_"))
+    (tmp / "state").mkdir()
+    st.ROOT = tmp
+    try:
+        fresh = (st.now_bj() - __import__("datetime").timedelta(minutes=10)).isoformat(timespec="seconds")
+        (tmp / "state" / "push_status.json").write_text(json.dumps({"ok": True, "at": fresh}), encoding="utf-8")
+        s1 = st.sync_status()
+        ck(s1["last_push_ok"] is True and (s1.get("push_stale_min") or 0) < 90, "10 分钟前推送成功：正常")
+        old = (st.now_bj() - __import__("datetime").timedelta(hours=30)).isoformat(timespec="seconds")
+        (tmp / "state" / "push_status.json").write_text(json.dumps({"ok": True, "at": old}), encoding="utf-8")
+        s2 = st.sync_status()
+        ck(s2["last_push_ok"] is False and any("没更新" in p for p in s2.get("problems", [])),
+           "30 小时没更新：last_push_ok 变 False 并有一句说明")
+    finally:
+        st.ROOT = real
+
+
 def check_refit_chain_wiring() -> None:
     """月度重估链（计划 3.6）：模型到期那天在打分之前跑，有时限，失败不挡发信。"""
     print("\n[月度重估链·接线]")
@@ -2626,6 +2650,7 @@ def main() -> int:
     check_log_time_bj()
     check_task_sentinel()
     check_http()
+    check_push_stale()
     check_refit_chain_wiring()
     check_frontend_backend_alignment()
     check_ai_wiring()

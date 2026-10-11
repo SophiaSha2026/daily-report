@@ -387,6 +387,27 @@ def _ai_header_note(date: str) -> str:
     return out
 
 
+# 高置信那一小块的两个数来自实验 20（开发集 2024-06..2025-12，买得到口径，每天前 10）：
+# 98 分以上 15.3%（n=957）、连续够格 2 天以上 21.0%（n=324），对全部名额 12.7%。
+# 它们不是邮件成绩表那套常量（验证集、update_perf 改写），所以单独写死并标明出处；
+# 清单 A 的定义不变（用户 2026-10-11 定：不改分数线，只加一层信息）
+HIGH_CONF = {"score": 98, "streak": 2, "hit98": 15.3, "hit_streak2": 21.0, "hit_all": 12.7,
+             "source": "开发集 19 个月，次日开盘买入口径"}
+
+
+def _high_conf(a: pd.DataFrame) -> str:
+    """清单 A 里「98 分以上或连续够格 2 天以上」的那几只。没有就说没有，不编。"""
+    if not len(a) or "score" not in a or "streak" not in a:
+        return ""
+    hc = a[(a["score"] >= HIGH_CONF["score"]) | (a["streak"] >= HIGH_CONF["streak"])]
+    names = "、".join(f"{str(r.code).zfill(6)} {getattr(r, 'name', '') or ''}".strip() for r in hc.itertuples())
+    body = (f"今天 {len(hc)} 只：{names}" if len(hc) else "今天没有")
+    return (f'<div class="tip"><b>高置信</b>（{HIGH_CONF["score"]} 分以上，或连续够格 {HIGH_CONF["streak"]} 天以上）：'
+            f'{body}。{HIGH_CONF["source"]}：{HIGH_CONF["score"]} 分以上 {HIGH_CONF["hit98"]}%、'
+            f'连续 {HIGH_CONF["streak"]} 天以上 {HIGH_CONF["hit_streak2"]}%，全部名额 {HIGH_CONF["hit_all"]}%。'
+            f'只是提示，清单 A 的规则没变。</div>')
+
+
 def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
     """某一天的抬头 + 清单 A + 清单 B。面板按日期切换时整块替换。"""
     smin, cap = _rule(meta)
@@ -451,7 +472,7 @@ def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
           f'今天连续 3 天以上的有 {n3} 只。</div>'
           f'<table><tr><th>#</th><th>代码</th><th>名称</th><th>分数</th>'
           f'<th>连续</th><th>历史准确率</th><th>现价</th></tr>'
-          f'{_rows_a(a, smin, not _same_rule(meta))}</table>')
+          f'{_rows_a(a, smin, not _same_rule(meta))}</table>{_high_conf(a)}')
     tb = (f'<h1 style="margin-top:22px">清单 B · 见顶信号</h1>'
           f'<div class="sub">上过清单 A、之后涨过一波、现在见顶回落的股票。'
           f'分数是它在清单 A 上拿过的最高分，准确率是它当初那一档的成绩，'

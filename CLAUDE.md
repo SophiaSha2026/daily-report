@@ -137,8 +137,8 @@ src/
   breakout/exp_window.py 生产用的实验脚本：逐月滚动成绩表 + 收缩板块系数（STREAK_PERF 来自 W5 行，
                          买得到口径；W5close 行是收盘口径，给 CLOSE_PERF）
   breakout/exp_calib.py  生产用：分数分档（BASE 的来源）。这两个由 tools/refit_chain.py 调
-  breakout/exp_time.py / exp_acc.py / exp_w1.py / exp_w2.py / exp_cont.py
-                         实验 15~19 的复现脚本，结论在 docs/breakout_log.md，生产不调。
+  breakout/exp_time.py / exp_acc.py / exp_w1.py / exp_w2.py / exp_cont.py / exp_diag.py / exp_w3.py
+                         实验 15~21 的复现脚本，结论在 docs/breakout_log.md，生产不调。
                          更早的 exp_* 2026-10-08 搬到 archive/breakout_experiments/
   selftest_breakout.py   离线自测
   ── 控制台（GUI）──

@@ -194,6 +194,18 @@ def sync_status() -> dict:
     problems = []
     if push and not push.get("ok"):
         problems.append(f"上次推送失败：{(push.get('detail') or '')[:120]}")
+    # 同步任务每 30 分钟一次；push_status 超过 90 分钟没更新，说明同步一直没跑成
+    # （2026-10-09 断网 30 小时，界面照样显「推送正常」，AI 复盘抓到的）。
+    # 只在开市窗口外也成立：同步任务是全天每 30 分钟，不分交易日
+    stale_min = None
+    try:
+        at = dt.datetime.fromisoformat(str(push.get("at", "")))
+        at = at if at.tzinfo else at.replace(tzinfo=BJ)
+        stale_min = int((now_bj() - at).total_seconds() // 60)
+        if stale_min > 90:
+            problems.append(f"推送状态 {stale_min // 60} 小时没更新（同步任务可能一直失败，常见原因是断网）")
+    except Exception:  # noqa: BLE001
+        pass
     if ahead.isdigit() and int(ahead) > 0:
         problems.append(f"本地有 {ahead} 个 commit 没推上去")
     if behind.isdigit() and int(behind) > 0:
@@ -208,7 +220,9 @@ def sync_status() -> dict:
         "dirty": len([x for x in dirty.splitlines() if x.strip()]),
         # push_status 的 at 是北京时间的 ISO 串（local_run 写），界面只印「月-日 时:分」
         "last_push": _mdhm(push.get("at", "")),
-        "last_push_ok": push.get("ok"),
+        # 陈旧也算不正常：首页那颗「推送正常」的绿点读的就是这个字段
+        "last_push_ok": (push.get("ok") if push else None) and not (stale_min is not None and stale_min > 90),
+        "push_stale_min": stale_min,
         "last_push_msg": push.get("msg", ""),
     }
 

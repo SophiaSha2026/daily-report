@@ -1,12 +1,14 @@
 {
  "id": "2026-10-09-daily-1",
  "date": "2026-10-09",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-11T13:06:30+08:00",
  "type": "code",
  "title": "drift_note 基线不足时明示，不要返回空串",
  "detail": "src/breakout/daily.py:879 drift_note：past < 20 天时不要 return \"\"，改成返回「基线只有 N 个交易日（不足 20），今天不判漂移」。邮件抬头和 run_meta 照原样印这句话，selftest_breakout 加一条用例钉住「历史 2 天时返回的不是空串」。",
  "expected_effect": "从 10-10 起到基线补满的约 18 个交易日里，每封邮件都能看出漂移检测没在工作；之后自动恢复成正常判定，不改任何阈值。",
  "risk": "邮件抬头多一行字。空串曾被当成「没漂移」的信号，改之前要确认 export.py 对 drift_note 是按真值判断而不是按非空判断。",
- "how_to_verify": "python src/selftest_breakout.py 看断言失败数；本地构造 2 行 score_stats 调一次 drift_note"
+ "how_to_verify": "python src/selftest_breakout.py 看断言失败数；本地构造 2 行 score_stats 调一次 drift_note",
+ "updated": "2026-10-11T20:00:54+08:00",
+ "note": "用户 2026-10-11 批准，Claude 会话直接改了代码（status.sync_status 陈旧判异常 / score_stats.n_eligible / run_meta.drift_baseline_days）"
 }

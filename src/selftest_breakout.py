@@ -1764,6 +1764,17 @@ def check_table_shape() -> None:
         ck(abs(100 * w5c_[0]["hit"] - E.CLOSE_PERF[0]) < 0.06 and int(w5c_[0]["n"]) == E.CLOSE_PERF[1],
            f"CLOSE_PERF 和 window_grid 的收盘口径行一致（{100 * w5c_[0]['hit']:.1f}%/{w5c_[0]['n']}）")
     ck("次日开盘买入" in html, "邮件写明准确率按次日开盘买入算")
+    # 高置信那一小块（2026-10-11 用户定：清单 A 不动，加一层信息）
+    a2 = pd.DataFrame({"code": ["600000", "600001", "600002"], "name": ["甲", "乙", "丙"],
+                       "score": [98.0, 97.0, 97.0], "streak": [1, 2, 1], "close": [1.0, 2.0, 3.0]})
+    h2 = E._body("2026-09-15", a2, pd.DataFrame(columns=["code", "name", "best", "days", "streak",
+                                                          "close", "rise", "drop"]), {}, False)
+    ck("高置信" in h2 and "今天 2 只" in h2 and "600000 甲" in h2 and "600001 乙" in h2 and "600002" not in h2.split("高置信")[1].split("</div>")[0],
+       "高置信块列出 98 分以上和连续 2 天以上的，不列其它")
+    a3 = a2.assign(score=97.0, streak=1)
+    h3 = E._body("2026-09-15", a3, pd.DataFrame(columns=["code", "name", "best", "days", "streak",
+                                                          "close", "rise", "drop"]), {}, False)
+    ck("今天没有" in h3, "一只都不够高置信就写「今天没有」")
     bad = []
     for need, hit, lift, n in E.STREAK_PERF:
         r = w5.get(need)

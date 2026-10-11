@@ -48,6 +48,8 @@ ALLOW: dict[tuple[str, str], str] = {
     ("module", "src/breakout/exp_w1.py"): "实验 17 复现脚本，手动跑",
     ("module", "src/breakout/exp_w2.py"): "实验 18 复现脚本，手动跑",
     ("module", "src/breakout/exp_cont.py"): "实验 19 复现脚本，手动跑",
+    ("module", "src/breakout/exp_diag.py"): "实验 20 诊断脚本，手动跑",
+    ("module", "src/breakout/exp_w3.py"): "实验 21 复现脚本，手动跑",
     ("module", "tools/dump_st.py"): "手动刷新 cache/st_codes.json",
     ("module", "tools/audit_repo.py"): "本脚本",
     ("func", "selftest_gui.py"): "selftest 的 check_* 是入口调的",
@@ -186,8 +188,8 @@ class Audit:
             r = self.rel(f)
             if not (r.startswith("out_") or r.startswith("state/")):
                 continue
-            if "/sent/" in r or "/claim/" in r or "/alert/" in r:
-                continue
+            if "/sent/" in r or "/claim/" in r or "/alert/" in r or "/ai_review/" in r:
+                continue                      # 文件名是日期 / 提案 id，写者是 local_run / ai_review
             name = f.name
             if not any(name in t for g, t in self.code_text.items() if g != f):
                 self.add("product", r, "没有任何代码读写它")

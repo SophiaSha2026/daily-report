@@ -969,11 +969,14 @@ def stage_scan(force_fit: bool = False) -> int:
     # 以前这行拿 len(picks) 冒充够格数，满员日和刚好够 10 只的日子打出来
     # 一模一样，够格 200 只也看不出来（S7）
     # 打分分布漂移（计划 4.3）：当天的够格只数和前 10 名预测值均值记下来，和近 60 天比
-    stats_row = {"date": date, "n_qualified": int(n_q), "n_ok": int(n_ok), "pool": int(elig.sum()),
+    # n_eligible = 当天进候选池的只数（剔次新后）；别叫 pool，run_meta 的 pool 是 A 池只数（教训 34 同类）
+    stats_row = {"date": date, "n_qualified": int(n_q), "n_ok": int(n_ok), "n_eligible": int(elig.sum()),
                  "top10_p_mean": float(np.sort(proba)[-10:].mean()) if len(proba) >= 10 else None,
                  "model_date": obj["fit_date"], "dry": bool(os.environ.get("DRY_RUN"))}
-    drift = drift_note([r for r in record_score_stats(stats_row) if not r.get("dry")], stats_row) \
-        if not stats_row["dry"] else ""
+    hist_rows = [r for r in record_score_stats(stats_row) if not r.get("dry")]
+    drift = drift_note(hist_rows, stats_row) if not stats_row["dry"] else ""
+    # 基线不足 20 天时 drift_note 不判；天数写进 run_meta，别让「没出声」和「判了没事」长一样
+    drift_baseline = len([r for r in hist_rows if r.get("date") != date])
     if drift:
         log.warning("打分分布漂移：%s", drift)
     log.info("≥%d 分 %d 只，剔除 %d 只后 %d 只，取前 %d -> 清单 A %d 只",
@@ -1036,6 +1039,7 @@ def stage_scan(force_fit: bool = False) -> int:
          "refit_rejected": refit_rejected_recently(),
          # 打分分布漂移那句话（计划 4.3），平时空串
          "drift_note": drift,
+         "drift_baseline_days": int(drift_baseline),
          # 试跑也走到这里；不标 dry 的话计划任务会把试跑当「今天跑完了」
          "dry": bool(os.environ.get("DRY_RUN"))},
         ensure_ascii=False), encoding="utf-8")
