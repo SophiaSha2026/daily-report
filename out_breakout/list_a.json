@@ -1,82 +1,82 @@
 [
   {
-    "code":"920779",
-    "name":"武汉蓝电",
-    "score":97.0,
-    "streak":4,
-    "close":33.79,
-    "board":"bj"
-  },
-  {
-    "code":"301190",
-    "name":"善水科技",
-    "score":98.0,
-    "streak":2,
-    "close":43.99,
-    "board":"chinext"
-  },
-  {
     "code":"688655",
     "name":"迅捷兴",
-    "score":97.0,
-    "streak":2,
-    "close":66.1,
+    "score":99.0,
+    "streak":3,
+    "close":58.99,
     "board":"star"
   },
   {
     "code":"603657",
     "name":"春光科技",
-    "score":97.0,
-    "streak":2,
-    "close":36.65,
-    "board":"main"
-  },
-  {
-    "code":"001317",
-    "name":"三羊马",
-    "score":97.0,
-    "streak":2,
-    "close":68.26,
+    "score":98.0,
+    "streak":3,
+    "close":32.99,
     "board":"main"
   },
   {
     "code":"688315",
     "name":"诺禾致源",
-    "score":98.0,
-    "streak":1,
-    "close":21.73,
+    "score":99.0,
+    "streak":2,
+    "close":22.01,
     "board":"star"
-  },
-  {
-    "code":"920627",
-    "name":"力王股份",
-    "score":98.0,
-    "streak":1,
-    "close":22.13,
-    "board":"bj"
-  },
-  {
-    "code":"002242",
-    "name":"九阳股份",
-    "score":98.0,
-    "streak":1,
-    "close":15.13,
-    "board":"main"
   },
   {
     "code":"600371",
     "name":"万向德农",
-    "score":97.0,
-    "streak":1,
-    "close":14.97,
+    "score":98.0,
+    "streak":2,
+    "close":14.03,
     "board":"main"
   },
   {
-    "code":"300530",
-    "name":"领湃科技",
-    "score":97.0,
+    "code":"605136",
+    "name":"丽人丽妆",
+    "score":99.0,
     "streak":1,
-    "close":28.9,
+    "close":10.38,
+    "board":"main"
+  },
+  {
+    "code":"605177",
+    "name":"东亚药业",
+    "score":99.0,
+    "streak":1,
+    "close":25.46,
+    "board":"main"
+  },
+  {
+    "code":"688517",
+    "name":"金冠电气",
+    "score":98.0,
+    "streak":1,
+    "close":21.18,
+    "board":"star"
+  },
+  {
+    "code":"605577",
+    "name":"龙版传媒",
+    "score":98.0,
+    "streak":1,
+    "close":17.82,
+    "board":"main"
+  },
+  {
+    "code":"300133",
+    "name":"华策影视",
+    "score":98.0,
+    "streak":1,
+    "close":9.08,
     "board":"chinext"
+  },
+  {
+    "code":"600121",
+    "name":"郑州煤电",
+    "score":98.0,
+    "streak":1,
+    "close":5.49,
+    "board":"main"
   }
 ]

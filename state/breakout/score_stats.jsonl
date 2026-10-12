@@ -1,2 +1,3 @@
 {"date": "2026-10-08", "n_qualified": 48, "n_ok": 42, "pool": 5389, "top10_p_mean": 0.4022136209323528, "model_date": "2026-10-07", "dry": false}
-{"date": "2026-10-09", "n_qualified": 14, "n_ok": 13, "pool": 5390, "top10_p_mean": 0.33428593473322177, "model_date": "2026-10-07", "dry": false}
+{"date": "2026-10-09", "n_qualified": 10, "n_ok": 10, "n_eligible": 5396, "top10_p_mean": 0.3343128575268443, "model_date": "2026-10-07", "dry": true}
+{"date": "2026-10-12", "n_qualified": 45, "n_ok": 37, "n_eligible": 5398, "top10_p_mean": 0.3882876336812743, "model_date": "2026-10-07", "dry": false}
