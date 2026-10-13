@@ -1,8 +1,8 @@
 {
-  "date": "2026-10-12",
+  "date": "2026-10-13",
   "requested": 5572,
-  "appended": 5497,
-  "stale": 12,
+  "appended": 5493,
+  "stale": 13,
   "newcodes": 47,
   "new_codes": [
     "001232",
@@ -53,12 +53,12 @@
     "920289",
     "920298"
   ],
-  "refetch": 31,
-  "refetch_only": 16,
+  "refetch": 26,
+  "refetch_only": 19,
   "missing": 0,
   "missing_codes": [],
-  "prev_n": 5511,
-  "covered": 5513,
+  "prev_n": 5513,
+  "covered": 5512,
   "closed": true,
   "short": [
     "001232",

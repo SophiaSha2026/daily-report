@@ -1,82 +1,82 @@
 [
   {
-    "code":"688655",
-    "name":"迅捷兴",
-    "score":99.0,
-    "streak":3,
-    "close":58.99,
-    "board":"star"
-  },
-  {
     "code":"603657",
     "name":"春光科技",
     "score":98.0,
-    "streak":3,
-    "close":32.99,
+    "streak":4,
+    "close":34.0,
     "board":"main"
   },
   {
     "code":"688315",
     "name":"诺禾致源",
-    "score":99.0,
-    "streak":2,
-    "close":22.01,
-    "board":"star"
-  },
-  {
-    "code":"600371",
-    "name":"万向德农",
     "score":98.0,
-    "streak":2,
-    "close":14.03,
-    "board":"main"
-  },
-  {
-    "code":"605136",
-    "name":"丽人丽妆",
-    "score":99.0,
-    "streak":1,
-    "close":10.38,
-    "board":"main"
+    "streak":3,
+    "close":20.55,
+    "board":"star"
   },
   {
     "code":"605177",
     "name":"东亚药业",
-    "score":99.0,
-    "streak":1,
-    "close":25.46,
+    "score":97.0,
+    "streak":2,
+    "close":24.81,
     "board":"main"
   },
   {
     "code":"688517",
     "name":"金冠电气",
-    "score":98.0,
-    "streak":1,
-    "close":21.18,
+    "score":97.0,
+    "streak":2,
+    "close":21.3,
     "board":"star"
   },
   {
-    "code":"605577",
-    "name":"龙版传媒",
+    "code":"002242",
+    "name":"九阳股份",
     "score":98.0,
     "streak":1,
-    "close":17.82,
+    "close":17.67,
     "board":"main"
   },
   {
-    "code":"300133",
-    "name":"华策影视",
-    "score":98.0,
+    "code":"688004",
+    "name":"博汇科技",
+    "score":97.0,
     "streak":1,
-    "close":9.08,
-    "board":"chinext"
+    "close":42.73,
+    "board":"star"
   },
   {
-    "code":"600121",
-    "name":"郑州煤电",
-    "score":98.0,
+    "code":"603067",
+    "name":"振华股份",
+    "score":97.0,
     "streak":1,
-    "close":5.49,
+    "close":44.13,
     "board":"main"
+  },
+  {
+    "code":"001317",
+    "name":"三羊马",
+    "score":97.0,
+    "streak":1,
+    "close":66.06,
+    "board":"main"
+  },
+  {
+    "code":"920627",
+    "name":"力王股份",
+    "score":97.0,
+    "streak":1,
+    "close":19.5,
+    "board":"bj"
+  },
+  {
+    "code":"688073",
+    "name":"毕得医药",
+    "score":97.0,
+    "streak":1,
+    "close":65.9,
+    "board":"star"
   }
 ]
