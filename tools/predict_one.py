@@ -196,7 +196,7 @@ def main() -> int:
     ap.add_argument("--no-name", action="store_true", help="不联网查名称")
     a = ap.parse_args()
     import importlib
-    importlib.import_module("localenv")   # 本机 env；和其它入口一致（pyflakes 不认 noqa）
+    importlib.import_module("localenv").load()   # 本机 env；和其它入口一致（pyflakes 不认 noqa）
     r = predict(a.code, a.days, with_name=not a.no_name)
     if a.json:
         print(json.dumps(r, ensure_ascii=False))

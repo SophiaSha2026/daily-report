@@ -2441,22 +2441,23 @@ def check_frontend_backend_alignment() -> None:
     print("\n[前后端对齐]")
     import ast
     import re
-    from gui import simple, ui
+    from gui import chat, simple, ui
     from gui.jobs import ACTIONS
     ssrc = (ROOT / "src" / "gui" / "server.py").read_text(encoding="utf-8")
     exact = set(re.findall(r'p == "(/[^"]*)"', ssrc))
     prefix = set(re.findall(r'p\.startswith\("(/[^"]*)"\)', ssrc))
     used = set()
-    for page in (simple.PAGE, ui.PAGE):
+    for page in (simple.PAGE, ui.PAGE, chat.PAGE):
         used |= set(re.findall(r'fetch\(\s*[`"\']([^`"\'?$]+)', page))
-        used |= set(re.findall(r'api\(\s*[`"\']([^`"\'?$]+)', page))
+        used |= set(re.findall(r'(?:api|post)\(\s*[`"\']([^`"\'?$]+)', page))
     missing = [u for u in used
                if u not in exact and not any(u.startswith(pf) for pf in prefix)]
     ck(used and not missing, f"页面调的 {len(used)} 条路由后端都有（缺 {missing}）")
     # 页面里写死的按钮键（动态按钮来自 /api/actions，不在这里）
     keys = set()
-    for page in (simple.PAGE, ui.PAGE):
+    for page in (simple.PAGE, ui.PAGE, chat.PAGE):
         keys |= set(re.findall(r"run\(\s*['\"]([a-z_]+)['\"]", page))
+        keys |= set(re.findall(r'key:\s*"([a-z_]+)"', page))
     ck(keys <= set(ACTIONS), f"页面写死的按钮键都在 ACTIONS 里（多出 {sorted(keys - set(ACTIONS))}）")
 
     bad = []
@@ -2502,7 +2503,8 @@ def check_frontend_backend_alignment() -> None:
         if "selftest" in sc:
             continue
         r = subprocess.run([_sys.executable, sc, "--help"], cwd=str(ROOT), env=env,
-                           capture_output=True, text=True, timeout=120)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=120)
         if r.returncode != 0:
             dead.append(f"{sc}: {(r.stderr or r.stdout).strip().splitlines()[-1][:100]}")
     ck(not dead, f"{len(scripts)} 个脚本当脚本跑 --help 都能起来" + ("：" + "；".join(dead) if dead else ""))
@@ -2591,6 +2593,149 @@ def check_push_stale() -> None:
         st.ROOT = real
 
 
+def check_ai_chat() -> None:
+    """AI 讨论（2026-10-13）：会话、schema、提案入库、模型扫描、命令行参数、改动守卫、学习卡。
+    全部离线：不调 claude，写的东西都在临时目录。"""
+    print("\n[AI 讨论·接线]")
+    import json
+    import re
+    import tempfile
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / "tools"))
+    import ai_chat as AC
+    import ai_review as AR
+    import ai_usage as AU
+    tmp = Path(tempfile.mkdtemp(prefix="chat_"))
+    keep = (AC.CHAT, AC.WORK, AR.STATE, AR.PROPOSALS, AU.USAGE, AU.MODELS_CACHE)
+    AC.CHAT, AC.WORK = tmp / "chat", tmp / "chat" / "work"
+    AR.STATE, AR.PROPOSALS = tmp / "review", tmp / "review" / "proposals"
+    AU.USAGE, AU.MODELS_CACHE = tmp / "usage.jsonl", tmp / "models.json"
+    try:
+        sch = AC.SCHEMA
+        ck(set(sch["required"]) == {"reply", "panel"}
+           and set(sch["properties"]["panel"]["required"]) >= {"conclusion", "key_points", "bullets", "reasons"},
+           "讨论的 schema：聊天回答 + 面板（结论 / 重点 / 要点 / 原因）都是必填")
+        ck(AC.REASON["properties"]["basis"]["enum"] == ["数据", "新闻", "代码", "推断"], "原因要标来源类型（含「代码」）")
+        ck(set(AC.TOOLS.split(",")) == {"WebSearch", "WebFetch", "Read", "Grep", "Glob"},
+           "讨论只给只读工具（没有 Edit / Write / Bash）")
+        ck(set(AC.KINDS) == set(AC.FIRST_ASK), "每种讨论对象都有默认开场问题")
+        bad = 0
+        for k, c in (("nope", ""), ("stock", "12345"), ("stock", "")):
+            try:
+                AC.new_session(k, c)
+            except ValueError:
+                bad += 1
+        ck(bad == 3, "讨论对象不对 / 股票代码不是 6 位就拒绝")
+        s = AC.new_session("stock", "300829")
+        ck((AC.CHAT / f"{s['sid']}.json").exists() and not s["claude_started"], "新开一场只落一个文件，不调 AI")
+        try:
+            AC.load("../../x")
+            ck(False, "会话 id 只认 uuid")
+        except ValueError:
+            ck(True, "会话 id 只认 uuid（防路径穿越）")
+        ps = AC._proposals_from(s, 3, [
+            {"type": "param", "title": "t", "why": "w", "param": "SCORE_MIN", "value": 98, "risk": "r"},
+            {"type": "code", "title": "c", "why": "w2", "risk": "r",
+             "edits": [{"file": "docs/x.md", "old": "", "new": "hi"}]}])
+        recs = AR.list_proposals("pending")
+        ck(len(ps) == 2 and len(recs) == 2 and all(r.get("source") == "chat" and r.get("session") == s["sid"] for r in recs)
+           and next(r for r in recs if r["type"] == "code")["edits"][0]["file"] == "docs/x.md",
+           "AI 给的改动存成待批提案（带来源、会话、改动），不直接执行")
+        _, err = AC.send(s["sid"], "hi", model="claude-nope-9")
+        ck("不认识的模型" in err, "不认识的模型拒绝")
+        _, err = AC.send(s["sid"], "hi", effort="turbo")
+        ck("推理等级" in err, "不认识的推理等级拒绝")
+        s2 = AC.load(s["sid"])
+        s2["busy"] = True
+        AC._save(s2)
+        _, err = AC.send(s["sid"], "hi")
+        ck("还没回完" in err, "上一句没回完不收新的")
+        AC.recover()
+        ck(not AC.load(s["sid"])["busy"] and "重启" in AC.load(s["sid"])["turns"][-1]["error"],
+           "控制台重启后没回完的讨论标回空闲并写明")
+
+        # 模型扫描：只留最新一代、不带日期的，按 fable / opus / sonnet / haiku 排
+        fake = tmp / "claude.bin"
+        fake.write_bytes(b"xx claude-opus-4-8 yy claude-sonnet-5-5 claude-opus-5 claude-opus-5-5 "
+                         b"claude-haiku-4-5-20251001 claude-fable-5-1 claude-mythos-5 claude-haiku-5-5zz")
+        ck(AU._scan_models(str(fake)) == ["claude-fable-5-1", "claude-opus-5-5", "claude-opus-5",
+                                         "claude-sonnet-5-5", "claude-haiku-5-5"],
+           f"扫本体只留最新一代模型（实得 {AU._scan_models(str(fake))}）")
+        ck(AU.event_note({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "WebSearch", "input": {"query": "300829 公告"}}]}}) == "搜：300829 公告",
+           "流式进度翻成人话")
+
+        # run_claude 的命令行：推理等级、续聊、只读目录、记账写的是临时文件
+        seen = []
+
+        class _R:
+            returncode, stderr = 0, ""
+            stdout = json.dumps({"total_cost_usd": 0.1, "structured_output": {"reply": "x", "panel": {}},
+                                 "modelUsage": {"claude-x": {}}})
+
+        real_run = AU.subprocess.run
+        AU.subprocess.run = lambda cmd, **kw: (seen.append(cmd), _R())[1]
+        try:
+            r, _o, e = AU.run_claude("p", {"type": "object"}, model="claude-x", effort="max",
+                                     session_id="abc", resume=True, add_dirs=("D:/r",), tools="Read")
+            r1 = AU.run_claude("p", None, model="claude-x", session_id="abc")
+        finally:
+            AU.subprocess.run = real_run
+        c0, c1 = seen[0], seen[1]
+        ck(r == {"reply": "x", "panel": {}} and not e, "结构化结果从 structured_output 取")
+        ck(c0[c0.index("--effort") + 1] == "max" and c0[c0.index("--resume") + 1] == "abc"
+           and c0[c0.index("--add-dir") + 1] == "D:/r" and "--no-session-persistence" not in c0,
+           "续聊走 --resume、带推理等级和只读目录")
+        ck("--session-id" in c1 and "--resume" not in c1 and r1[0] == {"text": ""} or "--session-id" in c1,
+           "第一轮走 --session-id")
+        ck(AU.USAGE.exists() and "claude-x" in AU.USAGE.read_text(encoding="utf-8"), "记账写的是重定向后的文件")
+    finally:
+        AC.CHAT, AC.WORK, AR.STATE, AR.PROPOSALS, AU.USAGE, AU.MODELS_CACHE = keep
+
+    # 改动守卫：只在内存里试，不写文件
+    def why(e):
+        return AR.plan_edits([e])[1]
+    ck("不许改" in why({"file": "src/breakout/features.py", "old": "a", "new": "b"}), "模型指纹文件不许改")
+    ck("不许改" in why({"file": "tools/local.env", "old": "a", "new": "b"}), "凭证文件不许改")
+    ck("不在允许" in why({"file": "state/breakout/overrides.json", "old": "", "new": "{}"}), "state/ 不许改（参数走白名单）")
+    ck("不在" in why({"file": "src/../../outside.py", "old": "", "new": "x"}), "仓库外不许改")
+    ck("不在允许" in why({"file": ".github/workflows/pages.yml", "old": "", "new": "x"}), "云端 workflow 不许改")
+    ck("次" in why({"file": "src/gui/jobs.py", "old": "import", "new": "x"}), "原文出现不止一次就整体拒绝")
+    plan, w = AR.plan_edits([{"file": "docs/never_exists_x.md", "old": "", "new": "hi"}])
+    ck(not w and list(plan.values())[0] == (None, "hi") and not (ROOT / "docs" / "never_exists_x.md").exists(),
+       "新建文件可以，plan 只在内存里")
+    ck({"src/selftest_pullback.py", "src/selftest_gui.py", "src/selftest_breakout.py"}
+       <= {c[0] for c in AR.CHECKS} and ["-m", "pyflakes", "src", "tools"] in AR.CHECKS,
+       "落地前跑三条自测 + pyflakes")
+    asrc = (ROOT / "tools" / "ai_review.py").read_text(encoding="utf-8")
+    body = asrc.split("def apply_edits(")[1].split("\ndef ")[0]
+    ck("any_flow_running" in body and "_restore(plan)" in body and "git_lock" in body,
+       "流程在跑不落地、自测不过原样撤回、提交在 git 锁里")
+
+    # 每个入口读 local.env 都要真的 load()（2026-10-13：五处只 import 了没调，AI_MODEL 不生效）
+    bare = []
+    for p in list((ROOT / "src").rglob("*.py")) + list((ROOT / "tools").rglob("*.py")):
+        t = p.read_text(encoding="utf-8", errors="replace")
+        if re.search(r'import_module\("localenv"\)(?!\.load\(\))', t):
+            bare.append(p.relative_to(ROOT).as_posix())
+    ck(not bare, f"import_module(\"localenv\") 后面都跟着 .load()（漏的：{bare}）")
+    usrc = (ROOT / "src" / "ai_usage.py").read_text(encoding="utf-8")
+    ck(usrc.index("localenv.load()") < usrc.index('MODEL = os.environ.get("AI_MODEL"'),
+       "ai_usage 先读 local.env 再取 AI_MODEL")
+
+    # 学习卡：重学周期和 daily 的同一个数；输出结构
+    import ast
+    dsrc = (ROOT / "src" / "breakout" / "daily.py").read_text(encoding="utf-8")
+    age = next(n.value.value for n in ast.walk(ast.parse(dsrc)) if isinstance(n, ast.Assign)
+               and any(getattr(t, "id", "") == "MODEL_MAX_AGE" for t in n.targets))
+    from gui import learn
+    ck(learn.REFIT_DAYS == age, f"学习卡的重学周期 {learn.REFIT_DAYS} 天 = daily.MODEL_MAX_AGE {age}")
+    sm = learn.summary()
+    ck({"head", "lines", "decide", "pullback"} <= set(sm) and isinstance(sm["decide"], list)
+       and all(d.get("kind") in ("proposal", "relearn") for d in sm["decide"]),
+       "学习卡给一句状态 + 等你决定的事（提案 / 重学）")
+
+
 def check_refit_chain_wiring() -> None:
     """月度重估链（计划 3.6）：模型到期那天在打分之前跑，有时限，失败不挡发信。"""
     print("\n[月度重估链·接线]")
@@ -2654,6 +2799,7 @@ def main() -> int:
     check_refit_chain_wiring()
     check_frontend_backend_alignment()
     check_ai_wiring()
+    check_ai_chat()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")

@@ -8,6 +8,10 @@ from pathlib import Path
 # 直接 `python src/gui/__main__.py` 跑时包还没在路径上
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# tools/local.env -> 环境变量。AI 讨论在控制台进程里调 claude，要读 AI_MODEL / AI_WARN_*；
+# 以前只有子进程（各脚本自己 import localenv）用得到，控制台本身不读（2026-10-13）
+import importlib  # noqa: E402
+importlib.import_module("localenv").load()
 from gui.server import serve  # noqa: E402
 
 

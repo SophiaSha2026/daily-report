@@ -35,6 +35,7 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 from . import simple, status
+from .chat import PAGE as CHAT_PAGE
 from .jobs import ACTIONS, Registry
 from .ui import PAGE
 
@@ -142,6 +143,52 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/full":
             return self._html(PAGE.replace("__TOKEN__", TOKEN))
 
+        if p == "/chat":
+            return self._html(CHAT_PAGE.replace("__TOKEN__", TOKEN))
+
+        if p == "/api/learn":
+            # 「学习」卡片（gui/learn.py）+ 最近一次 AI 复盘 + 用量。只读
+            from . import learn
+            out = learn.summary()
+            try:
+                sys.path.insert(0, str(ROOT / "tools"))
+                import ai_review as AR
+                import ai_usage as AU
+                out["alert"], out["usage"] = AR.latest_alert(), AU.totals()
+            except Exception as e:  # noqa: BLE001
+                out["alert"], out["usage"], out["error"] = {}, {}, str(e)
+            return self._json(out)
+
+        if p == "/api/chat/models":
+            import ai_usage as AU
+            return self._json(AU.models())
+
+        if p == "/api/chat/list":
+            import ai_chat as AC
+            kind = q.get("kind", [""])[0]
+            code = q.get("code", [""])[0]
+            return self._json({"sessions": AC.sessions(kind if kind in AC.KINDS else "",
+                                                        code if re.fullmatch(r"\d{6}", code) else ""),
+                               "first_ask": AC.FIRST_ASK.get(kind, "")})
+
+        if p.startswith("/api/chat/s/"):
+            import ai_chat as AC
+            try:
+                s = AC.load(p.rsplit("/", 1)[-1])
+            except ValueError:
+                s = None
+            return self._json(s) if s else self._json({"error": "没有这个讨论"}, 404)
+
+        if p == "/api/proposal":
+            pid = q.get("id", [""])[0]
+            if not re.fullmatch(r"[A-Za-z0-9_\-]+", pid):
+                return self._json({"error": "id 不合法"}, 400)
+            sys.path.insert(0, str(ROOT / "tools"))
+            import ai_review as AR
+            j = AR._json(AR.PROPOSALS / f"{pid}.json")
+            return self._json({k: j.get(k) for k in ("id", "status", "note", "commit", "files")} if j
+                              else {"error": "没有这个提案"}, 200 if j else 404)
+
         if p == "/api/simple":
             return self._json(simple.snapshot())
 
@@ -216,19 +263,7 @@ class Handler(BaseHTTPRequestHandler):
                 out = {"ok": False, "error": str(e)}
             return self._json(out)
 
-        if p == "/api/ai":
-            # Claude 复盘的结论、待批准的提案、用量（计划 2026-10-10 第 9 项）。只读
-            try:
-                sys.path.insert(0, str(ROOT / "tools"))
-                sys.path.insert(0, str(ROOT / "src"))
-                import ai_review as AR
-                import ai_usage as AU
-                return self._json({"alert": AR.latest_alert(),
-                                   "proposals": AR.list_proposals("pending"),
-                                   "usage": AU.totals()})
-            except Exception as e:  # noqa: BLE001
-                return self._json({"alert": {}, "proposals": [], "usage": {}, "error": str(e)})
-
+        # /api/ai（复盘 + 待批提案 + 用量）2026-10-13 并进 /api/learn
         if p == "/api/logfile":
             # 计划任务自动跑的输出，每条线一个文件（tools/local_flow_<flow>.log，
             # 一个文件被长流程占着时别的任务写不进去）。GUI 手动跑的日志走
@@ -285,6 +320,24 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/task":
             return self._task(body)
 
+        if p == "/api/chat/new":
+            # AI 讨论（src/ai_chat.py）。新开一场不花钱，发第一句才调 claude
+            import ai_chat as AC
+            try:
+                s = AC.new_session(str(body.get("kind", "")), str(body.get("code", "")).strip())
+            except ValueError:
+                return self._json({"error": "讨论对象不对（股票要 6 位代码）"}, 400)
+            return self._json(s)
+
+        if p == "/api/chat/send":
+            import ai_chat as AC
+            try:
+                s, err = AC.send(str(body.get("sid", "")), str(body.get("message", "")),
+                                 str(body.get("model", "")), str(body.get("effort", "")))
+            except ValueError:
+                return self._json({"error": "会话 id 不对"}, 400)
+            return self._json(s) if s else self._json({"error": err}, 409)
+
         if p == "/api/push":
             r = _retry_push()
             return self._json(r, 409 if r.get("busy") else 200)
@@ -307,6 +360,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": "没有这个提案"}, 404)
                 job, err = REG.start("ai_apply", [pid])
                 if not job:
+                    # 起不来（起涨预测在跑等）就退回待批，别让提案卡在「已批准」没人落地
+                    AR.set_status(pid, "pending", f"没落地：{err}")
                     return self._json({"error": err}, 409)
                 return self._json({"ok": True, "status": "approved", "job": job.brief()})
             except Exception as e:  # noqa: BLE001
@@ -423,6 +478,11 @@ def _take_over(port: int) -> bool:
 
 
 def serve(port: int = 8765, open_browser: bool = True) -> None:
+    try:
+        import ai_chat
+        ai_chat.recover()           # 上一个控制台里没回完的讨论标回空闲
+    except Exception:  # noqa: BLE001
+        pass
     try:
         httpd = _Server(("127.0.0.1", port), Handler)
     except OSError:

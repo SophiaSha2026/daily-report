@@ -228,13 +228,18 @@ def main() -> int:
     ap.add_argument("--no-web", action="store_true")
     ap.add_argument("--no-corp", action="store_true", help="不现拉减持 / 定增，只用缓存")
     ap.add_argument("--timeout", type=int, default=900)
+    ap.add_argument("--materials", action="store_true",
+                    help="只备材料、最后一行打印 JSON，不调 AI（控制台 AI 讨论的第一轮用它，src/ai_chat.py）")
     a = ap.parse_args()
     import importlib
-    importlib.import_module("localenv")
+    importlib.import_module("localenv").load()
     code = str(a.code).strip().zfill(6)
     if not (code.isdigit() and len(code) == 6):
         print("代码要是 6 位数字")
         return 1
+    if a.materials:
+        print(json.dumps(gather(code, fetch_corp=not a.no_corp, with_name=True), ensure_ascii=False, default=str))
+        return 0
     if not ai_usage.available():
         print("本机没有 claude 命令行，装好并登录后再用")
         return 1

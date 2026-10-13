@@ -73,7 +73,7 @@ ACTIONS: dict[str, dict] = {
     "bk_refit": {
         "no": "1-4", "name": "模型自学", "group": "跑",
         "cmd": ["src/breakout/daily.py", "--stage", "refit"],
-        "mail": False, "danger": False,
+        "mail": False, "danger": False, "hidden": True,
         "what": "用最新数据重新训练起涨预测的模型",
         "desc": "平时不用点：每天跑的时候发现模型超过 30 天会自己重训。"
                 "这里是「我现在就想让它重学一遍」的入口。约 5 分钟。",
@@ -132,21 +132,29 @@ ACTIONS: dict[str, dict] = {
         "desc": "筹码分布、量价指标、股东人数等，再按当天全市场排名归一。"
                 "约 13 分钟，产出 426 万行 x 87 个指标。",
     },
-    "ai_analyze": {
-        "no": "2-5", "name": "AI 分析一只股票", "group": "查",
-        "cmd": ["tools/ai_analyze.py"], "arg": "code",
+    # 2026-10-13：「AI 分析一只股票」按钮删掉，升级成 AI 讨论窗口（/chat，src/ai_chat.py），
+    # 首页「AI 讨论」进去，第一轮就是原来那次分析。tools/ai_analyze.py 留着给命令行和讨论备材料。
+    "ai_cli_update": {
+        "no": "3-8", "name": "更新 Claude 命令行", "group": "修",
+        "cmd": ["src/ai_usage.py", "--update"],
         "mail": False, "danger": False,
-        "what": "把这只票的数据和最新新闻交给 Claude 做一次分析，三到五分钟，每次几美元",
-        "desc": "本机备好 K 线事实、模型分数、股东户数、减持 / 定增、市场环境，Claude（Opus）联网查新闻公告"
-                "后给出立场、置信度、依据、风险。结论只给人看，不进清单、不进邮件、不进模型。"
-                "首页「查一只股票」旁边的「AI 分析」就是它。用量记在 state/ai_usage.jsonl。",
+        "what": "把本机的 claude 命令行升到最新，顺便重新识别能用的模型和推理等级",
+        "desc": "AI 讨论窗口的模型下拉框读本机 claude 本体里的模型表，升级后新模型自动出现。几十秒。",
+    },
+    "learn_now": {
+        "no": "1-5", "name": "现在重学", "group": "跑",
+        "cmd": ["tools/refit_chain.py", "--with-refit"],
+        "mail": False, "danger": False, "hidden": True,
+        "what": "用最新数据重训起涨预测的模型，再重算邮件里的准确率和板块系数",
+        "desc": "不在按钮栏显示，由「学习」卡片里的「现在重学」触发。重训（含验收）-> 月度重估链，约 20 分钟。",
     },
     "ai_apply": {
         "no": "3-9", "name": "落地 AI 提案", "group": "修",
         "cmd": ["tools/ai_review.py", "--apply"], "arg": "proposal",
         "mail": False, "danger": False, "hidden": True,
-        "what": "用户批准一个 AI 提案后，把它落地（参数改动走白名单再跑月度重估，代码改动只记待办）",
-        "desc": "不在按钮栏显示，由「状态」页里提案旁边的「批准」触发。",
+        "what": "用户批准一个 AI 提案后，把它落地（参数走白名单再跑月度重估；带改动的代码提案改文件、"
+                "跑三条自测 + pyflakes、不过就撤回、过了本地提交；不带改动的只记待办）",
+        "desc": "不在按钮栏显示，由「学习」卡片或 AI 讨论窗口里提案旁边的「批准」触发。",
     },
     "bk_arena": {
         "no": "2-4", "name": "比模型", "group": "查",
@@ -179,7 +187,7 @@ ACTIONS: dict[str, dict] = {
     "bk_chain": {
         "no": "1-3", "name": "月度重估", "group": "跑",
         "cmd": ["tools/refit_chain.py"],
-        "mail": False, "danger": False,
+        "mail": False, "danger": False, "hidden": True,
         "what": "重算邮件里印的准确率、板块系数和分数分档",
         "desc": "逐月滚动成绩表 -> 收缩板块系数 -> 分数分档 -> 改写邮件常量 -> 按板块命中率 -> 自测，"
                 "约 15 分钟。模型到期那天流程会自己跑；手改了 state/breakout/overrides.json "
@@ -214,7 +222,7 @@ ACTIONS: dict[str, dict] = {
 CONFLICTS = {"bk_backfill": ("breakout", "pullback"),
              "bk_refresh": ("breakout", "pullback"),
              "bk_build": ("breakout",), "bk_refit": ("breakout",),
-             "bk_chain": ("breakout",)}
+             "bk_chain": ("breakout",), "learn_now": ("breakout",), "ai_apply": ("breakout",)}
 FLOW_NAMES = {"breakout": "起涨预测", "pullback": "长期调整突破"}
 
 
@@ -363,8 +371,10 @@ class Registry:
             except Exception:  # noqa: BLE001
                 other = None
             if other:
+                tail = ("等它跑完再点" if key in ("ai_apply", "learn_now")
+                        else "它会自己做这一步，先别点")
                 return None, (f"{FLOW_NAMES.get(clash, clash)}正在跑"
-                              f"（pid {other.get('pid')}），它会自己做这一步，先别点")
+                              f"（pid {other.get('pid')}），{tail}")
         with self._lock:
             flow = _flow_of(key)
             for j in self._jobs.values():

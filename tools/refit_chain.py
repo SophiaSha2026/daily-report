@@ -3,6 +3,8 @@
 
     python tools/refit_chain.py           全部跑：成绩表 -> 提升网格 -> 分档 -> 邮件常量 -> 板块命中率 -> 自测
     python tools/refit_chain.py --dry     只打印要做什么
+    python tools/refit_chain.py --with-refit   先重训生产模型（daily.py --stage refit，含重训验收）再跑整条链：
+                                         控制台「学习」卡片的「现在重学」（2026-10-13）
 
 local_run.flow_breakout 在模型到期那天、打分之前调它（model_due），所以成绩表、板块系数、
 邮件常量和当天重训的模型同一天刷新。手改 overrides.json 之后也该手跑一次。
@@ -58,7 +60,7 @@ def board_hit() -> None:
     sys.path.insert(0, str(ROOT / "src"))
     sys.path.insert(0, str(ROOT / "src" / "breakout"))
     import importlib
-    importlib.import_module("localenv")
+    importlib.import_module("localenv").load()
     import truth as T
     r = T.validation_by_board(refresh=True)
     print(f"{bj()} [板块命中率] " + json.dumps(
@@ -69,8 +71,11 @@ def board_hit() -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--with-refit", action="store_true", help="先重训生产模型再跑整条链")
     a = ap.parse_args()
-    steps = [
+    steps = [("重训模型", lambda: run("重训模型", ["src/breakout/daily.py", "--stage", "refit"], 40 * 60))] \
+        if a.with_refit else []
+    steps += [
         ("成绩表", lambda: run("成绩表", ["src/breakout/exp_window.py", "--refit", "--adj", "shrink",
                                            "--save-adj"], 20 * 60)),
         ("提升网格", promote_grid),

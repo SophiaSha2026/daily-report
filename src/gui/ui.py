@@ -117,7 +117,7 @@ summary{cursor:pointer;color:#8f9aa8;font-size:13px;margin-bottom:8px}
     <h3>输出 <span class="hint" id="joblbl"></span>
       <button class="go" id="stopbtn" hidden>停止</button></h3>
     <pre class="log" id="joblog">还没有</pre>
-    <details id="d-ai" open><summary>AI 复盘与提案</summary><div id="ai"></div></details>
+    <details id="d-ai" open><summary>学习</summary><div id="ai"></div></details>
     <details id="d-sched"><summary>排期</summary><div id="sched"></div></details>
     <details id="d-log"><summary>自动运行日志</summary><pre class="log" id="flowlog"></pre></details>
     <details id="d-conf"><summary>配置（只读）</summary><pre class="log" id="confbody"></pre></details>
@@ -388,25 +388,32 @@ $("#d-conf").addEventListener("toggle", () => { if ($("#d-conf").open) loadConf(
 let lastStatus = null;
 async function loadAi() {
   try {
-    const a = await api("/api/ai");
-    const al = a.alert || {}, u = a.usage || {}, ps = a.proposals || [];
-    let h = "";
-    if (al.date) h += `<div class="sub">${esc(al.date)} ${esc(al.kind||"")}：<b class="${al.severity==="严重"?"bad":al.severity==="注意"?"warn":""}">${esc(al.severity||"")}</b> ${esc(al.summary||"")}</div>`;
-    else h += `<div class="sub">还没有复盘记录</div>`;
-    if (u.today_usd != null) h += `<div class="sub${u.warn?" bad":""}">用量 今天 ${u.today_usd} 美元（${u.today_n} 次） · 本月 ${u.month_usd} 美元</div>`;
-    for (const p of ps) {
-      h += `<div class="prop"><b>[${esc(p.type)}] ${esc(p.title)}</b><div class="sub">${esc(p.detail)}</div>`
-        + `<div class="sub">预期：${esc(p.expected_effect||"")} · 风险：${esc(p.risk||"")}</div>`
-        + `<button class="go" onclick="proposal('${esc(p.id)}','approve')">批准</button> `
-        + `<button class="go" onclick="proposal('${esc(p.id)}','reject')">拒绝</button></div>`;
+    const a = await api("/api/learn");
+    const al = a.alert || {}, u = a.usage || {};
+    let h = `<div><b>${esc(a.head)}</b> · <a href="/chat?kind=learn&token=${TOKEN}" target="_blank">问 AI</a></div>`;
+    h += (a.lines || []).concat([a.pullback.line]).map(x => `<div class="sub">${esc(x)}</div>`).join("");
+    if (al.date) h += `<div class="sub">AI 复盘 ${esc(al.date)}：<b class="${al.severity==="严重"?"bad":al.severity==="注意"?"warn":""}">${esc(al.severity||"")}</b> ${esc(al.summary||"")}</div>`;
+    if (u.today_usd != null) h += `<div class="sub${u.warn?" bad":""}">AI 用量 今天 ${u.today_usd} 美元（${u.today_n} 次） · 本月 ${u.month_usd} 美元</div>`;
+    for (const d of a.decide || []) {
+      if (d.kind === "relearn") { h += `<div class="prop"><b>${esc(d.text)}</b><br><button class="go" onclick="relearn()">现在重学</button></div>`; continue; }
+      h += `<div class="prop"><b>${esc(d.text)}</b><div class="sub">${esc(d.detail)}</div>`
+        + `<div class="sub">预期：${esc(d.effect||"")} · 风险：${esc(d.risk||"")}${(d.files||[]).length ? " · 改：" + esc(d.files.join("、")) : ""}</div>`
+        + (d.note ? `<div class="sub">${esc(d.note)}</div>` : "")
+        + `<button class="go" onclick="proposal('${esc(d.id)}','approve')">同意</button> `
+        + `<button class="go" onclick="proposal('${esc(d.id)}','reject')">不同意</button>`
+        + (d.session ? ` <a href="/chat?sid=${esc(d.session)}&token=${TOKEN}" target="_blank">看讨论</a>` : "") + `</div>`;
     }
-    if (!ps.length) h += `<div class="sub">没有待批准的提案</div>`;
     $("#ai").innerHTML = h;
   } catch (e) { $("#ai").innerHTML = `<div class="sub">读不到：${esc(e)}</div>`; }
 }
 async function proposal(id, action) {
-  if (action === "approve" && !confirm("批准这个提案？参数改动会写进 overrides.json 并重跑月度重估。")) return;
-  try { const r = await api("/api/proposal", { id, action }); toast(r.error || (action === "approve" ? "已批准，正在落地" : "已拒绝")); loadAi(); }
+  if (action === "approve" && !confirm("同意这条建议？参数会写进 overrides.json 并重跑月度重估；代码会改文件、跑三条自测和 pyflakes，不过就撤回。")) return;
+  try { const r = await api("/api/proposal", { id, action }); toast(r.error || (action === "approve" ? "已同意，正在落地" : "已拒绝")); loadAi(); }
+  catch (e) { toast("失败：" + e); }
+}
+async function relearn() {
+  if (!confirm("现在重学？约 20 分钟。")) return;
+  try { const r = await api("/api/run", { key: "learn_now" }); toast(r.error || "开始重学"); }
   catch (e) { toast("失败：" + e); }
 }
 async function refresh() {

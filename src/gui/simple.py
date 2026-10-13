@@ -3,7 +3,8 @@
 
 一屏，字越少越好（2026-10-11 再瘦一轮，页面中文 315 -> 150 以内）：
     两条线各一张卡片：名称 / 状态词 / 一句话 / 跑按钮，在跑时才有进度条
-    查一只股票：输入框 + 预测按钮
+    查一只股票：输入框 + 预测按钮 + AI 讨论（开 /chat，2026-10-13 从「AI 分析」升级）
+    学习：一句话状态 + 等你决定的事（同意 / 不同意 / 现在重学）+ 问 AI（gui/learn.py，2026-10-13）
     一行系统状态：下次开机、插没插电、推送成没成
     一张小图：起涨预测每份清单的命中数
 全部北京时间。详细控制台在 /full。
@@ -393,6 +394,12 @@ h2{font-size:13px;color:var(--dim);font-weight:500;margin:0 0 8px}
 .lst b{display:block;font-size:17px;color:var(--fg)}
 .mini{height:3px;background:var(--line);border-radius:2px;margin-top:5px;overflow:hidden}
 .mini i{display:block;height:100%;background:#6b7280}
+.learn{margin-top:10px}.learn .say div{margin:2px 0}
+.dec{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;font-size:14px}
+.dec .why{font-size:12px;color:var(--dim);margin:4px 0 6px}.dec summary{cursor:pointer}
+.dec button{padding:5px 12px;font-size:13px;margin-right:6px}
+.hd a.ai{margin-left:6px;font-size:13px;color:var(--dim);text-decoration:none;border:1px solid var(--line);
+border-radius:8px;padding:5px 10px}
 .links{display:flex;gap:16px;margin-top:16px;flex-wrap:wrap}
 .links a{color:var(--dim);font-size:13px}
 </style></head><body><div class="wrap">
@@ -400,9 +407,12 @@ h2{font-size:13px;color:var(--dim);font-weight:500;margin:0 0 8px}
 <div class="cards" id="lines"></div>
 <div class="ask"><input id="pcode" inputmode="numeric" maxlength="6" placeholder="代码"
  onkeydown="if(event.key==='Enter')predict()"><button onclick="predict()" id="pbtn">预测</button>
-<button onclick="aiAnalyze()" id="abtn" class="ghost">AI 分析</button>
+<button onclick="aiChat()" class="ghost">AI 讨论</button>
 <span class="dim" id="phint"></span></div>
 <pre id="pout"></pre>
+<div class="card learn" id="learn" hidden><div class="hd"><span class="name">学习</span>
+<span class="st" id="lhead"></span><a class="ai" href="/chat?kind=learn&token=__TOKEN__" target="_blank">问 AI</a></div>
+<div class="say" id="llines"></div><div id="ldec"></div></div>
 <div class="pills" id="pills"></div>
 <div class="card" id="chart" hidden><h2>起涨预测清单 · 20 天内涨超 50% 的只数</h2>
 <div class="lists" id="lists"></div></div>
@@ -448,7 +458,8 @@ function lines(s){
       :`<div class="prog"><i style="width:${l.pct.toFixed(0)}%"></i></div>`;
     return `<div class="card"><div class="hd"><span class="name">${esc(l.name)}</span>
       <span class="st ${l.state}">${WORD[l.state]||esc(l.state)}</span>
-      <button ${l.can_run?"":"disabled"} onclick="run('${l.key}',this)">跑</button></div>
+      <button ${l.can_run?"":"disabled"} onclick="run('${l.key}',this)">跑</button>
+      <a class="ai" href="/chat?kind=${esc(l.key)}&token=${TOKEN}" target="_blank">AI</a></div>
       <div class="say">${say(l,s.charts)}</div>${bar}</div>`;
   }).join("");
   const lk=$("#links");
@@ -472,26 +483,49 @@ function chart(rows){
   $("#lists").innerHTML=rows.map(r=>`<div class="lst">${esc(r.d)}<b>${r.hit}/${r.n}</b>
     第 ${r.final?20:r.bars} 天<div class="mini"><i style="width:${Math.min(100,r.bars/20*100)}%"></i></div></div>`).join("");
 }
-let aiJob=null;
-async function aiAnalyze(){
+function aiChat(){
   const code=$("#pcode").value.trim();
   if(!/^\d{6}$/.test(code)){$("#phint").textContent="6 位数字";return}
-  const b=$("#abtn");b.disabled=true;$("#phint").textContent="AI 分析中，三到五分钟";$("#pout").textContent="";
-  try{
-    const r=await (await fetch("/api/run?token="+TOKEN,{method:"POST",
-      headers:{"Content-Type":"application/json"},body:JSON.stringify({key:"ai_analyze",args:[code]})})).json();
-    if(r.error){$("#phint").textContent="";$("#pout").textContent=r.error;b.disabled=false;return}
-    aiJob={id:r.id,from:0};pollAi();
-  }catch(e){$("#phint").textContent="";$("#pout").textContent="请求失败："+e;b.disabled=false}
+  window.open(`/chat?kind=stock&code=${code}&token=${TOKEN}`,"_blank");
 }
-async function pollAi(){
-  if(!aiJob)return;
+async function learn(){
   try{
-    const j=await (await fetch(`/api/job/${aiJob.id}?from=${aiJob.from}`)).json();
-    if(j.new&&j.new.length){$("#pout").textContent+=j.new.join("\n")+"\n";aiJob.from=j.next}
-    if(j.running){setTimeout(pollAi,3000);return}
-    $("#phint").textContent=j.rc===0?"":"AI 分析没成功";$("#abtn").disabled=false;aiJob=null;
-  }catch(e){setTimeout(pollAi,5000)}
+    const s=await (await fetch("/api/learn")).json();
+    $("#learn").hidden=false;
+    const n=(s.decide||[]).length;
+    $("#lhead").textContent=s.head;$("#lhead").className="st "+(n?"stalled":s.drift?"running":"done");
+    $("#llines").innerHTML=s.lines.map(x=>`<div>${esc(x)}</div>`).join("")+`<div>${esc(s.pullback.line)}</div>`;
+    const all=s.decide||[],rest=all.length>3?`<div class="dec dim"><a href="/full?token=${TOKEN}" style="color:inherit">还有 ${all.length-3} 件，去详细控制台</a></div>`:"";
+    $("#ldec").innerHTML=all.slice(0,3).map(d=>{
+      if(d.kind==="relearn") return `<div class="dec">${esc(d.text)}<div class="why"></div>
+        <button onclick="relearn(this)">现在重学</button></div>`;
+      const more=[d.detail,d.effect&&"预期："+d.effect,d.risk&&"风险："+d.risk,
+        (d.files||[]).length&&"改："+d.files.join("、"),d.note].filter(Boolean).map(esc).join("<br>");
+      const chat=d.session?` <a class="ai" href="/chat?sid=${esc(d.session)}&token=${TOKEN}" target="_blank">看讨论</a>`:"";
+      return `<div class="dec">${esc(d.text)}<details class="why"><summary>细节</summary>${more}</details>
+        <button onclick="decide('${esc(d.id)}','approve',this)">同意</button>
+        <button class="ghost" onclick="decide('${esc(d.id)}','reject',this)">不同意</button>${chat}</div>`;
+    }).join("")+rest;
+  }catch(e){}
+}
+async function decide(id,action,b){
+  if(action==="approve"&&!confirm("同意后会执行这条建议：参数会改并重算邮件里的准确率；代码会改文件、跑自测，不过就撤回。"))return;
+  b.disabled=true;
+  try{
+    const r=await fetch("/api/proposal?token="+TOKEN,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({id,action})});
+    const j=await r.json();if(!r.ok)alert(j.error||r.status);
+  }catch(e){alert(e)}
+  setTimeout(learn,800);
+}
+async function relearn(b){
+  if(!confirm("现在重学？约 20 分钟，起涨预测在跑时不能点。"))return;
+  b.disabled=true;
+  try{
+    const r=await fetch("/api/run?token="+TOKEN,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({key:"learn_now"})});
+    const j=await r.json();b.textContent=r.ok?"在重学":"没开始";if(!r.ok)alert(j.error||r.status);
+  }catch(e){alert(e)}
 }
 async function predict(){
   const code=$("#pcode").value.trim();
@@ -527,5 +561,5 @@ async function loadPush(){
   try{const s=await (await fetch("/api/status")).json();push=s.sync.last_push_ok;if(snap)pills(snap)}
   catch(e){}
 }
-load();loadPush();setInterval(load,5000);setInterval(loadPush,60000);
+load();loadPush();learn();setInterval(load,5000);setInterval(loadPush,60000);setInterval(learn,60000);
 </script></body></html>"""

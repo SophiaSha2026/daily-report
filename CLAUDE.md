@@ -82,8 +82,13 @@ src/
                          ths_export.py 抽出来）
   bjtime.py              北京时间 now_bj / today_bj 和「最近一个已收盘交易日」last_closed 的唯一实现
                          （2026-10-10 前各有 8 份和 4 份）。不 import 重模块，控制台和云端都用
-  ai_usage.py            claude.exe 的统一调用（run_claude：Opus、JSON、schema、只读联网工具）和用量记账
-                         （state/ai_usage.jsonl，日 / 月警戒线只提示不拦截）。AI 只分析不排序（硬约束 1）
+  ai_usage.py            claude.exe 的统一调用（run_claude：模型、推理等级、schema、只读工具、多轮会话、
+                         流式进度）和用量记账（state/ai_usage.jsonl，日 / 月警戒线只提示不拦截）；
+                         models() 扫本机 claude 本体和 --help 得到可用模型和推理等级（state/ai_models.json 缓存）。
+                         导入时自己 localenv.load()，AI_MODEL 才生效。AI 只分析不排序（硬约束 1）
+  ai_chat.py             AI 讨论（2026-10-13）：一只股票 / 起涨预测清单 / 长期调整突破清单 / 学习状态，
+                         多轮（claude --session-id / --resume），每轮 schema 强制 reply + panel（结论 / 重点 /
+                         要点 / 原因），用户要改代码或参数时给 changes -> 存成待批提案。会话 state/ai_chat/（gitignore）
   localenv.py            tools/local.env -> os.environ。本机每个入口先调一次，
                          否则 SMTP 凭证静默缺失
   local_run.py           本地一键全流程。--flow breakout / pullback / --sync，
@@ -149,7 +154,10 @@ src/
                          Windows 上端口独占（SO_EXCLUSIVEADDRUSE），双击图标会顶掉旧控制台
   gui/ui.py              详细控制台（HTML/CSS/JS 都在这个字符串里）：左栏按钮分「跑 / 查 / 修」三组，
                          右边一个「状态」页（当前任务输出 + 折叠的排期 / 日志 / 配置），中文 320 字
-  gui/jobs.py            按钮表 ACTIONS（group = 跑 / 查 / 修，no 只排序不显示）+ 子进程任务
+  gui/chat.py            AI 讨论页 /chat：左聊天、右结构化结论 + 改动提案（批准 / 拒绝）、模型和推理等级下拉
+  gui/learn.py           「学习」卡片：模型年龄 / 到期 / 重训验收 / 验证集和实发效果 / 漂移 + 等你决定的事
+                         （AI 提案同意 / 不同意、到期时现在重学 = 按钮 learn_now）。首页和 /full 都有
+  gui/jobs.py            按钮表 ACTIONS（group = 跑 / 查 / 修，no 只排序不显示，hidden 不画）+ 子进程任务
   gui/status.py          状态汇总：流程 / 同步 / 排期 / 面板四类信号
   selftest_gui.py        控制台和编排层的接线自测
 .github/workflows/       只有 evening_check 带 cron
@@ -175,9 +183,11 @@ tools/audit_repo.py      仓库审计：死模块 / 死函数 / 别名属性 / �
                          配置键 / 依赖 / gitignore / 按钮和工作流接线。零输出才算干净，大改后必跑
 tools/ai_analyze.py      单股 AI 分析：python tools/ai_analyze.py 300829。本机备好 K 线事实 / 模型分数 / 股东户数 /
                          减持定增 / 市场环境，Claude 联网查新闻后给立场、置信度、依据、风险（schema）。
-                         只给人看，不进清单邮件模型。控制台首页「AI 分析」= 按钮 ai_analyze（带代码参数）
+                         只给人看，不进清单邮件模型。--materials 只打印材料，AI 讨论第一轮用它
+                         （控制台的「AI 分析」按钮 2026-10-13 升级成 AI 讨论）
 tools/ai_review.py       Claude 复盘：--daily 每日（起涨预测发信后 local_run 调，fail-open）、--weekly、
-                         --diff 改动前复核、--list / --apply 提案（param 走白名单 + 重估链，code 只记待办）。
+                         --diff 改动前复核、--list / --apply 提案（param 走白名单 + 重估链；code 带 edits 的
+                         改文件 -> 三条自测 + pyflakes -> 不过撤回、过了本地提交，不带的只记待办）。
                          产物 state/ai_review/，latest_alert.json 进邮件抬头和控制台
 tools/predict_one.py     单只股票预测：python tools/predict_one.py 600000。用生产模型 + 特征表给一只票
                          打分（分数 / 名次 / 够不够格 / 近 20 天分数 / 历史命中率）。控制台首页
@@ -199,8 +209,9 @@ state/                   breakout/（模型、overrides、board_adj、update_sta
 archive/morning/         早盘系统归档（不执行）。RESTORE.md 先读
 archive/pullback_v1/     回调形态 v1 归档（不执行）
 archive/breakout_experiments/  起涨预测实验 2~14 的旧脚本和产物（不执行，README 有对照表）
-docs/                    breakout_design.md（最初设计）、breakout_log.md（实验 1~19 全记录）、
-                         breakout_plan_2026-10.md（稳定化计划和过线标准）
+docs/                    breakout_design.md（最初设计）、breakout_log.md（实验 1~21 全记录）、
+                         breakout_plan_2026-10.md（稳定化计划和过线标准）、
+                         github_survey_2026-10.md（开源量化仓库调研和可借鉴清单）
 tools/gui.cmd            控制台入口（桌面快捷方式指向它）
 tools/run_local.cmd      计划任务调的本地流程入口，带 --if-needed
 ```

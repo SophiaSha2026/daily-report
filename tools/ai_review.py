@@ -7,6 +7,11 @@ Claude 深度参与现有分析（计划 2026-10-10 第 9 项）。三个时机�
     python tools/ai_review.py --apply <提案id>               用户在控制台批准后，落地一个提案（param / code）
     python tools/ai_review.py --list                        列出待批准的提案
 
+代码提案带 edits（AI 讨论窗口里用户要求改代码时给，src/ai_chat.py）：批准后 apply_edits 逐条做
+「原文只出现一次 -> 替换」，跑三条自测 + pyflakes，任何一条不过就把文件原样写回、提案记 failed；
+都过了在 git_lock 里本地提交（只提交这几个文件），下一次流程推送时一起推上去。
+不带 edits 的代码提案照旧只记待办。
+
 边界（用户 2026-10-10 拍板）：AI 只分析、复盘、告警、提案。参数改动和代码改动**只能提案**，
 用户在控制台批准后才落地；清单排序 AI 不碰。失败不阻断发信。费用记在 src/ai_usage.py。
 
@@ -292,6 +297,148 @@ def latest_alert() -> dict:
 # ---------------------------------------------------------------
 #  落地提案（只在用户批准之后）
 # ---------------------------------------------------------------
+# 代码改动能碰的范围。模型指纹那四个文件（教训 39）、凭证、运行态、数据、云端 workflow 一律不许
+EDIT_PREFIX = ("src/", "tools/", "docs/")
+EDIT_FILES = {"config.yaml", "CLAUDE.md", "OPERATIONS.md", "README.md"}
+EDIT_DENY = {"src/breakout/features.py", "src/breakout/chips.py", "src/breakout/label.py",
+             "src/breakout/build.py", "tools/local.env"}
+EDIT_EXT = {".py", ".md", ".yaml", ".yml", ".txt", ".ps1", ".cmd", ".js", ".toml", ".vbs"}
+CHECKS = [["src/selftest_pullback.py"], ["src/selftest_gui.py"], ["src/selftest_breakout.py"],
+          ["-m", "pyflakes", "src", "tools"]]
+
+
+def edit_target(rel: str) -> tuple[Path | None, str]:
+    """AI 给的文件名 -> 仓库里的绝对路径；不在允许范围就返回 (None, 原因)。"""
+    r = str(rel or "").replace("\\", "/").strip()
+    if r.lower().startswith(str(ROOT).replace("\\", "/").lower() + "/"):
+        r = r[len(str(ROOT)) + 1:]
+    r = r.lstrip("./")
+    p = (ROOT / r).resolve()
+    try:
+        r = p.relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        return None, f"{rel} 不在仓库里"
+    if r in EDIT_DENY:
+        return None, f"{r} 不许改（模型指纹 / 凭证）"
+    if not (r in EDIT_FILES or r.startswith(EDIT_PREFIX)):
+        return None, f"{r} 不在允许改的范围（src/ tools/ docs/ 和几份说明文档）"
+    if p.suffix.lower() not in EDIT_EXT:
+        return None, f"{r} 这种文件类型不改"
+    return p, r
+
+
+def plan_edits(edits: list) -> tuple[dict, str]:
+    """把 edits 在内存里做一遍：{路径: (原文或 None, 新文)}。任何一条对不上就整体拒绝，一个字都不写。"""
+    plan: dict[Path, list] = {}
+    for e in edits or []:
+        p, why = edit_target(e.get("file", ""))
+        if p is None:
+            return {}, why
+        old, new = str(e.get("old", "")), str(e.get("new", ""))
+        if p not in plan:
+            orig = p.read_bytes().decode("utf-8") if p.exists() else None
+            plan[p] = [orig, orig]
+        cur = plan[p][1]
+        if old == "":
+            if cur is not None:
+                return {}, f"{why}：old 为空只能用来新建文件，这个文件已经有了"
+            plan[p][1] = new
+            continue
+        if cur is None:
+            return {}, f"{why} 不存在"
+        n = cur.count(old)
+        if n != 1:
+            # 本机 autocrlf：文件可能是 CRLF，AI 读到的是 LF
+            if "\r\n" in cur and cur.count(old.replace("\n", "\r\n")) == 1:
+                old, new = old.replace("\n", "\r\n"), new.replace("\n", "\r\n")
+            else:
+                return {}, f"{why}：要替换的原文出现了 {n} 次（要正好 1 次）"
+        plan[p][1] = cur.replace(old, new, 1)
+    if not plan:
+        return {}, "没有改动"
+    return {p: (o, n) for p, (o, n) in plan.items()}, ""
+
+
+def _restore(plan: dict) -> None:
+    for p, (orig, _new) in plan.items():
+        if orig is None:
+            p.unlink(missing_ok=True)
+        else:
+            p.write_bytes(orig.encode("utf-8"))
+
+
+def run_checks() -> tuple[bool, str]:
+    """三条自测 + pyflakes。自测以「断言失败 N 个」那一行为准（CLAUDE.md），pyflakes 要零输出。"""
+    import re
+    env = {**__import__("os").environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    log = []
+    for args in CHECKS:
+        name = " ".join(args)
+        try:
+            r = subprocess.run([sys.executable, *args], cwd=str(ROOT), capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=1200, env=env,
+                               stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            return False, "\n".join(log + [f"{name}：超时"])
+        out = (r.stdout or "") + (r.stderr or "")
+        if "pyflakes" in args:
+            ok = r.returncode == 0 and not out.strip()
+            log.append(f"{name}：{'零输出' if ok else '有输出'}")
+            if not ok:
+                return False, "\n".join(log + [out[-1500:]])
+            continue
+        m = re.findall(r"断言失败\s*(\d+)\s*个", out)
+        ok = r.returncode == 0 and bool(m) and int(m[-1]) == 0
+        log.append(f"{name}：{'断言失败 ' + m[-1] + ' 个' if m else '没看到结果行'}，退出码 {r.returncode}")
+        if not ok:
+            return False, "\n".join(log + [out[-2000:]])
+    return True, "\n".join(log)
+
+
+def apply_edits(pid: str, j: dict) -> int:
+    import local_run as L
+    busy = L.any_flow_running()
+    if busy:
+        set_status(pid, "pending", f"{L.FLOWS[busy][1]}正在跑，没落地；跑完再批准")
+        print("有流程正在跑，改代码会让它前后用到两版代码，先不落地，提案退回待批")
+        return 1
+    plan, why = plan_edits(j.get("edits") or [])
+    if not plan:
+        set_status(pid, "failed", f"改动对不上：{why}")
+        print(f"改动对不上，一个字都没写：{why}")
+        return 1
+    files = [p.relative_to(ROOT).as_posix() for p in plan]
+    for p, (_orig, new) in plan.items():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(new.encode("utf-8"))
+    print(f"改了 {len(files)} 个文件：{', '.join(files)}；跑三条自测 + pyflakes …", flush=True)
+    ok, log = run_checks()
+    print(log, flush=True)
+    if not ok:
+        _restore(plan)
+        set_status(pid, "failed", "自测没过，已原样撤回：" + log.splitlines()[-1][:200] if log else "自测没过，已撤回")
+        print("自测没过，文件已原样写回")
+        return 1
+    commit = ""
+    try:
+        with L.git_lock(timeout=120):
+            subprocess.run(["git", "add", "--", *files], cwd=str(ROOT), check=True, capture_output=True)
+            msg = f"AI 改动（用户批准）：{j.get('title', '')}\n\n提案 {pid}。{j.get('detail', '')}"[:1500]
+            subprocess.run(["git", "commit", "-m", msg, "--", *files], cwd=str(ROOT), check=True, capture_output=True)
+            commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(ROOT), capture_output=True,
+                                    text=True).stdout.strip()
+    except Exception as e:  # noqa: BLE001
+        print(f"自测过了，但本地提交没成（{e}），改动留在工作区")
+    gui = any(f.startswith("src/gui/") for f in files)
+    set_status(pid, "applied", f"自测全过，{'已本地提交 ' + commit if commit else '改动在工作区'}"
+               + ("；控制台自己的代码改了，关掉控制台再开才生效" if gui else ""))
+    j2 = _json(PROPOSALS / f"{pid}.json") or {}
+    j2["files"], j2["commit"], j2["checks"] = files, commit, log
+    (PROPOSALS / f"{pid}.json").write_text(json.dumps(j2, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"落地完成 {commit}")
+    return 0
+
+
 def apply_proposal(pid: str) -> int:
     j = _json(PROPOSALS / f"{pid}.json")
     if not j:
@@ -323,6 +470,8 @@ def apply_proposal(pid: str) -> int:
         set_status(pid, "applied" if r.returncode == 0 else "failed",
                    "重估链 " + ("完成" if r.returncode == 0 else f"退出码 {r.returncode}"))
         return r.returncode
+    if j.get("type") == "code" and j.get("edits"):
+        return apply_edits(pid, j)
     if j.get("type") == "code":
         # 代码提案只有描述没有补丁：落地 = 开一个待办给人（或下一次 Claude 会话）做，不自动改代码
         set_status(pid, "applied", "代码提案不自动改代码；已记入 docs/breakout_log.md 待办")
@@ -360,7 +509,7 @@ def main() -> int:
     ap.add_argument("--dry", action="store_true", help="只备材料不调 AI")
     a = ap.parse_args()
     import importlib
-    importlib.import_module("localenv")
+    importlib.import_module("localenv").load()
     if a.list:
         for p in list_proposals():
             print(f"{p['id']}  {p['status']:<9} [{p.get('type')}] {p.get('title')}")
