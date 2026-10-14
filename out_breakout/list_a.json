@@ -1,82 +1,82 @@
 [
   {
-    "code":"603657",
-    "name":"春光科技",
-    "score":98.0,
-    "streak":4,
-    "close":34.0,
+    "code":"002696",
+    "name":"百洋股份",
+    "score":99.0,
+    "streak":1,
+    "close":9.75,
     "board":"main"
   },
   {
-    "code":"688315",
-    "name":"诺禾致源",
-    "score":98.0,
-    "streak":3,
-    "close":20.55,
-    "board":"star"
-  },
-  {
-    "code":"605177",
-    "name":"东亚药业",
-    "score":97.0,
-    "streak":2,
-    "close":24.81,
-    "board":"main"
-  },
-  {
-    "code":"688517",
-    "name":"金冠电气",
-    "score":97.0,
-    "streak":2,
-    "close":21.3,
-    "board":"star"
-  },
-  {
-    "code":"002242",
-    "name":"九阳股份",
+    "code":"003006",
+    "name":"百亚股份",
     "score":98.0,
     "streak":1,
-    "close":17.67,
+    "close":22.9,
     "board":"main"
   },
   {
-    "code":"688004",
-    "name":"博汇科技",
-    "score":97.0,
+    "code":"605058",
+    "name":"澳弘电子",
+    "score":98.0,
     "streak":1,
-    "close":42.73,
+    "close":64.08,
+    "board":"main"
+  },
+  {
+    "code":"000823",
+    "name":"超声电子",
+    "score":98.0,
+    "streak":1,
+    "close":24.55,
+    "board":"main"
+  },
+  {
+    "code":"600593",
+    "name":"大连圣亚",
+    "score":98.0,
+    "streak":1,
+    "close":53.1,
+    "board":"main"
+  },
+  {
+    "code":"605287",
+    "name":"德才股份",
+    "score":98.0,
+    "streak":1,
+    "close":48.9,
+    "board":"main"
+  },
+  {
+    "code":"603968",
+    "name":"醋化股份",
+    "score":98.0,
+    "streak":1,
+    "close":15.8,
+    "board":"main"
+  },
+  {
+    "code":"688655",
+    "name":"迅捷兴",
+    "score":98.0,
+    "streak":1,
+    "close":69.59,
     "board":"star"
   },
   {
-    "code":"603067",
-    "name":"振华股份",
-    "score":97.0,
+    "code":"002343",
+    "name":"慈文传媒",
+    "score":98.0,
     "streak":1,
-    "close":44.13,
+    "close":8.1,
     "board":"main"
   },
   {
-    "code":"001317",
-    "name":"三羊马",
-    "score":97.0,
+    "code":"002811",
+    "name":"郑中设计",
+    "score":98.0,
     "streak":1,
-    "close":66.06,
+    "close":20.7,
     "board":"main"
-  },
-  {
-    "code":"920627",
-    "name":"力王股份",
-    "score":97.0,
-    "streak":1,
-    "close":19.5,
-    "board":"bj"
-  },
-  {
-    "code":"688073",
-    "name":"毕得医药",
-    "score":97.0,
-    "streak":1,
-    "close":65.9,
-    "board":"star"
   }
 ]
