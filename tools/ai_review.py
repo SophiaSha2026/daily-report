@@ -552,7 +552,7 @@ def main() -> int:
         print(f"复盘失败：{err}（{usd:.2f} 美元）")
         STATE.mkdir(parents=True, exist_ok=True)
         (STATE / "latest_alert.json").write_text(json.dumps(
-            {"date": date, "severity": "注意", "summary": f"AI 复盘没跑成：{err[:80]}",
+            {"date": date, "severity": "注意", "summary": f"AI 复盘没跑成：{err[:120]}",
              "at": now_bj().isoformat(timespec="seconds")}, ensure_ascii=False), encoding="utf-8")
         return 1
     p = _save_review("weekly" if weekly else "daily", date, r, usd)

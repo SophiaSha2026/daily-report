@@ -189,7 +189,8 @@ def materials(kind: str, code: str = "") -> dict:
 
 def first_prompt(kind: str, code: str, mat: dict, ask: str) -> str:
     subj = f"{code} {mat.get('name', '')}".strip() if kind == "stock" else KINDS[kind]
-    head = (f"讨论对象：{subj}。今天北京时间 {now_bj():%Y-%m-%d %H:%M}。\n"
+    # 只写到日期：同一天同一只、材料不变时提示词逐字相同，以后加缓存才命中得了（计划 2026-10-15 第 0.5 项）
+    head = (f"讨论对象：{subj}。今天北京时间 {now_bj():%Y-%m-%d}。\n"
             "下面是本机备好的材料（JSON），后面几轮讨论都基于它，需要更多就自己读仓库或联网查。\n")
     if kind == "stock":
         head += ("model 是我们的起涨预测模型：分数 0~100 是全市场排名，≥97 且当天前 10 才上清单；perf_bin 是这一档"

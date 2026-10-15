@@ -223,6 +223,18 @@ def event_note(d: dict) -> str:
     return "；".join(out)
 
 
+AUTH_HINT = ("claude 登录过期：在终端跑 claude setup-token，把生成的令牌写进 tools/local.env 的 "
+             "CLAUDE_CODE_OAUTH_TOKEN=（长期有效）；临时也可以跑 claude 再 /login")
+
+
+def explain_error(err: str) -> str:
+    """CLI 的报错 -> 给人看的一句。登录类的错（2026-10-14 OAuth 过期，每日复盘静默失败）翻成怎么修。"""
+    e = str(err or "")
+    if any(k in e for k in ("authenticate", "OAuth", "Not logged in", "not logged in", "/login", "401")):
+        return AUTH_HINT
+    return e
+
+
 def run_claude(prompt: str, schema: dict | None = None, model: str = MODEL,
                tools: str = "WebSearch,WebFetch", timeout: int = 900,
                system: str = "", kind: str = "ai", subject: str = "",
@@ -307,9 +319,9 @@ def run_claude(prompt: str, schema: dict | None = None, model: str = MODEL,
             return None, None, f"超过 {timeout} 秒没回来"
     record(kind, subject, outer, extra)
     if outer is None:
-        return None, None, str(err_txt)[:300]
+        return None, None, explain_error(str(err_txt))[:300]
     if outer.get("is_error"):
-        return None, outer, str(outer.get("result", ""))[:300]
+        return None, outer, explain_error(str(outer.get("result", "")))[:300]
     structured = outer.get("structured_output")
     if schema and not isinstance(structured, dict):
         # 没走 schema 的话从 result 文本里挖

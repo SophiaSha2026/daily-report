@@ -133,6 +133,10 @@ def summary() -> dict:
         lines.append(f"还在走的 {run['lists']} 份清单：目前 {run['hits']}/{run['n']} 只已涨超 50%")
     if meta.get("drift_note"):
         lines.append(f"打分分布异常：{meta['drift_note']}")
+    # 最近一次 AI 复盘判「严重 / 注意」（含「没跑成」，比如登录过期）就印一句，首页也看得见
+    al = _j(ROOT / "state" / "ai_review" / "latest_alert.json", {}) or {}
+    if al.get("severity") in ("严重", "注意") and al.get("summary"):
+        lines.append(f"AI 复盘 {str(al.get('date', ''))[5:]} {al['severity']}：{str(al['summary'])[:120]}")
 
     decide = []
     for p in pend:

@@ -2679,6 +2679,12 @@ def check_ai_chat() -> None:
         ck(AU._scan_models(str(fake)) == ["claude-fable-5-1", "claude-opus-5-5", "claude-opus-5",
                                          "claude-sonnet-5-5", "claude-haiku-5-5"],
            f"扫本体只留最新一代模型（实得 {AU._scan_models(str(fake))}）")
+        ck(AU.explain_error("Failed to authenticate: OAuth session expired") == AU.AUTH_HINT
+           and "CLAUDE_CODE_OAUTH_TOKEN" in AU.AUTH_HINT and AU.explain_error("超时") == "超时",
+           "登录过期的报错翻成怎么修（长期令牌的变量名 2026-10-15 在 CLI 本体里核过）")
+        ck("%H:%M" not in AC.first_prompt.__code__.co_consts.__repr__() and
+           "%Y-%m-%d %H" not in __import__("inspect").getsource(AC.first_prompt),
+           "讨论第一轮提示词的时间只到日期（缓存前提）")
         ck(AU.event_note({"type": "assistant", "message": {"content": [
             {"type": "tool_use", "name": "WebSearch", "input": {"query": "300829 公告"}}]}}) == "搜：300829 公告",
            "流式进度翻成人话")
