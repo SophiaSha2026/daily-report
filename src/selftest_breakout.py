@@ -1795,8 +1795,10 @@ def check_table_shape() -> None:
        + ("：" + "；".join(bad) if bad else ""))
     ck(abs(E.BASE - base) < 0.06,
        f"BASE {E.BASE} 和 score_calibration 的验证集基准 {base:.2f} 一致")
-    ck(all(f"{lift:.1f} 倍" in html for _k, _h, lift, _n in E.STREAK_PERF),
-       "五档的倍数都印在对照表里")
+    shown = [r for r in E.STREAK_PERF if r[0] <= E.STREAK_TOP]
+    ck(all(f"{lift:.1f} 倍" in html for _k, _h, lift, _n in shown)
+       and not any(f"连续 {r[0]} 天及以上" in html for r in E.STREAK_PERF if r[0] > E.STREAK_TOP),
+       f"对照表只印到「连续 {E.STREAK_TOP} 天及以上」，再往上不分档（2026-10-15 复核）")
     ck(not hasattr(E, "SCORE_TABLE"),
        "SCORE_TABLE 已删（从没渲染过，注释里的样本数早就和产物对不上了）")
 
@@ -1811,7 +1813,10 @@ def check_table_shape() -> None:
         # 样本够的档：行内和对照表必须是同一个字符串（F5-9 那条）。
         # 样本不够的档（n < SMALL_N）：行内要退到下一个够样本的档，不能把
         # 24 个名额算出来的 0.0% 印成某只票的「历史准确率」（2026-09-16）。
-        want = f"{hit:.1f}%" if n_ >= E.SMALL_N else f"{E.streak_perf(need)[0]:.1f}%"
+        want = f"{E.streak_perf(need)[0]:.1f}%"
+        if need > E.STREAK_TOP:
+            ck(want == f"{E.perf_row(E.STREAK_TOP)[1]:.1f}%" or E.perf_row(E.STREAK_TOP)[3] < E.SMALL_N,
+               f"连续 {need} 天按「{E.STREAK_TOP} 天以上」那一档印")
         ck(cell == want and (n_ < E.SMALL_N or f'<td class="sc">{cell}</td>' in html),
            f"连续 {need} 天（n={n_}）：清单 A 行印 {cell}，应当是 {want}")
         rowb = E._rows_b(pd.DataFrame({"code": ["600001"], "name": ["x"],
@@ -1827,7 +1832,7 @@ def check_table_shape() -> None:
        "邮件里印的是 STREAK_PERF 里的数（首日 / 连续 3 天）")
 
     # 样本少的档次要有 95% 区间、而且灰掉
-    top = E.STREAK_PERF[0]
+    top = E.perf_row(E.STREAK_TOP)          # 表里印出来的最高一档
     lo, hi = E._wilson(top[1], top[3])
     # 命中率恰好是 0 时区间下界也是 0（Wilson 在 k=0 上就是这样），
     # 所以判 <=；区间必须真的把点估计盖住，而且印在表里
@@ -1835,7 +1840,7 @@ def check_table_shape() -> None:
        f"连续 {top[0]} 天那档印了 Wilson 区间 {lo:.1f}~{hi:.1f}%")
     # 哪一档样本少不是固定的：09-16 那组连续≥5 天只有 24 席，实验 15 之后最小一档
     # 也有 53 席。有少于 SMALL_N 的档就必须灰，一个都没有就不许有灰行
-    small = [r for r in E.STREAK_PERF if r[3] < E.SMALL_N]
+    small = [r for r in E.STREAK_PERF if r[3] < E.SMALL_N and r[0] <= E.STREAK_TOP]
     ck(("color:#7c8794" in html) == bool(small),
        f"样本少于 {E.SMALL_N} 的行灰掉（{len(small)} 档样本少）")
 

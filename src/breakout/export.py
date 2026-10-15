@@ -108,6 +108,11 @@ PERF_GRID = _perf_grid()
 # 少于这么多样本的档次在成绩表里灰掉：连续≥5 天只有 30 个名额，
 # 6.7% 和 13% 的差别完全在抽样噪音里
 SMALL_N = 50
+# 2026-10-15 复核（research/stats/report.md 3.4 节）：按块自举，连续 3 / 4 / 5 天三档的区间
+# [12.8, 35.1] / [11.1, 44.6] / [6.3, 57.7] 互相重叠、也和第 2 档分不开，「越连续越准」没有证据。
+# 所以 3 天以上并成一档（STREAK_PERF 里本来就有「≥3」那一行，是累计口径），表里和每只票都按它印。
+# 数据常量不动（update_perf 照旧改写五档），只在展示和取数这一层合并
+STREAK_TOP = 3
 BOARD_CN = {"main": "主板", "star": "科创", "chinext": "创业", "bj": "北交"}
 
 
@@ -133,6 +138,7 @@ def streak_perf(k: int) -> tuple[float, float]:
     算出来的 0% 印成某只票的「历史准确率」是在骗人 —— 成绩表里那几行本来就
     按 SMALL_N 灰掉了，这里必须用同一条线。
     """
+    k = min(k, STREAK_TOP)
     for need, hit, lift, n in STREAK_PERF:
         if k >= need and n >= SMALL_N:
             return hit, lift
@@ -531,6 +537,8 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
     # 30 个名额，6.7% 的区间宽到 2%~22%，不加区间会被当成「连续 5 天反而差」。
     rows = ""
     for k, hit, lift, n in STREAK_PERF:
+        if k > STREAK_TOP:
+            continue
         lo, hi = _wilson(hit, n)
         ci = "—" if lo != lo else f"{lo:.1f}~{hi:.1f}%"
         dim = ' style="color:#7c8794"' if n < SMALL_N else ""
