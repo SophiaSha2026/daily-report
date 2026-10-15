@@ -50,6 +50,7 @@ header a:hover{color:#e6e6e6}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 .dot.ok{background:#3fb950}.dot.bad{background:#f85149}.dot.warn{background:#d29922}
 .dot.idle{background:#484f58}
+.dot.ran{background:#3fb950}.dot.skip{background:#484f58}.dot.failed{background:#f85149}.dot.running{background:#4b8ef0}
 main{flex:1;display:flex;min-height:0}
 aside{width:300px;flex:none;overflow:auto;background:#1a1d23;
       border-right:1px solid #2a2f38;padding:4px 0 16px}
@@ -70,6 +71,9 @@ button.go:disabled{opacity:.45;cursor:not-allowed}
 section{flex:1;overflow:auto;padding:16px;min-width:0}
 h3{font-size:14px;margin:18px 0 8px;font-weight:600;display:flex;align-items:center;gap:10px}
 .hint{font-weight:400;color:#7d8590;font-size:12px}
+.sub{font-size:12px;color:#7d8590;margin:2px 0}.bad{color:#f85149}.warn{color:#d29922}
+.prop{border-top:1px solid #2a2e35;padding:8px 0;margin-top:6px}
+#tasks table td{vertical-align:top}#tasks button{padding:3px 10px;font-size:12px}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th{background:#1e2229;text-align:left;padding:6px 9px;border-bottom:1px solid #333;
    font-weight:600;white-space:nowrap}
@@ -117,6 +121,7 @@ summary{cursor:pointer;color:#8f9aa8;font-size:13px;margin-bottom:8px}
     <h3>输出 <span class="hint" id="joblbl"></span>
       <button class="go" id="stopbtn" hidden>停止</button></h3>
     <pre class="log" id="joblog">还没有</pre>
+    <details id="d-tasks" open><summary>计划任务 <span class="hint" id="taskhead"></span></summary><div id="tasks"></div></details>
     <details id="d-ai" open><summary>学习</summary><div id="ai"></div></details>
     <details id="d-sched"><summary>排期</summary><div id="sched"></div></details>
     <details id="d-log"><summary>自动运行日志</summary><pre class="log" id="flowlog"></pre></details>
@@ -217,7 +222,6 @@ function buildActs(list) {
   const pb = el("button", "go", "推送");
   pb.onclick = () => retryPush(pb);
   fix.appendChild(actRow(el("div", "nm", "重试推送"), "推送失败时用", "", pb));
-  const tk = el("div"); tk.id = "tasks"; fix.appendChild(tk);
 }
 
 function renderActs(a) {
@@ -225,7 +229,6 @@ function renderActs(a) {
   const box = $("#acts");
   if (!box.dataset.built) {
     buildActs(acts); box.dataset.built = "1";
-    if (lastStatus) renderTasks(lastStatus);
   }
   const running = new Set(a.running);
   box.querySelectorAll("button[data-key]").forEach(b => {
@@ -237,30 +240,48 @@ function renderActs(a) {
   }
 }
 
-function taskName(s, n) {
-  const l = s.lines.find(x => x.task === n);
-  return l ? l.name : (/Sync$/.test(n) ? "同步" : n);
+const FLOW_NM = { breakout: "起涨预测", pullback: "长期调整突破", sync: "同步远端" };
+async function loadTasks() {
+  try {
+    const t = await api("/api/tasks");
+    $("#taskhead").textContent = t.head;
+    $("#taskhead").className = "hint " + (t.ok ? "" : "bad");
+    const tb = el("table");
+    tb.innerHTML = "<tr><th>任务</th><th>状态</th><th>上次</th><th>结果</th><th>下次</th><th>最近敲门</th><th></th></tr>";
+    for (const r of t.rows) {
+      const tr = el("tr"), on = r.state === "Ready" || r.state === "Running";
+      tr.title = r.name + "\n" + (r.desc || "");
+      const dots = (r.history || []).map(h =>
+        `<span class="dot ${h.kind}" title="${esc(h.at + " " + h.text)}"></span>`).join("");
+      const last = (r.history || [])[0];
+      tr.innerHTML = `<td><b>${esc(FLOW_NM[r.flow] || r.name)}</b>${r.why ? `<div class="sub ${r.health}">${esc(r.why)}</div>` : ""}</td>`
+        + `<td>${r.registered ? esc(TASK_ST[r.state] || r.state) : "没注册"}</td>`
+        + `<td class="mono muted">${esc(r.last)}</td>`
+        + `<td class="mono">${r.never ? "没跑过" : esc(rcText(r.rc))}</td>`
+        + `<td class="mono muted">${esc(r.next)}</td>`
+        + `<td>${dots}${last ? `<div class="sub">${esc(last.text)}</div>` : ""}</td>`;
+      const td = el("td");
+      if (r.registered) {
+        const run = el("button", "go", "敲一次");
+        run.title = "和到点触发一样敲一次（带 --if-needed：不在开跑窗口或已经跑完就秒退）";
+        run.onclick = () => taskAct(r.name, "run", run);
+        const sw = el("button", "go", on ? "停用" : "启用");
+        sw.onclick = () => taskAct(r.name, on ? "disable" : "enable", sw);
+        td.appendChild(run); td.appendChild(document.createTextNode(" ")); td.appendChild(sw);
+      }
+      tr.appendChild(td); tb.appendChild(tr);
+    }
+    const box = $("#tasks"); box.innerHTML = ""; box.appendChild(tb);
+    const tip = el("div", "sub", "圆点是最近几次敲门（新的在左）：绿 = 真跑了，灰 = 秒退（已跑完 / 没到时刻），红 = 失败，蓝 = 在跑。定义在 tools/setup_tasks.ps1。");
+    box.appendChild(tip);
+  } catch (e) { $("#tasks").innerHTML = `<div class="sub">读不到：${esc(e)}</div>`; }
 }
-
-function renderTasks(s) {
-  const box = $("#tasks");
-  if (!box) return;
-  const names = Object.keys(s.tasks || {}).sort();
-  const sig = JSON.stringify(names.map(n => [n, s.tasks[n].state]));
-  if (box.dataset.sig === sig) return;
-  box.dataset.sig = sig; box.innerHTML = "";
-  names.forEach(n => {
-    const on = s.tasks[n].state === "Ready" || s.tasks[n].state === "Running";
-    const b = el("button", "go", on ? "停用" : "启用");
-    b.onclick = async () => {
-      b.disabled = true;
-      try { await api("/api/task", { name: n, enable: !on }); toast("已改"); }
-      catch (e) { toast(e.message); }
-      finally { b.disabled = false; refresh(); }
-    };
-    box.appendChild(actRow(el("div", "nm", "计划任务 · " + taskName(s, n)),
-      on ? "启用中" : "已停用", n, b));
-  });
+async function taskAct(name, action, b) {
+  if (action === "disable" && !confirm("停用后到点不会自动跑，确定？")) return;
+  b.disabled = true;
+  try { await api("/api/task", { name, action }); toast(action === "run" ? "已敲一次" : "已改"); }
+  catch (e) { toast(e.message); }
+  finally { b.disabled = false; setTimeout(loadTasks, 1500); }
 }
 
 async function retryPush(b) {
@@ -336,22 +357,7 @@ const TASK_ST = { Ready: "启用", Running: "在跑", Disabled: "停用" };
 
 function renderSched(s) {
   const box = $("#sched"); box.innerHTML = "";
-  const t = el("table");
-  t.innerHTML = "<tr><th>计划任务</th><th>状态</th><th>上次</th><th>结果</th><th>下次</th></tr>";
-  const names = Object.keys(s.tasks || {}).sort();
-  if (!names.length) t.innerHTML += '<tr><td colspan="5" class="muted">查不到</td></tr>';
-  names.forEach(n => {
-    const d = s.tasks[n], tr = el("tr");
-    tr.title = n;
-    tr.innerHTML = `<td>${esc(taskName(s, n))}</td><td>${esc(TASK_ST[d.state] || d.state)}</td>` +
-      `<td class="mono muted">${esc(d.last)}</td>` +
-      `<td class="mono">${d.never ? "没跑过" : rcText(d.rc)}</td>` +
-      `<td class="mono muted">${esc(d.next)}</td>`;
-    t.appendChild(tr);
-  });
-  box.appendChild(t);
   const r = s.rules || {}, t2 = el("table");
-  t2.style.marginTop = "10px";
   t2.innerHTML = "<tr><th></th><th>开跑窗口</th><th>自动开跑</th><th>现在触发会怎样</th></tr>";
   (r.lines || []).forEach(x => {
     const tr = el("tr");
@@ -420,6 +426,7 @@ async function refresh() {
   try {
     const s = await api("/api/status");
     loadAi();
+    loadTasks();
     lastStatus = s;
     $("#clock").textContent = "北京 " + s.bj;
     const bad = !s.sync.ok || (s.cloud_cron_live || []).length;
@@ -430,7 +437,7 @@ async function refresh() {
       : (undone ? '<span class="dot warn"></span>' + undone + " 条线还没跑"
         : (s.weekend ? '<span class="dot idle"></span>周末'
           : '<span class="dot ok"></span>正常'));
-    renderSum(s); renderTasks(s);
+    renderSum(s);
     if ($("#d-sched").open) renderSched(s);
   } catch (e) { $("#health").textContent = "状态获取失败"; }
 }

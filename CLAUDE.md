@@ -158,7 +158,9 @@ src/
   gui/learn.py           「学习」卡片：模型年龄 / 到期 / 重训验收 / 验证集和实发效果 / 漂移 + 等你决定的事
                          （AI 提案同意 / 不同意、到期时现在重学 = 按钮 learn_now）。首页和 /full 都有
   gui/jobs.py            按钮表 ACTIONS（group = 跑 / 查 / 修，no 只排序不显示，hidden 不画）+ 子进程任务
-  gui/status.py          状态汇总：流程 / 同步 / 排期 / 面板四类信号
+  gui/status.py          状态汇总：流程 / 同步 / 排期 / 面板四类信号；tasks_panel 是计划任务区块
+                         （应有的任务从 tools/setup_tasks.ps1 读、实际注册的、最近几次敲门、健康判断，
+                         /api/tasks；启用 / 停用 / 敲一次走 /api/task）。断网看同步任务最近一次成功，不看推送时间
   selftest_gui.py        控制台和编排层的接线自测
 .github/workflows/       只有 evening_check 带 cron
   pages.yml              9-发布面板：推送了 out_breakout / out_pullback 的面板就发布

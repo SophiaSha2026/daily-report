@@ -146,6 +146,10 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/chat":
             return self._html(CHAT_PAGE.replace("__TOKEN__", TOKEN))
 
+        if p == "/api/tasks":
+            # 计划任务区块（gui/status.tasks_panel）：应有哪些、实际注册了哪些、状态、最近几次敲门
+            return self._json(status.tasks_panel())
+
         if p == "/api/learn":
             # 「学习」卡片（gui/learn.py）+ 最近一次 AI 复盘 + 用量。只读
             from . import learn
@@ -387,7 +391,13 @@ class Handler(BaseHTTPRequestHandler):
         if (not re.fullmatch(r"DailyReport-[A-Za-z0-9_-]+", name)
                 or name not in status.scheduled_tasks()):
             return self._json({"error": "只允许操作 DailyReport-* 任务"}, 403)
-        verb = "Enable" if body.get("enable") else "Disable"
+        # action：enable / disable / run（立即敲一次 = Start-ScheduledTask，和到点触发走同一个入口，
+        # run_local.cmd 带 --if-needed，不在窗口或已跑完照样秒退）。旧调用只传 enable 布尔，兼容
+        action = str(body.get("action") or ("enable" if body.get("enable") else "disable"))
+        verbs = {"enable": "Enable", "disable": "Disable", "run": "Start"}
+        if action not in verbs:
+            return self._json({"error": "action 只能是 enable / disable / run"}, 400)
+        verb = verbs[action]
         r = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command",
              f"{verb}-ScheduledTask -TaskName '{name}' | Out-Null"],

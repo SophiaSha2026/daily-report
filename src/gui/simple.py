@@ -5,7 +5,7 @@
     两条线各一张卡片：名称 / 状态词 / 一句话 / 跑按钮，在跑时才有进度条
     查一只股票：输入框 + 预测按钮 + AI 讨论（开 /chat，2026-10-13 从「AI 分析」升级）
     学习：一句话状态 + 等你决定的事（同意 / 不同意 / 现在重学）+ 问 AI（gui/learn.py，2026-10-13）
-    一行系统状态：下次开机、插没插电、推送成没成
+    一行系统状态：下次开机、插没插电、计划任务（/api/tasks，红了链到 /full 的计划任务区块）、推送成没成
     一张小图：起涨预测每份清单的命中数
 全部北京时间。详细控制台在 /full。
 
@@ -472,6 +472,8 @@ function pills(s){
   else if(w.start) p.push(`<span class="pill">下次开机 ${esc(w.start)}–${esc(w.end)}</span>`);
   if(pw.has_battery) p.push(pw.plugged?`<span class="pill ok">插着电</span>`
     :`<span class="pill bad">没插电 ${pw.pct??""}%</span>`);
+  if(tasks) p.push(tasks.ok?`<a class="pill ok" href="/full?token=${TOKEN}#d-tasks">计划任务正常</a>`
+    :`<a class="pill bad" href="/full?token=${TOKEN}#d-tasks">${esc(tasks.head)}</a>`);
   if(push===false) p.push(`<a class="pill bad" href="/full?token=${TOKEN}">推送失败</a>`);
   else if(push===true) p.push(`<span class="pill ok">推送正常</span>`);
   const ai=s.ai||{};
@@ -557,9 +559,14 @@ async function load(){
     snap=s;lines(s);pills(s);chart(s.charts.lists||[]);
   }catch(e){}
 }
+let tasks=null;
+async function loadTasks(){
+  try{tasks=await (await fetch("/api/tasks")).json();if(snap)pills(snap)}catch(e){}
+}
 async function loadPush(){
   try{const s=await (await fetch("/api/status")).json();push=s.sync.last_push_ok;if(snap)pills(snap)}
   catch(e){}
 }
-load();loadPush();learn();setInterval(load,5000);setInterval(loadPush,60000);setInterval(learn,60000);
+load();loadPush();learn();loadTasks();setInterval(load,5000);setInterval(loadPush,60000);setInterval(learn,60000);
+setInterval(loadTasks,60000);
 </script></body></html>"""

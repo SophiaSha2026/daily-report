@@ -1318,6 +1318,13 @@ def check_http() -> None:
             ck(code == 200 and len(ps_calls) == 1
                and "-TaskName 'DailyReport-Local-Sync'" in ps_calls[0][0][-1],
                "白名单里的任务照常放行，命令串里只有这个名字")
+            code, _ = call("/api/task", "POST", token=server.TOKEN,
+                           body={"name": "DailyReport-Local-Sync", "action": "run"})
+            ck(code == 200 and len(ps_calls) == 2 and ps_calls[1][0][-1].startswith("Start-ScheduledTask"),
+               "「敲一次」走 Start-ScheduledTask，同一道白名单")
+            code, _ = call("/api/task", "POST", token=server.TOKEN,
+                           body={"name": "DailyReport-Local-Sync", "action": "delete"})
+            ck(code == 400 and len(ps_calls) == 2, "不认识的 action 拒绝，powershell 不起")
         finally:
             _sp.run = orig_run
             st.scheduled_tasks = lambda force=False: {}
@@ -2570,25 +2577,36 @@ def check_ai_wiring() -> None:
 
 
 def check_push_stale() -> None:
-    """推送状态陈旧要算不正常（AI 复盘 2026-10-09 抓到：断网 30 小时界面照样绿）。"""
-    print("\n[推送状态·陈旧]")
+    """断网检测看同步任务最近一次成功，不看推送时间（AI 复盘 2026-10-09 抓到断网 30 小时界面照样绿；
+    10-11 第一版拿推送时间判，白天没流程时必然误报，10-15 改）。"""
+    print("\n[同步·陈旧]")
+    import datetime as _dt
     import json
     import tempfile
     from gui import status as st
     real = st.ROOT
     tmp = Path(tempfile.mkdtemp(prefix="push_"))
     (tmp / "state").mkdir()
+    (tmp / "tools").mkdir()
     st.ROOT = tmp
+    log = tmp / "tools" / "local_flow_sync.log"
+
+    def sync_at(delta):
+        t = (st.now_bj() - delta).strftime("%Y-%m-%dT%H:%M:%S")
+        log.write_text(f"[{t}] === run_local sync ===\n[{t}] === run_local sync exit=0 === \n", encoding="utf-8")
     try:
-        fresh = (st.now_bj() - __import__("datetime").timedelta(minutes=10)).isoformat(timespec="seconds")
-        (tmp / "state" / "push_status.json").write_text(json.dumps({"ok": True, "at": fresh}), encoding="utf-8")
+        old_push = (st.now_bj() - _dt.timedelta(hours=10)).isoformat(timespec="seconds")
+        (tmp / "state" / "push_status.json").write_text(json.dumps({"ok": True, "at": old_push}), encoding="utf-8")
+        sync_at(_dt.timedelta(minutes=10))
         s1 = st.sync_status()
-        ck(s1["last_push_ok"] is True and (s1.get("push_stale_min") or 0) < 90, "10 分钟前推送成功：正常")
-        old = (st.now_bj() - __import__("datetime").timedelta(hours=30)).isoformat(timespec="seconds")
-        (tmp / "state" / "push_status.json").write_text(json.dumps({"ok": True, "at": old}), encoding="utf-8")
+        ck(s1["last_push_ok"] is True and not any("同步任务" in p for p in s1.get("problems", [])),
+           "推送是 10 小时前、同步 10 分钟前成功：正常（白天没流程推送是常态，不误报）")
+        sync_at(_dt.timedelta(hours=30))
         s2 = st.sync_status()
-        ck(s2["last_push_ok"] is False and any("没更新" in p for p in s2.get("problems", [])),
-           "30 小时没更新：last_push_ok 变 False 并有一句说明")
+        ck(s2["last_push_ok"] is False and any("没成功过" in p for p in s2.get("problems", [])),
+           "同步 30 小时没成功：last_push_ok 变 False 并有一句说明")
+        log.unlink()
+        ck(st.sync_status()["sync_stale_min"] is None, "没有同步日志就不判")
     finally:
         st.ROOT = real
 
@@ -2736,6 +2754,55 @@ def check_ai_chat() -> None:
        "学习卡给一句状态 + 等你决定的事（提案 / 重学）")
 
 
+def check_tasks_panel() -> None:
+    """计划任务区块（2026-10-15）：应有的任务从 setup_tasks.ps1 读；敲门历史分类；健康判断。"""
+    print("\n[计划任务区块]")
+    import tempfile
+    from gui import status as st
+    exp = st.expected_tasks()
+    ck({e["name"]: e["flow"] for e in exp} == {"DailyReport-Local-Evening": "breakout",
+                                                "DailyReport-Local-Pullback": "pullback",
+                                                "DailyReport-Local-Sync": "sync"},
+       f"应有的任务从 tools/setup_tasks.ps1 的 $defs 读出来（实得 {[e['name'] for e in exp]}）")
+    tmp = Path(tempfile.mkdtemp(prefix="tasks_"))
+    (tmp / "tools").mkdir()
+    (tmp / "tools" / "local_flow_breakout.log").write_text(
+        "[2026-10-15T07:00:01] === run_local breakout ===\n"
+        "07:00:03 起涨预测：目标日 2026-10-14 已经跑完，跳过\n"
+        "[2026-10-15T07:00:04] === run_local breakout exit=0 === \n"
+        "[2026-10-15T16:30:01] === run_local breakout ===\n"
+        "16:30:02 起涨预测 本地全流程 开始\n"
+        "[2026-10-15T16:50:01] === run_local breakout exit=1 === \n"
+        "[2026-10-15T17:00:01] === run_local breakout ===\n", encoding="utf-8")
+    real_root, real_tasks = st.ROOT, st.scheduled_tasks
+    st.ROOT = tmp
+    try:
+        h = st.task_history("breakout")
+        ck([x["kind"] for x in h] == ["running", "failed", "skip"] and h[2]["text"] == "目标日 10-14 已经跑完",
+           f"敲门历史：新的在前，在跑 / 失败 / 秒退分得开，跳过原因缩成一句（实得 {[(x['kind'], x['text']) for x in h]}）")
+        (tmp / "tools" / "setup_tasks.ps1").write_text(
+            (real_root / "tools" / "setup_tasks.ps1").read_text(encoding="utf-8"), encoding="utf-8")
+        st.scheduled_tasks = lambda force=False: {
+            "DailyReport-Local-Evening": {"state": "Ready", "rc": 0, "last": "10-15 17:00", "next": "10-15 17:30"},
+            "DailyReport-Local-Pullback": {"state": "Disabled", "rc": 0, "last": "", "next": ""},
+            "DailyReport-Local-Old": {"state": "Ready", "rc": 0, "last": "", "next": "x"}}
+        p = st.tasks_panel()
+        hl = {r["name"]: (r["health"], r["why"]) for r in p["rows"]}
+        ck(hl["DailyReport-Local-Evening"][0] == "bad" and "失败" in hl["DailyReport-Local-Evening"][1],
+           "上次敲门失败 -> 红")
+        ck(hl["DailyReport-Local-Pullback"][0] == "warn", "停用 -> 黄")
+        ck(hl["DailyReport-Local-Sync"][0] == "bad" and "没注册" in hl["DailyReport-Local-Sync"][1],
+           "脚本里有、Windows 上没注册 -> 红，并说怎么修")
+        ck("DailyReport-Local-Old" in hl, "Windows 上有、脚本里没有的也列出来（停线没停干净，教训 24）")
+        ck(not p["ok"] and p["head"].startswith("计划任务："), "有问题时 headline 写哪个任务什么问题（首页那颗灯读它）")
+        st.scheduled_tasks = lambda force=False: {
+            e["name"]: {"state": "Ready", "rc": 0, "last": "1", "next": "2"} for e in exp}
+        (tmp / "tools" / "local_flow_breakout.log").unlink()
+        ck(st.tasks_panel()["ok"], "都正常 -> 绿")
+    finally:
+        st.ROOT, st.scheduled_tasks = real_root, real_tasks
+
+
 def check_refit_chain_wiring() -> None:
     """月度重估链（计划 3.6）：模型到期那天在打分之前跑，有时限，失败不挡发信。"""
     print("\n[月度重估链·接线]")
@@ -2800,6 +2867,7 @@ def main() -> int:
     check_frontend_backend_alignment()
     check_ai_wiring()
     check_ai_chat()
+    check_tasks_panel()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")

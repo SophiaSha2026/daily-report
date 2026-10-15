@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 import datetime as dt
@@ -171,6 +172,130 @@ def scheduled_tasks(force: bool = False) -> dict:
     return out
 
 
+# ---------------------------------------------------------------------
+#  计划任务面板（2026-10-15 用户：要能便捷地管理和查看计划任务的状态）
+#
+# 以前计划任务散在两处：启停按钮在「修」组最底下，状态表折叠在「排期」里，首页看不到。
+# 现在一个区块：应该有哪些任务（从 tools/setup_tasks.ps1 的 $defs 读，脚本是唯一定义）、
+# Windows 上实际注册了哪些、每个的状态 / 上次 / 结果 / 下次、最近几次敲门各是什么结果
+# （读 tools/local_flow_<线>.log，run_local.cmd 每次敲门写一段），以及一句健康判断。
+# 首页那颗灯读 headline。
+# ---------------------------------------------------------------------
+TASK_PREFIX = "DailyReport-Local-"
+# Windows 计划任务的结果码里「不是失败」的几个：0 成功、267009 正在运行、
+# 2147946720（0x800710E0）实例已在跑被忽略（IgnoreNew，正常）
+TASK_RC_OK = {0, 267009, 2147946720}
+
+
+def expected_tasks() -> list[dict]:
+    """tools/setup_tasks.ps1 里 $defs 定义的任务：[{name, flow, desc}]。读不到返回空。"""
+    try:
+        src = (ROOT / "tools" / "setup_tasks.ps1").read_text(encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        return []
+    body = src.split("$defs = @{", 1)[-1]
+    out = []
+    for m in re.finditer(r'^\s{4}(\w+) = @\{(.*?)^\s{4}\}', body, re.S | re.M):
+        flow = re.search(r'Flow = "(\w+)"', m.group(2))
+        desc = re.search(r'Desc = "([^"]*)"', m.group(2))
+        out.append({"name": TASK_PREFIX + m.group(1), "flow": flow.group(1) if flow else "",
+                    "desc": desc.group(1) if desc else ""})
+    return out
+
+
+def task_history(flow: str, n: int = 8) -> list[dict]:
+    """最近 n 次敲门：[{at, rc, kind, text}]，新的在前。kind = skip / ran / failed / running。
+
+    run_local.cmd 每次写「[时刻] === run_local <线> ===」开头、「... exit=N ===」结尾的一段；
+    里面有「跳过」的是秒退的敲门，有「本地全流程」的是真跑了一次。
+    """
+    p = ROOT / "tools" / f"local_flow_{flow}.log"
+    if not flow or not p.exists():
+        return []
+    try:
+        txt = p.read_text(encoding="utf-8", errors="replace")[-200_000:]
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for b in re.split(r"\n(?=\[[\d\-T:]+\] === run_local \w+ ===)", txt):
+        m = re.match(r"\[([\d\-T:]+)\] === run_local \w+ ===", b.strip())
+        if not m:
+            continue
+        e = re.search(r"=== run_local \w+ exit=(\d+) ===", b)
+        rc = int(e.group(1)) if e else None
+        sk = re.search(r"跳过[：:]?\s*(.*)$|，跳过|跳过", b, re.M)
+        if rc is None:
+            kind, text = "running", "在跑（或被打断）"
+        elif rc != 0:
+            kind, text = "failed", f"退出码 {rc}"
+        elif "本地全流程" in b or flow == "sync":
+            kind, text = "ran", "跑完" if flow != "sync" else "同步完"
+        elif sk:
+            line = next((ln for ln in b.splitlines() if "跳过" in ln), "")
+            # 「08:30:03 起涨预测：目标日 2026-10-14 已经跑完，跳过」-> 「目标日 10-14 已经跑完」
+            line = re.sub(r"^\S+\s+", "", line).split("：", 1)[-1]
+            line = re.sub(r"20\d\d-", "", line.replace("，跳过", "").replace("跳过", "")).strip(" ，")
+            kind, text = "skip", line[:30] or "跳过"
+        else:
+            kind, text = "skip", "没到时刻"
+        out.append({"at": m.group(1)[5:16].replace("T", " "), "rc": rc, "kind": kind, "text": text})
+    return out[::-1][:n]
+
+
+def _sync_stale_min() -> int | None:
+    """同步任务最近一次成功（exit=0）到现在多少分钟；没有同步日志就 None（不判）。"""
+    p = ROOT / "tools" / "local_flow_sync.log"
+    if not p.exists():
+        return None
+    try:
+        txt = p.read_text(encoding="utf-8", errors="replace")[-100_000:]
+        ts = re.findall(r"\[([\d\-T:]+)\] === run_local sync exit=0 ===", txt)
+        if not ts:
+            return None
+        at = dt.datetime.fromisoformat(ts[-1]).replace(tzinfo=BJ)     # run_local.cmd 写的是北京时间
+        return int((now_bj() - at).total_seconds() // 60)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def tasks_panel() -> dict:
+    """计划任务区块的全部数据 + 一句 headline（首页那颗灯）。"""
+    reg = scheduled_tasks()
+    exp = expected_tasks()
+    names = [e["name"] for e in exp]
+    rows = []
+    for e in exp + [{"name": k, "flow": "", "desc": "不在 tools/setup_tasks.ps1 里"}
+                    for k in sorted(reg) if k not in names]:
+        t = reg.get(e["name"])
+        r = {**e, "registered": bool(t), "state": (t or {}).get("state", ""),
+             "last": (t or {}).get("last", ""), "next": (t or {}).get("next", ""),
+             "rc": (t or {}).get("rc"), "never": bool((t or {}).get("never")),
+             "history": task_history(e["flow"])}
+        done = [h for h in r["history"] if h["kind"] != "running"]
+        if not t:
+            r["health"], r["why"] = "bad", "没注册（跑 tools/setup_tasks.ps1）"
+        elif r["state"] == "Disabled":
+            r["health"], r["why"] = "warn", "已停用，不会自动跑"
+        elif r["rc"] is not None and r["rc"] not in TASK_RC_OK:
+            r["health"], r["why"] = "bad", f"上次结果码 {r['rc']}"
+        elif done and done[0]["kind"] == "failed":
+            # 看最近一次「跑完的」敲门：最新那次还在跑时，前一次的失败不能被它盖住
+            r["health"], r["why"] = "bad", f"上次敲门失败（{done[0]['text']}）"
+        elif not r["next"] and r["state"] != "Running":
+            r["health"], r["why"] = "warn", "没有下次运行时间"
+        else:
+            r["health"], r["why"] = "ok", ""
+        rows.append(r)
+    bad = [r for r in rows if r["health"] != "ok"]
+    if not rows:
+        head = "查不到计划任务"
+    elif not bad:
+        head = f"{len(rows)} 个计划任务正常"
+    else:
+        head = "计划任务：" + "；".join(f"{r['name'].replace(TASK_PREFIX, '')} {r['why']}" for r in bad[:2])
+    return {"head": head, "ok": bool(rows) and not bad, "rows": rows}
+
+
 # 总览页每 5 秒刷一次，但 git fetch 是要打网络的，不该跟着刷。
 # ahead/behind 本身是本地计算，快，每次都算。
 _fetch_at = {"t": 0.0}
@@ -194,18 +319,13 @@ def sync_status() -> dict:
     problems = []
     if push and not push.get("ok"):
         problems.append(f"上次推送失败：{(push.get('detail') or '')[:120]}")
-    # 同步任务每 30 分钟一次；push_status 超过 90 分钟没更新，说明同步一直没跑成
-    # （2026-10-09 断网 30 小时，界面照样显「推送正常」，AI 复盘抓到的）。
-    # 只在开市窗口外也成立：同步任务是全天每 30 分钟，不分交易日
-    stale_min = None
-    try:
-        at = dt.datetime.fromisoformat(str(push.get("at", "")))
-        at = at if at.tzinfo else at.replace(tzinfo=BJ)
-        stale_min = int((now_bj() - at).total_seconds() // 60)
-        if stale_min > 90:
-            problems.append(f"推送状态 {stale_min // 60} 小时没更新（同步任务可能一直失败，常见原因是断网）")
-    except Exception:  # noqa: BLE001
-        pass
+    # 断网检测（2026-10-09 断网 30 小时，界面照样显「推送正常」，AI 复盘抓到的）。
+    # 2026-10-11 第一版拿 push_status 的时间判陈旧，是错的：push_status 只有流程推送时才写，
+    # 同步任务只拉不推，白天没有流程时超过 90 分钟必然误报（10-15 首页整天红着「推送失败」）。
+    # 现在看同步任务最近一次成功的时间：它全天每 30 分钟一次，90 分钟没成功一次才是真的连不上
+    stale_min = _sync_stale_min()
+    if stale_min is not None and stale_min > 90:
+        problems.append(f"同步任务 {stale_min // 60} 小时 {stale_min % 60} 分没成功过（常见原因是断网或机器睡着）")
     if ahead.isdigit() and int(ahead) > 0:
         problems.append(f"本地有 {ahead} 个 commit 没推上去")
     if behind.isdigit() and int(behind) > 0:
@@ -220,9 +340,9 @@ def sync_status() -> dict:
         "dirty": len([x for x in dirty.splitlines() if x.strip()]),
         # push_status 的 at 是北京时间的 ISO 串（local_run 写），界面只印「月-日 时:分」
         "last_push": _mdhm(push.get("at", "")),
-        # 陈旧也算不正常：首页那颗「推送正常」的绿点读的就是这个字段
+        # 同步一直没成功也算不正常：首页那颗「推送正常」的绿点读的就是这个字段
         "last_push_ok": (push.get("ok") if push else None) and not (stale_min is not None and stale_min > 90),
-        "push_stale_min": stale_min,
+        "sync_stale_min": stale_min,
         "last_push_msg": push.get("msg", ""),
     }
 
