@@ -1,0 +1,22 @@
+族内最大 t（本轮 20 条序列，387 天）：q95 单侧 2.69，q90 2.40，有效试验数 5.4，平均 |相关| 0.29
+本轮登记簿试验数 27，单侧 Bonferroni 门槛 2.90
+  feat_seeds:a158_s9                 NW t  2.39  族内 FWER p 0.103
+  feat_seeds:a158_s10                NW t  2.68  族内 FWER p 0.052
+  feat_seeds:a158_s11                NW t  2.03  族内 FWER p 0.205
+  feat_seeds:bag3_a158               NW t  2.28  族内 FWER p 0.127
+  feat_decomp:prod_rank              NW t  0.96  族内 FWER p 0.769
+  feat_decomp:base_pv                NW t  2.30  族内 FWER p 0.121
+  feat_decomp:pv_only                NW t  1.95  族内 FWER p 0.229
+  feat_decomp:rank_pv                NW t  1.56  族内 FWER p 0.420
+  feat_decomp:coarse_a158            NW t  2.01  族内 FWER p 0.211
+  feat_fam_v1:a158_on                NW t  1.69  族内 FWER p 0.361
+  feat_fam_v1:a158_vc                NW t  1.62  族内 FWER p 0.395
+  feat_fam_v1:a158_hi                NW t  1.29  族内 FWER p 0.595
+  feat_fam_v1:a158_ext               NW t -0.57  族内 FWER p 1.000
+  feat_fam_v1:a158_turn              NW t -1.30  族内 FWER p 1.000
+  feat_fam_v1:a158_rm                NW t -1.09  族内 FWER p 1.000
+  feat_fam_v1:a158_amp               NW t  0.94  族内 FWER p 0.779
+  feat_comb_v1:comb_all              NW t  0.83  族内 FWER p 0.827
+  feat_comb_v1:comb_sel              NW t  1.82  族内 FWER p 0.289
+  feat_comb_v1:comb_sel_cs4          NW t  2.11  族内 FWER p 0.177
+  feat_final_v1:cand_s7              NW t  2.82  族内 FWER p 0.036

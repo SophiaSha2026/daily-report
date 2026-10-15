@@ -1,0 +1,51 @@
+{"family": "breakout_y50_top10", "exp": 15, "arm": "boost3", "ctrl": "base", "span": "val", "label": "y_up", "t_iid_reported": -0.15, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "hl3", "ctrl": "base", "span": "val", "label": "y_up", "t_iid_reported": 0.8, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "hl6", "ctrl": "base", "span": "val", "label": "y_up", "t_iid_reported": 2.0, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "hl12", "ctrl": "base", "span": "val", "label": "y_up", "t_iid_reported": 2.59, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "eqm", "ctrl": "base", "span": "val", "label": "y_up", "t_iid_reported": 4.5, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "roll3", "ctrl": "base", "span": "val", "label": "y_up", "t_iid_reported": -1.77, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "roll6", "ctrl": "base", "span": "val", "label": "y_up", "t_iid_reported": -0.7, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "roll12", "ctrl": "base", "span": "val", "label": "y_up", "t_iid_reported": -0.13, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "ens_win", "ctrl": "base", "span": "val", "label": "y_up", "t_iid_reported": 4.1, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "ens_dec", "ctrl": "base", "span": "val", "label": "y_up", "t_iid_reported": 4.03, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "open", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": 0.0, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "open_dd", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -1.77, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "allneg", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -4.72, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "bag5", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -0.16, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "f3", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -1.43, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "f5", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -0.17, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "f35", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": 0.05, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "rank", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -1.82, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "rank_f35", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -1.24, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "hist_2023", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": 1.28, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "hist_all", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -1.21, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "g1", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -3.63, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "g2", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": 1.05, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "g12", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -2.75, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "tail", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -3.61, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "tail_blend", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -0.87, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "tail_g12", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -4.2, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 16, "arm": "tail_g12_blend", "ctrl": "base", "span": "val", "label": "y_open", "t_iid_reported": -3.23, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 17, "arm": "avg3", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": 0.94, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 18, "arm": "g2", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": 1.14, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 18, "arm": "hp_l15", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": -1.49, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 18, "arm": "hp_l63", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": -0.65, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 18, "arm": "hp_mc400", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": -1.4, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 18, "arm": "hp_lr02", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": -0.89, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 18, "arm": "hp_cs05", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": -0.62, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 18, "arm": "nostar", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": 0.51, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 18, "arm": "g2", "ctrl": "base", "span": "since25", "label": "y_open", "t_iid_reported": 2.08, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 21, "arm": "base_re", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": 0.73, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 21, "arm": "y20", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": -1.48, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 21, "arm": "y20_blend", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": 0.75, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 21, "arm": "lr_blend", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": -1.43, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 21, "arm": "pool_small", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": -2.98, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_prodrule", "exp": 21, "arm": "thr98", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": 1.79, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_prodrule", "exp": 21, "arm": "adj_open", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": 0.19, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_prodrule", "exp": 21, "arm": "thr98_open", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": 1.55, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_prodrule", "exp": 21, "arm": "adj_close", "ctrl": "base", "span": "dev", "label": "y_open", "t_iid_reported": 0.61, "source": "backfill 2026-10-14"}
+{"family": "cont_y15", "exp": 19, "arm": "model", "ctrl": "rule", "span": "cont", "label": "y_cont", "t_iid_reported": -1.99, "source": "backfill 2026-10-14"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "滚动分数线校准（base / eqm 两个）", "count": 2, "source": "backfill 2026-10-14（无逐日产物）"}
+{"family": "breakout_y50_top10", "exp": 15, "arm": "环境门控信号（7 个，三档 + 诚实规则）", "count": 7, "source": "backfill 2026-10-14（无逐日产物）"}
+{"family": "breakout_y50_top10", "exp": 17, "arm": "roll 滚动刻度", "count": 1, "source": "backfill 2026-10-14（无逐日产物）"}
+{"family": "breakout_y50_diag", "exp": 20, "arm": "诊断切片：名次 8 档 / 分数 7 档 / 板块 4 / 在动 3 / 连续 4 / 市值 4（HIGH_CONF 从这里挑出来）", "count": 30, "source": "backfill 2026-10-14（无逐日产物）"}

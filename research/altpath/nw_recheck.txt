@@ -1,0 +1,2 @@
+eqm 对 base（y_up，207 天）：+3.57pp 按天 t=4.50 NW(20) t=3.32
+eqm 对 base（y_open，207 天）：+3.04pp 按天 t=3.81 NW(20) t=2.55

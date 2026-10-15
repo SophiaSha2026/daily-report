@@ -1,0 +1,506 @@
+特征文献调研目录（research/features/catalog.json 的说明，2026-10-15）
+
+目标：次日开盘买入后 20 个交易日内最高价涨超 50%（买得到口径，次日一字不可买）。
+这是右尾概率预测，不是收益排序。文献里「对均值收益为负」的彩票类因子（MAX、偏度、特质波动、
+低价、小盘），对「右尾概率」应当是正向的，方向交给模型学，不要照搬文献的符号。
+
+可用数据：daily.parquet 的 open high low close（前复权）、volume amount（原值）、turnover、
+outstanding_share（逐日流通股本），股东户数（按公告日），自算筹码，板块。
+
+一、怎么读 catalog.json
+
+每条因子的字段：
+  id / rank      id 按族排；rank 是总排序（1~41），priority 3 的统一记 42，不建议先做
+  family         族（A~J）
+  formula        公式。记号见 notation：r 日收益，ovn 隔夜 O/C_{t-1}-1，intra 日内 C/O-1，
+                 TR 换手率，FS 流通股本，mkt 当日全市场等权均值，brd 同板块均值，rank_cs 当日全市场排名
+  windows        建议窗口（交易日）
+  source_url     出处（论文页 / 公式表 / 复现代码）
+  verified       出处核到哪一层：公式表或复现代码已读 / 摘要级 / 据记忆待核对 / 自拟
+  rationale      经济含义，以及和「20 天涨 50%」的关系
+  overlap        和 Alpha158（altpath 已做的 142 列）与生产 40~50 列的重叠判断
+  cost           计算成本
+  lookahead_risk 偷看风险（全部只用 t 日收盘及以前）
+  priority       1 先做 / 2 第二批 / 3 重叠高或理由弱
+
+二、三条通用的口径约束（实现时必须守）
+
+1. 量能一律用换手率 TR，不用成交股数 V。V 是原值，送转日整段跳升，会伪造放量（features.py 注释、教训同源）。
+2. 不要用前复权的绝对价位（1/close、价位水平、C×FS 当市值）。前复权价会被之后的分红送转整体改写，
+   等于把未来的除权信息带进历史。需要价位和市值时用 AMT/V（当天不复权均价）。
+3. VWAP = AMT/V 是不复权价，不能和前复权的 C 直接比（altpath 因此删了 VWAP0）。WQ101 和国君 191 里
+   带 VWAP 的公式一律改用典型价 (H+L+C)/3，或只在窗口内不跨除权日时用 VWAP 自身的比值。
+
+三、三个因子库的处理结论
+
+WorldQuant 101（Kakushadze 2016，arXiv 1601.00991；公式取自 yli188 复现代码注释，逐条对过原式）：
+  平均持有期 0.6~6.4 天，是超短周期的均值回归 / 量价相关组合，和 20 天右尾目标关系弱。101 条里 48 条用到
+  VWAP 或 IndNeutralize（其中 18 条要行业中性化，我们没有时点一致的行业），另有大量 rank(correlation(...)) 的量价相关，
+  和 Alpha158 的 CORR / CORD 同类（altpath 已证量能族无增益）。只收了 #101（收盘强度）和 #55（区间位置与量的相关）
+  两条做对照，都在 priority 3。
+
+国泰君安 191（2014 年研报《基于短周期价量特征的多因子选股体系》；公式取自 wukan1986/alpha_examples 的 alpha191.txt）：
+  大部分是 WQ101 的变体或经典技术指标（RSI、KDJ、BR/AR、CCI、MACD、ADX）。191 条里 4 条要基准指数（#75、149、181、182），
+  #30 要 FF 三因子，另有 12 条在该公式表里因算子（REGBETA / SUMAC / SUMIF / 递归 SELF）未实现而注释掉；
+  可用的 174 条里 36 条带 VWAP。收进来的：#23（相对波动指数，上行半方差）、#11/#60（CLV 加权累计）、
+  #109 / #188（振幅加速 / 冲击）、#118（开盘后上攻力度）、#110（类 BR）、#144（Amihud 下跌日版）、#166（偏度）。
+  其余和 Alpha158 的 ROC / MA / RSV / CNTP / SUMP 重叠或只差一个平滑方式。
+
+qlib Alpha158 / Alpha360（qlib/contrib/data/loader.py 已读）：
+  Alpha158 = K 线 9 列 + 价格 4 列 + 29 个算子 × 窗口 5/10/20/30/60，altpath 已全做（去掉 VWAP0）。
+  它没有：隔夜 / 日内拆分、三阶四阶矩、日收益极值、对市场的残差、市值和价位、换手率自身分位、
+  60 日以上窗口、按价位或振幅切割的统计量。下面的目录主要就是补这几块。
+  Alpha360 是 60 天原始序列（价除以今日收盘、量除以今日量），给序列模型用，列为 priority 3。
+
+四、按族的目录（rank 升序）
+
+【A_隔夜日内分离】8 条
+  F001 ovn_mom（priority 1，rank 5，窗口 [5, 20, 60]）
+    公式：MEAN(ovn, d)，ovn_t = O_t/C_{t-1}-1
+    含义：Lou, Polk, Skouras (2019 JFE)：隔夜和日内收益各自多年持续、互相反转；动量利润几乎全在隔夜，隔夜由散户 / 开盘集合竞价推动。妖股启动前常见连续高开（散户追价在竞价里体现），隔夜累计是「散户关注度」的日线代理。
+    重叠：Alpha158 只有当天 OPEN0=O/C，没有隔夜累计；生产特征没有。不重叠。
+    成本：低（一次滚动均值）；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://personal.lse.ac.uk/polk/research/TugOfWar.pdf（学术；摘要级（概念和方向已核，公式按定义写））
+  F002 intra_mom（priority 1，rank 9，窗口 [5, 20, 60]）
+    公式：MEAN(intra, d)，intra_t = C_t/O_t-1
+    含义：同上，日内段由机构主导。和隔夜同时入模，模型可学两者的组合（ROC = 隔夜 + 日内的复合）。
+    重叠：Alpha158 KMID 只有当天；ROC 是两者之和。中度重叠（ROC 已知时只多一个自由度）。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://personal.lse.ac.uk/polk/research/TugOfWar.pdf（学术；摘要级（概念和方向已核，公式按定义写））
+  F004 ovn_dist（priority 2，rank 11，窗口 [20]）
+    公式：MEAN(|ovn_t - mkt(ovn_t)|, 20)（方正「球队硬币」的隔夜距离）
+    含义：隔夜涨跌幅全市场最平静，个股偏离市场均值越多，说明隔夜有个股层面的信息 / 关注度冲击。极端上涨前的「异动」常先出现在开盘。
+    重叠：不重叠（Alpha158 没有隔夜，生产没有）。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/个股动量效应的识别及球队硬币因子（券商（方正金工，QuantsPlaybook 复现）；公式表 / 复现代码已读）
+  F039 apm_ovn_intra（priority 2，rank 16，窗口 [20]）
+    公式：APM 日线改写：取近 20 天，隔夜段 ovn_t 和日内段 intra_t 共 40 个观测，对同段的 mkt 收益做一次时间序列回归 r = α + β·R + ε；δ_t = ε^ovn_t - ε^intra_t；stat = MEAN(δ)/(STD(δ)/√20)；再对当日 rank_cs(ret20) 做截面回归取残差
+    含义：APM（开源证券）原版比较上午和下午的残差收益：知情交易集中在上午。日线只能拆成隔夜 / 日内；stat 高 = 个股的超额收益主要在盘前到达（消息 / 竞价抢筹），对散户驱动的极端上涨是正向线索。
+    重叠：和 ovn_mom / ovn_intra_tug 同源，但去掉了市场部分并做成 t 统计量。中度。
+    成本：中（每只票 20 天一次 OLS）；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/APM因子模型（券商（开源证券 APM，QuantsPlaybook 复现）；公式表 / 复现代码已读）
+    备注：原版要上午 / 下午分时收益（见需要新数据一节）。复现代码 issue #25 指出它按日期分组回归退化成截面去均值；实现时按研报口径每只票合并 40 个观测回归
+  F005 coin_flip_ret（priority 2，rank 19，窗口 [20]）
+    公式：MEAN(r_t * sign(ΔTR_t - mkt(ΔTR_t)), 20)，ΔTR_t = TR_t - TR_{t-1}；同法可换 ovn / intra（方正「球队硬币」换手率翻转版）
+    含义：方正金工：换手率变化低于市场均值的日子视为「硬币」（无信息、该反转），高于的视为「球队」（有信息、该延续）。把收益按是否放量加签名后再平均，区分「放量涨」和「缩量涨」。
+    重叠：和 Alpha158 CORD（收益和量变化的相关）概念近，但这里是加签名均值；生产 up_vol_share20 部分重叠。中度。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/个股动量效应的识别及球队硬币因子/FactorZoo/SportBetting.py（券商（方正金工）；公式表 / 复现代码已读）
+    备注：复现代码 get_coins_team：factor * sign(baseline - cs_mean)，opr='lt'。原报告是月频选股，日频滚动 20 天是我们的改法。
+  F007 gap_up_cnt（priority 2，rank 23，窗口 [20, 60]）
+    公式：COUNT(L_t > H_{t-1}, 20)（未回补的跳空缺口天数）；另一列 COUNT(O_t/C_{t-1}-1 > 0.03, 20)
+    含义：强势股启动时出现不回补的跳空，是抢筹的痕迹。和 20 天涨 50% 的连板行情直接相关。
+    重叠：涨停生态 lu 列（近 20 天封板次数）部分重叠：一字连板必然跳空。中度。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：自拟（经典技术分析：突破缺口）（技术分析；自拟，无外部出处）
+  F003 ovn_intra_tug（priority 2，rank 39，窗口 [20]）
+    公式：rank_cs(SUM(ovn,20)) - rank_cs(SUM(intra,20))
+    含义：「拔河」：隔夜涨、日内跌说明散户追、机构卖；对 20 天涨 50% 这种散户驱动行情，方向可能和美股相反（隔夜强的票更可能被炒作），让模型自己学符号。
+    重叠：和 ovn_mom / intra_mom 线性相关，二选一或都给树模型。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://personal.lse.ac.uk/polk/research/TugOfWar.pdf（学术；摘要级（概念和方向已核，公式按定义写））
+  F006 ovn_vol_share（priority 3，未排序，窗口 [20]）
+    公式：STD(ovn,20) / (STD(ovn,20)+STD(intra,20))
+    含义：波动集中在隔夜说明信息 / 情绪在盘后到达（消息、竞价抢筹），集中在日内说明盘中博弈。
+    重叠：Alpha158 STD 是收盘价波动，不拆段。不重叠。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://personal.lse.ac.uk/polk/research/TugOfWar.pdf（自拟（基于 Lou-Polk-Skouras 拆分）；摘要级（概念和方向已核，公式按定义写））
+
+【B_波动收缩与突破】8 条
+  F040 ideal_amplitude（priority 1，rank 8，窗口 [20]）
+    公式：近 20 天每日振幅 amp = H/L - 1；按收盘价在这 20 天里的分位切：收盘价最高的 λ 那些天振幅均值 V_high，最低的 λ 那些天 V_low；V = V_high - V_low，λ = 0.25（研报扫 0.2~1.0）。剔除停牌和一字涨跌停后的日子，有效天数 < 10 置空
+    含义：开源证券「理想振幅」：高价位振幅大 = 高位多空分歧（派发），低价位振幅大 = 低位换手（吸筹）。研报 IC −0.075（λ=20%），中证 500 比沪深 300 强。对我们是「高位放波动」的反向信号，λ 越小越强。
+    重叠：生产 range_compress、Alpha158 STD 只看振幅水平，不按价位切。不重叠。
+    成本：低（20 天窗口内排序）；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/振幅因子的隐藏结构（券商（开源证券市场微观结构 7，QuantsPlaybook 复现）；公式表 / 复现代码已读）
+  F008 pcf_conv（priority 1，rank 10，窗口 [120]）
+    公式：-LOG(1 + STD([C, MA5, MA10, MA20, MA60, MA120]) / C)（多根均线的离散度，按 C 归一）
+    含义：开源证券（91）均线收敛：均线粘合越紧，形态越「收」，后续突破概率越大。妖股启动前多是长期横盘、均线粘合。
+    重叠：生产 ma_align（排列方向）、boll_width（20 日）概念相邻但不同：这里是 6 根均线的离散度。Alpha158 MA 是单根乖离。低到中度。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/开源证券-开源量化评论（91）：形态识别，均线的收敛与发散/FactorArithmetic/convergence_factor.py（券商（开源证券，QuantsPlaybook 复现）；公式表 / 复现代码已读）
+    备注：复现代码直接对后复权价求 std，没有按价格归一，价位高的票天然大；我们必须除以 C，否则是价位因子。
+  F041 amp_cut_mom（priority 2，rank 24，窗口 [120]）
+    公式：近 N=120 天，按每日振幅 H/L-1 排序，取振幅最低的 λ=30% 那些天的日收益之和（A 因子，动量）；振幅最高的那些天的收益之和是 B 因子（反转）
+    含义：开源证券（开源量化评论 3）：A 股反转强、动量弱，但低振幅日的涨跌是「动量」，高振幅日的涨跌是「反转」。低振幅日在稳步上行，说明有资金在不显眼地推，对后续加速是正向；研报 IC 0.021（λ=30%，N=120）。
+    重叠：Alpha158 ROC 是全部天数的和，不切；生产 rs60 同。低。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/A股市场中如何构造动量因子？（券商（开源证券）；公式表 / 复现代码已读）
+  F009 trcf_conv（priority 2，rank 27，窗口 [120]）
+    公式：-LOG(1 + STD([TR, MA5(TR), MA10(TR), MA20(TR), MA60(TR), MA120(TR)]) / MA120(TR))
+    含义：换手率均线收敛（TRCF）：成交长期平稳、没有异动，是「冷清很久」的连续版，和长期调整突破的横盘段同一个意思。
+    重叠：生产 vol_compress、turn_std20 部分重叠（20 日窗口）；这里 120 日多均线。中度。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/开源证券-开源量化评论（91）：形态识别，均线的收敛与发散/README.md（券商（开源证券）；公式表 / 复现代码已读）
+  F013 box_breakout（priority 2，rank 28，窗口 [60, 120]）
+    公式：box_w = MAX(H,60)_{t-1}/MIN(L,60)_{t-1} - 1；brk = C_t / MAX(H,60)_{t-1} - 1；交互 brk × (1/box_w)
+    含义：窄平台 + 收盘突破平台上沿。宽平台的突破和窄平台的突破含义不同，交互项让树更容易学。
+    重叠：Alpha158 MAX60 / RSV60 和生产 range_compress 各覆盖一半，交互项没有。中度。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：自拟（平台突破，和长期调整突破同源）（技术分析；自拟，无外部出处）
+  F012 nr_rank（priority 2，rank 29，窗口 [7, 20]）
+    公式：TSRANK((H-L)/C_{t-1}, 7)，以及「近 d 天振幅单调收缩的次数」 SUM(rng_t < rng_{t-1}, d)
+    含义：VCP（波动收缩形态）：每次回调幅度比上一次小。NR7 是今天振幅为 7 日最小。都在描述「弹簧压紧」。
+    重叠：生产 range_compress / atr_ratio 是比值，没有「连续收缩次数」。低到中度。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：自拟（Crabel NR7 / Minervini VCP 收缩次数）（技术分析；自拟，无外部出处）
+  F011 range_shock（priority 2，rank 30，窗口 [11]）
+    公式：((H-L) - SMA(H-L,11,2)) / SMA(H-L,11,2)（国君 Alpha188）
+    含义：今天振幅相对近 11 天平滑振幅的冲击。突破日通常振幅放大。
+    重叠：Alpha158 KLEN（当天振幅/开盘）只看当天水平，这里是相对自己。低到中度。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://github.com/wukan1986/alpha_examples/blob/main/transformer/alpha191.txt（国君 191 #188；公式表 / 复现代码已读）
+  F010 range_accel（priority 3，未排序，窗口 [10]）
+    公式：SMA(H-L,10,2) / SMA(SMA(H-L,10,2),10,2)（国君 Alpha109，用 (H-L)/C 代替 H-L 去价位）
+    含义：振幅相对自己均值的加速：收缩后第一次扩张。
+    重叠：生产 atr_ratio（ATR 短 / 长）高度相近。中到高度。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://github.com/wukan1986/alpha_examples/blob/main/transformer/alpha191.txt（国君 191 #109；公式表 / 复现代码已读）
+
+【C_极端收益与偏度】10 条
+  F018 past_jackpot（priority 1，rank 1，窗口 [250]）
+    公式：过去 250 天里「已关闭」的窗口内是否出现过 20 天涨 50%：MAX_{s ≤ t-20} [MAX(H_{s+1..s+20})/O_{s+1} - 1]，取 s 在 [t-250, t-20]；另列次数 COUNT
+    含义：Conrad et al. 2014：jackpot 概率高的股票过去偏度高、过去收益高、波动高。A 股的「妖股基因」：同一只票反复成为游资标的。这是把目标标签本身的历史（只用已关闭窗口）当特征。
+    重叠：lu 列 l_cnt60（涨停次数）部分重叠。中度。
+    成本：中（每只票滚动 max，O(n·20)）；偷看：高：s+20 必须 ≤ t，否则用到未来最高价。写成 shift(20) 之后再取 rolling max，自测钉住边界
+    出处：https://ideas.repec.org/a/eee/jfinec/v113y2014i3p455-475.html（学术（自拟落地）；摘要级（概念和方向已核，公式按定义写））
+  F015 skew_ret（priority 1，rank 2，窗口 [20, 60, 120]）
+    公式：SKEW(r, d)；国君 Alpha166 是 20 日偏度的一个写法
+    含义：历史偏度是 Conrad-Kapadia-Xing (2014) 预测 jackpot（一年内对数收益 > 100%）的主变量之一（另几个是过去一年收益、波动、销售增长）。右偏的票更容易再来一次极端上涨。
+    重叠：Alpha158、生产都没有三阶矩。不重叠。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/wukan1986/alpha_examples/blob/main/transformer/alpha191.txt（学术 + 国君 191 #166；公式表 / 复现代码已读）
+  F014 max_ret（priority 1，rank 3，窗口 [20, 60]）
+    公式：MAX(r, 20)；以及前 k 大日收益的均值 MAXk = MEAN(top_k(r, 20))，k=3,5
+    含义：Bali, Cakici, Whitelaw (2011 JFE)：MAX 高的票未来均值收益低（彩票偏好），但我们的目标是「极端上涨的概率」而不是均值：MAX 刻画的正是右尾厚度，对 P(20 天涨 50%) 应当是正向。A 股按板块涨跌停截断，MAX 在主板被 10% 封顶，要和板块一起看（或用 MAX / 板块涨停幅度）。
+    重叠：Alpha158 没有日收益的最大值（MAX 是最高价/收盘）；lu 列有涨停次数。中度。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://alphaarchitect.com/hot-off-the-jfe-press-maxing-out-your-returns/（学术；摘要级（概念和方向已核，公式按定义写））
+  F017 upvol_share（priority 2，rank 15，窗口 [20, 60]）
+    公式：SMA(r>0 ? STD(C,20) : 0, 20, 1) / (同式 + SMA(r<=0 ? STD(C,20):0, 20, 1))（国君 Alpha23，相对波动指数 RVI）；等价的简洁版：上行半方差 / 总方差 = SUM(r^2·[r>0],20)/SUM(r^2,20)
+    含义：上行半方差占比：波动主要来自上涨日，说明右尾在发力。
+    重叠：Alpha158 SUMP 是涨幅绝对值之和占比（一阶），这里是二阶。中度。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/wukan1986/alpha_examples/blob/main/transformer/alpha191.txt（国君 191 #23；公式表 / 复现代码已读）
+  F044 listing_age（priority 2，rank 22，窗口 [750]）
+    公式：LOG(本票在日线表里的交易日数)，截断 750；日线表起点之前上市的票统一记 750
+    含义：Conrad et al.：jackpot 公司更年轻。A 股次新股是游资主战场。
+    重叠：生产无（features.py 注释里记过次新偏差：短历史票 y_up 率是成熟票 1.7 倍）。不重叠。
+    成本：低；偷看：低；日线表第一根 K 线可能晚于真实上市日（2023 年初覆盖不全），要按 coverage_start 处理
+    出处：https://ideas.repec.org/a/eee/jfinec/v113y2014i3p455-475.html（学术；摘要级（概念和方向已核，公式按定义写））
+  F042 skew_x_far_high（priority 2，rank 25，窗口 [60, 250]）
+    公式：skew_ret_60 × (1 - rank_cs(C / MAX(H,250)))（右偏 × 离一年高点远）
+    含义：Wang, Wang, Wu (2023，检索摘要)：A 股的博彩偏好只出现在远离 52 周高点的票里。右偏 × 深套，正是「超跌妖股」的组合。
+    重叠：交互项，树模型能自己学，显式给出能省分裂。和 skew_ret、dist_52w_high 重叠。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://ideas.repec.org/a/eee/pacfin/v80y2023ics0927538x23001208.html（学术（摘要级）；摘要级（概念和方向已核，公式按定义写））
+    备注：出处链接是检索结果给出的 Pacific-Basin Finance Journal 2023 条目，标题未逐字核对
+  F043 detrended_turnover（priority 2，rank 26，窗口 [120, 480]）
+    公式：MEAN(TR,120) - MEAN(TR, t-480..t-121)（近 6 个月换手减去更早 18 个月；数据从 2023-01 起，2025 年后才满窗）
+    含义：Conrad-Kapadia-Xing (2014) 的 jackpot logit 用去趋势换手率（和过去收益、波动、偏度、市值、上市年龄等并列）。换手抬升 = 关注度上升。
+    重叠：生产 vol_ratio20 是 20 日，tr_long_level 是 250 日；去趋势口径不重叠，但信息相近。中度。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://ideas.repec.org/a/eee/jfinec/v113y2014i3p455-475.html（学术；摘要级（概念和方向已核，公式按定义写））
+    备注：Conrad 原文的去趋势窗口没读到全文，6/18 个月是我们的口径，需预登记
+  F045 hq_momentum（priority 3，未排序，窗口 [60]）
+    公式：ret60 - 3000 · STD(r,60)^2（光大「再论动量」 / QuantsPlaybook 高质量动量）
+    含义：风险调整后的动量：大波动堆出来的涨幅被扣掉。对极端上涨可能是反向的（妖股恰恰靠大波动），做对照用。
+    重叠：Alpha158 ROC60 和 STD60 的组合，树模型已能表达。高度重叠。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/高质量动量因子选股（券商（光大金工）；公式表 / 复现代码已读）
+  F016 kurt_ret（priority 3，未排序，窗口 [60, 120]）
+    公式：KURT(r, d)
+    含义：厚尾程度，和偏度互补：对称厚尾 vs 右偏。
+    重叠：不重叠。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://ideas.repec.org/a/eee/jfinec/v113y2014i3p455-475.html（学术；摘要级（概念和方向已核，公式按定义写））
+  F019 min_ret（priority 3，未排序，窗口 [20]）
+    公式：MIN(r, 20)（最大单日跌幅，Conrad 的 death 一侧）
+    含义：Conrad et al.：death 和 jackpot 概率正相关（同一批高风险票）。跌停过的票也是游资票。
+    重叠：Alpha158 MIN 是最低价/收盘（价格位置），不是日收益。低。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://ideas.repec.org/a/eee/jfinec/v113y2014i3p455-475.html（学术；摘要级（概念和方向已核，公式按定义写））
+
+【D_价格延迟与反应不足】4 条
+  F021 amihud（priority 2，rank 17，窗口 [20, 60]）
+    公式：MEAN(|r_t| / AMT_t, 20)，取对数；国君 Alpha144 是只算下跌日的版本
+    含义：Amihud (2002) 非流动性：单位成交额推动的价格变化。小资金就能推动的票，被游资拉 50% 的成本低。
+    重叠：生产 amt_ma20（成交额水平）、市值相关；中度。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/wukan1986/alpha_examples/blob/main/transformer/alpha191.txt（学术 + 国君 191 #144；公式表 / 复现代码已读）
+  F020 price_delay_d1（priority 2，rank 18，窗口 [60, 120]）
+    公式：日线改写：60 天内回归 r_t = a + b0·mkt_t + Σ_{k=1..5} b_k·mkt_{t-k} + e（无约束）和只含 b0 的约束回归；D1 = 1 - R²_约束 / R²_无约束
+    含义：Hou & Moskowitz (2005 RFS)：价格对市场信息反应越慢（延迟越大）的票，未来收益越高，且多是小、冷门、少人关注的票。冷门票一旦被关注，补涨幅度大，正是妖股的起点。
+    重叠：生产 rs20/rs60（相对强弱）、Alpha158 都没有。不重叠。
+    成本：中（每只票滚动 OLS 两次，可用 numpy 累积和向量化）；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://arxiv.org/abs/1903.01655（学术；据记忆，实现前核对原文）
+    备注：原文用周收益、4 阶滞后；日频改写的滞后阶数要预登记。D1 定义待读原文核实（检索结果只确认了思路）。
+  F022 synchronicity（priority 2，rank 37，窗口 [60]）
+    公式：60 天回归 r = a + b·mkt + c·brd + e 的 R²，取 log(R²/(1-R²))
+    含义：R² 低 = 股价由个股信息驱动、跟大盘不同步，独立行情的前提。
+    重叠：Alpha158 RSQR 是对时间趋势的 R²，不是对市场。不重叠。
+    成本：中；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：自拟（Morck-Yeung-Yu 2000 的股价同步性）（学术；据记忆，实现前核对原文）
+  F046 info_discreteness（priority 3，未排序，窗口 [60]）
+    公式：ID = sign(SUM(r, 60)) × (下跌日占比 - 上涨日占比)（Da, Gurun, Warachka 2014 frog-in-the-pan）
+    含义：信息离散度：同样的涨幅由很多小涨组成（ID 低）还是少数大涨组成（ID 高）。投资者对连续小变化反应不足。
+    重叠：Alpha158 CNTD × sign(ROC) 就是它。高度重叠。复现的研报也说 A 股上 ID 作用不大，改用 60 日换手标准差。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/高质量动量因子选股（学术；公式表 / 复现代码已读）
+
+【E_换手率结构】7 条
+  F047 size_raw（priority 1，rank 6，窗口 [1]）
+    公式：LOG(FS_t × AMT_t / V_t)：用不复权均价 AMT/V 乘流通股本，得到不含未来除权信息的流通市值
+    含义：jackpot / 彩票股都偏小盘（Conrad 2014；清华彩票股研究：高 MAX、高换手、低价）。生产把市值中性化掉了（同日同板块同市值档去均值），Alpha158 臂也没有市值，模型看不到「它有多小」。给树模型做条件分裂用。
+    重叠：生产 float_mcap 只用于中性化，不入模。不重叠。
+    成本：低；偷看：低：AMT/V 是当天不复权均价；不要用前复权 C × FS（前复权价会被以后的分红改写，含未来信息）
+    出处：https://ideas.repec.org/a/eee/jfinec/v113y2014i3p455-475.html（学术 + 数据特有；摘要级（概念和方向已核，公式按定义写））
+  F049 tr_own_rank（priority 2，rank 12，窗口 [250]）
+    公式：TSRANK(TR, 250)：今天换手在自己过去一年里的分位
+    含义：截面排名只说「今天全市场谁换手高」，自身分位说「对它自己来说今天是不是罕见地热」。冷门票第一次放量是异动的定义。
+    重叠：生产 vol_ratio20 是对 20 日均值的比，不是一年分位。低到中度。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：自拟（自拟；自拟，无外部出处）
+  F023 float_chg（priority 2，rank 13，窗口 [20, 60, 120]）
+    公式：FS_t / FS_{t-d} - 1（流通股本变化：解禁、增发上市）
+    含义：流通盘突然扩大 = 供给冲击，压制炒作；流通盘长期不变的小盘票是游资偏好。
+    重叠：生产没有；Alpha158 没有。不重叠。注意送转也会让 FS 跳升（价格已前复权），要用 os_jump 同样的门槛区分。
+    成本：低；偷看：低：FS 是当日已知量
+    出处：自拟（数据特有）（数据特有；自拟，无外部出处）
+  F048 nominal_price（priority 2，rank 21，窗口 [1]）
+    公式：LOG(AMT_t / V_t)（不复权均价）
+    含义：低价股效应：A 股彩票型股票常见定义是高 MAX、高换手、低价（清华研究，检索摘要）。散户对「便宜」的偏好。
+    重叠：和 size_raw 相关但不同（价格 vs 市值）。不重叠。
+    成本：低；偷看：低：同上，必须用不复权价
+    出处：https://cdn.shanghai.nyu.edu/sites/default/files/honorsthesis2025_zijin_su.pdf（学术（摘要级）；摘要级（概念和方向已核，公式按定义写））
+  F024 tr_long_level（priority 2，rank 40，窗口 [250]）
+    公式：LOG(MEAN(TR, 250))，以及 MEAN(TR,20)/MEAN(TR,250)
+    含义：长期换手水平是「平时有没有人玩」的底色，短/长比是关注度的突变。
+    重叠：生产 vol_ratio20 是 20 日；turn_pct 是当天换手。250 日底色不重叠。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：自拟（自拟；自拟，无外部出处）
+  F025 hv_premium（priority 3，未排序，窗口 [50]）
+    公式：今天 TR 在过去 50 天里是否为最高（Gervais-Kaniel-Mingelgrin 的高成交量冲击）：TR_t >= MAX(TR,50)_{t-1}；连续版 TSRANK(TR, 50)
+    含义：Gervais, Kaniel, Mingelgrin (2001 JF)：成交量异常放大的票此后一个月跑赢（关注度上升）。
+    重叠：生产 vol_ratio20、Alpha158 VMA；altpath 量能族无增益。高度重叠，低优先。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://ideas.repec.org/a/bla/jfinan/v56y2001i3p877-919.html（学术；摘要级（概念和方向已核，公式按定义写））
+    备注：原文的触发是「一天或一周的成交量异常高」（摘要），50 天参照窗口是我们的口径
+  F050 tr_stability（priority 3，未排序，窗口 [20]）
+    公式：STD(TR,20)/MEAN(TR,20)（东吴「量稳换手率」的日线近似）
+    含义：换手稳定 = 筹码交换平稳；东吴月报持续跟踪的因子。
+    重叠：生产 turn_std20 就是它。完全重叠，列出只为说明不要重复做。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://www.fxbaogao.com/detail/4657447（券商（东吴金工，月报标题级）；摘要级（概念和方向已核，公式按定义写））
+
+【F_量价结构】7 条
+  F051 ctrl_newhigh（priority 2，rank 14，窗口 [5, 60]）
+    公式：rank_cs(C/MAX(C,60)) - rank_cs(MEAN(TR,5)/MEAN(TR,60))；离散版：C_t = MAX(C,60) 且 MEAN(TR,5) < MEAN(TR,60)（缩量新高）
+    含义：价新高而换手没放大，说明筹码锁定、上方没有抛压，是高控盘票的典型形态；妖股主升段常见缩量连板。
+    重叠：Alpha158 有 MAX60 和 VMA5，单独都有；差 / 交互项没有。中度。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：自拟（控盘度，经典日线特征）（技术分析；自拟，无外部出处）
+  F027 str_salience（priority 2，rank 20，窗口 [20]）
+    公式：σ_t = |r_t - mkt_t| / (|r_t| + |mkt_t| + 0.1)；在个股自己的近 20 天里按 σ 降序排名 k_t，w_t = 0.7^{k_t} / MEAN(0.7^k)；STR = COV(w_t, r_t) over 20 天
+    含义：凸显理论（Bordalo-Gennaioli-Shleifer；Cosemans-Frehen 2021 落地）：投资者高估「显眼」的收益日。显眼日是大涨的票被过度追捧。对极端上涨是直接的注意力度量。
+    重叠：不重叠。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/凸显理论STR因子/scr/core.py（券商复现（QuantsPlaybook 凸显理论 STR）；公式表 / 复现代码已读）
+    备注：复现代码 calc_weight 用 rank(axis=1)，是按截面排；原文是在个股自己的时间序列里排，实现前要核对。
+  F052 open_push（priority 2，rank 35，窗口 [20]）
+    公式：SUM(H-O,20)/SUM(O-L,20)（国君 Alpha118）
+    含义：开盘后向上的空间相对向下的空间：盘中资金往上推的力度。和隔夜族配合看开盘之后的接力。
+    重叠：Alpha158 KUP/KLOW 以 max(O,C) 为基准、单日；这里以开盘为基准、累计 20 天。低。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://github.com/wukan1986/alpha_examples/blob/main/transformer/alpha191.txt（国君 191 #118；公式表 / 复现代码已读）
+  F026 clv_vol_sum（priority 2，rank 36，窗口 [6, 20]）
+    公式：SUM(((C-L)-(H-C))/(H-L) * TR, d)（国君 Alpha11/60 的换手率版，Chaikin 累积/派发）
+    含义：收在高位且放量的日子累计：主动买盘的日线代理。
+    重叠：Alpha158 KSFT2 是当天的 CLV，不加权不累计；生产 obv_slope20 是收盘涨跌签名量。中度。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/wukan1986/alpha_examples/blob/main/transformer/alpha191.txt（国君 191 #11 / #60；公式表 / 复现代码已读）
+  F028 corr_ret_dtr（priority 3，未排序，窗口 [20, 60]）
+    公式：CORR(r_t, ΔTR_t, 20)
+    含义：量价同向性：涨时放量、跌时缩量。
+    重叠：Alpha158 CORD 用的是 log 成交量变化（受送转影响）；altpath 里量能族无增益。高度重叠，低优先。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：自拟（Alpha158 CORD 的换手率版）（自拟；自拟，无外部出处）
+  F053 true_range_up（priority 3，未排序，窗口 [20]）
+    公式：SUM(MAX(0, H - C_{t-1}), 20) / SUM(MAX(0, C_{t-1} - L), 20)（国君 Alpha110，类 BR 指标）
+    含义：相对昨收的上攻空间 / 下探空间。
+    重叠：和 open_push、Alpha158 SUMP 相近。中到高度。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://github.com/wukan1986/alpha_examples/blob/main/transformer/alpha191.txt（国君 191 #110；公式表 / 复现代码已读）
+  F054 wq_rsv_vol_corr（priority 3，未排序，窗口 [6, 12]）
+    公式：-CORR(RSV12, TR, 6)，RSV12 = (C - MIN(L,12))/(MAX(H,12) - MIN(L,12))（WQ Alpha#55 / 国君 #176 的换手率版，原式对两边先做截面 rank）
+    含义：价格在区间里的位置和换手同涨同跌：高位放量还是低位放量。
+    重叠：Alpha158 CORR（收盘价和 log 量）近似。高度。
+    成本：低；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://github.com/yli188/WorldQuant_alpha101_code/blob/master/101Alpha_code_1.py（WQ 101 #55；公式表 / 复现代码已读）
+
+【G_高点距离多周期】2 条
+  F029 days_since_high（priority 2，rank 31，窗口 [120, 250]）
+    公式：(t - argmax(H, d)) / d，d = 120, 250（Alpha158 IMAX 只到 60）
+    含义：George & Hwang (2004 JF)：离 52 周高点越近，未来越强（锚定）。距上次高点的时间刻画「套牢盘有多老」，越老的高点越容易被突破。
+    重叠：生产 dist_52w_high 就是 George-Hwang 的 PTH（重叠）；时间维度没有。低到中度。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://alphaarchitect.com/52-week-high-q-factor-investment-model/（学术；摘要级（概念和方向已核，公式按定义写））
+  F030 pth_multi（priority 2，rank 32，窗口 [120, 500]）
+    公式：C / MAX(H, d) 与 C / MIN(L, d)，d = 120, 500（数据三年，500 日可算到 2025 年以后）
+    含义：多周期高点距离，Alpha158 只到 60，生产 250。120 填中间，500 看两年历史高点（突破两年高点的「无套牢盘」状态）。
+    重叠：250 那根已在生产；120/500 不重叠。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://alphaarchitect.com/52-week-high-q-factor-investment-model/（学术；摘要级（概念和方向已核，公式按定义写））
+
+【H_残差动量与特质波动】3 条
+  F032 idio_vol（priority 1，rank 4，窗口 [20, 60]）
+    公式：STD(e, 20)，e 为上式残差（Ang-Hodrick-Xing-Zhang 2006 的特质波动）
+    含义：特质波动高的票均值收益低（AHXZ），但右尾大；BCW 说加入 MAX 后特质波动之谜反转。对极端上涨概率应当是正向。
+    重叠：Alpha158 STD 是总波动（含市场）；生产 atr_ratio 是比值。中度。
+    成本：中；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://alphaarchitect.com/hot-off-the-jfe-press-maxing-out-your-returns/（学术；摘要级（概念和方向已核，公式按定义写））
+  F031 resid_mom（priority 1，rank 7，窗口 [20, 120]）
+    公式：120 天回归 r = a + b·mkt + c·brd + e（窗口不含最近 20 天）；用系数算最近 20 天残差 e，resid_mom = SUM(e,20) / STD(e,20)
+    含义：Blitz, Huij, Martens (2011)：剔除共同因子暴露后的动量，风险调整后利润约为普通动量两倍。对我们：剔除「今天大盘 / 板块好」的部分后的个股独立强度。
+    重叠：生产 rs20 / rs60 是相对强弱（减市场），没有按 beta 剔除和按残差波动标准化。中度。
+    成本：中（滚动 OLS）；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://repub.eur.nl/pub/22252（学术；摘要级（概念和方向已核，公式按定义写））
+  F033 idio_skew（priority 2，rank 38，窗口 [60, 120]）
+    公式：SKEW(e, 60)（剔除市场后的偏度）
+    含义：Boyer-Mitton-Vorkink (2010) 的预期特质偏度和 Conrad 的 jackpot 都指向特质右尾。
+    重叠：和 skew_ret 高度相关，二选一。
+    成本：中；偷看：低：只用 t 日收盘及以前的 OHLCV
+    出处：https://ideas.repec.org/a/eee/jfinec/v113y2014i3p455-475.html（学术；据记忆，实现前核对原文）
+
+【I_筹码与成本】3 条
+  F034 chip_moments（priority 2，rank 33，窗口 [60]）
+    公式：换手率衰减加权的成本分布（权重 w_s = TR_s · Π_{u>s}(1-TR_u)，窗口 60）上，x_s = 1 - C_s/C_t：ARC = Σw·x（平均浮盈），VRC = 方差，SRC = 偏度，KRC = 峰度
+    含义：筹码分布的四阶矩。SRC / KRC 描述套牢盘是集中在上方一块还是分散，突破时上方抛压的形状。
+    重叠：生产 chip_win（获利盘）、chip_conc90、chip_dev 覆盖一、二阶；三、四阶不重叠。
+    成本：中（每只票滚动 60 天加权）；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/筹码因子/scr/turnover_coefficient_ops.py（券商（QuantsPlaybook 筹码因子复现）；公式表 / 复现代码已读）
+  F036 apb（priority 2，rank 41，窗口 [5, 30]）
+    公式：APB_d = MEAN(VWAP, d) / (Σ VWAP·V / Σ V)，d = 5, 30（窗口内跨除权日则置空）
+    含义：量价关系度量买卖压力：成交集中在低价位（加权均价低于算术均价）说明低位吸筹。
+    重叠：不重叠（生产没有用 VWAP）。
+    成本：低；偷看：低；VWAP 不复权，跨除权日比值会错，必须按除权日切断（流通股本跳变或 C/C_{t-1} 与 AMT/V 比值跳变识别）
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/基于量价关系度量股票的买卖压力/py/CalFunc.py（券商（QuantsPlaybook 复现）；公式表 / 复现代码已读）
+  F035 cgo（priority 3，未排序，窗口 [100, 250]）
+    公式：CGO = (C - RP)/C，RP = Σ_{k≥1} V_{t-k}·Π_{j<k}(1-TR_{t-j})·P_{t-k} / 归一，P 用 TP=(H+L+C)/3，窗口 100
+    含义：Grinblatt-Han (2005) 处置效应 / 资本利得悬置：未实现浮盈大的票，持有者惜售，上涨阻力小。
+    重叠：生产 chip_win、chip_dev 几乎是同一件事（自算筹码）。高度重叠，只在想换衰减口径时再做。
+    成本：中；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/处置效应因子（学术 + 券商；公式表 / 复现代码已读）
+
+【J_K线与影线】3 条
+  F037 shadow_std（priority 2，rank 34，窗口 [20]）
+    公式：蜡烛上影线 up = H - MAX(O,C)；威廉下影线 wlo = C - L；每日标准化 x_t / MEAN(x_{t-5..t-1})；Upper_shadow_std = STD(标准化 up, 20)，Williams_lower_shadow_mean = MEAN(标准化 wlo, 20)；UBL = 两者各自截面标准化后相加（东吴「上下影线，蜡烛好还是威廉好」）
+    含义：长上影线密集 = 上方抛压试盘；下影线密集 = 下方承接。妖股启动前常见反复长下影。
+    重叠：Alpha158 KUP / KLOW 只有当天。低。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/上下影线因子（券商（东吴金工，QuantsPlaybook 复现）；公式表 / 复现代码已读）
+    备注：标准化分母用前 5 天（shift(1)），不含当天。原报告月频、做市值中性化；我们日频滚动、只做当日排名
+  F055 a360_seq（priority 3，未排序，窗口 [60]）
+    公式：Alpha360：过去 60 天 C/O/H/L/VWAP 各除以今日 C、量除以今日量，共 360 列原始序列；我们换成 TR、去掉 VWAP，共 300 列
+    含义：给序列模型（GRU / Transformer）的原始输入，让模型自己找形态。和我们 L2 序列模型的输入是同一类。
+    重叠：和 Alpha158 是同一信息的两种表示。对树模型增益通常不如 Alpha158；只在重做序列模型时用。
+    成本：高（300 列，特征表多约 3 GB float32）；偷看：低；VWAP 不复权，必须去掉或按除权日切断
+    出处：https://github.com/microsoft/qlib/blob/main/qlib/contrib/data/loader.py（qlib Alpha360；公式表 / 复现代码已读）
+  F038 wq_101（priority 3，未排序，窗口 [1, 5]）
+    公式：(C - O) / ((H - L) + 0.001)（WQ Alpha#101），取 MEAN(.,5)
+    含义：日内收盘强度的简单版。
+    重叠：Alpha158 KMID2 当天就是它。高度重叠；5 日均值算新增。
+    成本：低；偷看：低：只用比值，前复权的整体缩放不影响；不要用绝对价位
+    出处：https://github.com/yli188/WorldQuant_alpha101_code/blob/master/101Alpha_code_1.py（WQ 101 #101；公式表 / 复现代码已读）
+
+五、总排序前 41（rank）
+   1. past_jackpot  [C_极端收益与偏度]  priority 1
+   2. skew_ret  [C_极端收益与偏度]  priority 1
+   3. max_ret  [C_极端收益与偏度]  priority 1
+   4. idio_vol  [H_残差动量与特质波动]  priority 1
+   5. ovn_mom  [A_隔夜日内分离]  priority 1
+   6. size_raw  [E_换手率结构]  priority 1
+   7. resid_mom  [H_残差动量与特质波动]  priority 1
+   8. ideal_amplitude  [B_波动收缩与突破]  priority 1
+   9. intra_mom  [A_隔夜日内分离]  priority 1
+  10. pcf_conv  [B_波动收缩与突破]  priority 1
+  11. ovn_dist  [A_隔夜日内分离]  priority 2
+  12. tr_own_rank  [E_换手率结构]  priority 2
+  13. float_chg  [E_换手率结构]  priority 2
+  14. ctrl_newhigh  [F_量价结构]  priority 2
+  15. upvol_share  [C_极端收益与偏度]  priority 2
+  16. apm_ovn_intra  [A_隔夜日内分离]  priority 2
+  17. amihud  [D_价格延迟与反应不足]  priority 2
+  18. price_delay_d1  [D_价格延迟与反应不足]  priority 2
+  19. coin_flip_ret  [A_隔夜日内分离]  priority 2
+  20. str_salience  [F_量价结构]  priority 2
+  21. nominal_price  [E_换手率结构]  priority 2
+  22. listing_age  [C_极端收益与偏度]  priority 2
+  23. gap_up_cnt  [A_隔夜日内分离]  priority 2
+  24. amp_cut_mom  [B_波动收缩与突破]  priority 2
+  25. skew_x_far_high  [C_极端收益与偏度]  priority 2
+  26. detrended_turnover  [C_极端收益与偏度]  priority 2
+  27. trcf_conv  [B_波动收缩与突破]  priority 2
+  28. box_breakout  [B_波动收缩与突破]  priority 2
+  29. nr_rank  [B_波动收缩与突破]  priority 2
+  30. range_shock  [B_波动收缩与突破]  priority 2
+  31. days_since_high  [G_高点距离多周期]  priority 2
+  32. pth_multi  [G_高点距离多周期]  priority 2
+  33. chip_moments  [I_筹码与成本]  priority 2
+  34. shadow_std  [J_K线与影线]  priority 2
+  35. open_push  [F_量价结构]  priority 2
+  36. clv_vol_sum  [F_量价结构]  priority 2
+  37. synchronicity  [D_价格延迟与反应不足]  priority 2
+  38. idio_skew  [H_残差动量与特质波动]  priority 2
+  39. ovn_intra_tug  [A_隔夜日内分离]  priority 2
+  40. tr_long_level  [E_换手率结构]  priority 2
+  41. apb  [I_筹码与成本]  priority 2
+
+六、需要新数据才能算、值得存档的
+  1. APM 原版（上午 / 下午残差）
+     数据：分钟线（至少上午收盘价）
+     理由：知情交易集中在上午；日线只能用隔夜 / 日内代替（apm_ovn_intra）
+     出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/APM因子模型
+  2. 理想反转（W 式切割）/ 大单日
+     数据：每日成交笔数（平均单笔成交金额 = 成交额 / 笔数）或逐笔
+     理由：开源证券：按平均单笔成交金额切 20 天，大单日涨跌是反转之力（高分位切割效果最好）；日线没有成交笔数
+     出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/开源证券-市场微观结构研究系列（1）：A股反转之力的微观来源
+  3. 价量相关性 CPV、换手率 / 信息分布均匀度 UTD / UID、适度冒险、潮汐、勇攀高峰
+     数据：分钟线
+     理由：东吴 / 方正金工的高频降频因子，都要日内分钟价量；UID 月报写明用分钟数据算每日高频波动
+     出处：https://fxbaogao.com/detail/4688163
+  4. 聪明钱因子 2.0
+     数据：分钟线（按每分钟 |涨幅|/√成交量 找聪明钱时段）
+     理由：分钟级排序，日线无法近似
+     出处：https://github.com/hugo2046/QuantsPlaybook/tree/master/B-因子构建类/聪明钱因子模型的2.0版本
+  5. 尾盘 / 开盘成交占比
+     数据：分钟线
+     理由：尾盘抢筹（14:30 后成交占比、尾盘涨幅）和次日开盘买入口径最近
+  6. t 日集合竞价量价（竞价涨幅、竞价额 / 全天成交额）
+     数据：09:25 竞价快照；历史回填见 archive/morning
+     理由：t 日的竞价可用；t+1 竞价是偷看（买点就在 t+1 开盘）
+     出处：archive/morning/RESTORE.md
+  7. 涨停封板质量（首次封板时间、开板次数、封单额 / 流通市值）
+     数据：涨停池 stock_zt_pool_em（只有近 30 天，抢救中）
+     理由：连板生态里封板强弱是游资接力的直接信号；日线只能判断封没封
+     出处：docs/github_survey_2026-10.md
+  8. 龙虎榜（游资席位、机构净买）
+     数据：交易所龙虎榜日频明细，需逐日存档
+     理由：妖股推手是游资席位，同一席位反复出现是连板最直接的标记；上榜本身是价格规则触发，增量在席位身份
+  9. 个股资金流（大单 / 超大单净流入）
+     数据：东财 fflow/daykline（本机可达，只回溯 120 天，见 CLAUDE.md 5b）
+     理由：从现在起每天存，攒够两年才能进开发集
+     出处：CLAUDE.md 5b
+  10. 融资融券余额 / 融资买入占比
+     数据：交易所两融明细（日频）
+     理由：杠杆资金追涨强度；只覆盖两融标的
+  11. 概念板块成分历史（时点一致）
+     数据：每日概念成分快照，需自存
+     理由：题材炒作的同涨族群；现在只有静态行业表，g2 用收益相关性代替
+     出处：docs/github_survey_2026-10.md
+  12. 限售解禁日程
+     数据：解禁日历（公告日已知）
+     理由：未来 20 天内的解禁量是事前公布的，按公告日对齐不算偷看；供给冲击压制炒作
+  13. 人气榜 / 千股千评 / 搜索热度
+     数据：已在抢救（人气榜一年、千股千评 37 天）
+     理由：注意力的直接测量，历史太短不能进开发集，先存档

@@ -1,0 +1,77 @@
+{"at": "2026-10-14T23:38:48", "exp": "feat_seeds", "arm": "base_s9", "kind": "prereg", "note": "种子稳健性 / 对照，不作为新候选"}
+{"at": "2026-10-14T23:38:48", "exp": "feat_seeds", "arm": "base_s10", "kind": "prereg", "note": "种子稳健性 / 对照，不作为新候选"}
+{"at": "2026-10-14T23:38:48", "exp": "feat_seeds", "arm": "base_s11", "kind": "prereg", "note": "种子稳健性 / 对照，不作为新候选"}
+{"at": "2026-10-14T23:38:48", "exp": "feat_seeds", "arm": "a158_s9", "kind": "prereg", "note": "种子稳健性 / 对照，不作为新候选"}
+{"at": "2026-10-14T23:38:48", "exp": "feat_seeds", "arm": "a158_s10", "kind": "prereg", "note": "种子稳健性 / 对照，不作为新候选"}
+{"at": "2026-10-14T23:38:48", "exp": "feat_seeds", "arm": "a158_s11", "kind": "prereg", "note": "种子稳健性 / 对照，不作为新候选"}
+{"at": "2026-10-14T23:38:48", "exp": "feat_seeds", "arm": "bag3_base", "kind": "prereg", "note": "种子稳健性 / 对照，不作为新候选"}
+{"at": "2026-10-14T23:38:48", "exp": "feat_seeds", "arm": "bag3_a158", "kind": "prereg", "note": "种子稳健性 / 对照，不作为新候选"}
+{"at": "2026-10-14T23:38:48", "exp": "feat_seeds", "arm": "shuf_a158", "kind": "prereg", "note": "打乱对照"}
+{"at": "2026-10-15T02:12:46", "exp": "feat_seeds", "arm": "s7", "kind": "result", "t_nw": 2.8019425789806336, "diff": 0.04186046511627907}
+{"at": "2026-10-15T02:12:46", "exp": "feat_seeds", "arm": "s8", "kind": "result", "t_nw": 2.0635252648743907, "diff": 0.028940568475452195}
+{"at": "2026-10-15T02:12:46", "exp": "feat_seeds", "arm": "s9", "kind": "result", "t_nw": 2.387415944749943, "diff": 0.03204134366925065}
+{"at": "2026-10-15T02:12:46", "exp": "feat_seeds", "arm": "s10", "kind": "result", "t_nw": 2.68247753208503, "diff": 0.037209302325581395}
+{"at": "2026-10-15T02:12:46", "exp": "feat_seeds", "arm": "s11", "kind": "result", "t_nw": 2.027549313315471, "diff": 0.03281653746770025}
+{"at": "2026-10-15T02:12:46", "exp": "feat_seeds", "arm": "bag3", "kind": "result", "t_nw": 2.2829053228358873, "diff": 0.034625322997416025}
+{"at": "2026-10-15T02:12:46", "exp": "feat_seeds", "arm": "bag3_vs_s7", "kind": "result", "t_nw": 2.112744888173992, "diff": 0.03178294573643411}
+{"at": "2026-10-15T02:12:46", "exp": "feat_seeds", "arm": "shuf", "kind": "result", "t_nw": null, "diff": null}
+{"at": "2026-10-15T02:24:25", "exp": "feat_decomp", "arm": "prod_rank", "kind": "prereg"}
+{"at": "2026-10-15T02:24:25", "exp": "feat_decomp", "arm": "base_pv", "kind": "prereg"}
+{"at": "2026-10-15T02:24:25", "exp": "feat_decomp", "arm": "pv_only", "kind": "prereg"}
+{"at": "2026-10-15T02:24:25", "exp": "feat_decomp", "arm": "rank_pv", "kind": "prereg"}
+{"at": "2026-10-15T02:24:25", "exp": "feat_decomp", "arm": "coarse_a158", "kind": "prereg"}
+{"at": "2026-10-15T02:28:44", "exp": "feat_diag", "arm": "fam_on", "kind": "diag", "n_cols": 15}
+{"at": "2026-10-15T02:28:54", "exp": "feat_diag", "arm": "fam_vc", "kind": "diag", "n_cols": 10}
+{"at": "2026-10-15T02:29:07", "exp": "feat_diag", "arm": "fam_hi", "kind": "diag", "n_cols": 8}
+{"at": "2026-10-15T02:29:18", "exp": "feat_diag", "arm": "rule", "kind": "rule", "text": "新族进训练的条件（看诊断前写定）：族内至少 2 列对 base_a158 残差的增量相关 |ric_a NW t| >= 2.5，或 1 列 >= 3.5；且该列 ric_a 同号月数 >= 13/19。不满足的族不训。"}
+{"at": "2026-10-15T02:29:25", "exp": "feat_diag", "arm": "fam_ext", "kind": "diag", "n_cols": 11}
+{"at": "2026-10-15T02:29:34", "exp": "feat_diag", "arm": "fam_dly", "kind": "diag", "n_cols": 2}
+{"at": "2026-10-15T02:29:48", "exp": "feat_diag", "arm": "fam_turn", "kind": "diag", "n_cols": 6}
+{"at": "2026-10-15T02:29:58", "exp": "feat_diag", "arm": "fam_vp", "kind": "diag", "n_cols": 4}
+{"at": "2026-10-15T02:30:12", "exp": "feat_diag", "arm": "fam_rm", "kind": "diag", "n_cols": 7}
+{"at": "2026-10-15T02:30:22", "exp": "feat_diag", "arm": "fam_sz", "kind": "diag", "n_cols": 4}
+{"at": "2026-10-15T02:30:33", "exp": "feat_diag", "arm": "fam_amp", "kind": "diag", "n_cols": 4}
+{"at": "2026-10-15T02:31:10", "exp": "feat_diag", "arm": "fam_on", "kind": "diag", "n_cols": 15}
+{"at": "2026-10-15T02:31:26", "exp": "feat_diag", "arm": "fam_vc", "kind": "diag", "n_cols": 10}
+{"at": "2026-10-15T02:31:40", "exp": "feat_diag", "arm": "fam_hi", "kind": "diag", "n_cols": 8}
+{"at": "2026-10-15T02:31:59", "exp": "feat_diag", "arm": "fam_ext", "kind": "diag", "n_cols": 11}
+{"at": "2026-10-15T02:32:08", "exp": "feat_diag", "arm": "fam_dly", "kind": "diag", "n_cols": 2}
+{"at": "2026-10-15T02:32:21", "exp": "feat_diag", "arm": "fam_turn", "kind": "diag", "n_cols": 6}
+{"at": "2026-10-15T02:32:31", "exp": "feat_diag", "arm": "fam_vp", "kind": "diag", "n_cols": 4}
+{"at": "2026-10-15T02:32:38", "exp": "feat_diag", "arm": "fam_rm", "kind": "diag", "n_cols": 7}
+{"at": "2026-10-15T02:32:44", "exp": "feat_diag", "arm": "fam_sz", "kind": "diag", "n_cols": 4}
+{"at": "2026-10-15T02:32:51", "exp": "feat_diag", "arm": "fam_amp", "kind": "diag", "n_cols": 4}
+{"at": "2026-10-15T02:33:11", "exp": "feat_diag", "arm": "screen", "kind": "diag", "text": "按规则过关进训练：on vc hi ext turn rm amp；不过关：dly（lagbeta 2.81 只一列）、vp（最高 2.09）、sz（size_raw 2.85 只一列）"}
+{"at": "2026-10-15T03:33:20", "exp": "feat_decomp", "arm": "prod_rank", "kind": "result", "t_nw": 0.9612717794949801, "diff": 0.01731266149870801}
+{"at": "2026-10-15T03:33:20", "exp": "feat_decomp", "arm": "base_pv", "kind": "result", "t_nw": 2.304281394607164, "diff": 0.034108527131782945}
+{"at": "2026-10-15T03:33:20", "exp": "feat_decomp", "arm": "pv_only", "kind": "result", "t_nw": 1.9534908409856107, "diff": 0.025064599483204133}
+{"at": "2026-10-15T03:33:20", "exp": "feat_decomp", "arm": "rank_pv", "kind": "result", "t_nw": 1.5645936176638136, "diff": 0.030232558139534883}
+{"at": "2026-10-15T03:33:20", "exp": "feat_decomp", "arm": "coarse_a158", "kind": "result", "t_nw": 2.0074595346503483, "diff": 0.029457364341085267}
+{"at": "2026-10-15T03:33:20", "exp": "feat_decomp", "arm": "base_a158", "kind": "result", "t_nw": 2.8019425789806336, "diff": 0.04186046511627907}
+{"at": "2026-10-15T03:35:15", "exp": "feat_diag", "arm": "a158", "kind": "diag", "n_cols": 142}
+{"at": "2026-10-15T03:36:02", "exp": "feat_diag", "arm": "prod", "kind": "diag", "n_cols": 83}
+{"at": "2026-10-15T07:12:04", "exp": "feat_fam_v1", "arm": "a158_on", "kind": "prereg"}
+{"at": "2026-10-15T07:12:04", "exp": "feat_fam_v1", "arm": "a158_vc", "kind": "prereg"}
+{"at": "2026-10-15T07:12:04", "exp": "feat_fam_v1", "arm": "a158_hi", "kind": "prereg"}
+{"at": "2026-10-15T07:12:04", "exp": "feat_fam_v1", "arm": "a158_ext", "kind": "prereg"}
+{"at": "2026-10-15T07:12:04", "exp": "feat_fam_v1", "arm": "a158_turn", "kind": "prereg"}
+{"at": "2026-10-15T07:12:04", "exp": "feat_fam_v1", "arm": "a158_rm", "kind": "prereg"}
+{"at": "2026-10-15T07:12:04", "exp": "feat_fam_v1", "arm": "a158_amp", "kind": "prereg"}
+{"at": "2026-10-15T09:07:01", "exp": "feat_fam_v1", "arm": "a158_on", "kind": "result", "t_nw": 1.6902797327523458, "diff": 0.017054263565891473, "ref": "base_a158"}
+{"at": "2026-10-15T09:07:01", "exp": "feat_fam_v1", "arm": "a158_vc", "kind": "result", "t_nw": 1.6163193708023254, "diff": 0.009560723514211885, "ref": "base_a158"}
+{"at": "2026-10-15T09:07:01", "exp": "feat_fam_v1", "arm": "a158_hi", "kind": "result", "t_nw": 1.2926938122807738, "diff": 0.007751937984496123, "ref": "base_a158"}
+{"at": "2026-10-15T09:07:01", "exp": "feat_fam_v1", "arm": "a158_ext", "kind": "result", "t_nw": -0.570832844325929, "diff": -0.004392764857881136, "ref": "base_a158"}
+{"at": "2026-10-15T09:07:01", "exp": "feat_fam_v1", "arm": "a158_turn", "kind": "result", "t_nw": -1.3047024093071256, "diff": -0.011111111111111113, "ref": "base_a158"}
+{"at": "2026-10-15T09:07:01", "exp": "feat_fam_v1", "arm": "a158_rm", "kind": "result", "t_nw": -1.0857718304846444, "diff": -0.0064599483204134354, "ref": "base_a158"}
+{"at": "2026-10-15T09:07:01", "exp": "feat_fam_v1", "arm": "a158_amp", "kind": "result", "t_nw": 0.9445469474410235, "diff": 0.0051679586563307504, "ref": "base_a158"}
+{"at": "2026-10-15T09:07:16", "exp": "feat_comb_v1", "arm": "rule", "kind": "rule", "text": "comb_sel 选族规则（看完阶段 2 后定，事后）：对 base_a158 差 > 0 且 NW t >= 1.0 -> on vc hi。阶段 2 的 base_a158 同配置重跑和 altpath_v1 不逐位相同（训练表列不同导致行序不同，下采样随之不同），16.25%% -> 15.40%%"}
+{"at": "2026-10-15T09:07:20", "exp": "feat_comb_v1", "arm": "comb_all", "kind": "prereg"}
+{"at": "2026-10-15T09:07:20", "exp": "feat_comb_v1", "arm": "comb_sel", "kind": "prereg"}
+{"at": "2026-10-15T09:07:20", "exp": "feat_comb_v1", "arm": "comb_sel_cs4", "kind": "prereg"}
+{"at": "2026-10-15T12:12:13", "exp": "feat_comb_v1", "arm": "comb_all", "kind": "result", "t_nw": 0.8304323534077858, "diff": 0.008785529715762274, "ref": "base_a158"}
+{"at": "2026-10-15T12:12:13", "exp": "feat_comb_v1", "arm": "comb_sel", "kind": "result", "t_nw": 1.817951012896946, "diff": 0.01757105943152455, "ref": "base_a158"}
+{"at": "2026-10-15T12:12:13", "exp": "feat_comb_v1", "arm": "comb_sel_cs4", "kind": "result", "t_nw": 2.1098880797120927, "diff": 0.018346253229974158, "ref": "base_a158"}
+{"at": "2026-10-15T12:12:23", "exp": "feat_final_v1", "arm": "cand_s7", "kind": "prereg", "desc": "a158_ovh_cs4：生产 + Alpha158 142 列 + 新族 on,vc,hi，colsample_bytree 0.4"}
+{"at": "2026-10-15T12:18:34", "exp": "feat_audit", "arm": "noadj_rerank", "kind": "posthoc", "note": "只在之后无除权的行里重排前10，base_a158 对 base +2.45 NW 1.72"}
+{"at": "2026-10-15T12:18:34", "exp": "feat_audit", "arm": "adj2_breakdown", "kind": "posthoc", "note": "按未来除权幅度/距离/板块/价位拆前10命中，描述"}
+{"at": "2026-10-15T13:49:49", "exp": "feat_final_v1", "arm": "cand_s7", "kind": "result", "t_nw": 2.8183602401346195, "verdict": "未定", "c": 3.1804257426567073}

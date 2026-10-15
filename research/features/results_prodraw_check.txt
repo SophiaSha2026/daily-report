@@ -1,0 +1,3 @@
+核对：train.parquet 2661325 行（< 2026），复算 2661325 行，对上 2661325 行
+逐列一致率（|差| < 1e-4）最低 8 列：rs_accel__last 0.9729(NaN不一致 0.0000); rs_accel__mean 0.9917(NaN不一致 0.0000); rs_accel__slope 0.9955(NaN不一致 0.0000); atr_ratio__last 0.9962(NaN不一致 0.0000); rs20__last 0.9966(NaN不一致 0.0000); dist_52w_low__last 0.9971(NaN不一致 0.0000); rs60__last 0.9979(NaN不一致 0.0000); dist_52w_high__last 0.9981(NaN不一致 0.0000)
+一致率中位 1.0000

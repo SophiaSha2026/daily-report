@@ -1,0 +1,19 @@
+自检：本次 base 和 altpath_v1 base 逐位相同 = True
+[全部]
+base_s8       对 base     前10 开盘 12.48% 差 +0.41pp NW t=0.96 块自举 p=0.340
+base_a158_s8  对 base_s8  前10 开盘 15.37% 差 +2.89pp NW t=2.06 块自举 p=0.044
+base_a158_s8  对 base     前10 开盘 15.37% 差 +3.31pp NW t=2.23 块自举 p=0.025
+base_a158     对 base     前10 开盘 16.25% 差 +4.19pp NW t=2.80 块自举 p=0.006
+fam_kbar      对 base     前10 开盘 13.82% 差 +1.76pp NW t=1.48 块自举 p=0.127
+fam_price     对 base     前10 开盘 15.22% 差 +3.15pp NW t=2.34 块自举 p=0.023
+fam_vol       对 base     前10 开盘 15.43% 差 +3.36pp NW t=2.24 块自举 p=0.026
+fam_volume    对 base     前10 开盘 11.63% 差 -0.44pp NW t=-0.56 块自举 p=0.586
+[2025 起]
+base_s8       对 base     前10 开盘 10.95% 差 +0.45pp NW t=0.75 块自举 p=0.484
+base_a158_s8  对 base_s8  前10 开盘 13.91% 差 +2.96pp NW t=1.95 块自举 p=0.071
+base_a158_s8  对 base     前10 开盘 13.91% 差 +3.42pp NW t=2.07 块自举 p=0.055
+base_a158     对 base     前10 开盘 14.53% 差 +4.03pp NW t=2.41 块自举 p=0.016
+fam_kbar      对 base     前10 开盘 12.67% 差 +2.18pp NW t=2.62 块自举 p=0.015
+fam_price     对 base     前10 开盘 13.42% 差 +2.92pp NW t=2.58 块自举 p=0.018
+fam_vol       对 base     前10 开盘 14.24% 差 +3.74pp NW t=2.42 块自举 p=0.012
+fam_volume    对 base     前10 开盘 10.62% 差 +0.12pp NW t=0.11 块自举 p=0.911

@@ -1,0 +1,14 @@
+# 研究目录只提交脚本、报告、小结果；大数据和运行态留在本机（2026-10-16）
+# 公告原始数据 38 MB + 面板缓存 100 MB，可用 announce/fetch_em.py 重拉
+announce/raw/
+announce/cache/
+# 抢救存档 70 MB 已并进 data/events（tools/archive_events.py --import-research），这里是原件
+datasrc/archive/
+datasrc/.venv/
+datasrc/.locks/
+datasrc/*.out
+ai_debate/work/
+ai_debate/raw/
+*.parquet
+*.log
+__pycache__/
