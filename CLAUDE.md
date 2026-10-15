@@ -136,7 +136,9 @@ src/
   breakout/board_adj.py  板块校正因子的经验贝叶斯收缩（生产在用，state/breakout/board_adj.json）
   breakout/evalkit.py    评估制度（2026-10-07，docs/breakout_plan_2026-10.md 第 1 节）：开发集 2024-06..2025-12
                          逐月走向前、确认集 2026-01..08 每季度只看一次（out_breakout/confirm_used.json）、
-                         预登记、按天聚类 / 按天按月配对、过线判定。新实验一律走它
+                         预登记、按天聚类 / 按天按月配对、过线判定。新实验一律走它。2026-10-15 起过线 v2：
+                         NW t（滞后 20）>= max(2.5, 族门槛) + 块自举 p + 去最好月 + 合并与按天同号 + 最差三月 + 空榜；
+                         试验登记簿 data/breakout/raw/exp/ledger.jsonl（每个臂、每次事后加看都计数，门槛随次数抬高）
   breakout/buyable.py    买得到口径的标签 y_open（次日开盘起算、一字板不可买），不进模型指纹，
                          从 daily.parquet 现算并缓存 raw/labels_open.parquet。邮件成绩 2026-10-07 起按它印
   breakout/exp_window.py 生产用的实验脚本：逐月滚动成绩表 + 收缩板块系数（STREAK_PERF 来自 W5 行，

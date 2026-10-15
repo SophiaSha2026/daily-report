@@ -3193,10 +3193,67 @@ def main() -> int:
     check_panel_html()
     check_board_shrink()
     check_rule_fingerprint()
+    check_evalkit_v2()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")
     return 1 if fails else 0
+
+
+def check_evalkit_v2() -> None:
+    """评估制度 v2（2026-10-15）：NW t、块自举、登记簿、族门槛、事后加看计数。全在临时目录。"""
+    print("\n[评估制度 v2]")
+    import json
+    import tempfile
+    import evalkit as E
+    tmp = Path(tempfile.mkdtemp(prefix="ek_"))
+    keep = (E.EXP, E.LEDGER, E.LEDGER_SEED)
+    E.EXP, E.LEDGER, E.LEDGER_SEED = tmp, tmp / "ledger.jsonl", tmp / "seed.jsonl"
+    try:
+        rng = np.random.default_rng(3)
+        e = rng.normal(size=600)
+        x = np.empty(600)
+        x[0] = e[0]
+        for i in range(1, 600):
+            x[i] = 0.6 * x[i - 1] + e[i] + 0.1
+        t_iid = x.mean() / (x.std(ddof=1) / np.sqrt(len(x)))
+        ck(E.nw_t(x) < 0.75 * t_iid, f"正自相关时 NW t 明显小于 iid t（{E.nw_t(x):.2f} 对 {t_iid:.2f}）")
+        w = rng.normal(size=600) + 0.1
+        t_w = w.mean() / (w.std(ddof=1) / np.sqrt(len(w)))
+        ck(abs(E.nw_t(w) / t_w - 1) < 0.25, "没有自相关时 NW t 和 iid t 差不多")
+        ck(set(E.GATE_V2) >= {"t_floor", "boot_p", "drop_best_month_t", "worst3_min_diff", "empty_ratio_max"},
+           "v2 过线规则的六条门槛都有键")
+
+        E.LEDGER_SEED.write_text(json.dumps({"family": "fam", "arm": "old", "count": 9}) + "\n", encoding="utf-8")
+        ck(E.family_count("fam") == 9, "第一次用时从补登文件起步（带 count 的按 count 计）")
+        E.prereg("x1", "h", {"base": "现状", "a": "新"}, family="fam")
+        E.prereg("x1", "h", {"base": "现状", "a": "新"}, family="fam")
+        ck(E.family_count("fam") == 11, "预登记每个臂记一次，重复登记不重复记")
+        th = E.family_threshold("fam")
+        ck(th["c"] > 2.5 and "Bonferroni" in th["method"] and th["m"] == 11, f"族门槛按次数抬高（{th}）")
+
+        days = [f"2025-{m:02d}-{d:02d}" for m in range(1, 13) for d in range(1, 26)]
+
+        def frame(p):
+            rows = []
+            for dd in days:
+                for r in range(1, 11):
+                    rows.append({"date": dd, "rank": r, "score": 99, "y_open": float(rng.random() < p)})
+            return pd.DataFrame(rows)
+        a, b = frame(0.20), frame(0.10)
+        c = E.compare(a, b, y="y_open", k=10, family="fam", exp="x1", arm="a")
+        ck({"t_nw", "boot", "t_nw_drop_best", "pooled_diff", "threshold", "worst3_ex_2024_09", "verdict_v1"} <= set(c)
+           and c["verdict"] in ("过线", "未定", "不过线"), "compare 给出 v2 全套字段，旧判法留在 verdict_v1")
+        ck(c["pass"] == all(c["gate"].values()) and set(c["gate"]) == {"t_nw", "boot_p", "drop_best", "same_sign",
+                                                                         "worst3", "empty"}, "v2 六条全满足才过线")
+        ck((tmp / "x1" / "diff_a_10_y_open.npy").exists() and E.family_count("fam") == 11,
+           "逐日差值序列落盘给族门槛用；结果行不算新的试验")
+        n0 = E.family_count("fam")
+        E.compare(a, b, y="y_open", k=10, since="2025-07", family="fam", exp="x1", arm="a")
+        ck(E.family_count("fam") == n0 + 1, "事后加看子区间（since）登记簿加一次")
+        ck("NW t" in E.fmt_compare("a", c) and "门槛" in E.fmt_compare("a", c), "打印带 NW t 和门槛")
+    finally:
+        E.EXP, E.LEDGER, E.LEDGER_SEED = keep
 
 
 if __name__ == "__main__":

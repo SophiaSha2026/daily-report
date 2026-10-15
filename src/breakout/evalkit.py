@@ -19,10 +19,25 @@
     标准误按天聚类；臂之间按天配对（t_day）和按月配对（t_month，每月等权）
     月度分布：中位、最差、赢月数；空榜天数
 
-过线标准（gate）
+过线标准（gate，2026-10-15 起 v2，research/stats/report.md 第 5 节，用户拍板见 docs/plan_2026-10-15.md）
 ---------------
-    t_day >= 2.5  且  最差三个月的命中之差 >= 0（不比现状差）  且  空榜天数不翻倍
-    小于 2.5 个百分点的差别一律「未定」
+标签是未来 20 根的最高价，相邻交易日的结果高度重叠，按天配对的 iid t 平均被放大约 1.5 倍；
+开发集上又已经试了近 90 次。所以 v2 六条全满足才「过线」，NW t <= -门槛记「不过线」，其余「未定」：
+    1 NW t（Bartlett 核，滞后 20 = 标签窗口）>= c，c = max(2.5, 族门槛)
+      族门槛：登记簿里本族有逐日差值序列的臂 >= 3 个时用族内最大 t 零分布的 95% 分位（联合块自举，
+      保留臂间相关）；否则用单侧 Bonferroni Φ⁻¹(1 - 0.05/m)，m = 登记簿里本族的试验次数
+    2 块自举 p < 0.05（块长 20，5000 次）
+    3 去掉最好的一个月后 NW t >= 2.0（防一个月说了算）
+    4 合并命中之差和按天配对均值同号（教训 33）
+    5 最差三个月的命中之差 >= 0（2024-09 照算；「去掉 2024-09」只并列印出，用户 2026-10-15 定）
+    6 空榜天数不翻倍
+旧的 t_day >= 2.5 判法留在 gate_v1 / verdict_v1 里对账。
+
+试验登记簿
+----------
+    data/breakout/raw/exp/ledger.jsonl：每次 prereg 每个臂记一行，每次事后加看子区间（compare 的
+    since 不是预登记的区间）也记一行。门槛按次数抬高。第一次用时从 research/stats/out/ledger_seed.jsonl
+    补登历史（实验 15~21 的 47 条 + 4 组只有计数的，合计约 87 次）。
 
 预登记
 ------
@@ -53,6 +68,12 @@ DEV = ("2024-06", "2025-12")
 CONFIRM = ("2026-01", "2026-08")
 GATE = {"t_day": 2.5, "worst3_min_diff": 0.0, "empty_ratio_max": 2.0}
 TOP_KEEP = 200
+LEDGER = EXP / "ledger.jsonl"
+LEDGER_SEED = ROOT / "research" / "stats" / "out" / "ledger_seed.jsonl"
+FAMILY_DEFAULT = "breakout_y50_top10"
+NW_LAG, BLOCK, BOOT = 20, 20, 5000
+GATE_V2 = {"t_floor": 2.5, "boot_p": 0.05, "drop_best_month_t": 2.0, "fwer": 0.05,
+           "worst3_min_diff": 0.0, "empty_ratio_max": 2.0}
 log = logging.getLogger("evalkit")
 
 
@@ -212,9 +233,106 @@ def metrics(top: pd.DataFrame, since: str = "") -> dict:
     return out
 
 
+# ---------------------------------------------------------------
+#  稳健推断（v2）：NW t、块自举、登记簿、族门槛。公式和 research/stats/hac.py 同一份
+# ---------------------------------------------------------------
+def _autocov(x: np.ndarray, k: int) -> float:
+    xc = x - x.mean()
+    return float((xc[k:] * xc[:len(x) - k]).sum() / len(x))
+
+
+def nw_t(d, lag: int = NW_LAG) -> float:
+    """Newey-West t（Bartlett 核）：长期方差 = γ0 + 2 Σ (1 - k/(L+1)) γk。样本太短返回 nan。"""
+    x = np.asarray(d, float)
+    x = x[np.isfinite(x)]
+    n = len(x)
+    if n < lag + 3:
+        return float("nan")
+    lrv = _autocov(x, 0) + sum(2 * (1 - k / (lag + 1)) * _autocov(x, k) for k in range(1, lag + 1))
+    se = float(np.sqrt(max(lrv, 1e-18) / n))
+    return float(x.mean() / se)
+
+
+def _mbb_index(n: int, block: int, b: int, rng: np.random.Generator) -> np.ndarray:
+    nb = int(np.ceil(n / block))
+    starts = rng.integers(0, n - block + 1, size=(b, nb))
+    return (starts[:, :, None] + np.arange(block)[None, None, :]).reshape(b, nb * block)[:, :n]
+
+
+def block_boot(d, block: int = BLOCK, b: int = BOOT, seed: int = 20261014) -> dict:
+    """均值的移动块自举：双侧中心化 p 和 95% 区间。"""
+    x = np.asarray(d, float)
+    x = x[np.isfinite(x)]
+    n = len(x)
+    if n < 2 * block:
+        return {"p": float("nan"), "lo": float("nan"), "hi": float("nan")}
+    ms = x[_mbb_index(n, block, b, np.random.default_rng(seed))].mean(axis=1)
+    m = float(x.mean())
+    lo, hi = np.quantile(ms, [0.025, 0.975])
+    return {"p": max(float((np.abs(ms - m) >= abs(m)).mean()), 1.0 / b), "lo": float(lo), "hi": float(hi)}
+
+
+def _ledger_rows() -> list[dict]:
+    if not LEDGER.exists() and LEDGER_SEED.exists():
+        LEDGER.parent.mkdir(parents=True, exist_ok=True)
+        LEDGER.write_text(LEDGER_SEED.read_text(encoding="utf-8"), encoding="utf-8")
+    if not LEDGER.exists():
+        return []
+    out = []
+    for ln in LEDGER.read_text(encoding="utf-8").splitlines():
+        try:
+            out.append(json.loads(ln))
+        except Exception:  # noqa: BLE001
+            pass
+    return out
+
+
+def ledger_add(row: dict) -> None:
+    _ledger_rows()                      # 第一次用时先补登历史
+    LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    with LEDGER.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"at": dt.datetime.now().isoformat(timespec="seconds"), **row},
+                            ensure_ascii=False) + "\n")
+
+
+def family_count(family: str = FAMILY_DEFAULT) -> int:
+    """登记簿里这一族试过多少次（带 count 的补登行按 count 计）。结果行不算新的试验。"""
+    return int(sum(int(r.get("count", 1)) for r in _ledger_rows()
+                   if r.get("family") == family and r.get("kind") != "result"))
+
+
+def _family_series(family: str) -> list[np.ndarray]:
+    out = []
+    for r in _ledger_rows():
+        p = r.get("series")
+        if r.get("family") == family and p and Path(p).exists():
+            out.append(np.load(p))
+    return out
+
+
+def family_threshold(family: str = FAMILY_DEFAULT) -> dict:
+    """族门槛 c = max(2.5, 族门槛)。见模块说明第 1 条。"""
+    from statistics import NormalDist
+    m = max(family_count(family), 1)
+    ser = _family_series(family)
+    if len(ser) >= 3:
+        n = min(len(x) for x in ser)
+        mat = np.stack([x[-n:] for x in ser])               # 对齐到共同的最后 n 天
+        mat = mat - mat.mean(axis=1, keepdims=True)         # 零假设：中心化
+        idx = _mbb_index(n, BLOCK, 2000, np.random.default_rng(7))
+        mx = np.array([max(nw_t(row[ii]) for row in mat) for ii in idx[:400]])
+        c = float(np.nanquantile(mx, 0.95))
+        return {"c": max(GATE_V2["t_floor"], c), "method": f"族内最大 t（{len(ser)} 条序列）", "m": m}
+    c = NormalDist().inv_cdf(1 - GATE_V2["fwer"] / m)
+    return {"c": max(GATE_V2["t_floor"], c), "method": f"Bonferroni（m={m}）", "m": m}
+
+
 def compare(a: pd.DataFrame, b: pd.DataFrame, y: str = "y_open", k: int = 10,
-            since: str = "") -> dict:
-    """a 对 b：按天配对、按月配对、最差三个月、空榜。b 是对照（现状）。"""
+            since: str = "", family: str = FAMILY_DEFAULT, exp: str = "", arm: str = "") -> dict:
+    """a 对 b：按天配对、按月配对、最差三个月、空榜，加 v2 的稳健推断。b 是对照（现状）。
+
+    exp / arm 给了：逐日差值序列存 EXP/<exp>/diff_<arm>_<k>_<y>.npy（族门槛要用），结果记进登记簿；
+    since 给了而且 exp 的预登记里没有这个区间：算一次「事后加看」，登记簿加一行。"""
     if since:
         a, b = a[a["date"] >= since], b[b["date"] >= since]
     ta, tb = a[a["rank"] <= k], b[b["rank"] <= k]
@@ -235,14 +353,50 @@ def compare(a: pd.DataFrame, b: pd.DataFrame, y: str = "y_open", k: int = 10,
            "months": int(len(md)), "wins": int((md > 0).sum()),
            "worst3": {k_: float(v) for k_, v in worst3.items()},
            "empty_a": int(ea), "empty_b": int(eb)}
-    res["gate"] = {
+    res["gate_v1"] = {
         "t_day": bool(res["t_day"] >= GATE["t_day"]),
         "worst3": bool(len(worst3) and worst3.min() >= GATE["worst3_min_diff"]),
         "empty": bool(ea <= GATE["empty_ratio_max"] * max(eb, 1)),
     }
+    res["verdict_v1"] = ("过线" if all(res["gate_v1"].values()) else
+                         "未定" if abs(res["diff_day"]) < 0.025 else "不过线")
+
+    # ---- v2 ----
+    if since and exp:
+        pre = EXP / exp / "prereg.json"
+        reg_span = json.loads(pre.read_text(encoding="utf-8")).get("dev") if pre.exists() else None
+        if not reg_span or since > str(reg_span[0]):
+            ledger_add({"family": family, "exp": exp, "arm": arm, "kind": "second_look", "since": since})
+    res["t_nw"] = nw_t(d.to_numpy())
+    res["t_nw_lags"] = {L: nw_t(d.to_numpy(), L) for L in (10, 20, 30)}
+    res["boot"] = block_boot(d.to_numpy())
+    dm = d.groupby(d.index.str[:7]).mean()
+    best = dm.idxmax() if res["diff_day"] >= 0 else dm.idxmin()
+    res["t_nw_drop_best"] = nw_t(d[d.index.str[:7] != best].to_numpy()) if len(dm) > 1 else float("nan")
+    res["drop_best_month"] = str(best) if len(dm) else ""
+    res["pooled_diff"] = float(ta[y].mean() - tb[y].mean())
+    w3x = (ma - mb).dropna()
+    w3x = w3x[w3x.index != "2024-09"].sort_values().head(3)
+    res["worst3_ex_2024_09"] = {k_: float(v) for k_, v in w3x.items()}
+    th = family_threshold(family)
+    res["threshold"] = th
+    res["gate"] = {
+        "t_nw": bool(np.isfinite(res["t_nw"]) and res["t_nw"] >= th["c"]),
+        "boot_p": bool(np.isfinite(res["boot"]["p"]) and res["boot"]["p"] < GATE_V2["boot_p"]),
+        "drop_best": bool(np.isfinite(res["t_nw_drop_best"]) and res["t_nw_drop_best"] >= GATE_V2["drop_best_month_t"]),
+        "same_sign": bool(np.sign(res["pooled_diff"]) == np.sign(res["diff_day"])),
+        "worst3": res["gate_v1"]["worst3"],
+        "empty": res["gate_v1"]["empty"],
+    }
     res["pass"] = all(res["gate"].values())
     res["verdict"] = ("过线" if res["pass"] else
-                      "未定" if abs(res["diff_day"]) < 0.025 else "不过线")
+                      "不过线" if np.isfinite(res["t_nw"]) and res["t_nw"] <= -th["c"] else "未定")
+    if exp and arm:
+        p = EXP / exp / f"diff_{arm}_{k}_{y}.npy"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        np.save(p, d.to_numpy())
+        ledger_add({"family": family, "exp": exp, "arm": arm, "kind": "result", "series": str(p),
+                    "t_nw": res["t_nw"], "verdict": res["verdict"]})
     return res
 
 
@@ -256,23 +410,31 @@ def fmt_metrics(name: str, m: dict) -> str:
 
 
 def fmt_compare(name: str, c: dict) -> str:
-    return ("%-10s 对现状：按天 %+.2f ±%.2f (t=%.2f, %d 天) 按月 %+.2f (t=%.2f, 赢 %d/%d) "
-            "最差三月 %s 空榜 %d/%d -> %s" % (
-                name, 100 * c["diff_day"], 100 * c["se_day"], c["t_day"], c["days"],
-                100 * c["diff_month"], c["t_month"], c["wins"], c["months"],
+    th = c.get("threshold") or {}
+    bt = c.get("boot") or {}
+    return ("%-10s 对现状：按天 %+.2f（iid t=%.2f，NW t=%.2f，块自举 p=%.3f，去 %s 后 NW %.2f，%d 天） "
+            "按月 %+.2f (赢 %d/%d) 最差三月 %s（去 2024-09：%s） 空榜 %d/%d  门槛 %.2f[%s] -> %s" % (
+                name, 100 * c["diff_day"], c["t_day"], c.get("t_nw", float("nan")), bt.get("p", float("nan")),
+                c.get("drop_best_month", ""), c.get("t_nw_drop_best", float("nan")), c["days"],
+                100 * c["diff_month"], c["wins"], c["months"],
                 ",".join("%s %+.1f" % (k[2:], 100 * v) for k, v in c["worst3"].items()),
-                c["empty_a"], c["empty_b"], c["verdict"]))
+                ",".join("%s %+.1f" % (k[2:], 100 * v) for k, v in (c.get("worst3_ex_2024_09") or {}).items()),
+                c["empty_a"], c["empty_b"], th.get("c", float("nan")), th.get("method", ""), c["verdict"]))
 
 
 # ---------------------------------------------------------------
 #  纪律
 # ---------------------------------------------------------------
 def prereg(name: str, hypothesis: str, arms: dict[str, str], metric: str = "top10 y_open 按天配对",
-           gate: dict | None = None) -> Path:
-    """预登记。已存在就拒绝改写（改假设 = 新实验，换名字）。"""
+           gate: dict | None = None, family: str = FAMILY_DEFAULT) -> Path:
+    """预登记。已存在就拒绝改写（改假设 = 新实验，换名字）。每个臂在登记簿里记一次（重复登记不重复记）。"""
     d = EXP / name
     d.mkdir(parents=True, exist_ok=True)
     f = d / "prereg.json"
+    seen = {(r.get("exp"), r.get("arm")) for r in _ledger_rows() if r.get("kind") == "prereg"}
+    for arm in arms:
+        if (name, arm) not in seen:
+            ledger_add({"family": family, "exp": name, "arm": arm, "kind": "prereg"})
     if f.exists():
         old = json.loads(f.read_text(encoding="utf-8"))
         if old.get("hypothesis") != hypothesis or old.get("arms") != arms:
@@ -280,7 +442,8 @@ def prereg(name: str, hypothesis: str, arms: dict[str, str], metric: str = "top1
         return f
     f.write_text(json.dumps({"name": name, "registered_at": dt.datetime.now().isoformat(timespec="seconds"),
                              "hypothesis": hypothesis, "arms": arms, "metric": metric,
-                             "gate": gate or GATE, "dev": DEV, "results": []},
+                             "gate": gate or GATE_V2, "family": family,
+                             "threshold_at_prereg": family_threshold(family), "dev": DEV, "results": []},
                             ensure_ascii=False, indent=1), encoding="utf-8")
     return f
 
