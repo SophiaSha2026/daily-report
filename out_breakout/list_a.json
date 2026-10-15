@@ -1,82 +1,82 @@
 [
   {
-    "code":"002696",
-    "name":"百洋股份",
+    "code":"002343",
+    "name":"慈文传媒",
     "score":99.0,
-    "streak":1,
-    "close":9.75,
+    "streak":2,
+    "close":8.91,
+    "board":"main"
+  },
+  {
+    "code":"000823",
+    "name":"超声电子",
+    "score":99.0,
+    "streak":2,
+    "close":25.87,
     "board":"main"
   },
   {
     "code":"003006",
     "name":"百亚股份",
     "score":98.0,
-    "streak":1,
-    "close":22.9,
+    "streak":2,
+    "close":22.82,
     "board":"main"
   },
   {
-    "code":"605058",
-    "name":"澳弘电子",
-    "score":98.0,
+    "code":"002815",
+    "name":"崇达技术",
+    "score":99.0,
     "streak":1,
-    "close":64.08,
+    "close":23.25,
     "board":"main"
   },
   {
-    "code":"000823",
-    "name":"超声电子",
+    "code":"920060",
+    "name":"万源通",
+    "score":99.0,
+    "streak":1,
+    "close":26.9,
+    "board":"bj"
+  },
+  {
+    "code":"000592",
+    "name":"平潭发展",
     "score":98.0,
     "streak":1,
-    "close":24.55,
+    "close":7.2,
     "board":"main"
   },
   {
-    "code":"600593",
-    "name":"大连圣亚",
+    "code":"600241",
+    "name":"时代万恒",
     "score":98.0,
     "streak":1,
-    "close":53.1,
+    "close":13.99,
     "board":"main"
   },
   {
-    "code":"605287",
-    "name":"德才股份",
+    "code":"600121",
+    "name":"郑州煤电",
     "score":98.0,
     "streak":1,
-    "close":48.9,
+    "close":5.68,
     "board":"main"
   },
   {
-    "code":"603968",
-    "name":"醋化股份",
+    "code":"002242",
+    "name":"九阳股份",
     "score":98.0,
     "streak":1,
-    "close":15.8,
+    "close":17.31,
     "board":"main"
   },
   {
-    "code":"688655",
-    "name":"迅捷兴",
+    "code":"002913",
+    "name":"奥士康",
     "score":98.0,
     "streak":1,
-    "close":69.59,
-    "board":"star"
-  },
-  {
-    "code":"002343",
-    "name":"慈文传媒",
-    "score":98.0,
-    "streak":1,
-    "close":8.1,
-    "board":"main"
-  },
-  {
-    "code":"002811",
-    "name":"郑中设计",
-    "score":98.0,
-    "streak":1,
-    "close":20.7,
+    "close":86.84,
     "board":"main"
   }
 ]
