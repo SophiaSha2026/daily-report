@@ -7,6 +7,7 @@ REM  the repo is version control only, so there is nothing to dispatch.
 REM
 REM  Usage:  run_local.cmd breakout | pullback | sync
 REM          sync = only pull what the cloud produced; runs no flow.
+REM          events = archive the short-lived event data (tools/archive_events.py).
 REM
 REM  Keep this file PURE ASCII. cmd.exe reads .cmd in the OEM code page, so
 REM  Chinese comments become mojibake and any echo of them prints garbage.
@@ -62,6 +63,8 @@ for /f "delims=" %%i in ('powershell -NoProfile -Command "(Get-Date).ToUniversal
 cd /d "%ROOT%"
 if /i "%FLOW%"=="sync" (
   "%PY%" src\local_run.py --sync >> "%LOG%" 2>&1
+) else if /i "%FLOW%"=="events" (
+  "%PY%" tools\archive_events.py --if-needed >> "%LOG%" 2>&1
 ) else (
   "%PY%" src\local_run.py --flow %FLOW% --if-needed >> "%LOG%" 2>&1
 )

@@ -29,6 +29,8 @@ saving settings on the local computer.」
     Evening   08:30Z 周一~周五 起每 30 分钟，共 16h   = 北京 16:30~次日 08:00（起涨预测）
     Pullback  09:40Z 周一~周五 起每 15 分钟，共 15h   = 北京 17:40~次日 08:25（长期调整突破，17:58 发信）
     Sync      04:15Z 每天 起每 30 分钟，整天          = 北京 12:15 起，只拉远端，几秒钟
+    Events    12:00Z 每天 起每 30 分钟，共 12h        = 北京 20:00~次日 07:30，存会过期的事件数据
+                                                       （tools/archive_events.py，2026-10-15 加，避开 15:55~18:30）
 
 DaysOfWeek 仍按**本机**日期数：08:30Z / 09:40Z 在美东是同一天凌晨
 （EDT 04:30 / 05:40），北京日期和美东日期是同一天，所以写 Monday~Friday。
@@ -43,7 +45,7 @@ src/selftest_gui.py::check_task_schedule 会按上表复算北京敲击序列，
 断言每条线都至少敲中一次「自动开跑时刻」。
 #>
 param(
-    [string[]]$Only = @("Evening", "Pullback", "Sync")
+    [string[]]$Only = @("Evening", "Pullback", "Sync", "Events")
 )
 $ErrorActionPreference = "Stop"
 # powershell -File 传数组参数时整个当一个字符串给进来，自己按逗号拆
@@ -98,6 +100,11 @@ $defs = @{
         Flow = "sync"; Limit = "PT10M"
         Trigger = Daily "04:15" "PT30M" "P1D"
         Desc = "同步远端产物。云端替本机跑出来的清单拉到本地面板，几秒钟。"
+    }
+    Events = @{
+        Flow = "events"; Limit = "PT30M"
+        Trigger = Daily "12:00" "PT30M" "PT12H"
+        Desc = "每日存档：涨停六池和千股千评这些只给近期的数据存到 data/events，攒半年后做特征实验。存过就秒退。"
     }
 }
 

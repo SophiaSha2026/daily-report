@@ -21,7 +21,8 @@ A股晚间选股流水线。**本地为主，云端托底**（2026-09-15 起）�
 | **晚间系统** | 起涨预测 | 每交易日 17:00 后，最晚次日 08:30 | `DailyReport-Local-Evening`（08:30Z 周一~周五起 16h，= 北京 16:30 起） |
 | | 长期调整突破 | 每交易日 **17:58**，没开机就开机后补发，最晚次日 08:30 | `DailyReport-Local-Pullback`（09:40Z 周一~周五起 15h，= 北京 17:40 起） |
 
-另有 `DailyReport-Local-Sync`（每 30 分钟只拉远端）。云端：`pages.yml` 推送触发
+另有 `DailyReport-Local-Sync`（每 30 分钟只拉远端）和 `DailyReport-Local-Events`（北京 20:00 起，
+每日存档会过期的事件数据，2026-10-15 加）。云端：`pages.yml` 推送触发
 发布面板；`evening_check.yml` 北京 20:30 看两条线目标日发了没有，没发就一封提醒
 （云端算不了这两条线，数据都在本机）。
 
@@ -171,7 +172,10 @@ src/
                          （冒烟测试 smoke_test 测的是早盘在 runner 上用的源，随早盘归档）
 tools/external-trigger/  Cloudflare Worker（worker.js + wrangler.toml 的 crons）：20:45 BJT 派发 evening_check。第三层触发，
                          停一条线要连它一起停（历史教训 24）
-tools/setup_tasks.ps1    本机三个计划任务的唯一定义
+tools/setup_tasks.ps1    本机四个计划任务的唯一定义
+tools/archive_events.py  每日存档器（2026-10-15）：涨停六池 + 千股千评三张表这些只给近期的数据存到
+                         data/events/<项>/YYYY-MM/<日>.parquet（gitignore），状态 state/events_status.json。
+                         北京 15:55~18:30 不发请求；日期对不上目标日不算存过；计划任务 DailyReport-Local-Events
 tools/evening_check.py   晚间托底检查（只在云端跑）
 tools/e2e_check.py       端到端运行时测试（联网、分钟级，试跑不发信不推送）
 tools/probe.py           数据源可达性探针（控制台「检查数据源」）：晚间线实际连的五个主机 +
@@ -753,10 +757,11 @@ GitHub runner 上用 Playwright 起 chromium 也一样能过（早盘的板块�
 
 ```
 tools/gui.cmd          控制台，桌面「A股流水线」指向它。手动跑用这个
-tools/setup_tasks.ps1  三个计划任务的唯一定义，改排期改它再重跑
+tools/setup_tasks.ps1  四个计划任务的唯一定义，改排期改它再重跑
 DailyReport-Local-Evening    起涨预测。08:30Z 周一到周五起每 30 分钟，共 16h（北京 16:30 起）
 DailyReport-Local-Pullback   长期调整突破。09:40Z 周一到周五起每 15 分钟，共 15h（北京 17:40 起）
 DailyReport-Local-Sync       每天每 30 分钟只拉远端
+DailyReport-Local-Events     12:00Z 每天起每 30 分钟，共 12h（北京 20:00~次日 07:30），存事件数据
 ```
 
 - **目标日**：两条线都是最近一个已收盘交易日，窗口跨午夜到次日 08:30

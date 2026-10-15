@@ -86,8 +86,9 @@
 | `DailyReport-Local-Evening` | 08:30Z 周一~周五 起每 30 分钟，共 16h | 16:00~次日 08:30 | 16:30 | 起涨预测 |
 | `DailyReport-Local-Pullback` | 09:40Z 周一~周五 起每 15 分钟，共 15h | 16:00~次日 08:30 | 17:40（17:58 发） | 长期调整突破 |
 | `DailyReport-Local-Sync` | 04:15Z 每天 起每 30 分钟 | 不限 | 不限 | 只拉远端 |
+| `DailyReport-Local-Events` | 12:00Z 每天 起每 30 分钟，共 12h | 北京 20:00~次日 07:30 | 存过就秒退 | 每日存档（tools/archive_events.py） |
 
-三个都带「登录时触发」（长期调整突破延后 5 分钟，让起涨预测先补日线）、允许唤醒、
+四个都带「登录时触发」（长期调整突破延后 5 分钟，让起涨预测先补日线）、允许唤醒、
 允许电池、错过就补。反复触发是安全的：`--if-needed` 跑过就不再跑、不在窗口只拉一次
 远端、正在跑就退出（`state/lock/<线>.json` 进程锁）。
 卡住的不算「在跑」：每一步都有时限，整条流程最长 5 小时（起涨预测）/ 6 小时
@@ -118,7 +119,7 @@ evening_check 那一条。改派发时刻改 `wrangler.toml` 和 `worker.js` 的
 
 PowerShell 的 `New-ScheduledTaskSettingsSet` 默认 `DisallowStartIfOnBatteries = True`。
 拔了电源，任务就一直卡在 `Queued` 从不启动，`LastTaskResult` 还报 **0**。
-`setup_tasks.ps1` 里三个任务都带 `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`。
+`setup_tasks.ps1` 里四个任务都带 `-AllowStartIfOnBatteries -DontStopIfGoingOnBatteries`。
 另一种：电量低到阈值的保护性休眠程序拦不住（2026-09-17 起涨预测停了 15 小时），
 只能插电，控制台首页会亮「没插电」。
 

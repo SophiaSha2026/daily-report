@@ -77,3 +77,6 @@ state/ai_analysis/
 # AI 讨论的会话记录和 claude 会话目录、可用模型缓存（本机运行态）
 state/ai_chat/
 state/ai_models.json
+# 每日存档器（tools/archive_events.py）：一年约 1 GB，本机留着不入库；状态文件是运行态
+data/events/
+state/events_status.json

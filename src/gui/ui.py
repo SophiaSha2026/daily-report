@@ -240,7 +240,7 @@ function renderActs(a) {
   }
 }
 
-const FLOW_NM = { breakout: "起涨预测", pullback: "长期调整突破", sync: "同步远端" };
+const FLOW_NM = { breakout: "起涨预测", pullback: "长期调整突破", sync: "同步远端", events: "数据存档" };
 async function loadTasks() {
   try {
     const t = await api("/api/tasks");

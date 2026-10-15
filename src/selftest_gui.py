@@ -291,11 +291,19 @@ def check_task_schedule() -> None:
 
     src = (ROOT / "tools" / "setup_tasks.ps1").read_text(encoding="utf-8-sig")
     blocks = list(re.finditer(
-        r"(?P<name>Evening|Pullback|Sync)\s*=\s*@\{.*?Trigger\s*=\s*"
+        r"(?P<name>Evening|Pullback|Sync|Events)\s*=\s*@\{.*?Trigger\s*=\s*"
         r"(?:Weekly\s*@\((?P<days>[^)]*)\)|Daily)\s*"
         r'"(?P<at>\d{2}:\d{2})"\s*"(?P<every>[^"]+)"\s*"(?P<dur>[^"]+)"', src, re.S))
     got = {m.group("name"): m for m in blocks}
-    ck(len(got) == 3, f"setup_tasks.ps1 里解析到三个任务（实际 {sorted(got)}）")
+    ck(len(got) == 4, f"setup_tasks.ps1 里解析到四个任务（实际 {sorted(got)}）")
+    ev = got.get("Events")
+    if ev:
+        h, m = map(int, ev.group("at").split(":"))
+        start_bj = (h + 8) % 24 * 60 + m
+        dur_h = int(re.sub(r"\D", "", ev.group("dur")))
+        knocks = [(start_bj + 30 * i) % 1440 for i in range(dur_h * 2 + 1)]
+        ck(not any(15 * 60 + 55 <= k <= 18 * 60 + 30 for k in knocks),
+           "数据存档的敲门全落在北京 15:55~18:30 之外（不和两条线抢东财配额）")
     ck(not re.search(r"^\s*(Morning|Learn)\s*=\s*@\{", src, re.M),
        "早盘系统的 Morning / Learn 两个任务定义已经删掉（2026-09-27 归档）")
     if len(got) != 3:
@@ -2768,7 +2776,8 @@ def check_tasks_panel() -> None:
     exp = st.expected_tasks()
     ck({e["name"]: e["flow"] for e in exp} == {"DailyReport-Local-Evening": "breakout",
                                                 "DailyReport-Local-Pullback": "pullback",
-                                                "DailyReport-Local-Sync": "sync"},
+                                                "DailyReport-Local-Sync": "sync",
+                                                "DailyReport-Local-Events": "events"},
        f"应有的任务从 tools/setup_tasks.ps1 的 $defs 读出来（实得 {[e['name'] for e in exp]}）")
     tmp = Path(tempfile.mkdtemp(prefix="tasks_"))
     (tmp / "tools").mkdir()
@@ -2807,6 +2816,73 @@ def check_tasks_panel() -> None:
         ck(st.tasks_panel()["ok"], "都正常 -> 绿")
     finally:
         st.ROOT, st.scheduled_tasks = real_root, real_tasks
+
+
+def check_archive_events() -> None:
+    """每日存档器（2026-10-15）：禁区不发请求、日期对不上不算存过、空池子不算、--if-needed、状态路径跟 ROOT。"""
+    print("\n[数据存档]")
+    import datetime as _dt
+    import json
+    import tempfile
+    import types
+    import sys as _sys
+    import pandas as pd
+    _sys.path.insert(0, str(ROOT / "tools"))
+    import archive_events as AE
+    from bjtime import BJ
+    real = AE.ROOT
+    tmp = Path(tempfile.mkdtemp(prefix="events_"))
+    AE.ROOT = tmp
+    calls = []
+
+    class FakeSession:
+        def __init__(self, dc_date):
+            self.dc_date = dc_date
+
+        def get(self, url, params=None, timeout=None):
+            calls.append(url)
+            if "push2ex" in url:
+                pool = [] if "ZBPool" in url else [{"c": "1", "n": "x", "zttj": {"days": 1, "ct": 1}}]
+                data = {"data": {"pool": pool}}
+            else:
+                rows = [{"SECURITY_CODE": f"{i:06d}", "TRADE_DATE": self.dc_date + " 00:00:00"} for i in range(1200)]
+                data = {"result": {"data": rows if params["pageNumber"] == "1" else [], "pages": 1}}
+            return types.SimpleNamespace(json=lambda: data, raise_for_status=lambda: None)
+    try:
+        AE.time.sleep = lambda s: None
+        at = _dt.datetime(2026, 10, 15, 20, 0, tzinfo=BJ)
+        AE.run("2026-10-14", True, session=FakeSession("2026-10-14"), now=lambda: at)
+        st = json.loads(AE.status_path().read_text(encoding="utf-8"))
+        ck(str(AE.status_path()).startswith(str(tmp)), "状态文件跟着 ROOT 走（自测不碰生产，教训 44）")
+        ck(all(AE.item_path(n, "2026-10-14").exists() for n in AE.items()) and all(v["ok"] for v in st.values()),
+           f"九项都存到 data/events/<项>/YYYY-MM/<日>.parquet（{len(st)} 项）")
+        ck(pd.read_parquet(AE.item_path("ztpool_zt", "2026-10-14"))["c"].iloc[0] == "000001",
+           "代码补成 6 位")
+        n0 = len(calls)
+        AE.run("2026-10-14", True, session=FakeSession("2026-10-14"), now=lambda: at)
+        ck(len(calls) == n0, "--if-needed：每一项都存过就一个请求都不发")
+        AE.run("2026-10-13", True, session=FakeSession("2026-10-14"), now=lambda: at)
+        st = json.loads(AE.status_path().read_text(encoding="utf-8"))
+        ck(not AE.item_path("comment_snap", "2026-10-13").exists() and not st["comment_snap"]["ok"],
+           "快照的日期对不上目标日就不算存过（教训 22），状态里记原因")
+        ck(AE.complete("ztpool_zb", pd.DataFrame()) and not AE.complete("ztpool_zt", pd.DataFrame()),
+           "炸板池可以是空的，涨停池空了不算存到（像是还没出）")
+        n1 = len(calls)
+        AE.run("2026-10-12", False, session=FakeSession("2026-10-12"),
+               now=lambda: _dt.datetime(2026, 10, 15, 17, 0, tzinfo=BJ))
+        ck(len(calls) == n1, "北京 15:55~18:30 一个请求都不发")
+        ck(AE.in_blackout(_dt.datetime(2026, 10, 15, 15, 55, tzinfo=BJ))
+           and not AE.in_blackout(_dt.datetime(2026, 10, 15, 18, 31, tzinfo=BJ)), "禁区边界")
+        src = (ROOT / "tools" / "archive_events.py").read_text(encoding="utf-8")
+        import re as _re
+        ck(len(_re.findall(r"(?<![\w.])s\.get\(", src)) == src.count("timeout=TIMEOUT") >= 2,
+           "每个请求都带超时（教训 43）")
+        cmd = (ROOT / "tools" / "run_local.cmd").read_bytes()
+        ck(b"archive_events.py --if-needed" in cmd and all(b < 128 for b in cmd),
+           "run_local.cmd 有 events 分支且仍是纯 ASCII")
+    finally:
+        AE.ROOT = real
+        AE.time.sleep = __import__("time").sleep
 
 
 def check_refit_chain_wiring() -> None:
@@ -2874,6 +2950,7 @@ def main() -> int:
     check_ai_wiring()
     check_ai_chat()
     check_tasks_panel()
+    check_archive_events()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")

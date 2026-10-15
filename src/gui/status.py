@@ -228,8 +228,10 @@ def task_history(flow: str, n: int = 8) -> list[dict]:
             kind, text = "running", "在跑（或被打断）"
         elif rc != 0:
             kind, text = "failed", f"退出码 {rc}"
-        elif "本地全流程" in b or flow == "sync":
-            kind, text = "ran", "跑完" if flow != "sync" else "同步完"
+        elif "本地全流程" in b:
+            kind, text = "ran", "跑完"
+        elif flow in ("sync", "events") and not sk:
+            kind, text = "ran", {"sync": "同步完", "events": "存完"}[flow]
         elif sk:
             line = next((ln for ln in b.splitlines() if "跳过" in ln), "")
             # 「08:30:03 起涨预测：目标日 2026-10-14 已经跑完，跳过」-> 「目标日 10-14 已经跑完」
