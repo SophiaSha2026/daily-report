@@ -391,8 +391,13 @@ def _ai_header_note(date: str) -> str:
 # 98 分以上 15.3%（n=957）、连续够格 2 天以上 21.0%（n=324），对全部名额 12.7%。
 # 它们不是邮件成绩表那套常量（验证集、update_perf 改写），所以单独写死并标明出处；
 # 清单 A 的定义不变（用户 2026-10-11 定：不改分数线，只加一层信息）
-HIGH_CONF = {"score": 98, "streak": 2, "hit98": 15.3, "hit_streak2": 21.0, "hit_all": 12.7,
-             "source": "开发集 19 个月，次日开盘买入口径"}
+# 2026-10-15 更正（research/stats/report.md 3.3 节）：10-11 写进来的 15.3 / 21.0 / 12.7 口径抄错了，
+# 分别是「前 50 名里恰好 98 分」「恰好连续 2 天」「每天前 10」，都不是邮件字面说的集合。
+# 现在三个数都按字面口径：开发集 2024-06..2025-12 的清单 A 内部，次日开盘买入口径
+# （research/stats/out/claims.json 的 listA_score98plus / listA_streak2plus / listA_all）。
+# 和清单 A 其余部分比，差异按块自举都不显著（p 0.24 / 0.14），所以文案写明「不显著」。
+HIGH_CONF = {"score": 98, "streak": 2, "hit98": 19.4, "n98": 1174, "hit_streak2": 21.6, "n_streak2": 638,
+             "hit_all": 17.2, "n_all": 1772, "source": "开发集 19 个月清单 A，次日开盘买入口径"}
 
 
 def _high_conf(a: pd.DataFrame) -> str:
@@ -404,8 +409,8 @@ def _high_conf(a: pd.DataFrame) -> str:
     body = (f"今天 {len(hc)} 只：{names}" if len(hc) else "今天没有")
     return (f'<div class="tip"><b>高置信</b>（{HIGH_CONF["score"]} 分以上，或连续够格 {HIGH_CONF["streak"]} 天以上）：'
             f'{body}。{HIGH_CONF["source"]}：{HIGH_CONF["score"]} 分以上 {HIGH_CONF["hit98"]}%、'
-            f'连续 {HIGH_CONF["streak"]} 天以上 {HIGH_CONF["hit_streak2"]}%，全部名额 {HIGH_CONF["hit_all"]}%。'
-            f'只是提示，清单 A 的规则没变。</div>')
+            f'连续 {HIGH_CONF["streak"]} 天以上 {HIGH_CONF["hit_streak2"]}%，清单 A 整体 {HIGH_CONF["hit_all"]}%。'
+            f'差别在统计上不显著，只是提示，清单 A 的规则没变。</div>')
 
 
 def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:

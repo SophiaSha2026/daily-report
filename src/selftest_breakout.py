@@ -1771,6 +1771,10 @@ def check_table_shape() -> None:
                                                           "close", "rise", "drop"]), {}, False)
     ck("高置信" in h2 and "今天 2 只" in h2 and "600000 甲" in h2 and "600001 乙" in h2 and "600002" not in h2.split("高置信")[1].split("</div>")[0],
        "高置信块列出 98 分以上和连续 2 天以上的，不列其它")
+    hc = h2.split("高置信")[1].split("</div>")[0]
+    ck("清单 A 整体" in hc and "不显著" in hc and E.HIGH_CONF["hit_all"] < E.HIGH_CONF["hit98"]
+       and E.HIGH_CONF["hit_all"] < E.HIGH_CONF["hit_streak2"] and "全部名额" not in hc,
+       "高置信的对照是清单 A 整体（不是每天前 10），并写明差别不显著（2026-10-15 更正口径）")
     a3 = a2.assign(score=97.0, streak=1)
     h3 = E._body("2026-09-15", a3, pd.DataFrame(columns=["code", "name", "best", "days", "streak",
                                                           "close", "rise", "drop"]), {}, False)
