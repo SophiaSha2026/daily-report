@@ -1565,10 +1565,13 @@ def flow_breakout(dry: bool) -> int:
         log.error("send 退出码 0 但 out_breakout/mail_sent.json 不是 %s 的，"
                   "不推 sent 标记（云端 20:30 会发「本机没跑」提醒）", d)
         rc = 1
-    # export.py 的成绩常量由月度重估链改写（tools/update_perf.py），改了要一起推
+    # export.py 的成绩常量由月度重估链改写（tools/update_perf.py），改了要一起推。
+    # regime_daily.jsonl（truth_and_regime 写）、AI 复盘产物和用量账（ai_review 写）以前不在这张表里，
+    # 一直挂在工作区没进仓库，远端那份越来越旧（2026-10-16 发现，10-12 / 10-13 的复盘从没推上去）
     push_all(f"起涨预测 {d} [local]",
              [f"data/breakout/{d[:7]}", "out_breakout", "state/breakout",
-              "src/breakout/export.py"], dry)
+              "src/breakout/export.py", "state/regime_daily.jsonl",
+              "state/ai_review", "state/ai_usage.jsonl"], dry)
     return rc
 
 

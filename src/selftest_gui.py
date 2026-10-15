@@ -2586,6 +2586,10 @@ def check_ai_wiring() -> None:
     ck(has_try and "ai_review(d, dry)" in src.split("def flow_breakout(")[1].split("\ndef ")[0],
        "flow_breakout 发信后调 ai_review，且包在 try 里")
     ck("review" in __import__("local_run").STEP_LIMIT, "AI 复盘有自己的时限")
+    fb = src.split("def flow_breakout(")[1].split("\ndef ")[0]
+    ck(all(p in fb for p in ('"state/ai_review"', '"state/regime_daily.jsonl"', '"state/ai_usage.jsonl"'))
+       and fb.index("ai_review(d, dry)") < fb.index("push_all("),
+       "起涨预测推送带上 AI 复盘产物、市场环境、用量账，且复盘在推送之前（2026-10-16 补）")
     esrc = (ROOT / "src" / "breakout" / "export.py").read_text(encoding="utf-8")
     ck("latest_alert" in esrc and "ai_usage" in esrc, "邮件抬头读 AI 复盘结论和用量")
     del json
