@@ -785,6 +785,10 @@ def check_update_status() -> None:
         m = pd.read_parquet(B.OUT / "daily.parquet")
         ck(rc == 0 and st["short"] == [xr] and st["filled"] == 1,
            "update_status.json 记下了「没拉到目标日」和「补了几只」")
+        ck(st.get("filled_codes") == [xr], "用快照补了当天的代码单列（local_run 数上限时扣掉）")
+        mc = st.get("merge_check") or {}
+        ck(mc.get("ok") is True and mc.get("lost") == 0 and mc.get("target_rows") == len(cs),
+           f"合并后核对目标日：以为补上的都在（{mc}）")
         ck(target in set(m[m["code"] == xr]["date"]),
            "除权票当天那一行被腾讯快照补上了（不会从候选池静默消失）")
         ck(set(m[m["date"] == target]["code"]) == set(m["code"]),
@@ -799,14 +803,21 @@ def check_update_status() -> None:
         m2 = pd.read_parquet(B.OUT / "daily.parquet")
         ck(rc2 == 0 and cap["ref"] == [xr] and st2["short"] == [xr],
            "重试真的去重拉上一轮没拉到的那几只，还没拉到就还记在账上")
+        ck(st2.get("filled_codes") == [xr], "重试后快照补过的那只还在 filled_codes 里")
         ck(target in set(m2[m2["code"] == xr]["date"]),
            "还没拉到的那只，快照补的当天那根没被重试清掉")
         B.refetch_codes = lambda codes_, target=None, only_complete=False: (
             cap["ref"].extend(codes_) or (list(codes_), []))
         rc3 = B.stage_update()
         st3 = json.loads((B.STATE / "update_status.json").read_text("utf-8"))
-        ck(rc3 == 0 and st3["short"] == [] and st3.get("retried_at"),
+        ck(rc3 == 0 and st3["short"] == [] and st3.get("retried_at") and st3.get("filled_codes") == [],
            "重拉到了就从账上划掉，起涨预测不再按它挡清单")
+        # 合并后丢行：以为补上了的票目标日没有那一根，要记进账（AI 提案 2026-10-09-daily-3）
+        fake = B.OUT / "mc_test.parquet"
+        pd.DataFrame({"code": cs[:3], "date": [target] * 3}).to_parquet(fake, index=False)
+        mc2 = B.merge_check(target, set(cs[:10]), path=fake)
+        ck(mc2["ok"] is False and mc2["lost"] == 7 and len(mc2["lost_codes"]) == 7 and mc2["target_rows"] == 3,
+           "合并后少了以为补上的票：只数和代码记进账")
     finally:
         restore()
 

@@ -1643,11 +1643,12 @@ def check_breakout_flow() -> None:
                      ).to_parquet(tmp / "data" / "breakout" / "daily.parquet",
                                   index=False)
 
-    def write_status(short: list, new: list | None = None) -> None:
+    def write_status(short: list, new: list | None = None, filled: list | None = None) -> None:
         (tmp / "state" / "breakout").mkdir(parents=True, exist_ok=True)
         (tmp / "state" / "breakout" / "update_status.json").write_text(
             json.dumps({"date": d, "appended": len(real), "missing": 0,
-                        "short": short, "new_codes": new or [], "ok": True}),
+                        "short": short, "new_codes": new or [], "filled_codes": filled or [],
+                        "ok": True}),
             encoding="utf-8")
 
     def mk_py(send_writes: str):
@@ -1706,6 +1707,12 @@ def check_breakout_flow() -> None:
         rc = local_run.flow_breakout(False)
         ck(rc == 1 and not [a for a in ran if a and a[0] == "src/breakout/build.py"],
            f"没拉到目标日的票 {local_run.UPDATE_SHORT_MAX + 1} 只 -> 不建特征、不出清单")
+        ran.clear()
+        over = real[:local_run.UPDATE_SHORT_MAX + 1]
+        write_status(over, filled=over[:2])
+        s_, f_, note_ = local_run._update_short(d)
+        ck(len(s_) == local_run.UPDATE_SHORT_MAX - 1 and "已用快照补了当天" in note_,
+           "已用快照补了当天的票不算没拉到、不占 50 只的上限（AI 提案 2026-10-09-daily-2）")
         ran.clear()
         write_status(real[:3])
         ck(local_run.flow_breakout(False) == 0,

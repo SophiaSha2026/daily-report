@@ -1102,13 +1102,18 @@ def _update_short(target: str) -> tuple[list[str], list[str], str]:
     if str(st.get("date") or "") != target:
         return [], [], f"update_status.json 是 {st.get('date')} 的，不是 {target}"
     new = {str(x) for x in (st.get("new_codes") or [])}
-    allx = [str(x) for x in (st.get("short") or [])]
+    # 已用腾讯快照补了当天那根的（backfill 记在 filled_codes）：目标日有行，不算「没拉到」，
+    # 不占 UPDATE_SHORT_MAX（AI 提案 2026-10-09-daily-2，用户批准）
+    filled = {str(x) for x in (st.get("filled_codes") or [])}
+    allx = [str(x) for x in (st.get("short") or []) if str(x) not in filled]
     short = [c for c in allx if c not in new]
     fresh = [c for c in allx if c in new]
-    return short, fresh, (f"补数据记账：追加 {st.get('appended')} 只，"
-                          f"整段重拉没拉到目标日 {len(allx)} 只"
-                          f"（其中新股 {len(fresh)} 只），"
-                          f"快照没回 {st.get('missing')} 只")
+    note = (f"补数据记账：追加 {st.get('appended')} 只，"
+            f"整段重拉没拉到目标日 {len(allx)} 只（其中新股 {len(fresh)} 只），"
+            f"快照没回 {st.get('missing')} 只")
+    if filled:
+        note += f"；另有 {len(filled)} 只已用快照补了当天，不算没拉到"
+    return short, fresh, note
 
 
 # 补跑到目标日次日这个时刻（北京）还挡在 UPDATE_SHORT_MAX 上，就不再挡：

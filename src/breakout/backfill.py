@@ -758,6 +758,7 @@ def _stage_update(target: str = "") -> int:
                 if rc != 0:
                     return rc
             _write_status({**prev, "short": still,
+                           "filled_codes": [c for c in (prev.get("filled_codes") or []) if c in still],
                            "retried_at": now_bj().isoformat(timespec="seconds")})
             log.info("上一轮没拉到 %s 的 %d 只重拉了一次：这次拉到 %d 只，还差 %d 只",
                      target, len(short), len(_got), len(still))
@@ -767,7 +768,7 @@ def _stage_update(target: str = "") -> int:
             (STATE / "update_status.json").write_text(json.dumps(
                 {"date": target, "covered": hist_max, "rows": int(cnt.loc[hist_max]),
                  "appended": 0, "stale": 0, "newcodes": 0, "refetch_only": 0,
-                 "missing": 0, "short": [], "filled": [],
+                 "missing": 0, "short": [], "filled": 0, "filled_codes": [],
                  "note": "已覆盖，本轮没有追加"}, ensure_ascii=False),
                 encoding="utf-8")
         except Exception as e:  # noqa: BLE001
@@ -838,6 +839,7 @@ def _stage_update(target: str = "") -> int:
     pd.DataFrame(rows).to_parquet(_shard_name("upd"), index=False)
     # 没有历史的票（新上市、首次回填漏掉的）整段拉，不然永远进不来
     short: list[str] = []
+    _ok: list[str] = []
     if refetch or newcodes:
         _ok, short = refetch_codes(refetch + newcodes[:200], target=target)
     # 新浪还没出当日 K 线的除权票：_ref 分片对它们是整段权威，会把 _upd 里
@@ -849,9 +851,18 @@ def _stage_update(target: str = "") -> int:
         pd.DataFrame(fill).to_parquet(_shard_name("upd2"), index=False)
         log.warning("%d 只除权票新浪还没出当日 K 线，先用腾讯快照补当天一根",
                     len(fill))
-    status.update({"short": short, "filled": len(fill), "ok": True})
+    # 用快照补了当天那根的代码单列：它们目标日有行，local_run 数「没拉到目标日」时扣掉
+    # （AI 提案 2026-10-09-daily-2，用户批准；以前只记只数，这些票照样占 50 只的上限）
+    filled_codes = [c for c in short if c in r["pend"]]
+    status.update({"short": short, "filled": len(fill), "filled_codes": filled_codes, "ok": True})
     _write_status(status)
     rc = merge_daily(pattern="sina_*.parquet")
+    if rc == 0:
+        # 合并之后对一次目标日实际有哪些票（AI 提案 2026-10-09-daily-3，用户批准）：
+        # 以为补上了（快照追加 / 重拉拿到 / 快照兜底）、合并后却没有目标日那根的，记进账；
+        # 成片丢就 log.error。_ref 分片对它的代码是「整段权威」，合并顺序一错当天那根就静默消失
+        status["merge_check"] = merge_check(target, have | set(_ok) | set(filled_codes))
+        _write_status(status)
     hp = OUT / "holders.parquet"
     if rc == 0 and holders_stale(hp):
         try:
@@ -859,6 +870,29 @@ def _stage_update(target: str = "") -> int:
         except Exception as e:  # noqa: BLE001
             log.warning("股东人数刷新失败（%s），继续用旧表", e)
     return rc
+
+
+MERGE_LOST_MAX = 0.01     # 合并后丢掉的目标日行占应有的比例超过它就 log.error（且至少 5 只）
+
+
+def merge_check(target: str, expected: set[str], path: Path | None = None) -> dict:
+    """合并后的 daily.parquet 里，目标日实际有哪些票；和「以为补上了」的集合相减。"""
+    p = path or OUT / "daily.parquet"
+    try:
+        d = pd.read_parquet(p, columns=["code", "date"])
+        actual = set(d.loc[d["date"].astype(str).str[:10] == target, "code"].astype(str).str.zfill(6))
+    except Exception as e:  # noqa: BLE001
+        log.warning("合并后核对目标日行数没做成（%s）", e)
+        return {"ok": None, "err": str(e)[:120]}
+    lost = sorted(set(map(str, expected)) - actual)
+    out = {"ok": not lost, "expected": len(expected), "target_rows": len(actual),
+           "lost": len(lost), "lost_codes": lost[:20]}
+    if len(lost) > max(5, MERGE_LOST_MAX * max(len(expected), 1)):
+        log.error("合并后目标日 %s 少了 %d 只以为补上了的票（例 %s），应有 %d 只、实有 %d 只",
+                  target, len(lost), lost[:5], len(expected), len(actual))
+    elif lost:
+        log.warning("合并后目标日 %s 少了 %d 只：%s", target, len(lost), lost[:20])
+    return out
 
 
 def consolidate() -> int:

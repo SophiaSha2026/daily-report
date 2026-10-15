@@ -1411,3 +1411,7 @@ MAX_RUN 起涨预测 5 -> 6 小时（加了重估链和复盘两步）。
 类别，有效的只有价格触发的异动类、信息全在日线里）；换条路实验（research/altpath/report.md，11 个臂
 0 个过线，Alpha158 式标准量价特征并进生产特征是唯一强候选：前 10 买得到 12.07% -> 16.25%，NW t 2.80，
 换种子缩到 +2.89）。特征深度研究在做，结论出来后另记一节。
+
+- 2026-10-15 上面两条已批准的 AI 待办做完：backfill 记 filled_codes（快照补了当天的代码），
+  local_run._update_short 数「没拉到目标日」时扣掉它们；stage_update 合并后 merge_check 核对目标日
+  实际有哪些票，以为补上了却没有的只数和代码记进 update_status.json 的 merge_check，成片丢（>1% 且 >5 只）打 log.error。
