@@ -2855,6 +2855,12 @@ def check_archive_events() -> None:
             if "push2ex" in url:
                 pool = [] if "ZBPool" in url else [{"c": "1", "n": "x", "zttj": {"days": 1, "ct": 1}}]
                 data = {"data": {"pool": pool}}
+            elif "limit_up_pool" in url:
+                info = [{"code": "1", "reason_type": "x", "time_preview": [0.1, 0.2]}]
+                data = {"data": {"date": self.dc_date.replace("-", ""), "info": info,
+                                 "page": {"count": 1}}}
+            elif "getharden" in url:
+                data = {"data": [{"code": "2", "reason": "x", "date": url.rstrip("/").rsplit("/", 1)[-1]}]}
             else:
                 rows = [{"SECURITY_CODE": f"{i:06d}", "TRADE_DATE": self.dc_date + " 00:00:00"} for i in range(1200)]
                 data = {"result": {"data": rows if params["pageNumber"] == "1" else [], "pages": 1}}
@@ -2866,7 +2872,10 @@ def check_archive_events() -> None:
         st = json.loads(AE.status_path().read_text(encoding="utf-8"))
         ck(str(AE.status_path()).startswith(str(tmp)), "状态文件跟着 ROOT 走（自测不碰生产，教训 44）")
         ck(all(AE.item_path(n, "2026-10-14").exists() for n in AE.items()) and all(v["ok"] for v in st.values()),
-           f"九项都存到 data/events/<项>/YYYY-MM/<日>.parquet（{len(st)} 项）")
+           f"{len(AE.items())} 项都存到 data/events/<项>/YYYY-MM/<日>.parquet（{len(st)} 项）")
+        lu = pd.read_parquet(AE.item_path("ths_limit_up", "2026-10-14"))
+        ck(lu["code"].iloc[0] == "000001" and isinstance(lu["time_preview"].iloc[0], str),
+           "同花顺涨停揭秘：代码补 6 位、分时轨迹存成 JSON 字符串")
         ck(pd.read_parquet(AE.item_path("ztpool_zt", "2026-10-14"))["c"].iloc[0] == "000001",
            "代码补成 6 位")
         n0 = len(calls)
@@ -2876,6 +2885,15 @@ def check_archive_events() -> None:
         st = json.loads(AE.status_path().read_text(encoding="utf-8"))
         ck(not AE.item_path("comment_snap", "2026-10-13").exists() and not st["comment_snap"]["ok"],
            "快照的日期对不上目标日就不算存过（教训 22），状态里记原因")
+        def _raises(f):
+            try:
+                f()
+            except ValueError:
+                return True
+            return False
+        ck(_raises(lambda: AE.ths_frame("ths_limit_up", {"data": {"date": "20261014", "info": [{"code": "1"}]}}, "2026-10-13"))
+           and _raises(lambda: AE.ths_frame("ths_harden", {"data": [{"code": "1", "date": "2026-10-14"}]}, "2026-10-13")),
+           "同花顺两个源给的日期对不上目标日就抛（不算存过）")
         ck(AE.complete("ztpool_zb", pd.DataFrame()) and not AE.complete("ztpool_zt", pd.DataFrame()),
            "炸板池可以是空的，涨停池空了不算存到（像是还没出）")
         n1 = len(calls)

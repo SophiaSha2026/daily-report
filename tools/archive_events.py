@@ -7,10 +7,14 @@
     comment_evaluate   千股千评-主力控盘（超大单 / 主力流入流出、机构参与度），按 TRADE_DATE 取目标日
     comment_focus      千股千评-关注指数和全市场名次，按 TRADE_DATE 取目标日
     comment_snap       千股千评当日快照（全市场一行一只），TRADE_DATE 必须是目标日
+    ths_limit_up       同花顺涨停揭秘：首封 / 末封时间、炸板次数、板型、几天几板、封单、涨停原因、分时轨迹
+                       （只给近约一年，滚动窗口；不含北交所。2026-10-16 加，docs/rethink_2026-10-16.md 拍板 F）
+    ths_harden         同花顺强势股：每只涨停票当天的题材原因（约 2023-10 起，带时点的题材标签）
 
     python tools/archive_events.py                 存最近一个已收盘交易日
     python tools/archive_events.py --if-needed     计划任务用：每一项都存过就秒退
-    python tools/archive_events.py --import-research   把 research/datasrc/archive 里抢救的那批并进来（一次性）
+    python tools/archive_events.py --import-research   把 research/datasrc/archive 里抢救的那批、
+                                                       research/datasrc/grab_ths.py 回填的同花顺 JSON 并进来（一次性）
 
 产物 data/events/<项>/YYYY-MM/<日>.parquet（gitignore，不入库：一年约 1 GB）；
 状态 state/events_status.json（gitignore），控制台计划任务区块读它。
@@ -53,6 +57,8 @@ DC = {  # 名字: (表, 是否按 TRADE_DATE 过滤)
     "comment_focus": ("RPT_STOCK_MARKETFOCUS", True),
     "comment_snap": ("RPT_DMSK_TS_STOCKNEW", False),
 }
+THS = ("ths_limit_up", "ths_harden")
+THS_LU_FIELDS = "199112,10,9001,330323,330324,330325,9002,330329,133971,133970,1968584,3475914,9003,9004"
 POOL_DAYS = 25      # 涨停池接口只给近 30 个自然日，目标日再早就不去要了
 
 
@@ -66,7 +72,7 @@ def status_path() -> Path:
 
 
 def items() -> list[str]:
-    return [f"ztpool_{k}" for k in POOLS] + list(DC)
+    return [f"ztpool_{k}" for k in POOLS] + list(DC) + list(THS)
 
 
 def item_path(name: str, day: str) -> Path:
@@ -138,9 +144,62 @@ def fetch_dc(s, name: str, day: str):
     return df
 
 
+def _flat(df):
+    """嵌套的列（分时轨迹等）存成 JSON 字符串，parquet 才写得下。"""
+    for c in df.columns:
+        if df[c].map(lambda x: isinstance(x, (dict, list))).any():
+            df[c] = df[c].map(lambda x: json.dumps(x, ensure_ascii=False))
+    return df
+
+
+def ths_frame(name: str, j: dict, day: str):
+    """同花顺两个接口的原始 JSON -> 一行一只的表。日期对不上目标日就抛（教训 22）。抓取和回填共用。"""
+    import pandas as pd
+    if name == "ths_limit_up":
+        data = j.get("data") or {}
+        got = str(data.get("date") or "")
+        if got and got != day.replace("-", ""):
+            raise ValueError(f"涨停揭秘给的是 {got}，不是目标日 {day}")
+        df = pd.DataFrame(data.get("info") or [])
+    else:
+        df = pd.DataFrame(j.get("data") or [])
+        if len(df) and not (df["date"].astype(str).str[:10] == day).all():
+            raise ValueError(f"强势股给的日期是 {sorted(set(df['date'].astype(str)))[:3]}，不是目标日 {day}")
+        df = df.drop(columns="date", errors="ignore")
+    df = _flat(df)
+    if len(df):
+        df.insert(0, "date", day)
+        df["code"] = df["code"].astype(str).str.zfill(6)
+    return df
+
+
+def fetch_ths(s, name: str, day: str):
+    if name == "ths_harden":
+        r = s.get(f"https://zx.10jqka.com.cn/event/api/getharden/date/{day}/", timeout=TIMEOUT)
+        r.raise_for_status()
+        return ths_frame(name, r.json(), day)
+    j, page = None, 1
+    while True:
+        r = s.get("https://data.10jqka.com.cn/dataapi/limit_up/limit_up_pool", timeout=TIMEOUT, params={
+            "page": page, "limit": 200, "field": THS_LU_FIELDS, "filter": "HS,GEM2STAR",
+            "order_field": "330324", "order_type": 0, "date": day.replace("-", "")})
+        r.raise_for_status()
+        d = r.json()
+        if j is None:
+            j = d
+        else:
+            j["data"]["info"] += (d.get("data") or {}).get("info") or []
+        if page >= int(((d.get("data") or {}).get("page") or {}).get("count") or 1):
+            return ths_frame(name, j, day)
+        page += 1
+        time.sleep(0.6)
+
+
 def fetch(s, name: str, day: str):
     if name.startswith("ztpool_"):
         return fetch_pool(s, name[len("ztpool_"):], day)
+    if name in THS:
+        return fetch_ths(s, name, day)
     return fetch_dc(s, name, day)
 
 
@@ -148,6 +207,8 @@ def complete(name: str, df) -> bool:
     """这一项算不算存到了：池子里不许空的空了、千股千评一行没有，都不算（下一次再试）。"""
     if name.startswith("ztpool_"):
         return len(df) > 0 or POOLS[name[len("ztpool_"):]][2]
+    if name in THS:
+        return len(df) > 0                 # 交易日总有涨停票；空的是还没出
     return len(df) > 1000
 
 
@@ -229,6 +290,16 @@ def import_research() -> int:
             if not dst.exists():
                 write_atomic(dst, g[["date"] + [c for c in g.columns if c != "date"]])
                 n += 1
+    for name in THS:
+        for f in sorted((out_dir() / name).glob("*/*.json")):
+            day = f.stem
+            dst = item_path(name, day)
+            if not dst.exists():
+                df = ths_frame(name, json.loads(f.read_text(encoding="utf-8")), day)
+                if len(df):
+                    write_atomic(dst, df)
+                    n += 1
+            f.unlink()                     # 原始 JSON 并成 parquet 后删掉，目录里只留一种格式
     print(f"并进来 {n} 个文件")
     return 0
 
