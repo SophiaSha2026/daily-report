@@ -822,6 +822,49 @@ def check_update_status() -> None:
         restore()
 
 
+def check_update_gap_refetch() -> None:
+    """快照正常追加了当天一根、又因停牌缺口被列进整段重拉的票：重拉没到目标日时，
+    _ref 分片整段权威会把 _upd 那一根清掉。兜底行要连它一起补（2026-10-16 实测丢 8 只）。"""
+    print("\n[增量·缺口重拉的兜底行]")
+    import json
+    import tempfile
+    import backfill as B
+    cs = _real_codes(1200)
+    gap = cs[0]
+    target, tds = "2026-09-16", ["2026-09-14", "2026-09-15", "2026-09-16"]
+    tmp = Path(tempfile.mkdtemp(prefix="gap_"))
+    daily = _fake_daily(cs, ["2026-09-14", "2026-09-15"])
+    daily = daily[~((daily["code"] == gap) & (daily["date"] == "2026-09-15"))]   # 09-15 停牌
+
+    def qf(syms):
+        return {s: _quote(s[2:], 10.0, 10.0, 1e5, "10.00") for s in syms}
+
+    cap, restore = _offline_update(tmp, daily, qf, cs, target, tds)
+
+    def _ref(codes_, target=None, only_complete=False):
+        cap["ref"] += list(codes_)
+        # 新浪还没出当日 K 线：整段只到 09-15，照样落 _ref 分片（整段权威）。
+        # 真实重拉要几分钟，分片名的秒级时间戳排在 _upd 之后；同一秒写的话 ref < upd 按字母序反而让 _upd 赢
+        time.sleep(1.1)
+        _fake_daily(list(codes_), ["2026-09-14", "2026-09-15"]).to_parquet(
+            B._shard_name("ref"), index=False)
+        return [], list(codes_)
+    B.refetch_codes = _ref
+    try:
+        rc = B.stage_update()
+        st = json.loads((B.STATE / "update_status.json").read_text("utf-8"))
+        m = pd.read_parquet(B.OUT / "daily.parquet")
+        ck(rc == 0 and cap["ref"] == [gap] and st["short"] == [gap],
+           "停牌缺口的票被列进整段重拉、且记为没拉到目标日")
+        ck(target in set(m[m["code"] == gap]["date"]),
+           "重拉分片整段权威也清不掉它当天那一根（快照行进了兜底）")
+        ck(st.get("filled_codes") == [gap], "它记进 filled_codes")
+        mc = st.get("merge_check") or {}
+        ck(mc.get("ok") is True and mc.get("lost") == 0, f"合并后核对没有丢行（{mc}）")
+    finally:
+        restore()
+
+
 def check_refresh_rc() -> None:
     """股东人数失败不能把「日线已经补齐」拖成失败。"""
     print("\n[全量刷新·退出码]")
@@ -3165,6 +3208,7 @@ def main() -> int:
     check_update_coverage()
     check_update_gap()
     check_update_status()
+    check_update_gap_refetch()
     check_target_day()
     check_backfill_cli()
     check_float_mcap()

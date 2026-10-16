@@ -4,7 +4,7 @@ cd /c/home/daily-report
 export PYTHONIOENCODING=utf-8
 while true; do
   hm=$(python -c "import sys;sys.path.insert(0,'src');from bjtime import now_bj;t=now_bj();print(t.hour*60+t.minute)")
-  if [ "$hm" -ge 1111 ] || [ "$hm" -lt 960 ]; then break; fi
+  if [ "$hm" -ge 1111 ]; then break; fi
   sleep 300
 done
 echo "开跑 $(python -c "import sys;sys.path.insert(0,'src');from bjtime import now_bj;print(now_bj())")"

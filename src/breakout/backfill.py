@@ -845,7 +845,11 @@ def _stage_update(target: str = "") -> int:
     # 新浪还没出当日 K 线的除权票：_ref 分片对它们是整段权威，会把 _upd 里
     # 那一根也清掉，于是这只票当天从候选池静默消失。用快照兜一根。
     # 股本已经由 _snap_row 按换手率反推过，送转当天也不会偏。
-    fill = [r["pend"][c] for c in short if c in r["pend"]]
+    # 进了 _upd 又被列进整段重拉的票（停牌缺口、股本漂移两条路，不 continue）也一样：
+    # 重拉没到目标日时 _ref 照样整段权威，把 _upd 那一根清掉。2026-10-16 merge_check
+    # 抓到 8 只这样丢的（002683 300148 ...），以前兜底只认除权那条路的 pend
+    snap = {x["code"]: x for x in rows}
+    fill = [r["pend"].get(c) or snap[c] for c in short if c in r["pend"] or c in snap]
     if fill:
         # 分片名带时间戳，必须排在刚写的 _ref 之后，否则被「整段权威」清掉
         pd.DataFrame(fill).to_parquet(_shard_name("upd2"), index=False)
@@ -853,7 +857,7 @@ def _stage_update(target: str = "") -> int:
                     len(fill))
     # 用快照补了当天那根的代码单列：它们目标日有行，local_run 数「没拉到目标日」时扣掉
     # （AI 提案 2026-10-09-daily-2，用户批准；以前只记只数，这些票照样占 50 只的上限）
-    filled_codes = [c for c in short if c in r["pend"]]
+    filled_codes = [c for c in short if c in r["pend"] or c in snap]
     status.update({"short": short, "filled": len(fill), "filled_codes": filled_codes, "ok": True})
     _write_status(status)
     rc = merge_daily(pattern="sina_*.parquet")

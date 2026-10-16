@@ -1,0 +1,9 @@
+补充（事后，不影响选臂）：筛选集 582 天全市场当日 Spearman，按天平均
+base        Spearman(p,y_open) 0.0710 (NW se 0.0044)  Spearman(p,u) 0.1770
+eqd         Spearman(p,y_open) 0.0712 (NW se 0.0044)  Spearman(p,u) 0.1777
+evw         Spearman(p,y_open) 0.0677 (NW se 0.0048)  Spearman(p,u) 0.1904
+y_rel2      Spearman(p,y_open) 0.0715 (NW se 0.0044)  Spearman(p,u) 0.1789
+y_rel4      Spearman(p,y_open) 0.0727 (NW se 0.0045)  Spearman(p,u) 0.1948
+y_rel4_eqd  Spearman(p,y_open) 0.0728 (NW se 0.0046)  Spearman(p,u) 0.1949
+y_softh     Spearman(p,y_open) 0.0709 (NW se 0.0049)  Spearman(p,u) 0.2013
+y_softz     Spearman(p,y_open) 0.0684 (NW se 0.0052)  Spearman(p,u) 0.2078
