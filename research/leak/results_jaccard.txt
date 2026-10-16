@@ -1,0 +1,9 @@
+base_fwd_s7 vs base_pit_s7: 前10 日均 Jaccard 0.532  全市场预测值相关 0.9517
+base_fwd_s7 vs base_ctl_s7: 前10 日均 Jaccard 0.527  全市场预测值相关 0.9612
+base_pit_s7 vs base_ctl_s7: 前10 日均 Jaccard 0.529  全市场预测值相关 0.9529
+base_snap_s7 vs base_fwd_s7: 前10 日均 Jaccard 0.529  全市场预测值相关 0.9626
+cand_fwd_s7 vs cand_pit_s7: 前10 日均 Jaccard 0.520  全市场预测值相关 0.9628
+cand_fwd_s7 vs cand_ctl_s7: 前10 日均 Jaccard 0.517  全市场预测值相关 0.9629
+cand_pit_s7 vs cand_ctl_s7: 前10 日均 Jaccard 0.522  全市场预测值相关 0.9650
+cand_fwd_s7 vs cand_mix_s7: 前10 日均 Jaccard 0.543  全市场预测值相关 0.9642
+cand_fwd_s7 vs base_fwd_s7: 前10 日均 Jaccard 0.103  全市场预测值相关 0.6255

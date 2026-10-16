@@ -1,0 +1,34 @@
+prod_screen 5786512 行 5385 只 2020-12-31..2025-12-31，102 列
+  每日只数：首日 3587，2022-01 4236，2023-06 4854，2024-05 5194，末日 5373
+prod_pit（leak，起点 2023-05-30）2660819 行 2023-12-01..2025-12-31
+重叠段 2023-12-01 起：本表 2661466 行，prod_pit 2660819 行，对上 2660819；只在本表 647（26 只）只在 prod_pit 0（0 只）
+  只在本表的行按月（前 6）：{'2023-12': 162, '2024-01': 22, '2024-02': 15, '2024-03': 21, '2024-04': 20, '2024-05': 20}
+board 一致率 1.00000
+[prod_screen 对 prod_pit，全部重叠行] 102 列：相关中位 1.0000 最低 0.8308；一致率(|差|<0.0001) 中位 0.618；NaN 位置不一致最大 0.0076
+  按族相关（中位/最低）：compression 1.000/1.000  holders 1.000/0.996  interaction 0.964/0.859  position 1.000/0.969  regime 1.000/1.000  structure 0.979/0.831  volume 1.000/0.997
+  相关最低 8 列：chip_conc_chg20__slope 0.831; x_holder_chip__slope 0.859; chip_peak__slope 0.898; chip_conc90__slope 0.920; chip_conc_chg20__last 0.924; chip_conc90__last 0.936; chip_conc_chg20__mean 0.936; chip_conc90__mean 0.937
+[prod_screen 对 prod_pit，开发集 2024-06..2025-12] 102 列：相关中位 1.0000 最低 0.8474；一致率(|差|<0.0001) 中位 0.654；NaN 位置不一致最大 0.0000
+  按族相关（中位/最低）：compression 1.000/1.000  holders 1.000/0.997  interaction 0.986/0.872  position 1.000/0.999  regime 1.000/1.000  structure 0.987/0.847  volume 1.000/0.997
+  相关最低 8 列：chip_conc_chg20__slope 0.847; x_holder_chip__slope 0.872; chip_peak__slope 0.902; chip_conc90__slope 0.934; chip_conc_chg20__last 0.941; chip_peak__last 0.945; chip_conc_chg20__mean 0.953; x_light_top__slope 0.961
+[prod_screen 对 prod_pit，2023H2] 102 列：相关中位 1.0000 最低 0.6437；一致率(|差|<0.0001) 中位 0.362；NaN 位置不一致最大 0.1900
+  按族相关（中位/最低）：compression 1.000/1.000  holders 1.000/0.987  interaction 0.845/0.644  position 1.000/0.793  regime 1.000/1.000  structure 0.937/0.644  volume 1.000/0.998
+  相关最低 8 列：x_holder_chip__slope 0.644; chip_conc_chg20__slope 0.644; chip_conc90__mean 0.657; chip_conc90__last 0.659; chip_conc_chg20__last 0.738; chip_conc_chg20__mean 0.750; x_light_top__slope 0.762; x_light_top__last 0.764
+[prod_screen 对 prod_pit，2024H1] 102 列：相关中位 1.0000 最低 0.7792；一致率(|差|<0.0001) 中位 0.639；NaN 位置不一致最大 0.0000
+  按族相关（中位/最低）：compression 1.000/1.000  holders 1.000/0.996  interaction 0.939/0.816  position 1.000/0.931  regime 1.000/1.000  structure 0.963/0.779  volume 1.000/0.996
+  相关最低 8 列：chip_conc_chg20__slope 0.779; x_holder_chip__slope 0.816; chip_conc90__mean 0.866; chip_conc90__last 0.870; chip_conc90__slope 0.870; chip_peak__slope 0.877; x_light_top__slope 0.883; chip_conc_chg20__last 0.895
+[prod_screen 对 prod_pit，2024H2] 102 列：相关中位 1.0000 最低 0.8459；一致率(|差|<0.0001) 中位 0.646；NaN 位置不一致最大 0.0000
+  按族相关（中位/最低）：compression 1.000/1.000  holders 1.000/0.996  interaction 0.982/0.876  position 1.000/0.999  regime 1.000/1.000  structure 0.980/0.846  volume 1.000/0.996
+  相关最低 8 列：chip_conc_chg20__slope 0.846; x_holder_chip__slope 0.876; chip_peak__slope 0.896; chip_conc_chg20__last 0.933; chip_conc90__slope 0.940; chip_peak__last 0.940; chip_conc_chg20__mean 0.943; chip_conc90__last 0.952
+[prod_screen 对 prod_pit，2025H1] 102 列：相关中位 1.0000 最低 0.8436；一致率(|差|<0.0001) 中位 0.652；NaN 位置不一致最大 0.0000
+  按族相关（中位/最低）：compression 1.000/1.000  holders 1.000/0.997  interaction 0.988/0.859  position 1.000/0.999  regime 1.000/1.000  structure 0.990/0.844  volume 1.000/0.997
+  相关最低 8 列：chip_conc_chg20__slope 0.844; x_holder_chip__slope 0.859; chip_peak__slope 0.902; chip_conc90__slope 0.938; chip_conc_chg20__last 0.939; chip_peak__last 0.946; chip_conc_chg20__mean 0.952; x_holder_chip__last 0.962
+[prod_screen 对 prod_pit，2025H2] 102 列：相关中位 1.0000 最低 0.8601；一致率(|差|<0.0001) 中位 0.662；NaN 位置不一致最大 0.0000
+  按族相关（中位/最低）：compression 1.000/1.000  holders 1.000/0.998  interaction 0.987/0.890  position 1.000/0.999  regime 1.000/1.000  structure 0.995/0.860  volume 1.000/0.997
+  相关最低 8 列：chip_conc_chg20__slope 0.860; x_holder_chip__slope 0.890; chip_peak__slope 0.908; chip_conc90__slope 0.928; chip_peak__last 0.949; chip_conc_chg20__last 0.954; chip_win__slope 0.959; x_light_top__slope 0.960
+[prod_screen 对 train_snap（生产 fwd 表），2024-06..2025-12] 102 列：相关中位 1.0000 最低 0.8470；一致率(|差|<0.0001) 中位 0.375；NaN 位置不一致最大 0.0000
+  按族相关（中位/最低）：compression 1.000/0.999  holders 1.000/1.000  interaction 0.986/0.872  position 1.000/0.996  regime 1.000/1.000  structure 0.987/0.847  volume 1.000/0.998
+  相关最低 8 列：chip_conc_chg20__slope 0.847; x_holder_chip__slope 0.872; chip_peak__slope 0.901; chip_conc90__slope 0.934; chip_conc_chg20__last 0.941; chip_peak__last 0.945; chip_conc_chg20__mean 0.953; x_light_top__slope 0.961
+y_up 对 train_snap（开发集 2024-06-01..2025-12-31）：对上 2048853 行，两边都有标签 1941212，一致 99.9942%；本表 NaN 快照有值 107641，反之 0；正样本率 本表 4.540% 快照 4.539%
+y_up 对 train_snap（全部重叠 2023-12-01..2025-12-31）：对上 2661325 行，两边都有标签 2553684，一致 99.9945%；本表 NaN 快照有值 107641，反之 0；正样本率 本表 3.924% 快照 3.922%
+y_open 对 labels_open_snap（开发集）：两边都有 1959496，一致 99.9867%（不一致 261 行：一字板判定不同 122，r20 跨 50% 139）；r20_open |差| 中位 9.73e-05 最大 2.32e-02；一字板一致 99.9725%
+y_open 对 labels_open_snap（全部重叠）：两边都有 3273821，一致 99.9891%（不一致 358 行：一字板判定不同 170，r20 跨 50% 188）；r20_open |差| 中位 1.13e-04 最大 2.32e-02；一字板一致 99.9746%

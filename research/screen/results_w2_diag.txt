@@ -1,0 +1,10 @@
+软标签诊断（设计 2.2）：在 2023-03 这一个月上，臂的预测值和 y_open 的当日 Spearman 相关（全市场可打分行，按天平均）低于 y_rel4 的软标签臂不进主循环。一个月约 23 天，点估计噪声大，同时报配对 se；规则按点估计执行。
+训练行数：base_s7 575458  y_rel4_s7 1107262  y_softh_s7 849554  y_softz_s7 849554  eqd_s7 575458  evw_s7 575458
+base     当日 Spearman(p, y_open) 均值 0.1310（se 0.0043，23 天）  Spearman(p, u) 0.2517  前 10 命中 10.00%
+y_rel4   当日 Spearman(p, y_open) 均值 0.1325（se 0.0048，23 天）  Spearman(p, u) 0.2726  前 10 命中 10.87%
+y_softh  当日 Spearman(p, y_open) 均值 0.1336（se 0.0061，23 天）  Spearman(p, u) 0.2902  前 10 命中 10.43%
+y_softz  当日 Spearman(p, y_open) 均值 0.1339（se 0.0061，23 天）  Spearman(p, u) 0.3011  前 10 命中 11.74%
+eqd      当日 Spearman(p, y_open) 均值 0.1313（se 0.0044，23 天）  Spearman(p, u) 0.2539  前 10 命中 10.00%
+evw      当日 Spearman(p, y_open) 均值 0.1229（se 0.0052，23 天）  Spearman(p, u) 0.2557  前 10 命中 10.87%
+y_softh - y_rel4：Spearman(p, y_open) 差 +0.0011（配对 se 0.0014，t 0.77）-> 进主循环
+y_softz - y_rel4：Spearman(p, y_open) 差 +0.0014（配对 se 0.0015，t 0.94）-> 进主循环

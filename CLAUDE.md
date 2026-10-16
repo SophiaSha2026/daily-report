@@ -55,6 +55,9 @@ A股晚间选股流水线。**本地为主，云端托底**（2026-09-15 起）�
 - **核实优于断言**。涉及第三方 API 的参数名、字段索引、行为，先查文档或实测，
   不要凭记忆写。这个项目已经因为凭记忆写参数名踩过坑（见「历史教训」）。
 - 发现我之前的判断有错，直接说错在哪，不要绕。
+- **分工（2026-10-16 用户定）**：涉及数学、逻辑、算法、ML 架构的部分（实验设计、统计检验、
+  泄漏 / 前视推理、模型结构、特征口径的数学推导），交给 Fable 5.1 子代理、推理等级 high
+  （Agent 工具 `model: "fable"`、`effort: "high"`）。普通的设计、探索、写代码、取数、跑流程由主会话做。
 
 ## 仓库
 
@@ -137,9 +140,13 @@ src/
   breakout/board_adj.py  板块校正因子的经验贝叶斯收缩（生产在用，state/breakout/board_adj.json）
   breakout/evalkit.py    评估制度（2026-10-07，docs/breakout_plan_2026-10.md 第 1 节）：开发集 2024-06..2025-12
                          逐月走向前、确认集 2026-01..08 每季度只看一次（out_breakout/confirm_used.json）、
-                         预登记、按天聚类 / 按天按月配对、过线判定。新实验一律走它。2026-10-15 起过线 v2：
-                         NW t（滞后 20）>= max(2.5, 族门槛) + 块自举 p + 去最好月 + 合并与按天同号 + 最差三月 + 空榜；
-                         试验登记簿 data/breakout/raw/exp/ledger.jsonl（每个臂、每次事后加看都计数，门槛随次数抬高）
+                         预登记、按天聚类 / 按天按月配对、过线判定。新实验一律走它。2026-10-16 起过线 v3
+                         （docs/design_2026-10-16.md 7.2）：NW t（滞后 20）>= c + 块自举 p + 去最好月 + 合并与按天同号 +
+                         任意连续 3 月滚动差 >= -5pp + 空榜 + 筛选集 2022-01..2024-05 同号（没给记「无」，不能过线）；
+                         族门槛 c = 并集上界（有序列的臂按族内最大 t 零分布、没序列的按 Bonferroni，连续不跳变），主族现 3.07；
+                         v2 / v3 两套每次都算，正式判定看 prereg.json 的 gate_version（之前登记的按 v2）。
+                         登记簿 data/breakout/raw/exp/ledger.jsonl（每个臂、每次事后加看都计数；kind=backfill 的序列补登行不计数，
+                         research/stats/backfill_ledger.py 补了 61 条）
   breakout/buyable.py    买得到口径的标签 y_open（次日开盘起算、一字板不可买），不进模型指纹，
                          从 daily.parquet 现算并缓存 raw/labels_open.parquet。邮件成绩 2026-10-07 起按它印
   breakout/exp_window.py 生产用的实验脚本：逐月滚动成绩表 + 收缩板块系数（STREAK_PERF 来自 W5 行，

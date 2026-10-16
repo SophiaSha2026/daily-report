@@ -1,0 +1,84 @@
+[2026-10-16 06:05 BJ] 泄漏检验开工（新会话）。
+- 已读 CLAUDE.md / handoff 四六节 / research/features/report.md。fetch_unadj.py 在跑（200/5526 用 158s，预计 07:15 前出 unadj.parquet）。
+- 快照：train_snap.parquet（主会话备好）；另拷 daily_snap.parquet / holders_snap.parquet 进 leak 目录（生产 16:30 会改 daily.parquet，所有臂只读快照）。
+- 设计（看结果前写定，详见 prereg）：
+  价格两版：fwd = round(P_u / q, 2)（应 == daily.parquet），pit = P_u / q 不取整。q 是新浪 qfq_factor（截至今天）。
+  特征三套各两版：生产特征（照抄 build.build 流程）、Alpha158（altpath.build_feats.alpha158）、on/vc/hi（features.build_new.FAMS）。
+  标签两臂同一份：y_up 取 train_snap，y_open 用 buyable.compute(daily_snap)。
+  臂（种子 7）：base_snap（快照列，核对用）、base_fwd、base_pit、cand_fwd、cand_pit、cand_mix（生产 fwd + a158/ovh pit）。
+  主判定 Q1：Δ = (cand_fwd − base_fwd) − (cand_pit − base_pit) 按天序列，NW t（滞后 20）；泄漏占比 L = 1 − G_pit/G_fwd。
+  主判定 Q2：base_fwd − base_pit 按天序列 NW t。
+  直接检验：fwd−pit 特征差与 log q 的当日相关；用特征预测「未来有除权」的 AUC，fwd 对 pit。
+[2026-10-16 06:15 BJ] 脚本写好并在 150 只的伪造价格上跑通：common_leak / prices / build_prod / build_alt / make_labels / diag_leak / exp_leak。
+- 缩放不变性核对（results_invariance.txt）：生产特征 28 列、Alpha158 142 列、on/vc/hi 33 列、标签，四个价整体乘 3.7 或 1/2.3 后
+  全部逐位不变（相对差 < 1e-7），只有浮点平局翻转（ma_align / above_ma60 / y_up 的 0-1 平局，band60 的 <=0.10 边界）。
+  chip_avg 是绝对价位但不进特征。float_mcap 用 amount/volume 折回不复权价，与价格版本无关。结论：主会话的「全是比值」成立。
+- 加了第三版价格 ctl = round(P_u/k_code, 2)/q（k_code 跨票置换 q）：同量级取整噪声、无未来信息。fwd - pit 混着「泄漏」和
+  「取整噪声代价」两项，fwd - ctl 才单独是泄漏。主判定改为 fwd 对 ctl，pit 并列。
+- 等 unadj.parquet（1200/5526，预计 07:08）。
+[2026-10-16 07:15 BJ] px.parquet 建好（results_prices.txt）：5447 只 3381947 行（<=2025-12-31），缺 601991 一只（0.02%，两臂都不含它）。
+- q 要按 q_s / q_last 用（新浪因子表登了尚未到来的除权，46 只最后一行 q != 1；主会话同一发现）。第一版拿 2025-12-31 那行当 q_last，
+  只对上 33%，改成全表最后一行后 fwd=round(P_u/q,2) 和 daily_snap 四个价逐位相同 99.991%（银行家舍入；半进位 99.984%），
+  对不上的 541 行全在 1 分以内、集中在 300185（311 行）等 111 只，占比 0.016%，不影响。
+- 开发集里 T 日之后还有除权（q>=1.015）的行约一半；close 的取整相对误差均值 1e-4 ~ 3e-4，最大 8.6e-3。
+- ctl 的 k：置换各票 2025-01-02 的 q，分位 50/75/90/99 = 1.013/1.044/1.256/1.978，26% 为 1（这些票 ctl == pit）。
+[2026-10-16 07:58 BJ] 特征三版建好（每版生产 5.4 分钟、Alpha158+三族 5.1 分钟），核对（results_rebuild.txt）：
+- prod_fwd 对 train_snap：2660819 行全部对上（快照多 506 行 = 缺的 601991），102 列相关中位 1.0000、最低 0.9965（rs_accel）；
+  |差|<1e-4 的比例中位只有 0.66，因为少了一只票当日排名整体挪 1/5000 ≈ 2e-4，不是流程问题（build_prodraw 全票时 0.97~1.0）。
+- alt_fwd 对原 a158 / fam_on,vc,hi：相关 >= 0.9999，|差|<1e-3 的比例 0.98~0.998（同一个少一只票的效应）。
+- pit / ctl 对 fwd：相关 0.97~1.0，逐位相同率几乎 0 -> 价格确实换了（教训 32）。
+直接诊断（results_diag.txt，开发集 2048466 行）：
+- 背景：T 日之后有除权（q>=1.03）的行 28.7%；y_open 按未来除权分档：干净 5.34%、1.5~3% 3.32%、3~10% 1.90%、>=10% 5.59%；
+  log q 当日秩和 y_open 相关 -0.048，NW t -6.8（反向因果通道确实在）。
+- 取整噪声幅度 |fwd-pit| 和 log q 的当日秩相关：生产列中位 0.10（range_compress 0.40），alt 列中位 0.34（a_klow 0.60）；
+  ctl 的 |ctl-pit| 按 q 分档是平的 -> 幅度通道存在，问题只是模型读不读得到。
+- 特征值本身：corr(fwd 特征, log q) - corr(pit 特征, log q) 中位 0.0000；最大的是「上涨天数占比」一类：f_on_on_pos20 -0.024、
+  a_cntp60 -0.017、up_vol_share20__last -0.007（机制：q>1 时一个 tick 的不复权变动取整后变成零收益，涨天数被压低）。
+- 用特征预测「T 日之后有除权」的 AUC（1/4 抽样 51 万行，按代码对半分）：base fwd/pit/ctl 0.7253/0.7256/0.7257；
+  cand 0.7685/0.7713/0.7715；20 根内有除权 base 0.7975/0.7974/0.7980，cand 0.8097/0.8106/0.8104。
+  fwd 没有比 pit / ctl 更会预测未来除权（反而略低）。合法特征本身就能以 AUC 0.72~0.81 预测未来除权（动量 -> 高送转的反向因果），
+  取整通道在此之上没有可被模型读到的增量。
+开始走向前：check -> fwd -> ctl -> pit -> mix（种子 7），之后 9/10。
+[2026-10-16 07:45 BJ] leak_v1 预登记完成：{"cand_ctl_s7": "候选 a158_ovh_cs4 在 ctl 价格上对同循环 base_ctl（种子 7）", "cand_pit_s7": "候选 a158_ovh_cs4 在 pit 价格上对同循环 base_pit（种子 7）", "base_fwd_vs_ctl_s7": "生产特征 fwd 对 ctl（种子 7），Q2 主判定"}
+[2026-10-16 07:59 BJ] leak_v1 走向前 pass=check 种子 [7] 跑完
+[2026-10-16 08:19 BJ] leak_v1 走向前 pass=fwd 种子 [7] 跑完
+[2026-10-16 08:40 BJ] leak_v1 走向前 pass=ctl 种子 [7] 跑完
+[2026-10-16 08:40 BJ] 种子 7 的 check / fwd / ctl 跑完（pit / mix 在跑；种子 9/10 排在后面自动起）。先看到的数字：
+- 核对：base_snap（快照列）12.64% 对 base_fwd（重建列）12.14%，-0.49pp NW t -1.5；前 10 名单日均 Jaccard 0.53，全市场预测值相关 0.963。
+  特征只差「少一只票的排名位移 2e-4」+ 541 行 1 分差，前 10 名单就换了一半：顶部名单对微扰很敏感，±0.5pp 是扰动噪声量级。
+  另：feat_final 的 base_s7 是 10-15 16:48 重建前的训练表，12.02%；同一快照列在本循环 12.64%。
+- G_fwd = cand_fwd - base_fwd = +5.48pp NW 2.68（复现 feat_final 的 +5.22 / 2.82）。
+- Q2：base_fwd - base_ctl = +0.13pp NW t 0.33。
+- Q1：G_ctl = +4.73pp NW 2.66；Δ(fwd-ctl) = +0.75pp NW t 1.12，占比 0.14 -> 按预登记规则「排除」（等 pit 和多种子）。
+[2026-10-16 09:00 BJ] leak_v1 走向前 pass=pit 种子 [7] 跑完
+[2026-10-16 09:16 BJ] leak_v1 走向前 pass=mix 种子 [7] 跑完
+[2026-10-16 09:25 BJ] 种子 7 五轮全部跑完，analyze 一次（results_leak.txt，登记簿加了 3 个 prereg 臂 m 68->71 和结果行）：
+- 前 10 命中：base fwd/pit/ctl 12.14/12.04/12.02，cand fwd/pit/ctl/mix 17.62/17.55/16.74/17.78。
+- Q2：base_fwd-base_ctl +0.13pp NW 0.33 p 0.75；base_fwd-base_pit +0.10 NW 0.28 -> 没有证据，不改口。
+- Q1：G fwd/pit/ctl = +5.48/+5.50/+4.73（NW 2.68/2.64/2.66）；Δ(fwd-ctl) +0.75 NW 1.12 占比 0.14；Δ(fwd-pit) -0.03 NW -0.04 占比 0.00 -> 排除。
+  cand_fwd-cand_pit +0.08 NW 0.19；cand_pit-cand_ctl +0.80 NW 1.71（ctl 的额外取整噪声对候选略有代价，不显著）；cand_mix 和 pit 同。
+- 候选 v2：cand_ctl 对 base_ctl 未定（NW 2.66 < 3.19，最差三月 -3.7/-3.5/-1.9）；cand_pit 对 base_pit 未定（NW 2.64；门槛这次变成 2.50
+  因为族内刚够 3 条序列换了算法；最差三月 -5.5/-3.3/-2.9）。
+- 扰动敏感度（results_jaccard.txt）：任意两版之间前 10 名单日均 Jaccard 0.52~0.53、全市场预测值相关 0.95~0.96，和「只少一只票」的
+  base_snap 对 base_fwd（0.53 / 0.963）一样 -> 价格版本换掉名单一半，但换的是「谁」不是「质量」。
+种子 9/10 在跑（fwd -> ctl -> pit，约 10:40 完）。
+[2026-10-16 09:56 BJ] leak_v1 走向前 pass=fwd 种子 [9, 10] 跑完
+[2026-10-16 10:37 BJ] leak_v1 走向前 pass=ctl 种子 [9, 10] 跑完
+[2026-10-16 10:50 BJ] 种子 9/10 的 fwd / ctl 跑完（pit 在跑）：
+- G_fwd 三种子 +5.48/+5.68/+4.57；G_ctl +4.73/+5.17/+6.10；Δ(fwd-ctl) +0.75/+0.52/-1.52（NW 1.12/0.95/-2.06），均值 -0.08，种子间翻号。
+- Q2 base_fwd-base_ctl 三种子 +0.13/+0.54/+1.01（NW 0.33/1.74/1.87），均值 +0.56：都是正的但没一个到 2，而且 ctl 比 fwd 噪声更大
+  （74% 的票 k>1），要看 fwd 对 pit（pit 噪声比 fwd 还小）才能分清是泄漏还是噪声代价。
+- base_fwd 换种子自身的差：s9-s7 +0.03，s10-s7 -0.10。
+[2026-10-16 11:16 BJ] leak_v1 走向前 pass=pit 种子 [9, 10] 跑完
+[2026-10-16 11:25 BJ] 全部跑完，最终 analyze（results_leak.txt / analyze_final.log / results_q2_seeds.txt）。结论：
+Q1（候选增益里有没有泄漏）：排除。G_fwd/G_pit/G_ctl 三种子均值 +5.25 / +6.04 / +5.33pp（平均序列 NW 2.78 / 3.04 / 2.99）；
+  Δ(fwd-pit) 三种子 -0.03/-0.80/-1.55，均值 -0.79pp，平均序列 NW t -2.43：不取整反而更好；Δ(fwd-ctl) +0.75/+0.52/-1.52，均值 -0.09，NW -0.25。
+  种子 7 预登记判定：Δ(ctl) +0.75 NW 1.12 占比 0.14 -> 排除。cand_mix 和 cand_pit 同（+0.23 NW 0.65）。
+Q2（生产特征）：没有证据，不改口。种子 7 主判定 base_fwd-base_ctl +0.13pp NW 0.33。三种子：fwd-pit +0.10/+0.49/+0.44 均 +0.34，
+  平均序列 NW 1.72 p 0.093；fwd-ctl +0.13/+0.54/+1.01 均 +0.56 NW 2.97 p 0.003，但 pit-ctl 也是 +0.03/+0.05/+0.57（ctl 自己的额外取整代价），
+  干净的度量是 fwd 对 pit。生产规则口径（邮件印的那种）fwd-pit +0.65/+0.37/+0.17 NW < 0.9。上限：前 10 口径至多 0.3~0.5pp，
+  且候选在同样的比较里方向相反（cand_pit > cand_fwd），模型读不到 q（AUC 诊断）。
+候选 v2（干净价格上）：cand_pit_s7 +5.50 NW 2.64、cand_ctl_s7 +4.73 NW 2.66，块自举 / 去最好月 / 同号 / 空榜 都过，
+  NW 在 Bonferroni 3.19 下不过、在族内最大 t（刚够 3 条序列，c=2.50）下过；最差三月两种口径都不过 -> 未定（和 feat_final 一样）。
+登记簿：leak_v1 预登记 3 臂（m 68->71），analyze 跑了两次，结果行各写了两遍（21:17 / 23:16 本机时间），不影响计数。
+产物 12 GB（三版特征表各 1.1 + 1.9 GB）可删，留 px.parquet / unadj.parquet / 快照即可复算。

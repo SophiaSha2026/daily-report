@@ -75,3 +75,13 @@
 {"at": "2026-10-15T12:18:34", "exp": "feat_audit", "arm": "noadj_rerank", "kind": "posthoc", "note": "只在之后无除权的行里重排前10，base_a158 对 base +2.45 NW 1.72"}
 {"at": "2026-10-15T12:18:34", "exp": "feat_audit", "arm": "adj2_breakdown", "kind": "posthoc", "note": "按未来除权幅度/距离/板块/价位拆前10命中，描述"}
 {"at": "2026-10-15T13:49:49", "exp": "feat_final_v1", "arm": "cand_s7", "kind": "result", "t_nw": 2.8183602401346195, "verdict": "未定", "c": 3.1804257426567073}
+{"at": "2026-10-15T19:45:07", "exp": "leak_v1", "arm": "cand_ctl_s7", "kind": "prereg", "desc": "候选 a158_ovh_cs4 在 ctl 价格上对同循环 base_ctl（种子 7）"}
+{"at": "2026-10-15T19:45:07", "exp": "leak_v1", "arm": "cand_pit_s7", "kind": "prereg", "desc": "候选 a158_ovh_cs4 在 pit 价格上对同循环 base_pit（种子 7）"}
+{"at": "2026-10-15T19:45:07", "exp": "leak_v1", "arm": "base_fwd_vs_ctl_s7", "kind": "prereg", "desc": "生产特征 fwd 对 ctl（种子 7），Q2 主判定"}
+{"at": "2026-10-15T19:45:07", "exp": "leak_v1", "arm": "cand_mix_s7", "kind": "diag", "desc": "生产特征 fwd + Alpha158/三族 pit，拆泄漏在哪一套；不进判定"}
+{"at": "2026-10-15T21:17:25", "exp": "leak_v1", "arm": "base_fwd_vs_ctl_s7", "kind": "result", "t_nw": 0.32886760252499353, "diff": 0.0012919896640826876, "verdict": "没有证据（不改口）"}
+{"at": "2026-10-15T21:17:25", "exp": "leak_v1", "arm": "cand_ctl_s7", "kind": "result", "t_nw": 2.6609172787947997, "verdict": "未定", "c": 3.1929136228996184}
+{"at": "2026-10-15T21:17:26", "exp": "leak_v1", "arm": "cand_pit_s7", "kind": "result", "t_nw": 2.637373069843644, "verdict": "未定", "c": 2.5}
+{"at": "2026-10-15T23:16:46", "exp": "leak_v1", "arm": "base_fwd_vs_ctl_s7", "kind": "result", "t_nw": 0.32886760252499353, "diff": 0.0012919896640826876, "verdict": "没有证据（不改口）"}
+{"at": "2026-10-15T23:16:47", "exp": "leak_v1", "arm": "cand_ctl_s7", "kind": "result", "t_nw": 2.6609172787947997, "verdict": "未定", "c": 2.5}
+{"at": "2026-10-15T23:16:47", "exp": "leak_v1", "arm": "cand_pit_s7", "kind": "result", "t_nw": 2.637373069843644, "verdict": "未定", "c": 2.5}

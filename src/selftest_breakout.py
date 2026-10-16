@@ -3210,6 +3210,7 @@ def main() -> int:
     check_board_shrink()
     check_rule_fingerprint()
     check_evalkit_v2()
+    check_evalkit_v3()
     print(f"\n耗时 {time.time() - t0:.2f}s | 断言失败 {len(fails)} 个")
     for f in fails:
         print(f"  - {f}")
@@ -3225,6 +3226,7 @@ def check_evalkit_v2() -> None:
     tmp = Path(tempfile.mkdtemp(prefix="ek_"))
     keep = (E.EXP, E.LEDGER, E.LEDGER_SEED)
     E.EXP, E.LEDGER, E.LEDGER_SEED = tmp, tmp / "ledger.jsonl", tmp / "seed.jsonl"
+    E._TH_CACHE.clear()
     try:
         rng = np.random.default_rng(3)
         e = rng.normal(size=600)
@@ -3260,9 +3262,11 @@ def check_evalkit_v2() -> None:
         c = E.compare(a, b, y="y_open", k=10, family="fam", exp="x1", arm="a")
         ck({"t_nw", "boot", "t_nw_drop_best", "pooled_diff", "threshold", "worst3_ex_2024_09", "verdict_v1"} <= set(c)
            and c["verdict"] in ("过线", "未定", "不过线"), "compare 给出 v2 全套字段，旧判法留在 verdict_v1")
-        ck(c["pass"] == all(c["gate"].values()) and set(c["gate"]) == {"t_nw", "boot_p", "drop_best", "same_sign",
-                                                                         "worst3", "empty"}, "v2 六条全满足才过线")
-        ck((tmp / "x1" / "diff_a_10_y_open.npy").exists() and E.family_count("fam") == 11,
+        ck(c["pass"] == all(c["gate"].values()) and set(c["gate_v2"]) == {"t_nw", "boot_p", "drop_best", "same_sign",
+                                                                            "worst3", "empty"}
+           and set(c["gate_v3"]) == {"t_nw", "boot_p", "drop_best", "same_sign", "roll3", "empty", "screen"},
+           "v2 六条 / v3 七条全满足才过线")
+        ck((tmp / "x1" / "diff_a_10_y_open.parquet").exists() and E.family_count("fam") == 11,
            "逐日差值序列落盘给族门槛用；结果行不算新的试验")
         n0 = E.family_count("fam")
         E.compare(a, b, y="y_open", k=10, since="2025-07", family="fam", exp="x1", arm="a")
@@ -3270,6 +3274,144 @@ def check_evalkit_v2() -> None:
         ck("NW t" in E.fmt_compare("a", c) and "门槛" in E.fmt_compare("a", c), "打印带 NW t 和门槛")
     finally:
         E.EXP, E.LEDGER, E.LEDGER_SEED = keep
+        E._TH_CACHE.clear()
+
+
+def check_evalkit_v3() -> None:
+    """评估制度 v3（2026-10-16）：族门槛并集上界不骤降、补登行不计数、滚动三月规则、版本分流、
+    筛选集缺省不算通过、子区间不落序列。全在临时目录，生产登记簿一个字不碰（教训 17、44）。"""
+    print("\n[评估制度 v3]")
+    import json
+    import tempfile
+    from statistics import NormalDist
+    import evalkit as E
+    tmp = Path(tempfile.mkdtemp(prefix="ek3_"))
+    keep = (E.EXP, E.LEDGER, E.LEDGER_SEED)
+    prod_ledger = keep[1].read_bytes() if keep[1].exists() else None
+    E.EXP, E.LEDGER, E.LEDGER_SEED = tmp, tmp / "ledger.jsonl", tmp / "seed.jsonl"
+    E._TH_CACHE.clear()
+    try:
+        rng = np.random.default_rng(11)
+        days = [f"2025-{m:02d}-{d:02d}" for m in range(1, 13) for d in range(1, 26)]     # 300 天 12 个月
+
+        # ---- 1 族门槛：20 次试验没序列 = Bonferroni；一条条补序列只能缓慢下降，不再「3 条就掉到 2.5」 ----
+        E.LEDGER_SEED.write_text(json.dumps({"family": "f3", "arm": "old", "count": 20}) + "\n", encoding="utf-8")
+        th0 = E.family_threshold("f3")
+        bonf20 = NormalDist().inv_cdf(1 - 0.05 / 20)
+        ck(abs(th0["c"] - bonf20) < 1e-9 and "Bonferroni" in th0["method"] and th0["s"] == 0 and th0["u"] == 20,
+           f"没有序列时族门槛就是 Bonferroni（{th0['c']:.3f}）")
+        cs = [th0["c"]]
+        common = rng.normal(size=len(days))
+        x = None
+        for i in range(8):
+            e = rng.normal(size=len(days))
+            x = np.empty(len(days))
+            x[0] = e[0]
+            for t in range(1, len(days)):
+                x[t] = 0.5 * x[t - 1] + e[t]
+            x = 0.02 * (x + 0.7 * common)                      # 臂间相关 + 自相关的零效应序列
+            E.backfill_series("f3", 99, f"arm{i}", "base", "dev", pd.Series(x, index=days), "selftest")
+            cs.append(E.family_threshold("f3")["c"])
+        drops = [cs[i] - cs[i + 1] for i in range(len(cs) - 1)]
+        ck(max(drops) <= 0.12 and min(drops) >= -0.05,
+           "多登一条序列门槛最多降一个 Bonferroni 项，不骤降（%s）" % [round(c, 3) for c in cs])
+        ck(cs[3] > 2.7 and cs[-1] >= 2.5 and cs[-1] <= cs[0] + 1e-9,
+           f"3 条序列时门槛仍贴着 Bonferroni（{cs[3]:.3f}），8 条时不低于 2.5 也不高于 Bonferroni（{cs[-1]:.3f}）")
+        th = E.family_threshold("f3")
+        ck(E.family_count("f3") == 20 and th["s"] == 8 and th["u"] == 12,
+           f"补登行（kind=backfill，count=0）不算试验次数：m=20，序列 8 条，无序列 12 次（{th['method']}）")
+        ck(E.backfill_series("f3", 99, "arm0", "base", "dev", pd.Series(x, index=days), "selftest") is None
+           and E.family_threshold("f3")["s"] == 8, "同一个 (实验, 臂, 区间) 补登两次只记一次")
+        rows = [json.loads(ln) for ln in E.LEDGER.read_text(encoding="utf-8").splitlines()]
+        bf = [r for r in rows if r.get("kind") == "backfill"]
+        ck(len(bf) == 8 and all(r["count"] == 0 and "backfill" in r["source"] or "selftest" in r["source"] for r in bf)
+           and all("series" in r and "t_nw" in r for r in bf), "补登行带 kind=backfill / count=0 / source / series / t_nw，能和真实试验区分")
+        # 旧 .npy（没日期）照读：按本族日历末尾对齐
+        np.save(tmp / "legacy.npy", 0.02 * rng.normal(size=200))
+        E.ledger_add({"family": "f3", "exp": 98, "arm": "legacy", "kind": "result", "series": str(tmp / "legacy.npy")})
+        D = E._family_series("f3")
+        ck(D.shape == (300, 9) and D.iloc[:100, -1].isna().all() and D.iloc[100:, -1].notna().all(),
+           "2026-10-16 前的 .npy 序列没日期，按日历末尾对齐，前面留空")
+
+        # ---- 2 规则 5：滚动三月 ----
+        def frame(month_p: dict, year: str = "2025") -> pd.DataFrame:
+            rows_ = []
+            for dd in days:
+                dd = year + dd[4:]
+                hits = int(round(10 * month_p[int(dd[5:7])]))
+                for r in range(1, 11):
+                    rows_.append({"date": dd, "rank": r, "score": 99, "y_open": float(r <= hits)})
+            return pd.DataFrame(rows_)
+        base = frame({m: 0.1 for m in range(1, 13)})
+        one_bad = frame({m: (0.0 if m == 6 else 0.3) for m in range(1, 13)})      # 一个月 -10pp，其余 +20pp
+        E.LEDGER_SEED.write_text(json.dumps({"family": "g", "arm": "old", "count": 1}) + "\n", encoding="utf-8")
+        c = E.compare(one_bad, base, y="y_open", k=10, family="g")
+        ck(c["gate_v2"]["worst3"] is False and c["gate_v3"]["roll3"] is True
+           and abs(c["roll3"]["min"] - 0.1) < 1e-9, f"一个 -10pp 的月：v2 最差三月不过，v3 滚动三月 {100 * c['roll3']['min']:+.1f}pp 过")
+        three_bad = frame({m: (0.0 if m in (4, 5, 6) else 0.3) for m in range(1, 13)})
+        c3 = E.compare(three_bad, base, y="y_open", k=10, family="g")
+        ck(c3["gate_v3"]["roll3"] is False and abs(c3["roll3"]["min"] + 0.1) < 1e-9 and c3["roll3"]["end"] == "2025-06",
+           "连续三个月 -10pp：滚动三月 -10pp < -5pp 不过，窗口末月记对")
+        base24 = frame({m: 0.1 for m in range(1, 13)}, "2024")
+        a24 = frame({m: (0.0 if m in (8, 9, 10) else 0.3) for m in range(1, 13)}, "2024")
+        c24 = E.compare(a24, base24, y="y_open", k=10, family="g")
+        ck(c24["roll3"]["min"] < -0.05 <= c24["roll3"]["min_ex_2024_09"],
+           "去掉 2024-09 的口径另报（含 924 不过、去 924 过）")
+
+        # ---- 3 筛选集缺省不算通过；给了才按同号 / 异号判 ----
+        ck(c["screen"]["status"] == "无" and c["gate_v3"]["screen"] is False
+           and all(v for k_, v in c["gate_v3"].items() if k_ != "screen") and c["verdict_v3"] == "未定",
+           "没给筛选集结果：其余六条全过也只是「未定」，不假装通过")
+        c_ok = E.compare(one_bad, base, y="y_open", k=10, family="g", screen={"diff_day": 0.012, "days": 500})
+        ck(c_ok["screen"]["status"] == "同号" and c_ok["verdict_v3"] == "过线" and c_ok["verdict_v2"] == "未定",
+           "筛选集同号 -> v3 过线；同一组数 v2 因最差三月仍未定")
+        a_s = frame({m: 0.1 for m in range(1, 13)}, "2023")
+        b_s = frame({m: 0.2 for m in range(1, 13)}, "2023")
+        c_neg = E.compare(one_bad, base, y="y_open", k=10, family="g", screen=(a_s, b_s))
+        ck(c_neg["screen"]["status"] == "异号" and c_neg["screen"]["days"] == 300 and c_neg["verdict_v3"] == "未定",
+           "筛选集给两张名次表：按天差 < 0 记异号，不过线")
+
+        # ---- 4 版本分流：2026-10-16 前登记的（没有 gate_version）正式判定用 v2，之后的用 v3，两套都报 ----
+        (tmp / "old_exp").mkdir()
+        (tmp / "old_exp" / "prereg.json").write_text(json.dumps({"name": "old_exp", "hypothesis": "h", "arms": {"a": "x"},
+                                                                  "dev": list(E.DEV), "results": []}), encoding="utf-8")
+        co = E.compare(one_bad, base, y="y_open", k=10, family="g", exp="old_exp", arm="a",
+                       screen={"diff_day": 0.012})
+        ck(co["gate_version"] == 2 and co["verdict"] == co["verdict_v2"] == "未定" and co["verdict_v3"] == "过线"
+           and co["gate"] is co["gate_v2"], "旧预登记：正式判定是 v2（未定），v3（过线）并列报出")
+        E.prereg("new_exp", "h", {"base": "现状", "a": "新"}, family="g", screen={"a": 0.012})
+        pj = json.loads((tmp / "new_exp" / "prereg.json").read_text(encoding="utf-8"))
+        ck(pj["gate_version"] == 3 and pj["screen"]["a"]["diff_day"] == 0.012 and pj["screen"]["base"] is None
+           and pj["gate"] == E.GATE_V3, "新预登记：prereg.json 记 gate_version=3 和各臂的筛选集结果")
+        cn = E.compare(one_bad, base, y="y_open", k=10, family="g", exp="new_exp", arm="a")
+        ck(cn["gate_version"] == 3 and cn["screen"]["status"] == "同号" and cn["verdict"] == cn["verdict_v3"] == "过线",
+           "新预登记：compare 没传 screen 就用登记时那份，正式判定是 v3")
+        rows = [json.loads(ln) for ln in E.LEDGER.read_text(encoding="utf-8").splitlines()]
+        res_rows = [r for r in rows if r.get("kind") == "result" and r.get("exp") == "new_exp"]
+        ck(len(res_rows) == 1 and res_rows[0]["gate_version"] == 3 and {"verdict_v2", "verdict_v3", "screen", "series"} <= set(res_rows[0]),
+           "结果行记版本、两套判定、筛选集状态和序列路径")
+        n_before = E.family_count("g")
+        s_before = E.family_threshold("g")["s"]
+        E.compare(one_bad, base, y="y_open", k=10, family="g", exp="new_exp", arm="a", since="2025-07")
+        rows = [json.loads(ln) for ln in E.LEDGER.read_text(encoding="utf-8").splitlines()]
+        last = [r for r in rows if r.get("kind") == "result" and r.get("exp") == "new_exp"][-1]
+        ck(E.family_count("g") == n_before + 1 and "series" not in last and last.get("since") == "2025-07"
+           and E.family_threshold("g")["s"] == s_before, "事后加看子区间记一次试验，但子区间的序列不落盘、不进零分布")
+        try:
+            E.prereg("bad_exp", "h", {"base": "现状", "a": "新"}, family="g", screen={"a": -0.004})
+            refused = False
+        except SystemExit:
+            refused = True
+        rows = [json.loads(ln) for ln in E.LEDGER.read_text(encoding="utf-8").splitlines()]
+        ck(refused and not (tmp / "bad_exp").exists() and not any(r.get("exp") == "bad_exp" for r in rows),
+           "筛选集按天差 < 0 的臂：整个实验拒绝登记，登记簿和目录都不留痕")
+        ck("滚动三月" in E.fmt_compare("a", cn) and "筛选集" in E.fmt_compare("a", cn) and "v2" in E.fmt_compare("a", cn),
+           "打印带滚动三月、筛选集和两套判定")
+    finally:
+        E.EXP, E.LEDGER, E.LEDGER_SEED = keep
+        E._TH_CACHE.clear()
+    now = keep[1].read_bytes() if keep[1].exists() else None
+    ck(now == prod_ledger, "生产登记簿 data/breakout/raw/exp/ledger.jsonl 没被自测碰过（教训 44）")
 
 
 if __name__ == "__main__":

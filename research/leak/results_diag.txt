@@ -1,0 +1,17 @@
+开发集行 2048466，T 日之后有除权 log q >= log1.03 的占 28.7%，>= log1.10 的 11.8%，未来 20 根内有除权 5.6%（3s）
+[c 背景] y_open 按 T 日之后除权幅度：干净 n=1186337 5.34%  1.5~3% n=275104 3.32%  3~10% n=344290 1.90%  >=10% n=242735 5.59%；log q 当日秩和 y_open 的相关按天均值 -0.0481 NW t -6.83
+[a prod] 29 列：corr(d=fwd-pit 的当日秩, log q 的当日秩) 按天均值 中位 0.0025，|均值| 最大 5 列：up_vol_share20__last +0.024 (t 2.5); x_squeeze_burst__last -0.011 (t -5.0); boll_width__last -0.008 (t -2.5); range_compress__last +0.006 (t 2.6); ma_align__last +0.006 (t 1.7)
+[a prod] corr(|d| 的当日秩, log q 秩)：中位 0.1033，最大 5 列：range_compress__last +0.401 (t 58.7); atr_ratio__last +0.330 (t 43.6); rs20__last +0.308 (t 37.1); chip_dev__last +0.278 (t 39.3); rs60__last +0.247 (t 35.6)；|t| >= 3 的列 29 个
+[a prod] corr(fwd 特征, log q) - corr(pit 特征, log q)：中位 +0.0000，|均值| 最大 5 列：up_vol_share20__last -0.0069 (t -17.8); chip_peak__last -0.0003 (t -2.2); above_ma60__last -0.0003 (t -2.7); x_squeeze_burst__last -0.0002 (t -4.2); chip_win__last +0.0001 (t 2.6)；|t| >= 3 的列 5 个
+[a prod] |fwd - pit| 的均值（特征是当日秩或中性化后的秩，量纲 [0,1] 级）中位 0.0009，最大 chip_conc_chg20__last 0.0063; chip_peak__last 0.0059; range_compress__last 0.0050
+[a prod] 83 列平均 |fwd-pit| 按未来除权分档：1.5~3% 0.0020  3~10% 0.0025  >=10% 0.0016  干净 0.0011
+[a prod] 对照 ctl：83 列平均 |ctl-pit| 按未来除权分档：1.5~3% 0.0016  3~10% 0.0020  >=10% 0.0011  干净 0.0017（应和 q 无关）
+[a alt] 175 列：corr(d=fwd-pit 的当日秩, log q 的当日秩) 按天均值 中位 0.0071，|均值| 最大 5 列：a_klow +0.243 (t 15.6); a_kup +0.226 (t 15.3); a_low0 -0.153 (t -11.4); a_high0 +0.140 (t 10.9); a_klow2 +0.099 (t 30.5)
+[a alt] corr(|d| 的当日秩, log q 秩)：中位 0.3398，最大 5 列：a_klow +0.599 (t 77.1); a_kup +0.572 (t 88.4); f_on_on_sum5 +0.548 (t 122.6); a_low0 +0.545 (t 62.0); a_high0 +0.540 (t 59.4)；|t| >= 3 的列 148 个
+[a alt] corr(fwd 特征, log q) - corr(pit 特征, log q)：中位 +0.0000，|均值| 最大 5 列：f_on_on_pos20 -0.0240 (t -17.4); a_cntp60 -0.0166 (t -22.3); a_cntn60 -0.0145 (t -16.4); a_cntp30 -0.0118 (t -18.1); a_cntn30 -0.0104 (t -14.2)；|t| >= 3 的列 63 个
+[a alt] |fwd - pit| 的均值（特征是当日秩或中性化后的秩，量纲 [0,1] 级）中位 0.0013，最大 f_on_on_pos20 0.0116; a_cntp60 0.0085; a_cntn60 0.0073
+[b] 样本 512110 行（1/4 抽样），特征 base 29 列 / cand 204 列
+[b 预测未来除权 logq>=log1.03] AUC（两次按代码对半分的均值）：base_fwd 0.7253  base_pit 0.7256  base_ctl 0.7257  cand_fwd 0.7685  cand_pit 0.7713  cand_ctl 0.7715
+[b 预测未来除权 logq>=log1.10] AUC（两次按代码对半分的均值）：base_fwd 0.6832  base_pit 0.6833  base_ctl 0.6826  cand_fwd 0.7106  cand_pit 0.7165  cand_ctl 0.7162
+[b 预测未来除权 20根内有除权] AUC（两次按代码对半分的均值）：base_fwd 0.7975  base_pit 0.7974  base_ctl 0.7980  cand_fwd 0.8097  cand_pit 0.8106  cand_ctl 0.8104
+用时 660s
