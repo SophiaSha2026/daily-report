@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-13-daily-1",
+ "date": "2026-10-13",
+ "status": "pending",
+ "created": "2026-10-14T05:26:36+08:00",
+ "type": "code",
+ "title": "起涨预测先推产物，再跑 AI 复盘",
+ "detail": "src/local_run.py 的 flow_breakout：把 push_all(\"起涨预测 {d}\", ...) 挪到 ai_review(d, dry) 前面；ai_review 产出的 state/ai_review/* 再单独提交一次（或者并进下一次同步）。fail-open 的语义不变",
+ "expected_effect": "Pages 面板和入库清单在发信后几秒内推上去，不再等最多 10 分钟（周五 20 分钟）的复盘",
+ "risk": "多一次 git 提交和推送；复盘产物要晚一点才进仓库，次日邮件抬头读的是本地文件，不受影响",
+ "how_to_verify": "跑 selftest_gui；下一次真跑时看日志，「已推送: 起涨预测 <日> [local]」要排在 ai_review 启动之前"
+}

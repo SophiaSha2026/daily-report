@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-12-daily-3",
+ "date": "2026-10-12",
+ "status": "pending",
+ "created": "2026-10-13T04:27:18+08:00",
+ "type": "process",
+ "title": "核查本机为什么没有在 16:30 被唤醒",
+ "detail": "计划任务已经设了 WakeToRun，10-12 16:30 到 10-13 04:02 仍然一次都没触发。用 powercfg /waketimers 和 /lastwake 查，再看电源计划里「允许唤醒定时器」在电池模式下是不是关着；同时确认 10-12 20:30 evening_check 的漏发提醒收到了",
+ "expected_effect": "减少次日凌晨才补发的情况，长期调整突破能按 17:58 发",
+ "risk": "无，只是检查",
+ "how_to_verify": "下一个交易日 local_flow_pullback.log 在北京 17:40 左右有启动记录"
+}

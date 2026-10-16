@@ -1,0 +1,24 @@
+{
+ "id": "chat-fcb1c116-3-1",
+ "date": "2026-10-14",
+ "status": "rejected",
+ "created": "2026-10-14T05:21:11+08:00",
+ "type": "code",
+ "title": "pullback_export 模块说明补一句涨停判定",
+ "detail": "面板和邮件读者看到主板首阳涨幅是 9.98% 这类数会疑惑，模块说明里写明判定口径和容差，和 pullback.py:199-201 一致。",
+ "expected_effect": "运行结果不变，只是模块说明多三行。",
+ "risk": "只改 docstring，不改逻辑。不在禁改文件里，selftest_pullback 的 AST 钉子钉的是函数调用，不碰 docstring。",
+ "how_to_verify": "python src/selftest_pullback.py 打印「断言失败 0 个」，python -m pyflakes src tools 零输出，git diff 只有 src/pullback_export.py 的三行。",
+ "source": "chat",
+ "session": "fcb1c116-81ee-4a80-bf98-35780f35db27",
+ "subject": "长期调整突破清单",
+ "edits": [
+  {
+   "file": "src/pullback_export.py",
+   "old": "外部输入（行情源给的股票名称）一律在渲染点转义，同 breakout/export.py。\n",
+   "new": "外部输入（行情源给的股票名称）一律在渲染点转义，同 breakout/export.py。\n\n主板「涨停」按收盘价收在最高价（容 0.5 分）且不低于涨停价 1 分判，容的是前复权价格的\n舍入（见 pullback.py 模块说明），所以面板上主板首阳可能显示 9.98% 这样的涨幅。\n"
+  }
+ ],
+ "updated": "2026-10-14T05:28:52+08:00",
+ "note": "开发时的测试提案，不落地"
+}

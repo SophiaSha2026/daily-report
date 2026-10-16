@@ -2,81 +2,81 @@
   {
     "code":"002343",
     "name":"慈文传媒",
-    "score":99.0,
-    "streak":2,
-    "close":8.91,
-    "board":"main"
-  },
-  {
-    "code":"000823",
-    "name":"超声电子",
-    "score":99.0,
-    "streak":2,
-    "close":25.87,
+    "score":98.0,
+    "streak":3,
+    "close":9.33,
     "board":"main"
   },
   {
     "code":"003006",
     "name":"百亚股份",
     "score":98.0,
-    "streak":2,
-    "close":22.82,
+    "streak":3,
+    "close":24.09,
     "board":"main"
   },
   {
-    "code":"002815",
-    "name":"崇达技术",
-    "score":99.0,
-    "streak":1,
-    "close":23.25,
-    "board":"main"
-  },
-  {
-    "code":"920060",
-    "name":"万源通",
-    "score":99.0,
-    "streak":1,
-    "close":26.9,
-    "board":"bj"
-  },
-  {
-    "code":"000592",
-    "name":"平潭发展",
-    "score":98.0,
-    "streak":1,
-    "close":7.2,
-    "board":"main"
-  },
-  {
-    "code":"600241",
-    "name":"时代万恒",
-    "score":98.0,
-    "streak":1,
-    "close":13.99,
-    "board":"main"
-  },
-  {
-    "code":"600121",
-    "name":"郑州煤电",
-    "score":98.0,
-    "streak":1,
-    "close":5.68,
+    "code":"000823",
+    "name":"超声电子",
+    "score":97.0,
+    "streak":3,
+    "close":25.26,
     "board":"main"
   },
   {
     "code":"002242",
     "name":"九阳股份",
-    "score":98.0,
-    "streak":1,
-    "close":17.31,
+    "score":97.0,
+    "streak":2,
+    "close":17.79,
+    "board":"main"
+  },
+  {
+    "code":"600241",
+    "name":"时代万恒",
+    "score":97.0,
+    "streak":2,
+    "close":14.15,
     "board":"main"
   },
   {
     "code":"002913",
     "name":"奥士康",
+    "score":97.0,
+    "streak":2,
+    "close":81.87,
+    "board":"main"
+  },
+  {
+    "code":"000530",
+    "name":"冰山冷热",
     "score":98.0,
     "streak":1,
-    "close":86.84,
+    "close":7.62,
     "board":"main"
+  },
+  {
+    "code":"605058",
+    "name":"澳弘电子",
+    "score":98.0,
+    "streak":1,
+    "close":65.83,
+    "board":"main"
+  },
+  {
+    "code":"300006",
+    "name":"莱美药业",
+    "score":97.0,
+    "streak":1,
+    "close":9.75,
+    "board":"chinext"
+  },
+  {
+    "code":"300747",
+    "name":"锐科激光",
+    "score":97.0,
+    "streak":1,
+    "close":40.13,
+    "board":"chinext"
   }
 ]

@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-13-daily-4",
+ "date": "2026-10-13",
+ "status": "pending",
+ "created": "2026-10-14T05:26:36+08:00",
+ "type": "process",
+ "title": "核对计划任务的唤醒设置",
+ "detail": "看一下 DailyReport-Local-Evening / Pullback 有没有 WakeToRun，再查这台机器 10-13 北京 16:30 到 10-14 04:52 是关机还是睡眠（事件日志 Kernel-Power / Power-Troubleshooter）。只在 tools/setup_tasks.ps1 里改，改完重跑注册",
+ "expected_effect": "插着电睡眠时能按时在 16:30 / 17:40 起来跑，长期调整突破 17:58 准时发",
+ "risk": "笔记本合盖放包里时被唤醒可能会发热；只对接着电源的情况开",
+ "how_to_verify": "Get-ScheduledTask DailyReport-Local-* | Select TaskName,@{n='Wake';e={$_.Settings.WakeToRun}}；下一个交易日看 claim 提交的时间是不是 16:30 左右"
+}

@@ -1,0 +1,122 @@
+{
+ "kind": "daily",
+ "date": "2026-10-12",
+ "at": "2026-10-13T04:27:18+08:00",
+ "usd": 1.145,
+ "severity": "注意",
+ "summary": "10-12 两条线的产物日期都对得上目标日，dry=false，邮件已发，sent 标记都在。清单内容和数字口径没有发现错误。但两封信都晚了约 10~12 小时：本机从 10-12 06:59 到 10-13 04:02（北京）一次都没有起过流程，长期调整突破 04:07 才补发（应在 17:58），起涨预测 04:25 才发（应在 17:00 后）。另外两点需要处理：一是 10-09 一次试跑覆盖了当天正式的打分统计，漂移检测的基线只剩 1 天；二是截材料时起涨预测的产物还没提交推送，Pages 面板未必已更新。模型没有重训，6 天前训练，属正常；已定真值的清单还没有一份。",
+ "checked": [
+  "1 两条线 run_meta.date=2026-10-12、dry=false、mail_sent.date=2026-10-12、sent_marker=true",
+  "1 发信时刻：长期调整突破 2026-10-13T04:07:32，起涨预测 2026-10-13T04:25:15，都在次日 08:30 的窗口内",
+  "2 n_qualified 45 / n_ok 37 / rejected 8 / short_excluded 0，和 10-08 正式运行的 48/42 同量级",
+  "2 refit_rejected=false，drift_note 为空，drift_baseline_days=1（基线不足 20 天，没有做判断）",
+  "2 model.fit_date 2026-10-07，距今 6 天，没超 30 天；日志写「用已有模型」，没有重训",
+  "2 update_status：short 47 只，全是新股（new_codes 和 short 逐个相同），missing 0，stale 12，refetch 31 只全拉到",
+  "3 两条线日志尾：没有 WARNING/ERROR/超时/接手；pullback exit=0；breakout 截材料时流程还没结束（没有退出码这一行）",
+  "3 起涨预测日志里 16:09~16:22 的时间是 build.py 用本机美东时间（教训 39 的例外），换成北京时间是 04:09~04:22，前后接得上",
+  "4 清单 A 板块：主板 6 / 科创 3 / 创业 1；连续天数：3 天 2 只、2 天 2 只、1 天 6 只（和 n_streak3=2 一致）",
+  "4 清单 A 和清单 B 重叠 2 只（603657、600371）",
+  "5 truth_recent_lists 12 份全部 final=false（最多 11 根），hit_rate_open 全为 null；truth_by 为空",
+  "6 push_status ok=true，at 04:25:19；regime_10d 10-12 上涨家数占比 0.211、跌停 30、中位数 -1.677%，比 09-28 的 0.162 / 68 / -1.847% 温和",
+  "6 regime_10d 的 base20 全是 null（要等之后 20 根才定，属正常）",
+  "7 AI 用量：今天 $0 / 0 次，本月 $4.72 / 5 次，警戒线 $10 / $100，warn=false",
+  "长期调整突破：清单 A 0 只，清单 B 1 只（候选 4 只，剔掉 3 只：ST / 定增 / 减持）；同口径 54 次、每月 1.5 次，和文档一致",
+  "setup_tasks.ps1:115 计划任务已设 -WakeToRun -StartWhenAvailable"
+ ],
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "tools/local_flow_breakout.log 第 2693~2696 行；pullback run_meta / mail_sent",
+   "evidence": "[2026-10-12T06:59:27] 那次运行的目标日还是 10-09，跳过；下一条就是 [2026-10-13T04:02:07] === run_local breakout ===。中间北京 16:30 起每 30 分钟一次的触发一条都没有。长期调整突破 mail_sent.at=2026-10-13T04:07:32（应在 17:58），起涨预测 04:25:15",
+   "why": "两条线都在窗口内发出，当天结果没错，但都晚了约 10~12 小时。计划任务已经设了 WakeToRun，还是整段没起来，说明机器那段时间是关机或休眠，唤醒没有生效。云端 20:30 的 evening_check 应该发过一封漏发提醒，这一点要确认",
+   "suggestion": "确认 10-12 20:30 的托底提醒邮件收到了没有。查 powercfg 的唤醒定时器设置，以及合盖 / 电池模式下是否被禁用"
+  },
+  {
+   "severity": "注意",
+   "where": "state/breakout/score_stats.jsonl 第 2 行；src/breakout/daily.py:898-911 record_score_stats",
+   "evidence": "{\"date\": \"2026-10-09\", \"n_qualified\": 10, \"n_ok\": 10, ..., \"dry\": true}；record_score_stats 按 date 覆盖（hist[row[\"date\"]] = row），stage_scan:976 又把 dry 行过滤掉。结果 run_meta.drift_baseline_days=1",
+   "why": "10-09 正式运行的打分统计被之后一次试跑覆盖了（n_qualified=10 也和 10-08 的 48、10-12 的 45 不在一个量级），漂移检测的基线因此永久少了这一天。当天没有影响，因为基线要满 20 天才判；但每被试跑覆盖一次，就推迟一天才开始检测",
+   "suggestion": "见 code 提案 1"
+  },
+  {
+   "severity": "注意",
+   "where": "工作区 git status；tools/local_flow_breakout.log 尾",
+   "evidence": "日志最后一行是「04:25:19 已推送: sent: breakout 2026-10-12 [local]」，没有「已推送: 起涨预测 2026-10-12 [local]」，也没有「总耗时 / 退出码」；会话开始时 data/breakout/2026-10/breakout_2026-10-12.parquet 是 untracked，out_breakout/* 都是 M；最近提交里只有 pullback 的产物提交",
+   "why": "sent 标记已推送，邮件也发了。但截材料时产物提交还没发生，流程可能还在跑后面的 AI 复盘那一步。如果之后失败，Pages 上的起涨预测面板会停在 10-09，10-12 的清单 parquet 也不会入库，truth 以后会缺这一天",
+   "suggestion": "等流程跑完，确认日志里有产物推送和 exit=0，origin 上有 breakout_2026-10-12.parquet"
+  },
+  {
+   "severity": "注意",
+   "where": "工作区 data/breakout/2026-10/breakout_2026-10-09.parquet（M）",
+   "evidence": "会话开始时 git status 显示这个已入库的 10-09 正式清单文件被修改了，没有提交；同一天 score_stats 有一次 dry=true 的 10-09 运行",
+   "why": "很可能是 10-09 的试跑或 e2e 改写了正式清单存档。如果被今天的产物提交一起带进去，10-09 的历史清单和之后算真值用的就不是当天实际发出的那份（10-09 实际发出 10 只）",
+   "suggestion": "提交前和 HEAD 比一下这个文件的 code 列；如果和实发的不一样，就 git checkout 回去"
+  },
+  {
+   "severity": "注意",
+   "where": "out_breakout/list_a.json 与 list_b.json；src/breakout/daily.py:776-809",
+   "evidence": "603657 春光科技（A：98 分，连续 3 天；B：rise 21.2%，drop -16.5%）和 600371 万向德农（A：98 分，连续 2 天；B：rise 21.5%，drop -18.8%）同时出现在清单 A 和清单 B 上",
+   "why": "清单 B 的 docstring 写明「一边说接近起涨一边说见顶」是第一版的 bug。现在加了进池满 MIN_HOLD_DAYS 天、涨过 RISE_MIN 两条，对老池子里的票还是可能重叠。这是规则本身允许的结果，不是计算错误，但同一封邮件对同一只票给出两个相反的信号",
+   "suggestion": "只记录，不改排序。看用户是否需要在邮件里标出重叠的票"
+  },
+  {
+   "severity": "注意",
+   "where": "tools/local_flow_breakout.log 第 2708 行；build.py 日志",
+   "evidence": "各票起点不一致：最早日 2023-01-03 只有 362 只……跑 --stage refresh 对齐；共同起点 2023-05-30 砍掉了 96 个交易日",
+   "why": "每天都打印，build.py 已经按共同起点截断，所以当天打分不受影响；但这条提示长期没人处理",
+   "suggestion": "等用户决定要不要跑 backfill --stage refresh"
+  },
+  {
+   "severity": "正常",
+   "where": "out_breakout/run_meta.json；update_status.json",
+   "evidence": "n_qualified 45，n_ok 37，rejected 8，short_excluded 0；短缺 47 只全是新股，按设计不计入 50 只的上限；coverage 99.8%，前一日 100.0%",
+   "why": "和 10-08 正式运行（48/42）同量级。新股不满 60 根，天天都没拉到，属于设计内行为"
+  },
+  {
+   "severity": "正常",
+   "where": "pullback run_meta",
+   "evidence": "n=0，n_b=1，excluded_b：603189 ST、300072 定增竞价没定价、920706 近 90 天减持；hist n=54，每月 1.5 次，b.rate 0.058",
+   "why": "空榜是常态，剔除理由都对得上规则"
+  },
+  {
+   "severity": "正常",
+   "where": "truth_recent_lists",
+   "evidence": "最早一份 09-17 只有 11 根，最近 12 份全部 final=false，hit_rate_open 全为 null",
+   "why": "还没有能和基准比的已定真值，今天第 5 项没有可评的数据"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "code",
+   "title": "试跑不许覆盖同一天的正式打分统计",
+   "detail": "src/breakout/daily.py record_score_stats：写入前判断，如果新行 dry=true，而文件里同一天已有 dry=false 的行，就保留正式那行，不覆盖（或者试跑干脆不写这个文件）。selftest_breakout 加一个用例：先写正式行再写试跑行，读回来正式行还在",
+   "expected_effect": "漂移检测的基线不再被 e2e 或手动试跑一天天吃掉；10-09 这种情况不会再出现",
+   "risk": "很低。只改统计文件的写入条件，不碰打分和清单",
+   "how_to_verify": "跑 selftest_breakout；再跑一次 e2e，确认 score_stats.jsonl 里当天正式行的 dry 还是 false"
+  },
+  {
+   "type": "process",
+   "title": "修回 score_stats 里 10-09 那一行",
+   "detail": "用 10-09 正式运行时的 n_qualified / n_ok（如果有提交历史就从 git 上一版恢复）替换掉第 2 行的 dry 行；同时核对 breakout_2026-10-09.parquet 的工作区改动，和 HEAD 不一样就 checkout 回去",
+   "expected_effect": "基线多出 1 天，10-09 的清单存档保持实发的那份",
+   "risk": "手工改状态文件。只动这一行，改之前先备份",
+   "how_to_verify": "下一次 run_meta.drift_baseline_days 比今天多 2（10-09 + 10-12）"
+  },
+  {
+   "type": "process",
+   "title": "核查本机为什么没有在 16:30 被唤醒",
+   "detail": "计划任务已经设了 WakeToRun，10-12 16:30 到 10-13 04:02 仍然一次都没触发。用 powercfg /waketimers 和 /lastwake 查，再看电源计划里「允许唤醒定时器」在电池模式下是不是关着；同时确认 10-12 20:30 evening_check 的漏发提醒收到了",
+   "expected_effect": "减少次日凌晨才补发的情况，长期调整突破能按 17:58 发",
+   "risk": "无，只是检查",
+   "how_to_verify": "下一个交易日 local_flow_pullback.log 在北京 17:40 左右有启动记录"
+  },
+  {
+   "type": "process",
+   "title": "每日复盘的材料要等流程结束再取",
+   "detail": "这次材料取于 04:25:19，起涨预测还没走完产物提交那一步。复盘的取数应该等日志出现「=== run_local breakout exit=」再开始，或者把产物推送状态（最近一次提交消息是不是「起涨预测 <日> [local]」）作为一项放进材料",
+   "expected_effect": "复盘能直接判断 Pages 面板和清单存档有没有入库，不用推测",
+   "risk": "复盘会稍晚一点开始",
+   "how_to_verify": "下一次复盘材料的 log_tail 以 exit=0 结尾"
+  }
+ ]
+}

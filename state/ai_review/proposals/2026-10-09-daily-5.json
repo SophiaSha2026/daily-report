@@ -1,12 +1,14 @@
 {
  "id": "2026-10-09-daily-5",
  "date": "2026-10-09",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-11T13:06:30+08:00",
  "type": "process",
  "title": "处理掉「共同起点砍掉 96 个交易日」这条挂了很久的提示",
  "detail": "先确认 daily.parquet 里 2023-05-30 之前只有 5039 只有数据这件事还成不成立，再决定跑不跑一次 backfill --stage refresh 对齐起点；不跑就把这个判断写进 docs/breakout_log.md 并把日志降成一次性说明，要跑就按教训 36 的流水走（rebuild_all -> refit_chain -> 自测 -> 文档）。",
  "expected_effect": "要么训练表多回约 100 个交易日的样本，要么这条每天出现的提示不再占着日志、不再让人每次复盘都要重新判断一遍。",
  "risk": "stage refresh 是全量重拉，耗时长且会动 daily.parquet（两条线共用），必须在非交易时段、拿着写锁跑；重建后特征表和模型都要重做，口径变动按教训 36 的流水走完才能发信。",
- "how_to_verify": "重建后对比训练表起点和行数、python src/selftest_breakout.py、tools/e2e_check.py"
+ "how_to_verify": "重建后对比训练表起点和行数、python src/selftest_breakout.py、tools/e2e_check.py",
+ "updated": "2026-10-12T07:04:22+08:00",
+ "note": "流程提案：记录"
 }

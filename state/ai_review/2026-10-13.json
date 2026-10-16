@@ -1,0 +1,106 @@
+{
+ "kind": "daily",
+ "date": "2026-10-13",
+ "at": "2026-10-14T05:26:36+08:00",
+ "usd": 1.033,
+ "severity": "注意",
+ "summary": "2026-10-13 两条线都按目标日跑完并发了信，不是试跑，sent 标记都在，没有一项判「严重」。有四件事要留意。第一，两封信都比排期晚了约 11 小时（长期调整突破北京 10-14 04:57 发，起涨预测 05:24 发），没超过次日 08:30 的期限。第二，复盘取材时起涨预测的面板和清单还没提交推送，因为推送排在 AI 复盘之后。第三，打分漂移检查要 20 天历史，现在只有 2 天，实际上没在工作；而且 10-09 那条记录被一次试跑覆盖掉了。第四，603657 春光科技同时在清单 A 和清单 B 里。真值方面，最近 12 份清单都还没满 20 根 K 线，算不了命中率，也没有对照基准。",
+ "checked": [
+  "1 run_meta.date：起涨预测和长期调整突破都是 2026-10-13，等于目标日；dry 都是 false；mail_sent.date 都是 2026-10-13；sent_marker 都在（提交 0dbbd8e、a33ed69）",
+  "2 起涨预测：≥97 分 14 只，剔除 2 只后 12 只，short_excluded=0，清单 A 截到 10 只（多 4 只）；refit_rejected=false，drift_note 为空；模型 2026-10-07 训练，6 天，在 30 天以内；用已有模型，没有重训；update_status 里 short 47 只，全部是新股（47/47），ok=true，missing=0",
+  "3 日志尾：没有 WARNING / ERROR / 超时 / 接手 / 推送失败；长期调整突破 05:12:48 那次重试打印「已经跑完，跳过」后退出 0，是正常的跑过不再跑；起涨预测日志停在 05:24:40「已推送: sent」，产物还没推送（正在跑 AI 复盘，核过 local_run.py:1558-1564 的顺序）",
+  "4 板块构成：清单 A 主板 5、科创 4、北交所 1，不集中；连续天数 4 天 1 只、3 天 1 只、2 天 2 只、1 天 6 只，和 n_streak3=2 对得上",
+  "5 真值：09-18 到 10-13 的 12 份清单 bars 0~11，全部 final=false，hit_rate_open 和基准都是 null，比不了",
+  "6 推送 ok（05:24:40）；regime_10d 当天上涨占比 0.524、涨停 71 / 跌停 11，不极端；近 10 天最差是 09-28（上涨占比 0.162、跌停 68）和 10-12（0.211、中位 -1.68%）",
+  "7 AI 用量：当天 $0.60 / 2 次，本月 $6.47 / 8 次，警戒线 $10 / $100，没超",
+  "长期调整突破：清单 A 0 只，清单 B 等二次进攻 7 只，剔 3 只（ST / 定增竞价 / 减持各 1）后 4 只；三年同口径 54 次、每月 1.5 次，和文档一致"
+ ],
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "起涨预测 / src/local_run.py:1556-1566（发信 -> AI 复盘 -> push_all 的顺序）",
+   "evidence": "日志最后一行是「05:24:40 已推送: sent: breakout 2026-10-13 [local]」，后面没有「起涨预测 2026-10-13 [local]」的产物提交；git status 里 out_breakout/*.json、panel.html、stamp.txt、state/breakout/* 是改了没提交，data/breakout/2026-10/breakout_2026-10-13.parquet 没入库；state/lock/breakout.json 的进程 pid 13536 还持着锁；STEP_LIMIT review = 600 秒，周五还要再跑一次 --weekly",
+   "why": "AI 复盘设计上是失败不挡（fail-open），但它排在 push_all 前面。复盘跑多久，Pages 面板和入库的清单就晚多久：平日最多 10 分钟，周五最多 20 分钟。复盘要是卡在时限边上，邮件已经发了，面板却还是前一天的。复盘也读不到已经推送的产物。今天发出的清单内容没错",
+   "suggestion": "把 push_all 挪到 ai_review 前面，复盘结果另起一次小提交"
+  },
+  {
+   "severity": "注意",
+   "where": "调度 / 两条线的实际开跑时刻",
+   "evidence": "claim: breakout 是 2026-10-14 04:52:50（北京），claim: pullback 是 04:56:56，长期调整突破邮件 04:57:43 发，起涨预测邮件 05:24:36 发；排期是 16:30 和 17:40 开跑、17:58 发长期调整突破",
+   "why": "两条线都晚了约 11 小时，看起来是机器 10-13 北京傍晚到次日 04:52 一直没在线。没超过次日 08:30 的期限，所以算按时；但用户当晚 17:58 没收到信，云端 20:30 应该发过一封「本机没跑」的提醒",
+   "suggestion": "查一下计划任务有没有开唤醒（WakeToRun），再核对一下这台机器的睡眠和电源设置"
+  },
+  {
+   "severity": "注意",
+   "where": "state/breakout/score_stats.jsonl + src/breakout/daily.py:879-906（drift_note / record_score_stats）",
+   "evidence": "drift_baseline_days=2；drift_note 历史不足 20 天就直接返回空串（len(past) < 20）；10-09 那一行是 {\"n_qualified\": 10, \"dry\": true}，可 truth 里 10-09 有一份真发的清单（n=10）；record_score_stats 同一天重跑会覆盖（hist[j[\"date\"]] = j）",
+   "why": "漂移告警至少还要 18 个交易日才可能触发，眼下 drift_note 为空不代表没有漂移。另外，一次试跑把 10-09 的真实记录覆盖了，基线少了一天，而且以后每次试跑都可能再吃掉一天。当天 14 只，在 10、45、48 这几个历史值的范围内，top10_p_mean 0.314 是四天里最低的（另外三天 0.334~0.402），但离异常还远",
+   "suggestion": "试跑的记录不要覆盖同一天的真跑记录"
+  },
+  {
+   "severity": "注意",
+   "where": "起涨预测清单 A 和清单 B / src/breakout/daily.py:776 的 B 判定",
+   "evidence": "603657 春光科技：清单 A 98 分、连续 4 天；同时在清单 B，best 98、进池 2026-09-15 以来涨过 21.2%、从高点回落 13.9%",
+   "why": "B 的三条条件都满足，A 的规则也都满足，所以清单没错。但同一封邮件里同一只票既是「接近起涨」又是「可能见顶」。docstring 自己写过，第一版就因为这种矛盾加了条件，这次还是重叠了。没有标注的话读者会糊涂",
+   "suggestion": "两份清单都有的票在邮件和面板上标一下，排序和入选都不动"
+  },
+  {
+   "severity": "注意",
+   "where": "真值 / truth_recent_lists、regime_10d.base20",
+   "evidence": "最近 12 份清单 final 全是 false（bars 0~11），hit_rate_open 和 base_open_final 全是 null；regime_10d 里 10 天的 base20 全是 null；truth_by 只有一份 n=10、hits=1（10%，置信区间 1.8%~40.4%）",
+   "why": "今天比不了「命中 vs 同期基准」。truth_by 那份 n=10，样本太小，下不了任何结论，不能拿来调参数"
+  },
+  {
+   "severity": "正常",
+   "where": "起涨预测 STEP 2 日志（build.py，美东时间）",
+   "evidence": "「共同起点 2023-05-30 砍掉了 96 个交易日（全期最大 5524 只，起点当天 5039 只）。砍得这么多要核一下是不是该跑 backfill --stage refresh 把起点对齐」",
+   "why": "这句提示是程序自己打印的，起点和砍掉的天数不是今天才出现的，也不影响当天打分。日志时间是 17:xx，因为 build.py 用本机时间（CLAUDE.md 写明的例外）"
+  },
+  {
+   "severity": "正常",
+   "where": "日线补数据 / state/breakout/update_status.json",
+   "evidence": "requested 5572，appended 5493，refetch 26，stale 13，missing 0；short 47 只全是新股（newcodes 47）；当天 5512 行，前一天 5513 行（100.0%）",
+   "why": "新股不计入 50 只的上限，short_excluded=0。长期调整突破 04:57:04 看到的数字和起涨预测 05:01:11 的一样，没有读到半截表"
+  },
+  {
+   "severity": "正常",
+   "where": "长期调整突破 / out_pullback/run_meta.json",
+   "evidence": "n=0，n_b_pattern=7，excluded_b 3 只（603189 ST、300072 定增竞价没定价、920706 近 90 天减持 5 条），n_b=4；hist n=54、每月 1.5 次、B 的 1143 次里 66 次走完二次进攻（5.8%）",
+   "why": "空榜是常态，数字自洽。05:12:48 那次重试正确地跳过了"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "code",
+   "title": "起涨预测先推产物，再跑 AI 复盘",
+   "detail": "src/local_run.py 的 flow_breakout：把 push_all(\"起涨预测 {d}\", ...) 挪到 ai_review(d, dry) 前面；ai_review 产出的 state/ai_review/* 再单独提交一次（或者并进下一次同步）。fail-open 的语义不变",
+   "expected_effect": "Pages 面板和入库清单在发信后几秒内推上去，不再等最多 10 分钟（周五 20 分钟）的复盘",
+   "risk": "多一次 git 提交和推送；复盘产物要晚一点才进仓库，次日邮件抬头读的是本地文件，不受影响",
+   "how_to_verify": "跑 selftest_gui；下一次真跑时看日志，「已推送: 起涨预测 <日> [local]」要排在 ai_review 启动之前"
+  },
+  {
+   "type": "code",
+   "title": "试跑的打分统计不覆盖同一天的真跑记录",
+   "detail": "src/breakout/daily.py 的 record_score_stats：如果同一天已经有 dry=false 的记录，新的一行又是 dry=true，就不写（或者另存成 dry 记录，不顶替）。selftest_breakout 加一个用例钉住",
+   "expected_effect": "漂移基线不会再被试跑吃掉，以 10-09 为例那天的真实记录能保住；drift_note 能早一点凑满 20 天开始工作",
+   "risk": "很小；只动了一个状态文件的写入规则，不影响清单",
+   "how_to_verify": "selftest_breakout 里先写一条真跑、再写一条同日试跑，检查留下的是真跑那条"
+  },
+  {
+   "type": "code",
+   "title": "同时在清单 A 和清单 B 的票加标注",
+   "detail": "src/breakout/export.py：清单 A 和清单 B 渲染时，两份都有的代码在名称后面标「也在清单 B」/「也在清单 A」，排序和入选都不动",
+   "expected_effect": "像 603657 这样的票，读者能一眼看出两边信号冲突，不用自己对",
+   "risk": "邮件和面板多一个标记；要确认邮件客户端显示正常（见备忘：邮件少列问题还没查明）",
+   "how_to_verify": "用 10-13 的数据重新生成面板，看 603657 两处都有标注"
+  },
+  {
+   "type": "process",
+   "title": "核对计划任务的唤醒设置",
+   "detail": "看一下 DailyReport-Local-Evening / Pullback 有没有 WakeToRun，再查这台机器 10-13 北京 16:30 到 10-14 04:52 是关机还是睡眠（事件日志 Kernel-Power / Power-Troubleshooter）。只在 tools/setup_tasks.ps1 里改，改完重跑注册",
+   "expected_effect": "插着电睡眠时能按时在 16:30 / 17:40 起来跑，长期调整突破 17:58 准时发",
+   "risk": "笔记本合盖放包里时被唤醒可能会发热；只对接着电源的情况开",
+   "how_to_verify": "Get-ScheduledTask DailyReport-Local-* | Select TaskName,@{n='Wake';e={$_.Settings.WakeToRun}}；下一个交易日看 claim 提交的时间是不是 16:30 左右"
+  }
+ ]
+}

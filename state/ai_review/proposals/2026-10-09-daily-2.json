@@ -1,12 +1,14 @@
 {
  "id": "2026-10-09-daily-2",
  "date": "2026-10-09",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-11T13:06:30+08:00",
  "type": "code",
  "title": "「今天判不了」扣掉已用快照补齐的那些票",
  "detail": "src/breakout/backfill.py:852 把 filled 从只数改成代码列表（或并存 filled_codes）；src/local_run.py:1084 _update_short 里把 filled_codes 从 short 和 fresh 中扣掉再和 UPDATE_SHORT_MAX=50 比，日志的「没拉到目标日 N 只今天判不了」按扣除后的数印。",
  "expected_effect": "当天这句话会从 48 只变成 31 只，和实际能判的票对上；临近 50 只上限时不再因为已补齐的票被误判成「成片补不上、不出清单」。",
  "risk": "这是放宽闸门的一侧，快照补的那一根只有 OHLCV 精度（index 33/34/38），如果快照本身偏了，原来会被挡住的票现在会进池。建议只扣 filled 里真有当日行的，并保留 short 原始列表进账便于回溯。",
- "how_to_verify": "python src/selftest_breakout.py 与 python src/selftest_gui.py；tools/e2e_check.py 看 --if-needed 判定不变"
+ "how_to_verify": "python src/selftest_breakout.py 与 python src/selftest_gui.py；tools/e2e_check.py 看 --if-needed 判定不变",
+ "updated": "2026-10-12T07:03:57+08:00",
+ "note": "代码提案不自动改代码；已记入 docs/breakout_log.md 待办"
 }
