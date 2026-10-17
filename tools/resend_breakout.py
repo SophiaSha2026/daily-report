@@ -98,6 +98,9 @@ def main() -> int:
                 nq = picks["n_qualified"].iloc[0]
                 if pd.notna(nq):
                     meta["n_qualified"] = int(nq)
+            # 2026-10-19 起的清单按近 20 日涨幅排（rule 列），面板按规则样式印
+            if "rule" in picks.columns and len(picks) and isinstance(picks["rule"].iloc[0], str):
+                meta["rule"] = picks["rule"].iloc[0]
             E.write_panel(picks, blist, meta, tmp / date, date)
             log.info("%s  A %d 只（连续3天以上 %d）  B %d 只  池 %d",
                      date, len(picks), meta["n_streak3"], len(blist),

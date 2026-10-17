@@ -3188,6 +3188,57 @@ def check_rule_fingerprint() -> None:
         E.PERF_GRID.update(grid)
 
 
+def check_rule_ret20() -> None:
+    """2026-10-19 起清单 A 按近 20 日涨幅排（daily.RANK_RULE）：涨幅按根数算、长停牌和历史不足不上、
+    风险剔除后补位、邮件按 run_meta 的 rule 印规则那套成绩（不印分数和模型成绩表）。"""
+    print("\n[清单 A·20 日涨幅规则]")
+    import inspect
+    import daily as D
+    import export as E
+    days = [f"2026-08-{i:02d}" for i in range(1, 32)] + [f"2026-09-{i:02d}" for i in range(1, 11)]
+    rows = []
+    for k, c in enumerate(["600001", "600002", "600003", "600004"]):
+        for i, d in enumerate(days):
+            if c == "600003" and 25 <= i <= 31:      # 停了 7 个开市日
+                continue
+            if c == "600004" and i < len(days) - 10:  # 只有 10 根
+                continue
+            rows.append({"code": c, "date": d, "close": 10.0 * (1 + 0.01 * (k + 1)) ** i})
+    fill = [{"code": f"00{j:04d}", "date": d, "close": 5.0} for j in range(10) for d in days]
+    dl = pd.DataFrame(rows + fill)
+    rf = D.rule_frame(dl, days[-1]).set_index("code")
+    want = (1.02) ** 20 - 1
+    ck(abs(rf.loc["600002", "ret20"] - want) < 1e-9, f"20 日涨幅按根数：第 t 根 / 第 t-20 根 - 1（{rf.loc['600002', 'ret20']:.4f}）")
+    ck(bool(rf.loc["600003", "susp20"]) and not bool(rf.loc["600002", "susp20"]),
+       "最近 20 根里停了 >= 5 个开市日的标出来，没停的不标")
+    ck(np.isnan(rf.loc["600004", "ret20"]), "不足 21 根的票没有 20 日涨幅（不上）")
+    ck(int(rf.loc["600002", "nbar"]) == len(days) and int(rf.loc["600004", "nbar"]) == 10,
+       "根数按 daily.parquet 数（规则候选池「满 120 根」用它，不用训练表行数：训练表少了 120 根预热）")
+    src = inspect.getsource(D.stage_scan)
+    ck('today["nbar"]' in src and "RULE_MIN_BARS" in src,
+       "规则候选池按根数 >= RULE_MIN_BARS 判，不复用模型的 elig（research/polish：按 240 根两段 -0.41pp）")
+
+    day = pd.DataFrame({"code": [f"60{i:04d}" for i in range(12)], "board": "main",
+                        "close": 10.0, "ret20": np.linspace(0.1, 1.2, 12)})
+    rank = np.log1p(day["ret20"].to_numpy())
+    top = day.sort_values("ret20", ascending=False)["code"].tolist()
+    picks, bad, n_q, n_ok = D.select_a(day, rank, None, risk_fn=lambda cs: {top[0]: "减持"},
+                                       score_min=0, board_adj={})
+    ck(picks["code"].tolist() == top[1:11], "规则排序：剔掉第 1 名后按 20 日涨幅取前 10，第 11 名补位")
+    ck(n_q == 12 and n_ok == 11, "规则排序时「候选」是整个候选池（12），剔除后 11")
+
+    a = picks.assign(name="x", streak=1)
+    meta_r = {"rule": "ret20", "cap_a": 10, "score_min": 97, "rejected": 1, "n_candidates": 12}
+    html = E._body("2026-09-10", a, pd.DataFrame(), meta_r, False)
+    ck("冲高密度清单" in html and "20 日涨幅" in html and "<th>分数</th>" not in html,
+       "规则清单的邮件：冲高密度清单、印 20 日涨幅，不印分数列")
+    ck(all(f"{h:.1f}%" in html for _s, _d, h, _m, _b in E.RULE_PERF) and "STREAK" not in html
+       and "连续天数怎么看" not in html, "规则清单印规则的三段成绩，不印模型的连续天数成绩表")
+    ck(f"{E.RULE_FACTS['c20_med']}%" in html, "三句事实里有第 20 根收盘中位（右尾概率高不等于收益高）")
+    old = E._body("2026-09-10", a.assign(score=98), pd.DataFrame(), {"cap_a": 10, "score_min": 97}, False)
+    ck("<th>分数</th>" in old and "冲高密度清单" not in old, "旧清单（run_meta 没有 rule）照模型样式印")
+
+
 def main() -> int:
     t0 = time.time()
     check_chips()
@@ -3209,6 +3260,7 @@ def main() -> int:
     check_update_gap()
     check_update_status()
     check_update_gap_refetch()
+    check_rule_ret20()
     check_target_day()
     check_backfill_cli()
     check_float_mcap()

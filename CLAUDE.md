@@ -67,7 +67,9 @@ A股晚间选股流水线。**本地为主，云端托底**（2026-09-15 起）�
 
 仓库里跑着**两条互不相干的流水线**，共用数据源、日线表、邮件底层和 Pages 站点：
 
-- **起涨预测**（收盘后）：模型打分 -> 清单 A（接近起涨）/ 清单 B（可能见顶）
+- **起涨预测**（收盘后）：候选池按近 20 日涨幅取前 10 -> 清单 A（冲高密度清单）/ 清单 B（可能见顶）。
+  2026-10-19 起由规则排序（daily.RANK_RULE，用户 2026-10-17 拍板，确认集 2026-01..08 15.2% 对模型 9.3%）；
+  LightGBM 照常打分，落影子清单 shadow_model_<日>.parquet，不进邮件
 - **长期调整突破**（收盘后，17:58 发）：横盘 -> 首阳 -> 缩量调整 -> 二次进攻，纯规则
 
 改其中一条不要顺手动另一条。两条线真正共用的只有 `data/breakout/daily.parquet`
@@ -129,10 +131,13 @@ src/
   breakout/validate.py   走向前 + 验收表；validate.pick 是选票规则的唯一实现
   breakout/arena.py      模型对比（2026-09-12 旧协议，验证集 2025-03..12）+ 训练表读取 load()。
                          封存数据的纪律在这里用代码强制；新实验走 evalkit
-  breakout/daily.py      每日流程：打分 -> 风险剔除 -> 清单A/B。重训验收 accept_model（新模型
+  breakout/daily.py      每日流程：规则排序（rule_frame 算 20 日涨幅 / 长停牌，select_a 按 RANK_RULE 选票，
+                         select_shadow 落模型影子清单；overrides.json 的 rank_rule=model 退回模型）-> 风险剔除 -> 清单A/B。
+                         重训验收 accept_model（新模型
                          不如旧的就保留旧的，state/breakout/refit_status.json）、打分分布漂移
                          drift_note（state/breakout/score_stats.jsonl），两者都印在邮件抬头
-  breakout/export.py     面板 + 邮件
+  breakout/export.py     面板 + 邮件。run_meta 的 rule=ret20 时印规则那套（RULE_PERF 三段成绩、RULE_FACTS 三句事实，
+                         来源 research/rulecore/report.md），没有 rule 的旧清单照模型样式印
   breakout/truth.py      历史清单的真值（之后 20 根涨没涨）+ 同期全市场基准
   breakout/regime.py     每日市场环境指标 state/regime_daily.jsonl（含滚动 20 根基准率）
                          truth / regime 以前只有学习会诊在算，2026-09-27 起

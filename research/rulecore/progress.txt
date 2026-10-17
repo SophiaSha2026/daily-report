@@ -1,0 +1,18 @@
+[2026-10-16 21:59 BJ] 预登记 rulecore_v1：臂 ['rc', 'pc', 'ret20']，族 breakout_y50_top10_rulecore，严格门槛 3.205（旧族 71 + 3）
+[2026-10-16 21:45 BJ] 规则核预登记任务开始（research/rulecore，Fable 5.1 子代理）。读 rethink / rules / ceiling / cells / labelvar / screen report / evalkit / validate / daily / buyable。
+[2026-10-16 21:50 BJ] 数据定稿：两段都用 research/screen 长表（pit 价 + labels_screen），开发集 2025-12-04..31 标签从 leak 快照补（99.987% 一致），现状 base 的 2025-12 整月由 pc_arm.py 用同一条路补算，合并目标 969 天。
+[2026-10-16 21:52 BJ] events_rc.py 后台拉全市场事件表（减持公告按月 / 减持记录 / 解禁 / 增发，2021-12..2026-01），和生产 risk_filter 同源同判据，判定在本机按公告日做。
+[2026-10-16 21:56 BJ] 特征表 feat.parquet 建好（6453502 行 2020-07..2025-12）；规则核冒烟 2 个月只看系数：w=[0.21 0.18 0.01 0.21]（lret20 vol60 turn20 amp20），没看命中。
+[2026-10-16 22:00 BJ] 预登记写入 data/breakout/raw/exp/rulecore_v1/prereg.json（evalkit.prereg，新族 breakout_y50_top10_rulecore，gate v3，臂 rc / pc / ret20，族门槛 2.5，严格门槛 旧族 71 + 3 Bonferroni 3.205）+ rulecore_spec.json（候选池、出票规则、判定条文）。之后才开跑。
+[2026-10-16 22:01 BJ] 后台串行：rulecore.py（两段 48 个月单调逻辑回归）-> pc_arm.py（LightGBM 对照臂 48 个月 + 2025-12 base）。confirm.py 写好，只 selfcheck 不执行。
+[2026-10-16 22:04 BJ] 规则核走向前跑完：['screen', 'dev']，all_rc / all_ret20 落 C:\home\daily-report\data\breakout\raw\exp\rulecore_v1
+[2026-10-16 22:28 BJ] pc 臂走向前 48 个月跑完（含 2025-12 的 base 补算）
+[2026-10-17 06:06 BJ] 判定完成：{'rc': '未定', 'ret20': '不过线', 'pc': '未定'}
+[2026-10-17 06:06 BJ] judge.py --judge 跑完（候选池 969 天、每天 3787 / 4335 只；减持剔 12.7%、解禁 2.0%、增发 0.9%）。
+  rc  对 base 合并 +2.68pp NW t 2.24（门槛 2.5）块自举 p 0.027 去 2024-09 后 1.98 滚动三月最低 -9.4pp@2025-12；两段 +2.37 / +3.15 同号；前30 +1.85 同号；AUC +0.011 -> 未定
+      开发集前 10 里北交所占 87%（板块哑变量 1.6~2.0），2025H2 只有 5.9%（base 11.5%），lret20 系数从 0.21 缩到 0.03
+  ret20 对 base +3.82pp NW t 4.50（严格门槛 3.205 也过）两段 +3.76 / +3.90；滚动三月 -5.9pp@2024-11 不过；按天 AUC -0.069 t -6.6 触发预登记的 AUC 淘汰 -> 按条文 不过线
+  pc  对 base +0.61pp NW t 1.76 p 0.084；前30 +0.79 t 3.3；AUC +0.003 t 2.6 -> 未定（百分位压缩假说只兑现不到 1pp）
+  三句事实、逐月、系数在 research/rulecore/results.txt；结构化 data/breakout/raw/exp/rulecore_v1/results.json；登记簿加 3 行 result
+  结论：不换生产；确认集不动（没有臂过线）；三个臂转影子。确认步骤脚本 confirm.py 只 selfcheck。
+[2026-10-17 07:16 BJ] 确认集看过一次：{'ret20': '确认通过', 'rc': '确认通过', 'pc': '确认通过'}（62 分钟）

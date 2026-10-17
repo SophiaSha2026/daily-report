@@ -1,0 +1,7 @@
+{"at": "2026-10-17 21:56", "kind": "look", "exp": "pool_variants", "arm": "nbar>=240（生产口径）", "note": "生产口径核对，两段都看了", "diff": -0.0041279669762641896, "t": -2.1397651812492806}
+{"at": "2026-10-17 22:01", "kind": "look", "exp": "events_cost", "arm": "no_event_exclusion", "note": "产品规则代价诊断，两段都看了"}
+{"at": "2026-10-17 22:01", "kind": "arm", "exp": "polish_v1", "arm": "lm_10_20", "src": "rules", "col": "lm_10_20", "screen_diff": 0.0007}
+{"at": "2026-10-17 22:01", "kind": "arm", "exp": "polish_v1", "arm": "rr_lr_k50_min", "src": "rr", "col": "rr_lr_k50_min", "screen_diff": 0.0027}
+{"at": "2026-10-17 22:01", "kind": "result", "exp": "polish_v1", "arm": "lm_10_20", "t": 0.036618197060179256, "diff": 0.0001031991744066043, "fam_p": 0.72925}
+{"at": "2026-10-17 22:01", "kind": "result", "exp": "polish_v1", "arm": "rr_lr_k50_min", "t": -0.74917067814234, "diff": -0.004643962848297216, "fam_p": 0.946}
+{"at": "2026-10-17 22:03", "kind": "forward_look", "arms": ["base_ret20", "lm_10_20", "prod_nbar240", "rr_lr_k50_min"]}

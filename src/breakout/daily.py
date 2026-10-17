@@ -18,6 +18,14 @@
 所以清单的正确用法是「这批票里出黑马的密度比市场高 5 倍」，
 不是「选出来的会涨」。这句话必须印在每封邮件里。
 
+2026-10-19 起清单 A 换成规则（RANK_RULE = "ret20"）
+-------------------------------------------------
+每天在候选池里按**近 20 日涨幅**取前 10（docs/rethink_2026-10-16.md、research/rulecore/report.md）。
+一行字规则在三段互不重叠的数据上都赢现状模型：筛选集 2022-01..2024-05 11.3% 对 7.6%、
+开发集 2024-06..2025-12 16.5% 对 12.6%、确认集 2026-01..08 15.2% 对 9.3%（每天前 10，次日开盘买入口径）。
+模型照常打分，落成影子清单 shadow_model_<日>.parquet（不进邮件），以后有臂赢了规则再回生产。
+overrides.json 写 "rank_rule": "model" 就退回模型排序。上面「分数怎么读」那段只对模型排序成立。
+
 模型什么时候重训
 ----------------
 存在 state/breakout/model.pkl 里，超过 30 天自动重训。重训只用截止到
@@ -91,10 +99,27 @@ MIN_HISTORY_DAYS = 120
 # 两条都不成立，2026-09-16 删掉，理由见 select_a 的注释。
 
 
+# 清单 A 怎么排（2026-10-17 用户拍板换规则，见模块 docstring）：
+#   ret20  候选池内按近 20 日涨幅取前 CAP_A，无分数门槛（确认集 2026-01..08 通过）
+#   model  原来的 LightGBM 分数 >= SCORE_MIN 取前 CAP_A（回退用）
+RANK_RULES = ("ret20", "model")
+RANK_RULE = "ret20"
+# 规则的候选池比模型多两条，和验证口径一致（research/rulecore/common_rc.py）：
+# 前复权收盘 < 2 元不上；最近 20 根里有 >= 5 个市场交易日的停牌缺口不上
+# （复牌票的 20 日涨幅是停牌前后拼起来的，不是这 20 天走出来的）
+RULE_PRICE_MIN = 2.0
+RULE_SUSP_GAP = 5
+RULE_WINDOW = 20
+# 规则候选池「上市满 120 根」按 daily.parquet 的根数算，不按训练表行数：训练表每只票少了
+# build.MIN_HIST 那 120 根预热，按它数等于要求约 240 根，验证过的成绩都是 120 根口径
+# （research/polish/report.md：按 240 根复算两段同号 -0.41pp，NW t -2.14；放宽到 60 根反而 -0.10）
+RULE_MIN_BARS = 120
+
+
 def load_overrides() -> dict:
     """常量覆盖（state/breakout/overrides.json）。
 
-    只认 SCORE_MIN / CAP_A / MIN_STREAK / drop_features / BOARD_ADJ 五个键，
+    只认 SCORE_MIN / CAP_A / MIN_STREAK / drop_features / BOARD_ADJ / rank_rule 六个键，
     其余忽略（BOARD_ADJ 里也只认四个板块名）。
     文件原本由学习会诊的批准流程写（learn/council/experiments.apply，2026-09-27
     随早盘系统归档到 archive/morning/）；现在只剩手工改这一条路，批准过的那份
@@ -111,6 +136,8 @@ def load_overrides() -> dict:
                 out[k] = int(o[k])
         if isinstance(o.get("drop_features"), list):
             out["drop_features"] = sorted(str(x) for x in o["drop_features"])
+        if o.get("rank_rule") in RANK_RULES:
+            out["rank_rule"] = str(o["rank_rule"])
         if isinstance(o.get("BOARD_ADJ"), dict):
             out["BOARD_ADJ"] = {str(k): float(v) for k, v in o["BOARD_ADJ"].items()
                                 if k in ("main", "star", "bj", "chinext")}
@@ -126,6 +153,7 @@ CAP_A = int(_OVR.get("CAP_A", CAP_A))
 # 连续够格天数的下限。默认 1 = 不过滤（当天够格就能上）。
 # 以前 load_overrides 读了它却没有一处代码用，overrides.json 里写了也不生效。
 MIN_STREAK = int(_OVR.get("MIN_STREAK", 1))
+RANK_RULE = str(_OVR.get("rank_rule", RANK_RULE))
 DROP_FEATURES = list(_OVR.get("drop_features", []))   # overrides.json 里去掉的基础特征名
 if _OVR:
     log.info("起涨预测常量覆盖生效：%s", _OVR)
@@ -615,7 +643,8 @@ def risk_skip(skip: set[str]):
 
 
 def select_a(today: pd.DataFrame, proba, q, risk_fn=None,
-             eligible: pd.Series | None = None
+             eligible: pd.Series | None = None,
+             score_min: int | None = None, board_adj: dict | None = None
              ) -> tuple[pd.DataFrame, dict, int, int]:
     """当天的清单 A：够格 -> 风险剔除 -> 截 CAP_A。纯函数，只调 risk_fn 联网。
 
@@ -642,12 +671,24 @@ def select_a(today: pd.DataFrame, proba, q, risk_fn=None,
     """
     risk_fn = risk_filter if risk_fn is None else risk_fn
     # 够格名单也走 pick：否则「查哪几只」和「最后取哪几只」是两套排序
+    # score_min / board_adj 给 None 是生产模型的值；规则排序传 0 / {}（无门槛、不乘板块系数）
+    kw = {"score_min": score_min, "board_adj": board_adj}
     cand = V.pick(today, proba, q, cap=max(len(today), 1),
-                  eligible=eligible, st=set())["code"].astype(str).tolist()
+                  eligible=eligible, st=set(), **kw)["code"].astype(str).tolist()
     bad = dict(risk_fn(cand)) if cand else {}
-    picks = V.pick(today, proba, q, eligible=eligible, st=set(bad)).copy()
+    picks = V.pick(today, proba, q, eligible=eligible, st=set(bad), **kw).copy()
     n_ok = sum(1 for c in cand if c not in bad)
     return picks, bad, len(cand), n_ok
+
+
+def select_shadow(today: pd.DataFrame, proba, q, eligible: pd.Series,
+                  bad: dict) -> tuple[pd.DataFrame, int]:
+    """规则排序时模型的影子清单：模型口径（>= SCORE_MIN 分、板块系数、前 CAP_A），风险剔除复用规则那次的
+    结果（不再联网）。返回 (影子清单, 模型够格只数)。和 select_a 一样只走 V.pick 一份实现。"""
+    shadow = V.pick(today, proba, q, eligible=eligible, st=set(bad)).copy()
+    n_q = int((V.pick(today, proba, q, cap=max(len(today), 1), eligible=eligible,
+                      st=set())["score"] >= SCORE_MIN).sum())
+    return shadow, n_q
 
 
 # ---------------------------------------------------------------
@@ -766,6 +807,10 @@ def recent_history(n: int = 30) -> list[dict]:
                 "rejected": None if pd.isna(rej) else int(rej)}
         if nq is not None and not pd.isna(nq):
             meta["n_qualified"] = int(nq)
+        # 2026-10-19 起落盘的清单带 rule 列；之前的是模型排序，面板按旧样式印
+        ru = first.get("rule")
+        if isinstance(ru, str) and ru:
+            meta["rule"] = ru
         out.append({"date": date, "a": picks, "b": blist, "meta": meta})
     return out[-n:]
 
@@ -920,6 +965,38 @@ def record_score_stats(row: dict) -> list[dict]:
     return rows
 
 
+def rule_frame(daily: pd.DataFrame, date: str) -> pd.DataFrame:
+    """规则排序要的三样：近 20 根涨幅、最近 20 根有没有长停牌缺口、到这天为止一共几根。
+
+    daily 是 daily.parquet 的 code / date / close（前复权，比值和不复权一致）。按**根**数，
+    不按日历：第 t 根收盘 / 第 t-20 根收盘 - 1，不足 21 根的票没有值（不上）。
+    停牌缺口按市场开市日编号：相邻两根之间隔了 >= RULE_SUSP_GAP 个开市日就算。
+    开市日 = 当天有 K 线的票不少于近 20 天最多只数的一半（只数少的日子不能按全表行数中位数比，
+    长期调整突破那条线踩过）。研究口径同一条规则：research/rulecore/common_rc.py。
+    """
+    d = daily[["code", "date", "close"]].copy()
+    d["code"] = d["code"].astype(str).str.zfill(6)
+    d["date"] = d["date"].astype(str).str[:10]
+    d = d[d["date"] <= date]
+    nbar = d.groupby("code").size()
+    n_by_day = d.groupby("date")["code"].size().sort_index()
+    open_days = n_by_day[n_by_day >= 0.5 * n_by_day.rolling(20, min_periods=1).max()].index
+    didx = pd.Series(np.arange(len(open_days)), index=list(open_days))
+    d = d[d["date"].isin(didx.index)].sort_values(["code", "date"])
+    tail = d.groupby("code", sort=False).tail(RULE_WINDOW + 1).copy()
+    tail["_di"] = tail["date"].map(didx).to_numpy()
+    g = tail.groupby("code", sort=False)
+    gap = (tail["_di"] - g["_di"].shift(1) - 1).fillna(0)
+    out = pd.DataFrame({
+        "first": g["close"].first(), "last": g["close"].last(), "n": g.size(),
+        "last_date": g["date"].last(), "gap": gap.groupby(tail["code"]).max()})
+    out = out[out["last_date"] == date]
+    out["ret20"] = np.where(out["n"] >= RULE_WINDOW + 1, out["last"] / out["first"] - 1, np.nan)
+    out["susp20"] = out["gap"] >= RULE_SUSP_GAP
+    out["nbar"] = nbar.reindex(out.index).fillna(0).astype(int)
+    return out[["ret20", "susp20", "nbar"]].rename_axis("code").reset_index()
+
+
 def stage_scan(force_fit: bool = False) -> int:
     """打分日永远是特征表的最后一天。以前有个 --asof 能指定历史日，但风险
     剔除用的是今天的 ST/减持/解禁、A 池会被改坏进池日期，补发不安全，
@@ -959,9 +1036,28 @@ def stage_scan(force_fit: bool = False) -> int:
     import os
     skip = {c for c in os.environ.get("BREAKOUT_SHORT_EXCLUDE", "").split(",") if c}
     # 选票和风险剔除只有 select_a 一份实现，tools/rerun_breakout.py 共用它
-    picks, bad, n_q, n_ok = select_a(today, proba, obj["quantiles"],
-                                     risk_fn=risk_skip(skip) if skip else None,
-                                     eligible=elig)
+    rf = risk_skip(skip) if skip else None
+    shadow = None
+    if RANK_RULE == "ret20":
+        rule = rule_frame(pd.read_parquet(DATA / "daily.parquet", columns=["code", "date", "close"]), date)
+        idx = today.index
+        today = today.drop(columns=["ret20", "susp20", "nbar"], errors="ignore").merge(rule, on="code", how="left")
+        today.index = idx                        # merge 重排了索引；elig 和 proba 按原索引 / 位置对齐
+        # 规则候选池用 daily.parquet 的根数（RULE_MIN_BARS），不用训练表口径的 elig（那个给模型影子用）
+        elig_r = ((today["nbar"].fillna(0) >= RULE_MIN_BARS) & (today["close"] >= RULE_PRICE_MIN) & ~today["susp20"].fillna(True).astype(bool)
+                  & np.isfinite(today["ret20"]))
+        rank = np.log1p(today["ret20"].clip(lower=-0.99).fillna(-0.99).to_numpy(float))
+        picks, bad, n_q, n_ok = select_a(today, rank, None, risk_fn=rf, eligible=elig_r,
+                                         score_min=0, board_adj={})
+        # 模型照打分，落影子清单（不进邮件）。风险剔除复用规则那次的结果：规则候选池覆盖了
+        # 模型候选池里除「<2 元 / 长停牌」以外的全部票
+        shadow, n_q_model = select_shadow(today, proba, obj["quantiles"], elig, bad)
+        log.info("清单 A 按近 20 日涨幅排（规则），候选 %d 只；模型影子清单 %d 只（>=%d 分 %d 只）",
+                 int(elig_r.sum()), len(shadow), SCORE_MIN, n_q_model)
+    else:
+        picks, bad, n_q, n_ok = select_a(today, proba, obj["quantiles"],
+                                         risk_fn=rf, eligible=elig)
+        n_q_model = n_q
     if skip:
         log.warning("日线没补齐的 %d 只不上清单：%s", len(skip),
                     ",".join(sorted(skip)[:20]))
@@ -970,7 +1066,8 @@ def stage_scan(force_fit: bool = False) -> int:
     # 一模一样，够格 200 只也看不出来（S7）
     # 打分分布漂移（计划 4.3）：当天的够格只数和前 10 名预测值均值记下来，和近 60 天比
     # n_eligible = 当天进候选池的只数（剔次新后）；别叫 pool，run_meta 的 pool 是 A 池只数（教训 34 同类）
-    stats_row = {"date": date, "n_qualified": int(n_q), "n_ok": int(n_ok), "n_eligible": int(elig.sum()),
+    # 漂移监控看的是模型的分数分布：规则排序时 n_q 是候选池只数，不是「够格」
+    stats_row = {"date": date, "n_qualified": int(n_q_model), "n_ok": int(n_ok), "n_eligible": int(elig.sum()),
                  "top10_p_mean": float(np.sort(proba)[-10:].mean()) if len(proba) >= 10 else None,
                  "model_date": obj["fit_date"], "dry": bool(os.environ.get("DRY_RUN"))}
     hist_rows = [r for r in record_score_stats(stats_row) if not r.get("dry")]
@@ -979,10 +1076,14 @@ def stage_scan(force_fit: bool = False) -> int:
     drift_baseline = len([r for r in hist_rows if r.get("date") != date])
     if drift:
         log.warning("打分分布漂移：%s", drift)
-    log.info("≥%d 分 %d 只，剔除 %d 只后 %d 只，取前 %d -> 清单 A %d 只",
-             SCORE_MIN, n_q, len(bad), n_ok, CAP_A, len(picks))
-    if n_q > CAP_A:
-        log.info("够格的比上限多 %d 只，清单按预测值截断", n_q - CAP_A)
+    if RANK_RULE == "ret20":
+        log.info("候选 %d 只，剔除 %d 只后 %d 只，取近 20 日涨幅前 %d -> 清单 A %d 只",
+                 n_q, len(bad), n_ok, CAP_A, len(picks))
+    else:
+        log.info("≥%d 分 %d 只，剔除 %d 只后 %d 只，取前 %d -> 清单 A %d 只",
+                 SCORE_MIN, n_q, len(bad), n_ok, CAP_A, len(picks))
+        if n_q > CAP_A:
+            log.info("够格的比上限多 %d 只，清单按预测值截断", n_q - CAP_A)
     if not len(picks):
         log.info("今天没有够格的股票，清单 A 为空。这是正常的，不是故障。")
 
@@ -1012,7 +1113,9 @@ def stage_scan(force_fit: bool = False) -> int:
     log.info("清单 B：%d 只（A 池 %d 只）", len(blist), len(pool))
 
     OUT.mkdir(parents=True, exist_ok=True)
-    cols = ["code", "name", "score", "streak", "close", "board"]
+    if "ret20" not in picks:
+        picks["ret20"] = np.nan
+    cols = ["code", "name", "score", "ret20", "streak", "close", "board"]
     picks[cols].to_json(OUT / "list_a.json", orient="records",
                         force_ascii=False, indent=2)
     blist.to_json(OUT / "list_b.json", orient="records",
@@ -1022,6 +1125,8 @@ def stage_scan(force_fit: bool = False) -> int:
          # 规则要跟着清单一起落盘：邮件和面板按它印「上榜条件是 ≥N 分前 M 名」，
          # 改了 overrides.json 之后不写 cap_a 的话，邮件还会说「前 10」
          "score_min": SCORE_MIN, "cap_a": CAP_A, "min_streak": MIN_STREAK,
+         # 清单 A 怎么排（ret20 / model）。邮件和面板按它选成绩表：规则的成绩和模型的不是一回事
+         "rule": RANK_RULE,
          # 板块系数也是规则的一部分。2026-09-16 会诊批准 star 1.27->1.0 之后，
          # 生产每天的榜换掉了近一半（162 个出榜日里 77 天不同，科创席位
          # 211->37），而邮件里印的成绩常量是旧系数下测的，失效保护只比
@@ -1032,7 +1137,9 @@ def stage_scan(force_fit: bool = False) -> int:
          "rejected": len(bad),
          # 够格总数也落盘：清单永远是 10 只，看不出门槛有没有起作用。
          # n_qualified > cap_a 就说明当天是上限在决定清单，不是门槛
-         "n_qualified": n_q, "n_ok": n_ok,
+         # 规则排序时「够格」没有意义（候选池全部「够格」），只在模型排序时记
+         "n_qualified": n_q if RANK_RULE != "ret20" else None, "n_ok": n_ok,
+         "n_candidates": int(n_q) if RANK_RULE == "ret20" else None,
          # 日线没补齐、剔出清单的只数（平时 0）。邮件和面板抬头照实印出来
          "short_excluded": len(skip),
          # 上次重训没过验收、沿用旧模型（计划 3.7）。抬头印一句，别让人以为模型是新的
@@ -1046,8 +1153,12 @@ def stage_scan(force_fit: bool = False) -> int:
     (DATA / date[:7]).mkdir(parents=True, exist_ok=True)
     # 模型日期、剔除数、够格总数也落盘：面板按日期回看时抬头要印这几个数
     picks = picks.assign(model_date=obj["fit_date"], rejected=len(bad),
-                         n_qualified=n_q)
+                         n_qualified=n_q if RANK_RULE != "ret20" else np.nan, rule=RANK_RULE)
     picks.to_parquet(DATA / date[:7] / f"breakout_{date}.parquet", index=False)
+    if shadow is not None:
+        # 影子清单：模型排序的前 10，每天落盘，以后按 (臂, 日) 对账；不进邮件、不进 A 池
+        shadow.assign(date=date, model_date=obj["fit_date"]).to_parquet(
+            DATA / date[:7] / f"shadow_model_{date}.parquet", index=False)
     log.info("完成，用时 %.1f 分钟", (time.time() - t0) / 60)
     return 0
 

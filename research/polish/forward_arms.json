@@ -1,0 +1,6 @@
+{
+ "base_ret20": {"type": "rule", "w": {"lret20": 1}, "excl": []},
+ "lm_10_20": {"type": "rule", "w": {"lret10": 0.5, "lret20": 0.5}, "excl": []},
+ "prod_nbar240": {"type": "rule", "w": {"lret20": 1}, "excl": [["nbar", "<", 240]]},
+ "rr_lr_k50_min": {"type": "rr", "model": "lr", "k": 50, "feats": "min"}
+}

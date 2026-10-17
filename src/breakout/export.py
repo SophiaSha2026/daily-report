@@ -86,6 +86,88 @@ NONCAP_PERF = (15.5, 679, 147)        # 准确率%, 名额数, 天数
 # 不能拿旧规则的成绩给新规则背书。
 PERF_RULE = (97, 10)
 
+# 2026-10-19 起清单 A 按近 20 日涨幅排（daily.RANK_RULE = "ret20"，用户 2026-10-17 拍板）。
+# 下面是这条规则的成绩，和上面模型那套常量不是一回事，run_meta 的 rule 决定印哪一套。
+# 来源 research/rulecore/report.md（第 0 节两段判定、第 8 节确认集）：同一候选池（非 ST、>=2 元、
+# 上市满 120 根、近 20 根无长停牌、近 30 天无减持、未来 30 天解禁 <5%、近 60 天无增发），
+# 每天前 10，次日开盘买入后 20 根内最高涨超 50%，一字板买不进算没中。
+# 段名, 交易日数, 规则命中%, 同期现状模型%, 同期候选池基准%
+RULE_PERF = [
+    ("2022-01~2024-05", 582, 11.34, 7.58, 1.62),
+    ("2024-06~2025-12", 387, 16.54, 12.64, 4.32),
+    ("2026-01~2026-08（确认集，一次）", 160, 15.19, 9.31, 2.60),
+]
+# 三句事实（确认集，规则前 10）：已涨多少、冲高比例、之后 20 根收盘和回撤。右尾概率高 ≠ 收益高
+# （docs/oss_survey_2026-10-16.md 2.5 节），用户 2026-10-16 拍板 I：邮件必须印
+RULE_FACTS = {"ret20_med": 100, "r20_med": 19.6, "hit": 15.2, "base": 2.6,
+              "c20_med": -7.6, "c20_base": -1.8, "dd20_med": -19.9, "dd20_le20": 50}
+
+
+def _is_rule(meta: dict) -> bool:
+    return str(meta.get("rule") or "") == "ret20"
+
+
+def rule_disclaimer(cap: int = PERF_RULE[1]) -> str:
+    f = RULE_FACTS
+    return (
+        f"<b>这是冲高密度清单，不是买入建议。</b>清单 A 每天在候选池里取<b>近 20 个交易日涨幅最大的 {cap} 只</b>"
+        f"（剔除 ST、2 元以下、上市不满 120 个交易日、近期长停牌、近 30 天减持、未来 30 天大额解禁、近 60 天增发）。"
+        f"历史上这批票：已经涨了很多（20 日涨幅中位约 +{f['ret20_med']}%）；"
+        f"次日开盘买入后 20 个交易日内冲高 50% 的占 {f['hit']}%（同期全市场 {f['base']}%）；"
+        f"但第 20 个交易日收盘中位 {f['c20_med']}%（全市场 {f['c20_base']}%），"
+        f"期间最大回撤中位 {f['dd20_med']}%，一半回撤超过 20%。冲高概率高，不等于持有收益高。"
+    )
+
+
+def _rows_a_rule(a: pd.DataFrame) -> str:
+    if not len(a):
+        return ('<tr><td colspan="7" style="color:#8f9aa8;padding:18px;'
+                'text-align:center">今天候选池剔除后没有可上榜的股票。</td></tr>')
+    out = []
+    for i, r in enumerate(a.itertuples(), 1):
+        k = int(getattr(r, "streak", 1) or 1)
+        rt = getattr(r, "ret20", float("nan"))
+        rt_txt = "—" if rt != rt else f"{100 * float(rt):+.0f}%"
+        out.append(
+            f'<tr><td>{i}</td>'
+            f'<td class="code">{r.code}</td>'
+            f'<td>{getattr(r, "name", "") or ""}</td>'
+            f'<td>{BOARD_CN.get(str(getattr(r, "board", "")), "")}</td>'
+            f'<td class="sc">{rt_txt}</td>'
+            f'<td class="up">{k} 天</td>'
+            f'<td>{getattr(r, "close", 0):.2f}</td></tr>')
+    return "".join(out)
+
+
+def _rows_b_rule(b: pd.DataFrame) -> str:
+    if not len(b):
+        return ('<tr><td colspan="7" style="color:#8f9aa8;padding:18px;'
+                'text-align:center">没有触发见顶信号的股票。</td></tr>')
+    out = []
+    for i, r in enumerate(b.itertuples(), 1):
+        out.append(
+            f'<tr><td>{i}</td>'
+            f'<td class="code">{r.code}</td>'
+            f'<td>{getattr(r, "name", "") or ""}</td>'
+            f'<td>{int(getattr(r, "days", 0) or 0)} 天</td>'
+            f'<td>{getattr(r, "close", 0):.2f}</td>'
+            f'<td>{getattr(r, "rise", 0):+.1f}%</td>'
+            f'<td class="up">{getattr(r, "drop", 0):+.1f}%</td></tr>')
+    return "".join(out)
+
+
+def _rule_perf_table() -> str:
+    rows = "".join(
+        f'<tr><td>{span}</td><td class="sc">{hit:.1f}%</td><td>{model:.1f}%</td>'
+        f'<td>{base:.1f}%</td><td>{days} 天</td></tr>' for span, days, hit, model, base in RULE_PERF)
+    return (f'<h1 style="margin-top:22px">这条规则的历史成绩</h1>'
+            f'<div class="sub">每天前 10，次日开盘买入后 20 个交易日内最高涨超 50% 的比例，一字板买不进算没中。'
+            f'三段时间互不重叠；最后一段是换规则前<b>只看过一次</b>的封存数据。候选池和剔除条件和每天发的清单一致。</div>'
+            f'<table><tr><th>时间段</th><th>这条规则</th><th>原来的模型</th><th>候选池随便买</th><th>天数</th></tr>'
+            f'{rows}</table>'
+            f'<div class="tip">「连续」是这只票连着几个交易日在前 10 里，只是提示，不代表更准。'
+            f'原来的模型每天照常打分（影子清单），只有它在新数据上赢了这条规则才会换回来。</div>')
+
 
 def _perf_grid() -> dict:
     """STREAK_PERF 那一跑落下的 window_grid.json，用来核对规则是不是同一条。
@@ -419,8 +501,38 @@ def _high_conf(a: pd.DataFrame) -> str:
             f'差别在统计上不显著，只是提示，清单 A 的规则没变。</div>')
 
 
+def _day_block_rule(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
+    """规则排序那天的抬头 + 清单 A + 清单 B（没有分数，没有模型成绩）。"""
+    _smin, cap = _rule(meta)
+    rej = meta.get("rejected", 0)
+    rej_txt = f" · 风险剔除 {rej} 只" if rej is not None else ""
+    if meta.get("short_excluded"):
+        rej_txt += f" · 日线没补齐不参与 {int(meta['short_excluded'])} 只"
+    nc = meta.get("n_candidates")
+    nc_txt = f" · 候选池 {int(nc)} 只" if nc else ""
+    note = ""
+    if meta.get("drift_note"):
+        note += f" · 影子模型：{meta['drift_note']}"
+    note += _ai_header_note(date)
+    head = (f'<h1>起涨预测 · {date}</h1>'
+            f'<div class="sub">清单 A {len(a)} 只（近 20 日涨幅前 {cap}），清单 B {len(b)} 只'
+            f'{nc_txt}{rej_txt}{note}</div>')
+    ta = (f'<h1 style="margin-top:18px">清单 A · 冲高密度清单</h1>'
+          f'<div class="sub">按连续在榜天数排序，同样连续再按 20 日涨幅。</div>'
+          f'<table><tr><th>#</th><th>代码</th><th>名称</th><th>板块</th>'
+          f'<th>20 日涨幅</th><th>连续</th><th>现价</th></tr>'
+          f'{_rows_a_rule(a)}</table>')
+    tb = (f'<h1 style="margin-top:22px">清单 B · 见顶信号</h1>'
+          f'<div class="sub">上过清单 A、之后涨过一波、现在见顶回落的股票。规则判定，没有实测成绩。</div>'
+          f'<table><tr><th>#</th><th>代码</th><th>名称</th><th>上榜天数</th><th>现价</th>'
+          f'<th>进榜后涨幅</th><th>距高点</th></tr>{_rows_b_rule(b)}</table>')
+    return head + ta + tb
+
+
 def _day_block(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict) -> str:
     """某一天的抬头 + 清单 A + 清单 B。面板按日期切换时整块替换。"""
+    if _is_rule(meta):
+        return _day_block_rule(date, a, b, meta)
     smin, cap = _rule(meta)
     # rejected 为 None 表示不可知（补发/回放历史清单时），这段就不印
     rej = meta.get("rejected", 0)
@@ -529,8 +641,10 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
           for_panel: bool, history: list[dict] | None = None) -> str:
     smin, cap = _rule(meta)
     day = _day_block(date, a, b, meta)
+    rule = _is_rule(meta)
     tip = (f'<div class="tip" style="margin:0 0 14px;padding:10px 12px;'
-           f'background:#1e2229;border-radius:5px">{disclaimer(smin, cap)}</div>')
+           f'background:#1e2229;border-radius:5px">'
+           f'{rule_disclaimer(cap) if rule else disclaimer(smin, cap)}</div>')
     # 分数对照表。用户拿到清单第一个问题就是「92 分和 85 分差多少」，
     # 不给这张表的话，分数就只是个没有意义的数字。
     # 每行带 Wilson 95% 区间、样本少于 SMALL_N 的行灰掉：连续≥5 天那档只有
@@ -582,6 +696,8 @@ def _body(date: str, a: pd.DataFrame, b: pd.DataFrame, meta: dict,
           f'，不是信号。带 🔥 的是连续 3 天以上，只是提示它已经在榜上待了几天。'
           f'</div>')
 
+    if rule:
+        tc = _rule_perf_table()
     foot = ('<div class="tip">清单 B 的三个条件：进清单 A 满 5 个交易日、'
             '进入后涨过 20%、现在从那个高点回落 8%~20% 且高点在最近 10 天内。'
             '目前是规则判定，不是训练出来的模型 —— 等清单 A 积累出足够样本'
