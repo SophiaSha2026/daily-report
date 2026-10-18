@@ -1,0 +1,52 @@
+任务书摘要（2026-10-18）：为起涨预测精确率门槛找没用过、有 2022-01..2025-12 历史、时点可知的数据源；实测字段/时点后拉 2021-09..2025-12 到 raw/（gitignore，后验列删），派生 features_<源>.parquet（code+date，T 日收盘后可得），每张配 features_README.txt 说明，并做前 50 / 全候选池 高对低 按天配对命中差（两段同号标出）。不训模型，不改生产，不碰 gate/ intraday/，16:00~18:30 不发请求，2026-01..08 标签不读。
+[2026-10-18 03:38 BJ] 开工：读完 CLAUDE.md / datasrc / altdata / announce / precision / oss_survey 报告；pool.parquet 5.5M 行 2020-12..2025-12，复用 common_pl
+[2026-10-18 03:49 BJ] 落地 features_sw_industry.parquet：4669348 行 2021-12-01..2025-12-31，列 ['ind2_n', 'ind2_lu_n', 'ind2_lu_share', 'ind2_lu_share5', 'ind2_lu_share20', 'ind2_nh20_share', 'ind2_ret20_med', 'ind2_ret5_med', 'ind2_ret20_pct', 'ind2_ret5_pct', 'ind2_lu_pct', 'ind2_in50_other', 'ind2_ret20_rank_in', 'ind2_ret20_excess', 'ind2_lu_other', 'ind1_n', 'ind1_lu_n', 'ind1_lu_share', 'ind1_lu_share5', 'ind1_lu_share20', 'ind1_nh20_share', 'ind1_ret20_med', 'ind1_ret5_med', 'ind1_ret20_pct', 'ind1_ret5_pct', 'ind1_lu_pct', 'sw_ind2', 'sw_ind1']
+[2026-10-18 03:51 BJ] 诊断 sw_industry -> results_sw.txt
+[2026-10-18 03:53 BJ] 实测（probe_dd.py -> probe_result.jsonl）：龙虎榜买/卖席位 RPT_BILLBOARD_DAILYDETAILSBUY/SELL 每月约 7600 行、带 RISE_PROBABILITY_3DAY 后验列（删）；业绩预告 RPT_PUBLIC_OP_NEWPREDICT 2024-01 7681 行 NOTICE_DATE；业绩快报 RPT_FCI_PERFORMANCEE 有 NOTICE_DATE；回购 RPTA_WEB_GETHGLIST_NEW 每月约 116 行 NOTICEDATE；分红送转 RPT_SHAREBONUS_DET 按 PLAN_NOTICE_DATE；股权激励 RPT_EQUITYINCENTIVE 全表 4184 行 NOTICE_DATE/PLAN_NOTICE_DATE；股东增持 RPT_SHARE_HOLDER_INCREASE(DIRECTION=增持) 每月约 140 行；东财 reportapi 全市场研报按日只给 28 行（巨潮同日 145）不全 -> 用巨潮 p_sysapi1089 按日；申万行业变迁 xls 12929 行（requests SSL 失败，curl 可）；同花顺 getharden 2023-10-25 起有、2022 无；同花顺涨停池 2025-10-09 起（一年滚动，不覆盖）；基金持仓 RPT_MAINDATA_MAIN_POSITIONDETAILS 只有 REPORT_DATE 无公告日（不拉）；十大流通股东 RPT_F10_EH_FREEHOLDERS 有 NOTICE_DATE，每季约 5.4 万行（备选）。
+[2026-10-18 03:55 BJ] 落地 features_rzrq_short.parquet：4669348 行 2021-12-01..2025-12-31，列 ['rq_target', 'rq_yl_chg5', 'rq_yl_chg20', 'rq_share', 'rq_ye_mcap', 'rq_mcl5_rel', 'rq_mcl5_vs20', 'rq_zero_yl']
+[2026-10-18 03:55 BJ] 诊断 rzrq_short -> results_rzrq_short.txt
+[2026-10-18 03:56 BJ] 重跑诊断 rzrq_short（加前50控名次一栏）
+[2026-10-18 03:58 BJ] 重跑诊断 sw_industry（加前50控名次一栏）
+[2026-10-18 04:06 BJ] 拉取 lhb_sbuy（RPT_BILLBOARD_DAILYDETAILSBUY）合并 392799 行，TRADE_DATE 2021-09-01..2025-12-31，块 52 + 空 0 / 52，删后验列 []；可得时点：TRADE_DATE 当天收盘后交易所公布，T 日收盘可用
+[2026-10-18 04:12 BJ] 拉取 ths_harden（同花顺强势股题材）合并 40947 行，date 2023-10-17..2025-12-31，天 539 + 空 6；可得时点：收盘后快照，reason 是否事后改写未核
+[2026-10-18 04:13 BJ] 落地 features_ths_theme.parquet：2684779 行 2023-10-17..2025-12-31，列 ['ths_today', 'ths_n5', 'ths_n20', 'ths_age', 'ths_theme_max', 'ths_theme_sum', 'ths_ntok', 'ths_lag_heat', 'ths_lag_heat_other', 'ths_mkt_n', 'ths_mkt_topheat', 'ths_lag_heat_share']
+[2026-10-18 04:13 BJ] 诊断 ths_theme -> results_ths.txt
+[2026-10-18 04:28 BJ] 拉取 lhb_ssell（RPT_BILLBOARD_DAILYDETAILSSELL）合并 392970 行，TRADE_DATE 2021-09-01..2025-12-31，块 52 + 空 0 / 52，删后验列 []；可得时点：同上
+[2026-10-18 04:30 BJ] 落地 features_lhb_seats.parquet：4669348 行 2021-12-01..2025-12-31，列 ['lhbs_today', 'lhbs_age', 'lhbs_n_buy', 'lhbs_inst_buy', 'lhbs_north_buy', 'lhbs_lasa_buy', 'lhbs_hot_buy', 'lhbs_famous_max', 'lhbs_famous_sum', 'lhbs_hit_max', 'lhbs_hit_wavg', 'lhbs_top_ratio', 'lhbs_buy_share', 'lhbs_inst_sell', 'lhbs_lasa_sell', 'lhbs_famous_sell', 'lhbs_sell_share', 'lhbs_net_share', 'lhbs_inst_buy_n5', 'lhbs_inst_buy_n20', 'lhbs_hot_buy_n5', 'lhbs_hot_buy_n20', 'lhbs_north_buy_n5', 'lhbs_north_buy_n20', 'lhbs_famous_max_5', 'lhbs_hit_max_5', 'lhbs_net_share_5', 'lhbs_inst_sell_n5']
+[2026-10-18 04:30 BJ] 诊断 lhb_seats -> results_lhb_seats.txt
+[2026-10-18 04:33 BJ] 拉取 yjyg（RPT_PUBLIC_OP_NEWPREDICT）合并 62924 行，NOTICE_DATE 2021-09-01..2025-12-31，块 52 + 空 0 / 52，删后验列 []；可得时点：业绩预告，按 NOTICE_DATE（沪深晚间公告记次日），公告日当天收盘起可用
+[2026-10-18 04:34 BJ] 拉取 yjkb（RPT_FCI_PERFORMANCEE）合并 9553 行，UPDATE_DATE 2021-09-01..2025-12-30，块 52 + 空 0 / 52，删后验列 []；可得时点：业绩快报，按 NOTICE_DATE（UPDATE_DATE 分块），公告日当天收盘起可用
+[2026-10-18 04:35 BJ] 拉取 repurchase（RPTA_WEB_GETHGLIST_NEW）合并 3330 行，NOTICEDATE 2021-09-01..2025-12-31，块 52 + 空 0 / 52，删后验列 []；可得时点：回购，按 NOTICEDATE / REPURADVANCEDATE（预案日），公告日当天收盘起可用
+[2026-10-18 04:35 BJ] 拉取 rating_cninfo（巨潮 p_sysapi1089）合并 378610 行，date 2021-09-01..2025-12-31，天 1583 + 空 0 / 1583；可得时点：发布日期当天收盘起可用（研报多为盘前 / 盘后，保守按当天收盘）
+[2026-10-18 04:36 BJ] 落地 features_rating.parquet：4669348 行 2021-12-01..2025-12-31，列 ['rat_today', 'rat_n5', 'rat_n20', 'rat_n60', 'rat_n250', 'rat_age', 'rat_first_n20', 'rat_first_n60', 'rat_up_n20', 'rat_up_n60', 'rat_down_n60', 'rat_buy_n60', 'rat_strong_n60', 'rat_buy_share60', 'rat_nocov250', 'rat_surge', 'rat_tgt_prem60']
+[2026-10-18 04:36 BJ] 拉取 bonus（RPT_SHAREBONUS_DET）合并 17130 行，PLAN_NOTICE_DATE 2021-09-02..2025-12-31，块 51 + 空 1 / 52，删后验列 []；可得时点：分红送转，按 PLAN_NOTICE_DATE（预案公告日），公告日当天收盘起可用
+[2026-10-18 04:37 BJ] 拉取 incentive（RPT_EQUITYINCENTIVE）合并 4184 行，NOTICE_DATE 2023-08-01..2026-10-17，块 1 + 空 0 / 1，删后验列 []；可得时点：股权激励，按 NOTICE_DATE / PLAN_NOTICE_DATE，公告日当天收盘起可用
+[2026-10-18 04:37 BJ] 诊断 rating -> results_rating.txt
+[2026-10-18 04:38 BJ] 拉取 holder_inc（RPT_SHARE_HOLDER_INCREASE）合并 6646 行，NOTICE_DATE 2021-09-01..2025-12-31，块 52 + 空 0 / 52，删后验列 []；可得时点：股东增持，按 NOTICE_DATE，公告日当天收盘起可用
+[2026-10-18 04:39 BJ] 落地 features_events.parquet：4669348 行 2021-12-01..2025-12-31，列 ['yjyg_age', 'yjyg_n20', 'yjyg_n60', 'yjyg_pos_n20', 'yjyg_pos_n60', 'yjyg_neg_n60', 'yjyg_amp_last', 'yjyg_last_pos', 'yjkb_age', 'yjkb_n20', 'yjkb_n60', 'yjkb_np_yoy_last', 'yjkb_rev_yoy_last', 'rep_age', 'rep_n20', 'rep_n60', 'rep_plan_n60', 'rep_share_last', 'rep_amt_last', 'bon_age', 'bon_n60', 'bon_high_n60', 'bon_it_last', 'inc_age', 'inc_n60', 'inc_plan_n60', 'inc_plan_n250', 'inc_px_prem', 'hinc_age', 'hinc_n20', 'hinc_n60', 'hinc_ratio60']
+[2026-10-18 04:41 BJ] 诊断 events -> results_events.txt
+[2026-10-18 04:42 BJ] 重跑诊断 events（加前50控名次一栏）
+[2026-10-18 04:43 BJ] 重跑诊断 lhb_seats（加前50控名次一栏）
+[2026-10-18 04:43 BJ] 重跑诊断 rating（加前50控名次一栏）
+[2026-10-18 04:43 BJ] 重跑诊断 ths_theme（加前50控名次一栏）
+[2026-10-18 04:44 BJ] 重跑诊断 sw_industry（加前50控名次一栏）
+[2026-10-18 04:45 BJ] 重跑诊断 rzrq_short（加前50控名次一栏）
+[2026-10-18 04:46 BJ] 更正：fetch_dd 合并日志里「删后验列 []」是日志写错（列在分块里就删了，合并后再数当然是空），实际删掉的是 lhb_sbuy: 删 ['RISE_PROBABILITY_3DAY', 'TOTAL_BUYER_SALESTIMES_3DAY']；lhb_ssell: 删 ['RISE_PROBABILITY_3DAY', 'TOTAL_BUYER_SALESTIMES_3DAY']；yjyg: 删 []；yjkb: 删 []；repurchase: 删 ['CPRICE', 'NEWPRICE', 'RCHANGE1DCP', 'RCHANGE20DCP']；bonus: 删 ['BD10_CLOSE_ADJCHRATE', 'D10_CLOSE_ADJCHRATE', 'D30_CLOSE_ADJCHRATE']；incentive: 删 []；holder_inc: 删 ['CHANGE_RATE_QUOTES', 'NEWEST_PRICE']；status.json 已改正
+[2026-10-18 04:46 BJ] 回购表再删三个 20 日后验变体列 ['RCHANGE20DCP_CP', 'RCHANGE20DC_CP', 'RCHANGE20DC']（RCHANGE20DCP_CP / RCHANGE20DC_CP / RCHANGE20DC 不在正则里）
+[2026-10-18 05:44 BJ] 拉取 freeholders（RPT_F10_EH_FREEHOLDERS）合并 178536 行，NOTICE_DATE 2021-09-01..2025-12-31，块 41 + 空 0 / 52，删后验列 []；可得时点：十大流通股东，按 NOTICE_DATE（定期报告公告日），公告日当天收盘起可用
+[2026-10-18 06:35 BJ] 拉取 freeholders（RPT_F10_EH_FREEHOLDERS）合并 178536 行，NOTICE_DATE 2021-09-01..2025-12-31，块 41 + 空 0 / 52，删后验列 []；可得时点：十大流通股东，按 NOTICE_DATE（定期报告公告日），公告日当天收盘起可用
+[2026-10-18 06:36 BJ] 落地 features_freeholders.parquet：4669348 行 2021-12-01..2025-12-31，列 ['fh_top10_ratio', 'fh_age', 'fh_new_n', 'fh_up_n', 'fh_down_n', 'fh_org_n', 'fh_person_n', 'fh_fund_n', 'fh_chg_sum', 'fh_top10_dratio', 'fh_fresh20']
+[2026-10-18 06:37 BJ] 诊断 freeholders -> results_freeholders.txt
+[2026-10-18 08:57 BJ] 拉取 freeholders（RPT_F10_EH_FREEHOLDERS）合并 928262 行，NOTICE_DATE 2021-09-01..2025-12-31，块 52 + 空 0 / 52，删后验列 []；可得时点：十大流通股东，按 NOTICE_DATE（定期报告公告日），公告日当天收盘起可用
+[2026-10-18 08:57 BJ] 落地 features_freeholders.parquet：4669348 行 2021-12-01..2025-12-31，列 ['fh_top10_ratio', 'fh_age', 'fh_new_n', 'fh_up_n', 'fh_down_n', 'fh_org_n', 'fh_person_n', 'fh_fund_n', 'fh_chg_sum', 'fh_top10_dratio', 'fh_fresh20']
+[2026-10-18 08:58 BJ] 诊断 freeholders -> results_freeholders.txt
+[2026-10-18 08:58 BJ] 十大流通股东：整月深翻页在年报 / 季报月报「服务器繁忙」（11 个月失败），改逐日拉补齐（fetch_fh_days.py），合并 928262 行 / 52 块；features_freeholders 重建、results_freeholders / results_summary 刷新；README 去重；report.txt 写完。共 8 张特征表
+[2026-10-18 08:58 BJ] 更正：共 7 张特征表（sw_industry / lhb_seats / rating / events / rzrq_short / ths_theme / freeholders），不是 8；features_*.parquet 加进 .gitignore（合计约 290 MB，gate 本机读）
+[2026-10-18 09:01 BJ] 重跑诊断 rating（加前50控名次一栏）
+[2026-10-18 09:01 BJ] 发现 results_events/lhb_seats/rating/rzrq_short/sw/ths.txt 在 06:57 BJ 被别的进程改写过（不是本目录脚本写的：progress 无记录，数字和本目录 pool / 诊断口径对不上，例如前50 lhbs_today 覆盖 3.9% 对本口径 24.4%，疑似 gate 用自己的宇宙跑了 diag_table 写到同名文件）；用 rediag.py 全部按本目录口径重生成，report.txt 里的数字以重生成后的 results_*.txt 为准。给 gate：别往 research/deepdata/results_*.txt 写，诊断结果写自己目录
+[2026-10-18 09:02 BJ] 重跑诊断 events（加前50控名次一栏）
+[2026-10-18 09:02 BJ] 重跑诊断 lhb_seats（加前50控名次一栏）
+[2026-10-18 09:02 BJ] 重跑诊断 ths_theme（加前50控名次一栏）
+[2026-10-18 09:03 BJ] 重跑诊断 sw_industry（加前50控名次一栏）
+[2026-10-18 09:03 BJ] 重跑诊断 rzrq_short（加前50控名次一栏）
+[2026-10-18 09:03 BJ] 重跑诊断 freeholders（加前50控名次一栏）

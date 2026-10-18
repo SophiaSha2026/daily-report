@@ -1,0 +1,6 @@
+{
+ "exp": "precision_v1",
+ "family": "breakout_precision",
+ "arms": [],
+ "note": "按 criteria.txt 2f/2g 机械筛选；空列表 = 没有臂进开发集"
+}

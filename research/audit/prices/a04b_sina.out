@@ -1,0 +1,9 @@
+[06:33:50] 新浪进度 0 / 285 失败 0
+[06:38:18] 新浪进度 50 / 285 失败 0
+[06:42:52] 新浪进度 100 / 285 失败 0
+[06:47:22] 新浪 600289 第 1 次失败 ReadTimeout(ReadTimeoutError("HTTPSConnectionPool(host='stock.finance.sina.com.c
+[06:48:10] 新浪进度 150 / 285 失败 0
+[06:49:42] 新浪 600854 第 1 次失败 ConnectionError(ProtocolError('Connection aborted.', ConnectionResetError(10054,
+[06:53:02] 新浪进度 200 / 285 失败 0
+[06:57:17] 新浪进度 250 / 285 失败 0
+[07:00:05] 新浪完成 285 只，失败 []

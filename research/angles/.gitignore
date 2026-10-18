@@ -1,0 +1,4 @@
+*.parquet
+*.npy
+*.npz
+*.log

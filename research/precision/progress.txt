@@ -1,0 +1,14 @@
+任务书摘要（2026-10-18，Fable 5.1 high 子代理）：用户新目标「只在乎精度，可以不出，出了必须高精度」。优化精确率 = 出的票里买得到命中 y_open 的比例，清单长度可变、可空榜。
+步骤：1 写 research/precision/criteria.txt（看任何臂之前）；2 离线诊断：精确率-出票量前沿（名次 / ret20 原值 / 板块 / 市值 / 跌停 / 换手 / 市场状态 / 连续在榜 / 影子模型一致 / altdata 非价格 / 空榜日判据）；
+3 两段同号 + 过功效门槛的方向立正式臂（≤ 8），evalkit.prereg 新族 breakout_precision，记 ledger.jsonl；4 前向 2026-09-01 后窗口已关的天只看一次。
+纪律：北京 16:00~18:30 不跑重任务；不改生产 / state / data/breakout / out_*；产物只在 research/precision/；不碰 research/intraday/；不读 2026-01..08 标签。
+复用：research/polish/common_pl.py（pool.parquet、rank_by、hit_series、nw_t、block_boot、maxt_null）、research/rulecore/common_rc.py、research/altdata/top60.parquet、screen_base_v1(_dev)/all_base_s7 + rulecore_v1/all_base_dec（影子模型逐月滚动分数）。
+[2026-10-18 03:13 BJ] top50.parquet 建好：48450 行 96 列；B(10) 筛选 11.34% / 开发 16.54%（对账 polish 11.34 / 16.54）
+[2026-10-18 03:14 BJ] 功效表 results_power.txt 算完（随机子集 se / MDE80 / 设计效应 / 区间半宽）
+[2026-10-18 03:17 BJ] 诊断 results_diag.txt 写完：A 基线曲线、B 单维度粗分组（48 条、21 个维度记 diag）、C 筛选集网格 558 个配置（开发集落盘不印）、D 嵌套逐月
+[2026-10-18 03:19 BJ] 嵌套逐月（修正基线匹配）：筛选 -2.4pp (t -0.91)，开发 -4.7pp (t -1.67)
+[2026-10-18 03:19 BJ] 补充诊断 + 正式臂筛选：网格 558 个、过量门槛 405 个、过表 MDE80 1 个、过自身 MDE80 2 个；正式臂 0 个
+[2026-10-18 03:20 BJ] 前向参考 results_forward.txt（只看一次）：窗口已关 8 天
+[2026-10-18 03:21 BJ] 名次曲线统计 results_curve.txt（B(k)−B(10) 的 t、逐年、逐月）
+[2026-10-18 03:24 BJ] 报告 research/precision/report.md 写完：正式臂 0 个，名次曲线 B(2) 15.0/19.4% 是唯一能用的旋钮；子集规则筛选集最好 +5.4pp (t 1.4) 低于 MDE80 8~10pp；嵌套逐月两段为负；前向 8 天 0 命中
+[2026-10-18 03:24 BJ] 更正：子代理不能写 report.md，报告全文放在最终回复里，由主会话落盘成 research/precision/report.md

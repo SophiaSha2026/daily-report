@@ -1,0 +1,5 @@
+{"at": "2026-10-18 01:49", "kind": "diag", "exp": "altdata_diag", "note": "条件命中（前 50 内高组对低组），两段都看了，21 个特征 36 个切法", "file": "results_diag.txt"}
+{"at": "2026-10-18 01:49", "kind": "diag", "exp": "altdata_strata", "note": "按名次分层（11~20 名带标志 对 4~10 名不带标志），两段都看了", "file": "results_strata.txt"}
+{"at": "2026-10-18 01:49", "kind": "screen_grid", "exp": "altdata_screen", "note": "筛选集边际 42 个配置（龙虎榜 / 机构 / 两融 / 大宗 / 户数 / 调研），开发集序列落盘没看", "file": "results_screen.txt"}
+{"at": "2026-10-18 01:49", "kind": "screen_grid", "exp": "altdata_screen_rz", "note": "筛选集两融倾斜补充 27 个配置，开发集序列落盘没看", "file": "results_screen_rz.txt"}
+{"at": "2026-10-18 01:49", "kind": "decision", "exp": "altdata_v1", "note": "正式臂 0 个：没有配置的先验效应 >= MDE80；evalkit 未登记；开发集未看", "best_screen": {"arm": "tn_rz_mix_20_w1", "screen_diff": 0.0048, "screen_t": 2.4, "mde80_self": 0.0053, "mde80_table": 0.0058}}

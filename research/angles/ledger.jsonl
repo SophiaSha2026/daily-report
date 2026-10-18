@@ -1,0 +1,20 @@
+{"at": "2026-10-18 05:50", "kind": "diag", "name": "events", "note": "六个事件两段都报（描述，不挑不调，criteria 3c）", "kinds": ["E1", "E1L", "E2", "E3", "E4", "E5", "E6a", "E6b"]}
+{"at": "2026-10-18 05:52", "kind": "diag", "name": "label_decomp", "note": "角度四描述（两段），不做选择"}
+{"at": "2026-10-18 05:52", "kind": "diag", "name": "controller_acf", "acf2160": {"1": {"screen": -0.026672411294663197, "dev": -0.027055687141704317}, "2": {"screen": -0.02248311175175557, "dev": -0.0527153197139064}, "3": {"screen": -0.009783337430184115, "dev": -0.06286918655175064}, "5": {"screen": -0.0063832967141753015, "dev": -0.02975162947839362}, "10": {"screen": -0.011508911312592057, "dev": -0.07861338572149226}}, "alive": false}
+{"at": "2026-10-18 05:54", "kind": "screen", "name": "regime_R1_R2", "note": "筛选集阶段表 + R1 / R2；开发集落盘未读"}
+{"at": "2026-10-18 05:55", "kind": "screen", "name": "regime_R1_R2", "note": "筛选集阶段表 + R1 / R2；开发集落盘未读"}
+{"at": "2026-10-18 05:56", "kind": "screen", "name": "crash_C1", "note": "筛选集；开发集落盘未读"}
+{"at": "2026-10-18 05:57", "kind": "diag", "name": "ltt_bounds", "note": "B(k) 的可证下界（描述，不选）"}
+{"at": "2026-10-18 05:58", "kind": "shuffle", "name": "conformal_static", "note": "标签按天内置换，S1 / S3 V0"}
+{"at": "2026-10-18 06:04", "kind": "screen", "name": "conformal_static", "n_configs": 64, "note": "筛选集 4 分数 x 4 变体 x 4 τ；开发集落盘未读"}
+{"at": "2026-10-18 06:04", "kind": "screen_reject", "name": "regime:R4", "screen_diff_day": -0.03705671874446451}
+{"at": "2026-10-18 06:04", "kind": "screen_reject", "name": "conformal:S2_lret20 支持数版(cum12 n100 d20) τ0.15", "screen_diff_day": -0.07962529965399558}
+{"at": "2026-10-18 06:04", "kind": "screen_reject", "name": "conformal:S1_rank 支持数版(cum12 n100 d20) τ0.20", "screen_diff_day": -0.051254118397279176}
+{"at": "2026-10-18 06:04", "kind": "screen_reject", "name": "conformal:S1_rank V2 日内名次+按天BH τ0.30", "screen_diff_day": -0.02409336214735299}
+{"at": "2026-10-18 06:04", "kind": "prereg", "name": "regime:R1", "screen_diff_day": 0.025046940872214547}
+{"at": "2026-10-18 06:04", "kind": "prereg", "name": "regime:R3", "screen_diff_day": 0.023913274524391546}
+{"at": "2026-10-18 06:04", "kind": "prereg", "name": "crash:C1", "screen_diff_day": 0.0016119318383108865}
+{"at": "2026-10-18 06:04", "kind": "prereg", "name": "conformal:S1_rank V0 按月BH τ0.25", "screen_diff_day": 0.03419598256987994}
+{"at": "2026-10-18 06:04", "kind": "arm", "name": "regime_R1_R2", "note": "开发集一次读（R1 / R2 + 阶段表 + HMM 描述）"}
+{"at": "2026-10-18 06:04", "kind": "arm", "name": "crash_C1", "note": "开发集一次读（C1 + 两个描述版）"}
+{"at": "2026-10-18 06:11", "kind": "arm", "name": "conformal_static", "arms": ["S1_rank V0 按月BH τ0.25"], "note": "开发集一次读"}

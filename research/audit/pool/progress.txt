@@ -1,0 +1,4 @@
+审计任务书摘要（2026-10-18）：候选池两份实现一致性 / 事件剔除时点 / 特征时点（扰动不变性）/ 验证集切分与净化 / 候选池隐性偏差 / 多重检验账。只审计不修，产物在 research/audit/pool/。
+[2026-10-18 06:29] 开工：读 CLAUDE.md、rethink、leak 报告、common_rc/pl/pr/gt、daily.py、features.py、evalkit.py、corp_events.py、altdata/deepdata/intraday 说明；盘点登记簿和各表 schema
+[2026-10-18 06:56] A 事实 / C 事件时点（含巨潮 50 例）/ E 切分净化 / F 隐性偏差 跑完；B 候选池对比、D 扰动不变性在后台跑
+[2026-10-18 07:03] D 扰动不变性：12 张表（rulecore/polish/gate/altdata/deepdata 7 张/生产 train）T* 前非标签列 0 列随未来价格改变；B 候选池同数据差 0~1 只/天（第 120 根 off-by-one），各自数据只差静态 ST；写报告

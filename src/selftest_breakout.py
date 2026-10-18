@@ -3239,8 +3239,57 @@ def check_rule_ret20() -> None:
     ck("<th>分数</th>" in old and "冲高密度清单" not in old, "旧清单（run_meta 没有 rule）照模型样式印")
 
 
+def check_shadow_truth() -> None:
+    """影子清单的真值：和生产清单分开数、按天配对、点估计和标准误同一条按天序列。"""
+    import tempfile
+    import truth as T
+    L = lambda d, r: {"date": d, "hit_rate_open": r}  # noqa: E731
+    pr = T.paired([L("a", 0.2), L("b", 0.1), L("c", None), L("d", 0.3)],
+                  [L("a", 0.1), L("b", 0.1), L("c", 0.5), L("e", 0.0)])
+    ck(pr["days"] == 2 and pr["prod_only"] == 1 and pr["arm_only"] == 2,
+       "配对只取两边都有买得到真值的日子（空榜 / 窗口没满的不进）")
+    ck(abs(pr["diff"] - 0.05) < 1e-12 and abs(pr["prod"] - 0.15) < 1e-12 and abs(pr["arm"] - 0.10) < 1e-12,
+       "配对差 = 按天差的均值")
+    ck(abs(pr["se"] - 0.05) < 1e-12, "标准误来自同一条按天差值序列（教训 33）")
+    ck(T.paired([], [L("a", 0.1)])["days"] == 0, "没有可配对的日子不报错")
+    ck(pr["t"] is None, "不满 23 天不给 t（Newey-West 样本太短）")
+    rng = np.random.default_rng(1)
+    many = [f"d{i:02d}" for i in range(40)]
+    pa = [L(d, float(rng.uniform(0.1, 0.3))) for d in many]
+    pb = [L(d, float(rng.uniform(0.0, 0.2))) for d in many]
+    pr40 = T.paired(pa, pb)
+    import evalkit as K
+    ck(pr40["t"] is not None and abs(pr40["t"] - K.nw_t([x["hit_rate_open"] - y["hit_rate_open"]
+                                                        for x, y in zip(pa, pb)])) < 1e-12,
+       "满 23 天的 t 和 evalkit.nw_t 同一把尺子（统计审计 P5）")
+
+    old = T.DATA
+    tmp = Path(tempfile.mkdtemp(prefix="truth_"))
+    try:
+        T.DATA = tmp
+        dates = pd.bdate_range("2026-01-05", periods=30).strftime("%Y-%m-%d")
+        px = pd.DataFrame([{"code": c, "date": d, "open": 10.0, "high": 10.0 * (1.8 if (c == "000001" and i == 5) else 1.0),
+                            "low": 10.0, "close": 10.0, "volume": 1e6}
+                           for c in ("000001", "000002") for i, d in enumerate(dates)])
+        px.to_parquet(tmp / "daily.parquet", index=False)
+        (tmp / "2026-01").mkdir()
+        d0 = dates[0]
+        pd.DataFrame({"date": [d0], "code": ["000001"]}).to_parquet(tmp / "2026-01" / f"breakout_{d0}.parquet")
+        pd.DataFrame({"date": [d0], "code": ["000002"]}).to_parquet(tmp / "2026-01" / f"shadow_model_{d0}.parquet")
+        res = T.compute()
+        ck(len(res["lists"]) == 1 and res["picks"][0]["code"] == "000001",
+           "生产真值不把 shadow_model_* 算进实发清单")
+        sh = (res.get("shadow") or {}).get("model") or {}
+        ck(len(sh.get("lists") or []) == 1, "影子清单单独算真值")
+        ck(res["picks"][0]["hit"] is True and sh["lists"][0]["hits_final"] == 0,
+           "影子和生产各按自己的票算命中")
+    finally:
+        T.DATA = old
+
+
 def main() -> int:
     t0 = time.time()
+    check_shadow_truth()
     check_chips()
     check_chip_causal()
     check_chip_grid_overflow()

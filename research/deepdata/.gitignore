@@ -1,0 +1,5 @@
+raw/
+*.log
+*.out
+__pycache__/
+features_*.parquet

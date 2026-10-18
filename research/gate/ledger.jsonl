@@ -1,0 +1,62 @@
+{"at": "2026-10-18 03:48", "kind": "screen", "name": "ret20_iso12", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 03:48", "kind": "screen", "name": "ret20_cum12_n40", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 03:49", "kind": "screen", "name": "rank_iso12", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 03:58", "kind": "screen", "name": "lgb_price_iso12", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 03:59", "kind": "screen", "name": "lgb_price_cum12_n40", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:00", "kind": "screen", "name": "lgb_price_cum12_n200", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:05", "kind": "screen", "name": "lgb_price_cum12_n100_d20_top300", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:06", "kind": "screen", "name": "lgb_alt_cum12_n100_d20_top300", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:08", "kind": "screen", "name": "lgb_alt_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:11", "kind": "screen", "name": "lgb_price_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:12", "kind": "screen", "name": "lgb_price_top300_cum24_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:14", "kind": "screen", "name": "ret20_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:15", "kind": "screen", "name": "rank_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:18", "kind": "diag", "name": "diag_top", "scores": ["rank", "ret20", "lgb_price", "lgb_alt", "lgb_price_top300"], "note": "每月前 N 行精确率，两段都看（方向诊断，不是门槛）"}
+{"at": "2026-10-18 04:22", "kind": "diag", "name": "diag_top", "scores": ["lgb_alt_top300", "lgb_nomkt_top300", "lr_core_top300", "lr_core"], "note": "每月前 N 行精确率，两段都看（方向诊断，不是门槛）"}
+{"at": "2026-10-18 04:23", "kind": "screen", "name": "lgb_alt_top300_iso12", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:24", "kind": "screen", "name": "lgb_alt_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:25", "kind": "screen", "name": "lgb_alt_top300_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:26", "kind": "screen", "name": "lgb_nomkt_top300_iso12", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:26", "kind": "screen", "name": "lgb_nomkt_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:27", "kind": "screen", "name": "lgb_nomkt_top300_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:28", "kind": "screen", "name": "lr_core_top300_iso12", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:29", "kind": "screen", "name": "lr_core_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:30", "kind": "screen", "name": "lr_core_top300_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:31", "kind": "screen", "name": "lr_core_iso12", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:33", "kind": "screen", "name": "lr_core_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:37", "kind": "diag", "name": "diag_top", "scores": ["lgb_price_top50", "lgb_alt_top50", "lr_core_top50", "lgb_core_top50", "lgb_price_nomkt", "lgb_top300_shufd"], "note": "每月前 N 行精确率，两段都看（方向诊断，不是门槛）"}
+{"at": "2026-10-18 04:37", "kind": "screen", "name": "lr_core_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:38", "kind": "screen", "name": "lgb_alt_iso12", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:40", "kind": "screen", "name": "lgb_alt_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:40", "kind": "screen", "name": "rank_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:43", "kind": "screen", "name": "ret20_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:44", "kind": "screen", "name": "lgb_alt_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:44", "kind": "screen", "name": "lgb_price_top50_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:44", "kind": "screen", "name": "lgb_price_top300_iso12", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:44", "kind": "screen", "name": "lgb_alt_top50_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:45", "kind": "screen", "name": "lgb_price_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:45", "kind": "screen", "name": "lgb_core_top50_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:45", "kind": "screen", "name": "lgb_price_top50_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:46", "kind": "screen", "name": "lgb_price_top300_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:51", "kind": "diag", "name": "diag_top", "scores": ["lgb_price_deep_top300", "lgb_price_top20", "lgb_top300_shufg"], "note": "每月前 N 行精确率，两段都看（方向诊断，不是门槛）"}
+{"at": "2026-10-18 04:51", "kind": "screen", "name": "rules", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:51", "kind": "screen", "name": "lgb_price_deep_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:51", "kind": "screen_reject", "name": "F0:rank_cum36_n100_d20", "screen_diff_day": -0.04033372303114044}
+{"at": "2026-10-18 04:51", "kind": "screen_reject", "name": "F0:ret20_cum36_n100_d20", "screen_diff_day": -0.01472585349724259}
+{"at": "2026-10-18 04:51", "kind": "screen_reject", "name": "F4:rules", "screen_diff_day": -0.056137150010037655}
+{"at": "2026-10-18 04:52", "kind": "screen", "name": "lgb_price_top20_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 04:52", "kind": "arm", "name": "lr_core_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "开发集一次读（预登记臂）"}
+{"at": "2026-10-18 04:52", "kind": "check", "name": "lgb_top300_shufd_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "打乱标签自检"}
+{"at": "2026-10-18 04:52", "kind": "arm", "name": "lgb_price_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "开发集一次读（预登记臂）"}
+{"at": "2026-10-18 04:52", "kind": "check", "name": "lgb_top300_shufg_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "打乱标签自检"}
+{"at": "2026-10-18 04:53", "kind": "arm", "name": "lgb_price_top50_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "开发集一次读（预登记臂）"}
+{"at": "2026-10-18 04:53", "kind": "check", "name": "lgb_top300_shufd_iso12", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "打乱标签自检"}
+{"at": "2026-10-18 04:53", "kind": "arm", "name": "lgb_alt_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "开发集一次读（预登记臂）"}
+{"at": "2026-10-18 04:54", "kind": "diag", "name": "intraday_pair", "note": "F6 日内特征配对检查（抽样月，两段都看）"}
+{"at": "2026-10-18 04:54", "kind": "look", "name": "rank_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "开发集读数：筛选集 ΔP<0 未登记，只作产品表参考"}
+{"at": "2026-10-18 04:56", "kind": "look", "name": "ret20_cum36_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "开发集读数：筛选集 ΔP<0 未登记，只作产品表参考"}
+{"at": "2026-10-18 04:56", "kind": "look", "name": "rules", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "开发集读数：筛选集 ΔP<0 未登记，只作产品表参考"}
+{"at": "2026-10-18 04:57", "kind": "look", "name": "rank_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "开发集读数：筛选集 ΔP<0 未登记，只作产品表参考"}
+{"at": "2026-10-18 05:08", "kind": "diag", "name": "diag_top", "scores": ["lgb_dd_top300"], "note": "每月前 N 行精确率，两段都看（方向诊断，不是门槛）"}
+{"at": "2026-10-18 05:09", "kind": "screen", "name": "lgb_dd_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "筛选集配置挑选"}
+{"at": "2026-10-18 05:09", "kind": "arm", "name": "lgb_dd_top300_cum12_n100_d20", "taus": [0.2, 0.25, 0.3, 0.4, 0.5], "note": "开发集一次读（预登记臂）"}

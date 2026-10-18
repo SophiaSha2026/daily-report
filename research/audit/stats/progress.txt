@@ -1,0 +1,8 @@
+任务书：审计指标和统计实现（精确率 P 与区间、B(k̄) 匹配量基线、NW t / 块自举 / 族门槛 / v2 v3 判定、可证下界与 PPV 上限数学、报告常数对账、生产侧印出的数）。只审计不修，产物只在 research/audit/stats/。
+[2026-10-18 06:25 BJ] 读完 evalkit / common_pr / hac / common_gt / common_pl / ltt_an / math_an / power.py / truth.py；开始写合成数据验证脚本
+[2026-10-18 06:30 BJ] reconcile 第 5 项（原始表重算）算完
+[2026-10-18 06:30 BJ] reconcile 第 6 项（生产常量 / truth）算完
+[2026-10-18 06:33 BJ] mc 第 1 项（覆盖率）算完
+[2026-10-18 06:39 BJ] mc 第 2 项（B(k̄)）算完
+[2026-10-18 06:45 BJ] mc 第 3 项（evalkit 门槛）算完
+[2026-10-18 06:45 BJ] 真实序列滞后敏感性 results_lag.txt、数学核对 results_math.txt、蒙特卡洛 results_mc.txt 全部算完；报告全文在子代理回复里，由主会话落 report.md

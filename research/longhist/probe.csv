@@ -1,0 +1,25 @@
+code,kind,n,first,last,nq,cols,sec
+600000,live,6407,1999-11-10,2026-10-16,29,"['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'outstanding_share', 'turnover']",6.4
+000001,live,8453,1991-04-03,2026-10-16,33,"['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'outstanding_share', 'turnover']",3.0
+000002,live,8447,1991-01-29,2026-10-16,37,"['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'outstanding_share', 'turnover']",3.5
+600519,live,6022,2001-08-27,2026-10-16,33,"['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'outstanding_share', 'turnover']",3.0
+002001,live,5362,2004-06-25,2026-10-16,30,"['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'outstanding_share', 'turnover']",2.7
+300001,live,4026,2009-10-30,2026-10-16,18,"['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'outstanding_share', 'turnover']",2.6
+688001,live,1754,2019-07-22,2026-10-16,9,"['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'outstanding_share', 'turnover']",2.5
+920002,live,577,2024-05-30,2026-10-16,6,"['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'outstanding_share', 'turnover']",2.6
+600005,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",2.4
+000024,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",1.8
+600485,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",1.9
+300104,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",2.3
+000693,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",2.0
+002070,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",1.9
+600001,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",1.7
+600087,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",1.8
+002680,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",1.8
+300028,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",1.9
+600401,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",1.9
+600240,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",2.5
+600747,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",2.2
+000979,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",1.9
+600806,dead,-1,,,-1,"JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c",1.9
+000995,dead,5455,2000-08-07,2026-10-16,4,"['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'outstanding_share', 'turnover']",2.5

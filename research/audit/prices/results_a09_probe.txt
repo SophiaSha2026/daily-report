@@ -1,0 +1,20 @@
+上交所终止上市 159 ['公司代码', '公司简称', '上市日期', '暂停上市日期']
+深交所 终止上市公司 209 ['证券代码', '证券简称', '上市日期', '终止上市日期']
+深交所 暂停上市公司 0 []
+2020-07..2025-12 终止上市 129 只（沪 0 深 129）；按年 {'2020': 11, '2021': 9, '2022': 26, '2023': 32, '2024': 38, '2025': 13}
+  按代码段 {'00': 86, '30': 35, '20': 8}
+  名字含 ST 的 47，含「退」的 74
+  这些退市代码还在 cache/codes.csv 里的 0
+2026 年退市 10 只
+  新浪 300392 腾信退：失败 JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c
+  腾讯 300392：800 行 ('2020-02-07', '2023-07-07')
+  新浪 300156 神雾退：失败 JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c
+  腾讯 300156：800 行 ('2016-07-28', '2020-08-24')
+  新浪 002341 ST新纶：失败 JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c
+  腾讯 002341：800 行 ('2021-03-08', '2024-07-02')
+  新浪 002359 北讯退：失败 JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c
+  腾讯 002359：800 行 ('2016-12-30', '2021-07-22')
+  新浪 000918 *ST嘉凯：失败 JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c
+  腾讯 000918：800 行 ('2020-02-10', '2023-05-31')
+  新浪 300356 光一退：失败 JSONDecodeError('No value to decode', position=position_marker(offset=0,line=1,c
+  腾讯 300356：800 行 ('2020-02-04', '2023-07-12')

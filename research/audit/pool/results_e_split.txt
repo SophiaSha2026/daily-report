@@ -1,0 +1,39 @@
+== 1 train_mask 逐月核（feat.parquet，6453502 行）==
+  month        cut  train_rows   max_date  max_end20  ok_date  ok_end20  purged_by_end20  pos_rate_purged  pos_rate_train max_end20_purged
+2022-01 2021-12-06     1419001 2021-12-03 2021-12-31     True      True              138         0.268116        0.025110       2022-01-17
+2022-04 2022-03-04     1679818 2022-03-03 2022-03-31     True      True               72         0.375000        0.024087       2022-05-17
+2022-07 2022-06-02     1950206 2022-06-01 2022-06-30     True      True              112         0.187500        0.023889       2022-08-10
+2022-10 2022-09-02     2254449 2022-09-01 2022-09-30     True      True               77         0.233766        0.023111       2022-11-29
+2023-01 2022-12-05     2542739 2022-12-02 2022-12-30     True      True              119         0.058824        0.022237       2023-01-16
+2023-04 2023-03-06     2832753 2023-03-03 2023-03-31     True      True               34         0.000000        0.020950       2023-04-12
+2023-07 2023-06-01     3127765 2023-05-31 2023-06-30     True      True              159         0.069182        0.020600       2023-08-01
+2023-10 2023-09-01     3206719 2023-08-31 2023-09-28     True      True               36         0.055556        0.019033       2023-10-20
+2024-01 2023-12-04     3283705 2023-12-01 2023-12-29     True      True               68         0.102941        0.019847       2024-01-15
+2024-04 2024-03-04     3354274 2024-03-01 2024-03-29     True      True               40         0.275000        0.020609       2024-04-15
+2024-07 2024-05-31     3415901 2024-05-30 2024-06-28     True      True               41         0.000000        0.019481       2024-07-10
+2024-10 2024-08-30     3478989 2024-08-29 2024-09-30     True      True               89         0.426966        0.017743       2024-10-30
+2025-01 2024-12-04     3532255 2024-12-03 2024-12-31     True      True              222         0.337838        0.028782       2025-02-21
+2025-04 2025-03-04     3573350 2025-03-03 2025-03-31     True      True              222         0.117117        0.030151       2025-04-15
+2025-07 2025-06-03     3622291 2025-05-30 2025-06-30     True      True              218         0.233945        0.030074       2025-08-27
+2025-10 2025-09-03     3670640 2025-09-02 2025-09-30     True      True              131         0.290076        0.031493       2025-11-03
+2025-12 2025-11-03     3687105 2025-10-31 2025-11-28     True      True              194         0.314433        0.031764       2025-12-26
+全部月份两个条件都成立：True / True
+end20 == 该票往后第 20 根日期（末尾哨兵 9999-12-31）：一致率 1.000000
+
+== 2 gate / blind 自写 purge_cut 对 validate.purge_cut ==
+48 个月全部相同：True；不同的 []
+
+== 3 测试集里 y_open 为 NaN 的行 ==
+候选池 pool 行 3881910，y_open NaN 114（0.0029%）；前 10 行 9690，y_open NaN 0
+  screen：前 10 按天均值 跳过 NaN 11.3402%，NaN 记 0 11.3402%（差 0.0000pp）
+  dev：前 10 按天均值 跳过 NaN 16.5375%，NaN 记 0 16.5375%（差 0.0000pp）
+  y_up 有值而 y_open 没有：0 行（evalkit 测试集不含它们，rulecore rank_table 含）
+
+== 4 feats_by_month.json 缓存键 ==
+键 95 个；无后缀 19（2024-06..2025-12）；后缀种类 ['cont_y15', 'screen_dbg', 'screen_v1']
+  列数中位 49
+
+== 5 2026 年数据的隔离 ==
+读 leak/train_snap 或 daily_snap（含 2026 年行的快照）的脚本：['research/design/labels.py', 'research/leak/build_prod.py', 'research/leak/check_invariance.py', 'research/leak/check_rebuild.py', 'research/leak/common_leak.py', 'research/leak/exp_leak.py', 'research/leak/make_labels.py', 'research/leak/prices.py', 'research/rethink/ceiling.py', 'research/rethink/cells.py', 'research/rethink/labelvar.py', 'research/rethink/rules.py', 'research/rethink/rules2.py', 'research/rulecore/common_rc.py', 'research/screen/check_screen.py']
+  train_snap.parquet 最大日期 2026-10-15，2026 年行 1013729
+  daily_snap.parquet 最大日期 2026-10-15，2026 年行 1026473

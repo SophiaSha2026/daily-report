@@ -11,6 +11,9 @@ y_up 当时是 NaN（未来还没发生）。这里用 daily.parquet 把每只�
 上榜那天全市场随便买一只，之后 20 根内涨超 50% 的比例。**只有和同期基准比
 才能分清「模型没用」和「那段时间谁都涨不了」。**
 
+影子清单（shadow_model_<日>.parquet，2026-10-19 起模型不进邮件）同一口径另算一份，
+和同一天的实发清单按天配对（shadow.model.paired），控制台学习卡片印一行。
+
 产物 state/breakout/truth.json，控制台的清单图和起涨预测邮件读它
 （local_run.flow_breakout 每天发信前算；归档前是学习会诊在写）。
 """
@@ -96,14 +99,22 @@ def compute(window: int = UP_WINDOW, threshold: float = UP_THRESHOLD,
     px["rise"] = px["rise"].where(px["avail"] > 0)
     key = px.set_index(["code", "date"])
 
-    lists, picks = [], []
-    for f in files:
-        d = pd.read_parquet(f)
-        if not len(d):
-            continue
-        date = str(d["date"].iloc[0])
-        if asof and date > asof:
-            continue
+    def score_lists(paths):
+        """一组清单文件 -> (每份清单的汇总, 逐只明细)。生产清单和影子清单共用这一份。"""
+        lists, picks = [], []
+        for f in paths:
+            d = pd.read_parquet(f)
+            if not len(d):
+                continue
+            date = str(d["date"].iloc[0])
+            if asof and date > asof:
+                continue
+            L, rows = _score_one(d, date)
+            lists.append(L)
+            picks.extend(rows)
+        return lists, picks
+
+    def _score_one(d, date):
         # 同期基准：上榜那天全市场、同一窗口
         day = px[px["date"] == date]
         fin = day[day["avail"] >= window]
@@ -148,7 +159,7 @@ def compute(window: int = UP_WINDOW, threshold: float = UP_THRESHOLD,
         n_open = sum(1 for x in rows if x.get("hit_open") is not None)
         k_open = sum(1 for x in rows if x.get("hit_open"))
         lo, hi = wilson(k_fin, n_fin)
-        lists.append({
+        return {
             "date": date, "n": len(rows), "bars": n_bars,
             "final": n_fin >= len(rows) and len(rows) > 0,
             "n_final": n_fin, "hits_final": k_fin,
@@ -161,11 +172,56 @@ def compute(window: int = UP_WINDOW, threshold: float = UP_THRESHOLD,
             "base_open_final": base_open_final,
             "max_rise": max((x["rise"] for x in rows if x["rise"] is not None),
                             default=None),
-        })
-        picks.extend(rows)
+        }, rows
 
+    lists, picks = score_lists(files)
+    # 影子清单（2026-10-19 起模型不进邮件，每天落 shadow_model_<日>.parquet）按同一口径算真值，
+    # 和同一天的生产清单配对：每月看一次模型在新数据上有没有赢过规则（rethink 第 3 节第 6 条）
+    shadow = {}
+    for arm, pattern in SHADOW_ARMS.items():
+        s_lists, _ = score_lists(sorted(DATA.glob(pattern)))
+        if s_lists:
+            shadow[arm] = {"lists": s_lists, "paired": paired(lists, s_lists)}
     out = {"window": window, "threshold": threshold, "asof": asof,
-           "lists": lists, "picks": picks, "by": _breakdowns(picks)}
+           "lists": lists, "picks": picks, "by": _breakdowns(picks),
+           "shadow": shadow}
+    return out
+
+
+# 影子臂 -> 清单文件（data/breakout/ 下的 glob）。以后再加影子臂就往这里加一行
+SHADOW_ARMS = {"model": "*/shadow_model_*.parquet"}
+
+
+def paired(prod: list[dict], arm: list[dict]) -> dict:
+    """按天配对：两边当天都有买得到口径真值的日子，生产命中率 - 影子命中率。
+
+    点估计和标准误都来自同一条按天差值序列（教训 33），不按票池化。se 是 iid 的，只作参考；
+    t 是 Newey-West（evalkit.nw_t），满 23 天才给。
+    一边空榜那天不进配对（空榜的命中率没有定义），另记天数。
+    """
+    a = {x["date"]: x for x in prod if x.get("hit_rate_open") is not None}
+    b = {x["date"]: x for x in arm if x.get("hit_rate_open") is not None}
+    days = sorted(set(a) & set(b))
+    diff = [a[d]["hit_rate_open"] - b[d]["hit_rate_open"] for d in days]
+    n = len(diff)
+    out = {"days": n, "prod_only": len(set(a) - set(b)), "arm_only": len(set(b) - set(a))}
+    if not n:
+        return out
+    m = float(np.mean(diff))
+    se = float(np.std(diff, ddof=1) / math.sqrt(n)) if n > 1 else None
+    # t 用和 evalkit 同一把尺子（Newey-West，相邻天标签窗口重叠）；天数太少算不出就不给，
+    # iid 的 t 会偏大约 1.5 倍（2026-10-18 统计审计 P5）
+    t = None
+    if n >= 23:
+        import evalkit as K
+        tv = K.nw_t(diff)
+        t = tv if np.isfinite(tv) else None
+    out.update({
+        "prod": float(np.mean([a[d]["hit_rate_open"] for d in days])),
+        "arm": float(np.mean([b[d]["hit_rate_open"] for d in days])),
+        "diff": m, "se": se, "t": t,
+        "first": days[0], "last": days[-1],
+    })
     return out
 
 
@@ -314,4 +370,13 @@ if __name__ == "__main__":
         print(f"{L['date']}  {L['n']} 只  已走 {L['bars']} 根  "
               f"{'已定' if L['final'] else '进行中'}  命中 {L['hits_sofar']}"
               f"  最终命中率 {hr}  同期基准 {bf}")
+    for arm, s in res.get("shadow", {}).items():
+        pr = s["paired"]
+        if pr.get("days"):
+            t = f"{pr['t']:.2f}" if pr.get("t") is not None else "-"
+            print(f"影子 {arm}：配对 {pr['days']} 天（{pr['first']}..{pr['last']}）"
+                  f"  实发 {100 * pr['prod']:.1f}%  影子 {100 * pr['arm']:.1f}%"
+                  f"  差 {100 * pr['diff']:+.1f}pp  t {t}")
+        else:
+            print(f"影子 {arm}：{len(s['lists'])} 份，还没有满 20 天能配对的日子")
     print("->", p)

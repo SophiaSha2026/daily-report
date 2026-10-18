@@ -85,6 +85,12 @@ def _live() -> dict:
         n = sum(int(x.get("n") or 0) for x in run)
         h = sum(int(x.get("hits_sofar") or 0) for x in run)
         out["running"] = {"lists": len(run), "n": n, "hits": h}
+    # 模型影子清单（2026-10-19 起不进邮件）和同一天实发清单的配对，买得到口径（truth.paired）
+    pr = (((t.get("shadow") or {}).get("model") or {}).get("paired") or {})
+    if pr.get("days"):
+        out["shadow"] = {"days": pr["days"], "prod": round(100 * pr["prod"], 1),
+                         "arm": round(100 * pr["arm"], 1),
+                         "t": round(pr["t"], 1) if pr.get("t") is not None else None}
     return out
 
 
@@ -131,6 +137,10 @@ def summary() -> dict:
     run = live.get("running")
     if run:
         lines.append(f"还在走的 {run['lists']} 份清单：目前 {run['hits']}/{run['n']} 只已涨超 50%")
+    sh = live.get("shadow")
+    if sh:
+        lines.append(f"模型影子对照：{sh['days']} 天已满 20 天，实发 {sh['prod']}% / 模型 {sh['arm']}%"
+                     + (f"（差的 t {sh['t']}）" if sh.get("t") is not None else ""))
     if meta.get("drift_note"):
         lines.append(f"打分分布异常：{meta['drift_note']}")
     # 最近一次 AI 复盘判「严重 / 注意」（含「没跑成」，比如登录过期）就印一句，首页也看得见

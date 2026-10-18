@@ -1,0 +1,9 @@
+[
+ {"family": "F0", "score": "rank", "cal": "cum", "win": 36, "nmin": 100, "dmin": 20, "uni": "all"},
+ {"family": "F0", "score": "ret20", "cal": "cum", "win": 36, "nmin": 100, "dmin": 20, "uni": "all"},
+ {"family": "F1", "score": "lr_core_top300", "cal": "cum", "win": 12, "nmin": 100, "dmin": 20, "uni": "all"},
+ {"family": "F2", "score": "lgb_price_top300", "cal": "cum", "win": 12, "nmin": 100, "dmin": 20, "uni": "all"},
+ {"family": "F2", "score": "lgb_price_top50", "cal": "cum", "win": 12, "nmin": 100, "dmin": 20, "uni": "all"},
+ {"family": "F3", "score": "lgb_alt_top300", "cal": "cum", "win": 12, "nmin": 100, "dmin": 20, "uni": "all"},
+ {"family": "F4", "score": "rules", "cal": "none", "win": 0, "nmin": 0, "dmin": 0, "uni": "all"}
+]

@@ -1,0 +1,513 @@
+{
+ "tdx": {
+  "hosts_tried": 12,
+  "hosts_ok": [
+   {
+    "name": "上证云成都电信一",
+    "ip": "218.6.170.47",
+    "port": 7709,
+    "sec": 0.31
+   },
+   {
+    "name": "上证云北京联通一",
+    "ip": "123.125.108.14",
+    "port": 7709,
+    "sec": 0.3
+   },
+   {
+    "name": "上海电信主站Z1",
+    "ip": "180.153.18.170",
+    "port": 7709,
+    "sec": 0.6
+   },
+   {
+    "name": "上海电信主站Z80",
+    "ip": "180.153.18.172",
+    "port": 80,
+    "sec": 0.36
+   },
+   {
+    "name": "北京联通主站Z80",
+    "ip": "202.108.253.139",
+    "port": 80,
+    "sec": 0.34
+   },
+   {
+    "name": "杭州电信主站J1",
+    "ip": "60.191.117.167",
+    "port": 7709,
+    "sec": 0.31
+   }
+  ],
+  "host_used": {
+   "name": "上证云成都电信一",
+   "ip": "218.6.170.47",
+   "port": 7709,
+   "sec": 0.31
+  },
+  "tests": [
+   {
+    "code": "002185",
+    "market": 0,
+    "date": "2022-03-08",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.27,
+    "vol_sum": 327221.0,
+    "last_price": 11.08,
+    "max_price": 11.42,
+    "first_price": 11.42
+   },
+   {
+    "code": "002185",
+    "market": 0,
+    "date": "2022-03-08",
+    "kind": "tx",
+    "rows": 4282,
+    "pages": 3,
+    "sec": 1.13,
+    "vol_sum": 327221.0,
+    "first_time": "13:02",
+    "last_time": "09:44",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.4257122861919009
+   },
+   {
+    "code": "002185",
+    "market": 0,
+    "date": "2024-03-05",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.27,
+    "vol_sum": 964925.0,
+    "last_price": 8.28,
+    "max_price": 8.49,
+    "first_price": 8.39,
+    "ref_vol": 96492462.0,
+    "ref_close": 8.2,
+    "ref_high": 8.42,
+    "vol_ratio": 0.010000003938131457
+   },
+   {
+    "code": "002185",
+    "market": 0,
+    "date": "2024-03-05",
+    "kind": "tx",
+    "rows": 4555,
+    "pages": 3,
+    "sec": 1.35,
+    "vol_sum": 964925.0,
+    "first_time": "13:11",
+    "last_time": "09:57",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.5114594398528383,
+    "ref_vol": 96492462.0,
+    "vol_ratio": 0.010000003938131457
+   },
+   {
+    "code": "002185",
+    "market": 0,
+    "date": "2025-03-05",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.48,
+    "vol_sum": 415365.0,
+    "last_price": 11.13,
+    "max_price": 11.29,
+    "first_price": 11.21,
+    "ref_vol": 41536477.0,
+    "ref_close": 11.05,
+    "ref_high": 11.22,
+    "vol_ratio": 0.010000005537301586
+   },
+   {
+    "code": "002185",
+    "market": 0,
+    "date": "2025-03-05",
+    "kind": "tx",
+    "rows": 4206,
+    "pages": 3,
+    "sec": 0.75,
+    "vol_sum": 415365.0,
+    "first_time": "13:03",
+    "last_time": "09:40",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.45273193456357663,
+    "ref_vol": 41536477.0,
+    "vol_ratio": 0.010000005537301586
+   },
+   {
+    "code": "603385",
+    "market": 1,
+    "date": "2022-03-08",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.26,
+    "vol_sum": 30439.0,
+    "last_price": 8.96,
+    "max_price": 9.25,
+    "first_price": 9.22
+   },
+   {
+    "code": "603385",
+    "market": 1,
+    "date": "2022-03-08",
+    "kind": "tx",
+    "rows": 1709,
+    "pages": 1,
+    "sec": 0.25,
+    "vol_sum": 30439.0,
+    "first_time": "09:25",
+    "last_time": "15:00",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.3925227504188705
+   },
+   {
+    "code": "603385",
+    "market": 1,
+    "date": "2024-03-05",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.26,
+    "vol_sum": 31502.0,
+    "last_price": 5.49,
+    "max_price": 5.59,
+    "first_price": 5.56,
+    "ref_vol": 3150210.0,
+    "ref_close": 5.4,
+    "ref_high": 5.51,
+    "vol_ratio": 0.009999968256084514
+   },
+   {
+    "code": "603385",
+    "market": 1,
+    "date": "2024-03-05",
+    "kind": "tx",
+    "rows": 942,
+    "pages": 1,
+    "sec": 0.25,
+    "vol_sum": 31502.0,
+    "first_time": "09:25",
+    "last_time": "15:00",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.3841025966605295,
+    "ref_vol": 3150210.0,
+    "vol_ratio": 0.009999968256084514
+   },
+   {
+    "code": "603385",
+    "market": 1,
+    "date": "2025-03-05",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.26,
+    "vol_sum": 56781.0,
+    "last_price": 6.5,
+    "max_price": 6.55,
+    "first_price": 6.53,
+    "ref_vol": 5678088.0,
+    "ref_close": 6.39,
+    "ref_high": 6.49,
+    "vol_ratio": 0.010000021133874642
+   },
+   {
+    "code": "603385",
+    "market": 1,
+    "date": "2025-03-05",
+    "kind": "tx",
+    "rows": 1491,
+    "pages": 1,
+    "sec": 0.25,
+    "vol_sum": 56781.0,
+    "first_time": "09:25",
+    "last_time": "15:00",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.40913333685563835,
+    "ref_vol": 5678088.0,
+    "vol_ratio": 0.010000021133874642
+   },
+   {
+    "code": "300054",
+    "market": 0,
+    "date": "2022-03-08",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.25,
+    "vol_sum": 132983.0,
+    "last_price": 20.32,
+    "max_price": 20.96,
+    "first_price": 20.11
+   },
+   {
+    "code": "300054",
+    "market": 0,
+    "date": "2022-03-08",
+    "kind": "tx",
+    "rows": 3416,
+    "pages": 2,
+    "sec": 0.5,
+    "vol_sum": 132983.0,
+    "first_time": "11:18",
+    "last_time": "11:18",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.500454945368957
+   },
+   {
+    "code": "300054",
+    "market": 0,
+    "date": "2024-03-05",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.26,
+    "vol_sum": 78053.0,
+    "last_price": 21.15,
+    "max_price": 21.48,
+    "first_price": 21.13,
+    "ref_vol": 7805280.0,
+    "ref_close": 21.05,
+    "ref_high": 21.4,
+    "vol_ratio": 0.01000002562368038
+   },
+   {
+    "code": "300054",
+    "market": 0,
+    "date": "2024-03-05",
+    "kind": "tx",
+    "rows": 3270,
+    "pages": 2,
+    "sec": 0.51,
+    "vol_sum": 78053.0,
+    "first_time": "10:49",
+    "last_time": "10:49",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.5357769720574481,
+    "ref_vol": 7805280.0,
+    "vol_ratio": 0.01000002562368038
+   },
+   {
+    "code": "300054",
+    "market": 0,
+    "date": "2025-03-05",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.24,
+    "vol_sum": 185466.0,
+    "last_price": 29.24,
+    "max_price": 29.8,
+    "first_price": 29.25,
+    "ref_vol": 18546600.0,
+    "ref_close": 29.1,
+    "ref_high": 29.75,
+    "vol_ratio": 0.01
+   },
+   {
+    "code": "300054",
+    "market": 0,
+    "date": "2025-03-05",
+    "kind": "tx",
+    "rows": 4046,
+    "pages": 3,
+    "sec": 0.78,
+    "vol_sum": 185466.0,
+    "first_time": "11:20",
+    "last_time": "09:32",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.4621817475979425,
+    "ref_vol": 18546600.0,
+    "vol_ratio": 0.01
+   },
+   {
+    "code": "688653",
+    "market": 1,
+    "date": "2022-03-08",
+    "kind": "minute",
+    "rows": 0,
+    "sec": 0.25
+   },
+   {
+    "code": "688653",
+    "market": 1,
+    "date": "2022-03-08",
+    "kind": "tx",
+    "rows": 0,
+    "pages": 1,
+    "sec": 0.24
+   },
+   {
+    "code": "688653",
+    "market": 1,
+    "date": "2024-03-05",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.27,
+    "vol_sum": 28051.0,
+    "last_price": 13.19,
+    "max_price": 13.6,
+    "first_price": 13.49,
+    "ref_vol": 2805064.0,
+    "ref_close": 13.19,
+    "ref_high": 13.6,
+    "vol_ratio": 0.010000128339317748
+   },
+   {
+    "code": "688653",
+    "market": 1,
+    "date": "2024-03-05",
+    "kind": "tx",
+    "rows": 1147,
+    "pages": 1,
+    "sec": 0.26,
+    "vol_sum": 28051.0,
+    "first_time": "09:25",
+    "last_time": "15:00",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.4080781433816976,
+    "ref_vol": 2805064.0,
+    "vol_ratio": 0.010000128339317748
+   },
+   {
+    "code": "688653",
+    "market": 1,
+    "date": "2025-03-05",
+    "kind": "minute",
+    "rows": 240,
+    "sec": 0.28,
+    "vol_sum": 83498.0,
+    "last_price": 14.06,
+    "max_price": 14.25,
+    "first_price": 14.07,
+    "ref_vol": 8349775.0,
+    "ref_close": 14.06,
+    "ref_high": 14.32,
+    "vol_ratio": 0.010000029940926553
+   },
+   {
+    "code": "688653",
+    "market": 1,
+    "date": "2025-03-05",
+    "kind": "tx",
+    "rows": 1972,
+    "pages": 1,
+    "sec": 0.25,
+    "vol_sum": 83498.0,
+    "first_time": "09:25",
+    "last_time": "15:00",
+    "buyorsell_values": [
+     0,
+     1,
+     2
+    ],
+    "buy_share": 0.5029102493472898,
+    "ref_vol": 8349775.0,
+    "vol_ratio": 0.010000029940926553
+   },
+   {
+    "code": "920124",
+    "market": 2,
+    "date": "2022-03-08",
+    "kind": "minute",
+    "rows": 0,
+    "sec": 0.25
+   },
+   {
+    "code": "920124",
+    "market": 2,
+    "date": "2022-03-08",
+    "kind": "tx",
+    "rows": 0,
+    "pages": 1,
+    "sec": 0.25
+   },
+   {
+    "code": "920124",
+    "market": 2,
+    "date": "2024-03-05",
+    "kind": "minute",
+    "rows": 0,
+    "sec": 0.24
+   },
+   {
+    "code": "920124",
+    "market": 2,
+    "date": "2024-03-05",
+    "kind": "tx",
+    "rows": 0,
+    "pages": 1,
+    "sec": 0.25
+   },
+   {
+    "code": "920124",
+    "market": 2,
+    "date": "2025-03-05",
+    "kind": "minute",
+    "rows": 0,
+    "sec": 0.25
+   },
+   {
+    "code": "920124",
+    "market": 2,
+    "date": "2025-03-05",
+    "kind": "tx",
+    "rows": 0,
+    "pages": 1,
+    "sec": 0.24
+   }
+  ],
+  "at_bj": "2026-10-18 03:09"
+ },
+ "g4tic": {
+  "20240102": {
+   "status": 200,
+   "len_mb": 85.5
+  },
+  "20250305": {
+   "status": 200,
+   "len_mb": 94.9
+  },
+  "20231229": {
+   "status": 404,
+   "len_mb": 0.0
+  },
+  "at_bj": "2026-10-18 03:09"
+ }
+}

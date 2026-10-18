@@ -1,0 +1,32 @@
+任务书摘要：盲测近期（research/blind）。用户 2026-10-18：「近期暴涨谁都会看，要模型干什么」-> 把近 20 天从模型已知数据里移出、用作验证；并从底层原理和杠杆找提升。目标仍是精确率（y_open，可少出可空榜），对手 ret20 名次规则 / 同量名次基线 B(k̄)。第一部分三种实现：V1 盲测（T−20 的样本外分数看好 ∩ T 日 ret20 走出来，按 s(T) 出票；同名次档内比看好 / 不看好）、V2 结构模型（特征全取 T−20 行、标签 T 行、预测未来 20 根 + 动量确认）、V3 逐票可信度（过去已关窗残差 Σ(y−s)/(n+20)；V3b 这只票以前进前 10 中没中）。第二部分：瓶颈数学（正样本率、设计效应、分辨 2pp 需要多少有效样本、挑日子不挑票的分解）+ 三根杠杆（L1 长历史 2005 起新浪不复权 + 因子 -> research/longhist/raw；L2 日固定效应 init_score；L3 r20_open 回归 / 30-50-80 多阈值）。纪律同 research/gate/criteria.txt：两段、逐月滚动、只用过去、B(k̄)、块自举、出票量门槛、打乱自检、2026-01..08 不读；evalkit 新族 breakout_blind；16:00~18:30 不跑重活不联网；不改生产；产物只在 research/blind/、research/longhist/。
+[2026-10-18 06:08 BJ] 开工。读完 CLAUDE.md、rethink、gate / precision / polish / screen 报告、调研、四份 common。criteria.txt 写定（任何结果之前）。机器 14.5 GB 内存空闲 5.1 GB，另有两个 python（1.5 GB + 1.0 GB，angles 子代理）在跑；pytdx 没装，akshare 1.18.94。gate table 4.77M 行（pre 250 天 / 筛选 582 / 开发 387），lgb_price 等 17 份样本外分数可直接复用。
+[2026-10-18 06:09 BJ] probe_lh：新浪在市票给上市以来全部日线（000001 到 1991-04，含 outstanding_share / turnover），已退市 / 被吸收合并的 15 只真实代码全部空体 -> 长历史只有幸存者。每只两个请求约 2.5s，4 路并发，5577 只预估 60 分钟，分片 400 只落 research/longhist/raw/part_XX.parquet，可续跑。周日 06:10 起拉，不在 16:00~18:30。
+[2026-10-18 06:16 BJ] v1_bl：诊断 3 张 + 筛选网格 120 配置 + 自检 + 开发集 1 臂 -> results_v1.txt（208s）
+[2026-10-18 06:25 BJ] 样本外分数 v2_lag20：模式 lag 特征 price(47) 打乱 none，54 个月 6 分钟
+[2026-10-18 06:28 BJ] v3_bl：V3 诊断 2 张 + 网格 135 + 开发集 1 臂；V3b 诊断 1 张 + 网格 75 + 开发集 1 臂 -> results_v3.txt（471s）
+[2026-10-18 06:33 BJ] 样本外分数 fe_nomkt：模式 fe 特征 price_nomkt(38) 打乱 none，54 个月 8 分钟
+[2026-10-18 06:33 BJ] diag_v3：V3 臂解剖 + 机制对照 + 邻域 look 4 次 -> results_diag_v3.txt（149s）
+[2026-10-18 06:43 BJ] 样本外分数 reg_l2：模式 reg 特征 price(47) 打乱 none，54 个月 11 分钟
+[2026-10-18 06:48 BJ] eval_scores V2（v2_lag20）：网格 23 配置 + 开发集 1 臂 -> results_V2.txt（250s）
+[2026-10-18 06:52 BJ] eval_scores L2fe（fe_nomkt）：网格 23 配置 + 开发集 1 臂 -> results_L2fe.txt（238s）
+[2026-10-18 06:56 BJ] math_bl：瓶颈数字 -> results_math.txt（58s）
+[2026-10-18 06:59 BJ] eval_scores L3reg（reg_l2）：网格 23 配置 + 开发集 1 臂 -> results_L3reg.txt（213s）
+[2026-10-18 07:06 BJ] look_v3：V3 臂稳健性加看 -> results_look_v3.txt（47s）
+[2026-10-18 07:10 BJ] prereg_bl --backfill：补登 4 个臂（V3 / V3b / L3reg / L2fe）进 evalkit blind_v1，11 次 look 记入；族计数 15，门槛 c 2.71
+[2026-10-18 07:17 BJ] 样本外分数 q90：模式 q90 特征 price(47) 打乱 none，54 个月 34 分钟
+[2026-10-18 07:21 BJ] eval_scores L3q90（q90）：网格 23 配置 + 开发集 1 臂 -> results_L3q90.txt（225s）
+[2026-10-18 07:22 BJ] prereg_bl：blind_v2 登记 ['S:q90:10:1']，拒登 []
+[2026-10-18 07:34 BJ] 样本外分数 multi3：模式 multi 特征 price(47) 打乱 none，54 个月 17 分钟
+[2026-10-18 07:38 BJ] eval_scores L3multi（multi3）：网格 23 配置 + 开发集 1 臂 -> results_L3multi.txt（207s）
+[2026-10-18 07:38 BJ] prereg_bl：blind_v3 登记 ['S:multi3:10:1']，拒登 []
+[2026-10-18 07:39 BJ] 样本外分数 fe_nomkt_shufd：模式 fe 特征 price_nomkt(38) 打乱 day，54 个月 5 分钟
+[2026-10-18 07:41 BJ] eval_scores L2shuf（fe_nomkt_shufd）：网格 23 配置 + 开发集 1 臂 -> results_L2shuf.txt（58s）
+[2026-10-18 07:41 BJ] L3 两臂登记后读开发集：q90 K10 n1 筛选 +0.34 / 开发 +1.03（合并 t 0.25）、multi3 K10 n1 +0.52 / +1.55（t 0.38），都不过线；L2 打乱标签自检：前 10 内 13.7/13.1/12.5 和不打乱的 13.7/11.3/10.5 一样（fe 的当天内排序 = 噪声），全池前 1 为 5.2%（池基准 1.65%，未解释的残差，记下）。长历史链已挂：拉完 -> 建表 -> fixed / roll36 / rollall。本地登记簿计数 {'diag': 8, 'screen': 445, 'shuffle': 25, 'arm': 8, 'look': 6, 'prereg': 3}
+[2026-10-18 08:04 BJ] walk_lh fixed（2006-01 起）：1 次训练，对齐 gate 表 90.9%，1 分钟
+[2026-10-18 08:08 BJ] eval_scores L1fixed（lh_fixed）：网格 23 配置 + 开发集 1 臂 -> results_L1fixed.txt（232s）
+[2026-10-18 08:09 BJ] 长历史：拉取 5576 只 0 缺 100 分钟（只有幸存者）；table_lh 8.0M 行，gate 两段 100% 对上、特征逐位相同；walk_lh fixed（2006-01..2021-06 一次训练，130 万行 / 正 15.9 万）筛选集 23 配置对 B(k̄) 全 <= 0（−0.0~−2.7），对 lgb_price +0.3~+2.1（t < 2.3），全池月前 10 9.7% / 12.1%；筛选最好是平凡的 K10 n10，不登记不读开发集。roll36 / rollall 在跑。
+[2026-10-18 08:13 BJ] walk_lh roll36（2006-01 起）：54 次训练，对齐 gate 表 90.9%，8 分钟
+[2026-10-18 08:17 BJ] eval_scores L1roll36（lh_roll36）：网格 23 配置 + 开发集 1 臂 -> results_L1roll36.txt（274s）
+[2026-10-18 08:36 BJ] walk_lh rollall（2006-01 起）：54 次训练，对齐 gate 表 90.9%，23 分钟
+[2026-10-18 08:38 BJ] eval_scores L1rollall（lh_rollall）：网格 23 配置 + 开发集 1 臂 -> results_L1rollall.txt（118s）
+[2026-10-18 08:39 BJ] 长历史 roll36（同表 36 个月）对 lgb_price 同配置差 −0.5~+0.8pp（流水对账通过）；rollall（2006 起全部）对 B(k̄) 全 <= 0（−0.3~−2.4），对同表 roll36 +0.3~+1.2（t < 1.3），全池月前 10 筛选 11.7%；不登记。收尾：主登记簿族计数 23、门槛 c 2.85；本地登记簿 {'diag': 8, 'screen': 515, 'shuffle': 25, 'arm': 8, 'look': 7, 'prereg': 3}。

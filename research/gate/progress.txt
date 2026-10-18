@@ -1,0 +1,29 @@
+任务书摘要：绝对门槛研究（research/gate）。用户要「给一个标准，过线就出，不过就不出，出了就得够准」，只评精确率（买得到 y_open），可空榜。和 precision 一轮的区别：候选池放开到全部候选池、可训模型（原值特征 + ret20 原值和名次 + 日线派生 + altdata 非价格数据 + 市场状态）、门槛要校准。纪律：逐月滚动，训练和门槛都只用之前的数据（样本外分数上做等渗校准，过去 12 个月），两段（筛选 2022-01..2024-05 / 开发 2024-06..2025-12）都是没碰过的读法；按天聚类 / 块自举；对照同量名次基线 B(k̄)；目标精确率 20/25/30/40/50% 各报一行；ledger.jsonl + evalkit.prereg 新族 breakout_gate；打乱标签自检；2026-09 后前向只看一次；不读 2026-01..08；16:00~18:30 不跑重任务；不改生产 / state / data/breakout / out_*；产物只在 research/gate/；最后并入 research/intraday、research/deepdata 的特征（落地了才并）。
+[2026-10-18 03:40 BJ] 开工。读完 CLAUDE.md、rethink、precision / polish / altdata / leak 报告和三份 common。criteria.txt 写定。机器 14.5 GB 内存、7 GB 空闲、另有 5 个 python 在跑（别的子代理），特征表只装需要的列、float32。research/deepdata 目录不存在；research/intraday/feat.parquet 只有 940 行（2022-03，还在拉）。
+[2026-10-18 03:43 BJ] table.parquet 建好：4774562 行 86 列 2020-12-23..2025-12-31；B(10) 筛选 11.34 / 开发 16.54
+[2026-10-18 03:46 BJ] 样本外分数 lgb_price：模型 lgb 特征 price(47) 负样本 0.15 宇宙 all 深度 shallow 打乱 none，0 个月 0 分钟
+[2026-10-18 03:56 BJ] 样本外分数 lgb_price：模型 lgb 特征 price(47) 负样本 0.15 宇宙 all 深度 shallow 打乱 none，54 个月 10 分钟
+[2026-10-18 04:01 BJ] 样本外分数 lgb_alt：模型 lgb 特征 alt(68) 负样本 0.15 宇宙 all 深度 shallow 打乱 none，54 个月 11 分钟
+[2026-10-18 04:02 BJ] 样本外分数 lr_core：模型 lr 特征 lr(8) 负样本 0.15 宇宙 all 深度 shallow 打乱 none，54 个月 1 分钟
+[2026-10-18 04:06 BJ] 样本外分数 lgb_price_top300：模型 lgb 特征 price(47) 负样本 1.00 宇宙 top300 深度 shallow 打乱 none，54 个月 4 分钟
+[2026-10-18 04:10 BJ] 样本外分数 lgb_alt_top300：模型 lgb 特征 alt(68) 负样本 1.00 宇宙 top300 深度 shallow 打乱 none，54 个月 4 分钟
+[2026-10-18 04:14 BJ] 样本外分数 lgb_nomkt_top300：模型 lgb 特征 price_nomkt(38) 负样本 1.00 宇宙 top300 深度 shallow 打乱 none，54 个月 3 分钟
+[2026-10-18 04:14 BJ] 样本外分数 lr_core_top300：模型 lr 特征 lr(8) 负样本 1.00 宇宙 top300 深度 shallow 打乱 none，54 个月 1 分钟
+[2026-10-18 04:15 BJ] 样本外分数 lr_core：模型 lr 特征 lr(8) 负样本 0.15 宇宙 all 深度 shallow 打乱 none，54 个月 1 分钟
+[2026-10-18 04:22 BJ] 样本外分数 lgb_price_nomkt：模型 lgb 特征 price_nomkt(38) 负样本 0.15 宇宙 all 深度 shallow 打乱 none，54 个月 6 分钟
+[2026-10-18 04:22 BJ] 样本外分数 lgb_price_top50：模型 lgb 特征 price(47) 负样本 1.00 宇宙 top50 深度 shallow 打乱 none，54 个月 3 分钟
+[2026-10-18 04:26 BJ] 样本外分数 lgb_alt_top50：模型 lgb 特征 alt(68) 负样本 1.00 宇宙 top50 深度 shallow 打乱 none，54 个月 4 分钟
+[2026-10-18 04:27 BJ] 样本外分数 lr_core_top50：模型 lr 特征 lr(8) 负样本 1.00 宇宙 top50 深度 shallow 打乱 none，54 个月 1 分钟
+[2026-10-18 04:27 BJ] 样本外分数 lgb_top300_shufd：模型 lgb 特征 price(47) 负样本 1.00 宇宙 top300 深度 shallow 打乱 day，54 个月 5 分钟
+[2026-10-18 04:28 BJ] 样本外分数 lgb_core_top50：模型 lgb 特征 core(11) 负样本 1.00 宇宙 top50 深度 shallow 打乱 none，54 个月 2 分钟
+[2026-10-18 04:37 BJ] 样本外分数 lgb_price_deep_top300：模型 lgb 特征 price(47) 负样本 1.00 宇宙 top300 深度 deep 打乱 none，54 个月 10 分钟
+[2026-10-18 04:42 BJ] 样本外分数 lgb_top300_shufg：模型 lgb 特征 price(47) 负样本 1.00 宇宙 top300 深度 shallow 打乱 global，54 个月 4 分钟
+[2026-10-18 04:43 BJ] 样本外分数 lgb_price_top20：模型 lgb 特征 price(47) 负样本 1.00 宇宙 top20 深度 shallow 打乱 none，54 个月 1 分钟
+[2026-10-18 04:51 BJ] 规则挖掘 rules：51 个条件 22151 条候选规则，nfit 100 ncal 30，48 个月 42 分钟
+[2026-10-18 04:53 BJ] judge_gt：预登记 gate_v1 4 个臂（筛选集 ΔP<0 剔 3），开发集各读一次
+[2026-10-18 04:54 BJ] F6 日内特征配对检查完成（results_intraday.txt）
+[2026-10-18 05:00 BJ] 收尾：17 份样本外分数 + 规则挖掘，筛选集 40 个校准配置，正式臂 4 个（开发集各读一次，无一过线），look 4 次，打乱标签自检 3 次，日内配对 1 次。结论：做不出 >= 20% 的绝对门槛；第 1 名滚动 12 月精确率 7~21% 漂，门槛在开发集整段不触发或出热月后的大簇（命中 3~5%）。报告 report.md。
+[2026-10-18 05:02 BJ] deepdata 六张表并到前 300 名行：table_dd.parquet 365700 行，125 个特征（dd_cols.txt）
+[2026-10-18 05:08 BJ] 样本外分数 lgb_dd_top300：模型 lgb 特征 alt(193) 负样本 1.00 宇宙 top300 深度 shallow 打乱 none，54 个月 6 分钟
+[2026-10-18 05:09 BJ] judge_gt：预登记 gate_v1_f6 1 个臂（筛选集 ΔP<0 剔 0），开发集各读一次
+[2026-10-18 05:09 BJ] F6b：deepdata 六张表（events / 龙虎榜席位 / 评级 / 融券 / 申万行业 / 同花顺题材，125 列）并到前 300 名宇宙的 LightGBM：筛选集每月前 10/20/40 行 10.7/9.8/9.0 个百分点（名次 14.4），开发集 18.4/17.1/17.4（名次 18.1）；门槛 cum12 n100 d20 筛选集整段不出票，预登记 gate_v1_f6 开发集读一次（τ=0.20 出 3722 只 22 天 命中 4.1）。登记簿 {'screen': 41, 'diag': 6, 'screen_reject': 3, 'arm': 5, 'check': 3, 'look': 4}。报告正文由主会话落盘 report.md（子代理不能写 .md）。

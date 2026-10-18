@@ -1,0 +1,4 @@
+top50.parquet
+*.log
+hits_*.parquet
+grid_hits.npz

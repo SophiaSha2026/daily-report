@@ -1,0 +1,68 @@
+== 1 表的日期范围 / 2026 年标签 ==
+data\breakout\raw\exp\screen\px_screen.parquet: 6453502 行 2020-07-01..2025-12-31
+data\breakout\raw\exp\screen\labels_screen.parquet: 6453502 行 2020-07-01..2025-12-31; y_open 有值的最大日期 2025-12-03（有值 6344745 行，2026 年有值 0 行）; y_up 有值的最大日期 2025-12-03（有值 6344745 行，2026 年有值 0 行）
+data\breakout\raw\exp\rulecore\feat.parquet: 6453502 行 2020-07-01..2025-12-31; y_open 有值的最大日期 2025-12-31（有值 6453359 行，2026 年有值 0 行）
+data\breakout\raw\exp\polish\pool.parquet: 5506465 行 2020-12-23..2025-12-31; y_open 有值的最大日期 2025-12-31（有值 5506335 行，2026 年有值 0 行）
+research\gate\table.parquet: 4774562 行 2020-12-23..2025-12-31; y_open 有值的最大日期 2025-12-31（有值 4774448 行，2026 年有值 0 行）
+research\altdata\top60.parquet: 59520 行 2021-12-01..2025-12-31; y_open 有值的最大日期 2025-12-31（有值 59517 行，2026 年有值 0 行）
+research\precision\top50.parquet: 48450 行 2022-01-04..2025-12-31; y_open 有值的最大日期 2025-12-31（有值 48447 行，2026 年有值 0 行）
+data\breakout\raw\exp\leak\train_snap.parquet: 3675054 行 2023-12-01..2026-10-15; y_up 有值的最大日期 2026-09-09（有值 3565494 行，2026 年有值 904169 行）
+data\breakout\raw\exp\leak\labels_open_snap.parquet: 3382578 行 2023-01-03..2025-12-31; y_open 有值的最大日期 2025-12-31（有值 3382578 行，2026 年有值 0 行）
+data\breakout\daily.parquet: 4426809 行 2023-01-03..2026-10-16
+data\breakout\train.parquet: 3680633 行 2023-12-01..2026-10-16; y_up 有值的最大日期 2026-09-10（有值 3571055 行，2026 年有值 909730 行）
+research\deepdata\features_events.parquet: 4669348 行 2021-12-01..2025-12-31
+research\deepdata\features_freeholders.parquet: 4669348 行 2021-12-01..2025-12-31
+research\deepdata\features_lhb_seats.parquet: 4669348 行 2021-12-01..2025-12-31
+research\deepdata\features_rating.parquet: 4669348 行 2021-12-01..2025-12-31
+research\deepdata\features_rzrq_short.parquet: 4669348 行 2021-12-01..2025-12-31
+research\deepdata\features_sw_industry.parquet: 4669348 行 2021-12-01..2025-12-31
+research\deepdata\features_ths_theme.parquet: 2684779 行 2023-10-17..2025-12-31
+research\intraday\features_intraday.parquet: 12509 行 2022-03-01..2025-12-31
+data\breakout\raw\exp\screen\px_screen_c.parquet: 7446996 行 2020-07-01..2026-09-30
+data\breakout\raw\exp\screen\labels_screen_c.parquet: 7446996 行 2020-07-01..2026-09-30; y_open 有值的最大日期 2026-09-01（有值 7336476 行，2026 年有值 882974 行）
+data\breakout\raw\exp\screen\prod_screen_c.parquet: 6767511 行 2020-12-31..2026-09-30
+data\breakout\raw\exp\rulecore\feat_c.parquet: 7446996 行 2020-07-01..2026-09-30; y_open 有值的最大日期 2026-09-01（有值 7336476 行，2026 年有值 882974 行）
+
+== 2 feat.parquet 的 2025-12 补标签行 ==
+patched 行 108614，日期 2025-12-01..2025-12-31；其中 y_open 有值 108614
+2025-12 行 124754，y_open 有值 124754（100.0%），end20 > 2025-12-31 的行 108614（这些行的标签窗口按 pit 表没关，来自 leak 快照）
+
+== 3 族门槛现值（evalkit.family_threshold）==
+breakout_y50_top10             m=71 s=60 u=11 c=3.072 c_bonf=3.193 c_maxt=2.980  最大 t 并集上界（60 条序列 + 11 次无序列，m=71）
+breakout_y50_top10_rulecore    m=3 s=6 u=0 c=2.500 c_bonf=2.128 c_maxt=2.451  最大 t 并集上界（6 条序列 + 0 次无序列，m=3）
+breakout_y50_top10_polish      m=2 s=0 u=2 c=2.500 c_bonf=1.960 c_maxt=-  Bonferroni（m=2）
+breakout_gate                  m=5 s=0 u=5 c=2.500 c_bonf=2.326 c_maxt=-  Bonferroni（m=5）
+breakout_angles                m=4 s=0 u=4 c=2.500 c_bonf=2.241 c_maxt=-  Bonferroni（m=4）
+breakout_precision             m=1 s=0 u=1 c=2.500 c_bonf=1.645 c_maxt=-  Bonferroni（m=1）
+breakout_blind                 m=1 s=0 u=1 c=2.500 c_bonf=1.645 c_maxt=-  Bonferroni（m=1）
+breakout_y50_top10_altdata     m=1 s=0 u=1 c=2.500 c_bonf=1.645 c_maxt=-  Bonferroni（m=1）
+主登记簿 158 行；按族 family_count：{'breakout_angles': 4, 'breakout_gate': 5, 'breakout_y50_diag': 30, 'breakout_y50_prodrule': 4, 'breakout_y50_top10': 71, 'breakout_y50_top10_polish': 2, 'breakout_y50_top10_rulecore': 3, 'cont_y15': 1}
+prereg 行 33：gate_version 分布 {nan: 19, 3.0: 14}；screen 字段分布 {nan: 19, '无': 8, '同号': 6}
+  {"at": "2026-10-16T09:59:46", "family": "breakout_y50_top10_rulecore", "exp": "rulecore_v1", "arm": "rc", "kind": "prereg", "gate_version": 3, "screen": "无"}
+  {"at": "2026-10-16T09:59:46", "family": "breakout_y50_top10_rulecore", "exp": "rulecore_v1", "arm": "pc", "kind": "prereg", "gate_version": 3, "screen": "无"}
+  {"at": "2026-10-16T09:59:46", "family": "breakout_y50_top10_rulecore", "exp": "rulecore_v1", "arm": "ret20", "kind": "prereg", "gate_version": 3, "screen": "无"}
+  {"at": "2026-10-16T18:06:27", "family": "breakout_y50_top10_rulecore", "exp": "rulecore_v1", "arm": "rc", "kind": "result", "t_nw": 2.238102334621433, "gate_version": 3, "verdict": "未定", "verdict_v2": "未定", "verdict_v3": "未定", "sc
+  {"at": "2026-10-16T18:06:27", "family": "breakout_y50_top10_rulecore", "exp": "rulecore_v1", "arm": "ret20", "kind": "result", "t_nw": 4.5028764028191635, "gate_version": 3, "verdict": "未定", "verdict_v2": "未定", "verdict_v3": "未定",
+  {"at": "2026-10-16T18:06:27", "family": "breakout_y50_top10_rulecore", "exp": "rulecore_v1", "arm": "pc", "kind": "result", "t_nw": 1.761570260651014, "gate_version": 3, "verdict": "未定", "verdict_v2": "未定", "verdict_v3": "未定", "sc
+  {"at": "2026-10-16T19:16:37", "family": "breakout_y50_top10_rulecore", "exp": "rulecore_confirm", "arm": "ret20", "kind": "result", "t_nw": 2.1690242244281017, "gate_version": 3, "verdict": "未定", "verdict_v2": "未定", "verdict_v3": 
+  {"at": "2026-10-16T19:16:37", "family": "breakout_y50_top10_rulecore", "exp": "rulecore_confirm", "arm": "rc", "kind": "result", "t_nw": 1.7212744131271804, "gate_version": 3, "verdict": "未定", "verdict_v2": "未定", "verdict_v3": "未定
+  {"at": "2026-10-16T19:16:38", "family": "breakout_y50_top10_rulecore", "exp": "rulecore_confirm", "arm": "pc", "kind": "result", "t_nw": 0.8924757927939727, "gate_version": 3, "verdict": "未定", "verdict_v2": "未定", "verdict_v3": "未定
+  {"at": "2026-10-17T10:01:21", "family": "breakout_y50_top10_polish", "exp": "polish_v1", "arm": "lm_10_20", "kind": "prereg", "gate_version": 3, "screen": "同号"}
+  {"at": "2026-10-17T10:01:21", "family": "breakout_y50_top10_polish", "exp": "polish_v1", "arm": "rr_lr_k50_min", "kind": "prereg", "gate_version": 3, "screen": "同号"}
+  {"at": "2026-10-17T16:51:42", "family": "breakout_gate", "exp": "gate_v1", "arm": "F1:lr_core_top300_cum12_n100_d20", "kind": "prereg", "gate_version": 3, "screen": "无"}
+  {"at": "2026-10-17T16:51:42", "family": "breakout_gate", "exp": "gate_v1", "arm": "F2:lgb_price_top300_cum12_n100_d20", "kind": "prereg", "gate_version": 3, "screen": "无"}
+  {"at": "2026-10-17T16:51:42", "family": "breakout_gate", "exp": "gate_v1", "arm": "F2:lgb_price_top50_cum12_n100_d20", "kind": "prereg", "gate_version": 3, "screen": "无"}
+  {"at": "2026-10-17T16:51:42", "family": "breakout_gate", "exp": "gate_v1", "arm": "F3:lgb_alt_top300_cum12_n100_d20", "kind": "prereg", "gate_version": 3, "screen": "无"}
+  {"at": "2026-10-17T17:09:21", "family": "breakout_gate", "exp": "gate_v1_f6", "arm": "F6:lgb_dd_top300_cum12_n100_d20", "kind": "prereg", "gate_version": 3, "screen": "无"}
+  {"at": "2026-10-17T18:04:12", "family": "breakout_angles", "exp": "angles_v1", "arm": "regime:R1", "kind": "prereg", "gate_version": 3, "screen": "同号"}
+  {"at": "2026-10-17T18:04:12", "family": "breakout_angles", "exp": "angles_v1", "arm": "regime:R3", "kind": "prereg", "gate_version": 3, "screen": "同号"}
+  {"at": "2026-10-17T18:04:12", "family": "breakout_angles", "exp": "angles_v1", "arm": "crash:C1", "kind": "prereg", "gate_version": 3, "screen": "同号"}
+  {"at": "2026-10-17T18:04:12", "family": "breakout_angles", "exp": "angles_v1", "arm": "conformal:S1_rank V0 按月BH τ0.25", "kind": "prereg", "gate_version": 3, "screen": "同号"}
+
+== 4 corp 缓存（长期调整突破逐只拉的公告缓存）==
+data/pullback/corp/*.json 205 个
+
+== 5 ST 名单缓存 ==
+keys=['date', 'n_market', 'codes', 'seen'] n=204
+  date = 2026-09-16
+  seen 样例 [('000010', {'first': '2026-09-16', 'last': '2026-09-16', 'name': '*ST美丽'}), ('000016', {'first': '2026-09-16', 'last': '2026-09-16', 'name': '*ST康佳A'}), ('000056', {'first': '2026-09-16', 'last': '2026-09-16', 'name': '*ST皇庭'}), ('000078', {'first': '2026-09-16', 'last': '2026-09-16', 'name': 'ST海王'}), ('000488', {'first': '2026-09-16', 'last': '2026-09-16', 'name': 'ST晨鸣'})]

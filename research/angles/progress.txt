@@ -1,0 +1,18 @@
+任务书摘要：四个角度提精度（research/angles）。用户要「过线就出、不过不出、出了就准」，上一轮 gate 失败在命中率按月漂、校准线被热月带偏。四个角度：1 conformal selection（先推数学：FDR 对 mFDR、双正态 PPV 上限、校准样本量；再按天 BH 实测 原版 / 时间加权 / 日内名次变换 / 自适应 α）；2 情绪周期结构化阶段（全市场涨停生态 9 个指标，规则五段 / 自写 HMM / k-means，只用过去，两段同号）；3 事件触发（pullback.find_events 清单 A/B、首阳、连板分歧转一致、突破首板、2/3 连板，∩ 候选池，测 y_open 精确率）；4 拆解标签（第 1~3 名 r20_open 分布、差一点占比、到 50% 天数、缺口与命中，只描述）。纪律同 research/gate/criteria.txt：两段、逐月滚动、只用过去、同量名次基线 B(k̄)、按天聚类 / 块自举、2026-01..08 不读、evalkit 新族 breakout_angles、ledger.jsonl、打乱自检；16:00~18:30 不跑重任务；不改生产；产物只在 research/angles/。
+[2026-10-18 05:44 BJ] 开工。读完 CLAUDE.md、gate / precision / altpath 报告、rethink、四份 common。criteria.txt 写定（任何结果之前）。机器 14.5 GB，空闲 6.1 GB，另有一个 1.4 GB 的 python 在跑。hmmlearn / statsmodels / ruptures 没装，HMM 自写。docs/survey_precision_2026-10-18.md 还没出来。
+[2026-10-18 05:47 BJ] build_an：日指标 1338 天、事件 {'E1': 100, 'E1L': 234, 'E2': 1904, 'E3': 10109, 'E4': 21, 'E5': 9793, 'E6a': 10508, 'E6b': 7766}、路径 43086 行；E1 对账见 e1_reconcile.json（38s）
+[2026-10-18 05:47 BJ] math_an：角度一数学写定 -> results_math.txt
+[2026-10-18 05:50 BJ] events_an：六个事件两段精确率 -> results_events.txt
+[2026-10-18 05:52 BJ] label_an：角度四拆解标签 -> results_label.txt
+[2026-10-18 05:52 BJ] controller_an：自相关判死，不模拟控制器 -> results_controller.txt
+[2026-10-18 05:54 BJ] regime_an -> results_regime.txt
+[2026-10-18 05:55 BJ] regime_an -> results_regime.txt
+[2026-10-18 05:56 BJ] crash_an -> results_crash.txt
+[2026-10-18 05:57 BJ] ltt_an：可承诺下界 -> results_ltt.txt
+[2026-10-18 05:58 BJ] conformal_an --shuffle -> results_conformal.txt
+[2026-10-18 06:04 BJ] conformal_an -> results_conformal.txt
+[2026-10-18 06:04 BJ] regime_an --dev -> results_regime.txt
+[2026-10-18 06:04 BJ] crash_an --dev -> results_crash.txt
+[2026-10-18 06:11 BJ] conformal_an --dev -> results_conformal.txt
+[2026-10-18 06:11 BJ] judge_an：预登记 angles_v1 4 个臂（拒 4：['regime:R4', 'conformal:S2_lret20 支持数版(cum12 n100 d20) τ0.15', 'conformal:S1_rank 支持数版(cum12 n100 d20) τ0.20', 'conformal:S1_rank V2 日内名次+按天BH τ0.30']），开发集各读一次
+[2026-10-18 06:12 BJ] 全部跑完：正式臂 4（R1 R3 C1 conformal τ0.25），开发集各读一次，没有一个「可用」；控制器自相关判死；六个事件全低于名次基线；标签拆解判为信号问题。写 report.md。criteria 第 8 / 8f 节的时间戳按 progress 实际时间更正（05:49 / 05:54，原来手写的 06:30 / 07:05 是估错的）。

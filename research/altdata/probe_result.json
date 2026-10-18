@@ -1,0 +1,282 @@
+{
+ "lhb_detail": {
+  "count": 1518,
+  "cols": [
+   "TRADE_DATE",
+   "DEAL_AMOUNT_RATIO",
+   "BILLBOARD_DEAL_AMT",
+   "FREE_MARKET_CAP",
+   "EXPLAIN",
+   "SECUCODE",
+   "SECURITY_CODE",
+   "CLOSE_PRICE",
+   "CHANGE_RATE",
+   "TURNOVERRATE",
+   "D1_CLOSE_ADJCHRATE",
+   "D2_CLOSE_ADJCHRATE",
+   "D5_CLOSE_ADJCHRATE",
+   "D10_CLOSE_ADJCHRATE",
+   "SECURITY_NAME_ABBR",
+   "EXPLANATION",
+   "BILLBOARD_SELL_AMT",
+   "BILLBOARD_BUY_AMT",
+   "SECURITY_INNER_CODE",
+   "BILLBOARD_NET_AMT",
+   "DEAL_NET_RATIO",
+   "ACCUM_AMOUNT",
+   "MARKET",
+   "CHANGE_TYPE",
+   "TRADE_ID",
+   "BUY_SEAT",
+   "SELL_SEAT",
+   "BUY_RATIO",
+   "SELL_RATIO",
+   "TRADE_MARKET",
+   "D30_CLOSE_ADJCHRATE",
+   "D20_CLOSE_ADJCHRATE",
+   "TRADE_MARKET_CODE",
+   "BUY_SEAT_NEW",
+   "SELL_SEAT_NEW",
+   "SECURITY_TYPE_CODE",
+   "SUM_BUY_AMT",
+   "SUM_SELL_AMT",
+   "NET_BS_AMT"
+  ],
+  "big": {
+   "1000": [
+    500,
+    2.7
+   ],
+   "5000": [
+    500,
+    2.3
+   ]
+  }
+ },
+ "lhb_org": {
+  "count": 669,
+  "cols": [
+   "SECUCODE",
+   "SECURITY_NAME_ABBR",
+   "SECURITY_CODE",
+   "TRADE_DATE",
+   "CLOSE_PRICE",
+   "CHANGE_RATE",
+   "BUY_TIMES",
+   "SELL_TIMES",
+   "BUY_AMT",
+   "SELL_AMT",
+   "NET_BUY_AMT",
+   "ACCUM_AMOUNT",
+   "RATIO",
+   "TURNOVERRATE",
+   "FREECAP",
+   "EXPLANATION",
+   "D1_CLOSE_ADJCHRATE",
+   "D2_CLOSE_ADJCHRATE",
+   "D3_CLOSE_ADJCHRATE",
+   "D5_CLOSE_ADJCHRATE",
+   "D10_CLOSE_ADJCHRATE",
+   "MARKET",
+   "TRADE_MARKET_CODE",
+   "BUY_COUNT",
+   "SELL_COUNT"
+  ],
+  "big": {
+   "1000": [
+    500,
+    1.7
+   ],
+   "5000": [
+    500,
+    5.1
+   ]
+  }
+ },
+ "rzrq": {
+  "count": 7685,
+  "cols": [
+   "DATE",
+   "MARKET",
+   "SCODE",
+   "SECNAME",
+   "RZYE",
+   "RQYL",
+   "RZRQYE",
+   "RQYE",
+   "RQMCL",
+   "RZRQYECZ",
+   "RZMRE",
+   "SZ",
+   "RZYEZB",
+   "RZMRE3D",
+   "RZMRE5D",
+   "RZMRE10D",
+   "RZCHE",
+   "RZCHE3D",
+   "RZCHE5D",
+   "RZCHE10D",
+   "RZJME",
+   "RZJME3D",
+   "RZJME5D",
+   "RZJME10D",
+   "RQMCL3D",
+   "RQMCL5D",
+   "RQMCL10D",
+   "RQCHL",
+   "RQCHL3D",
+   "RQCHL5D",
+   "RQCHL10D",
+   "RQJMG",
+   "RQJMG3D",
+   "RQJMG5D",
+   "RQJMG10D",
+   "SPJ",
+   "ZDF",
+   "RCHANGE3DCP",
+   "RCHANGE5DCP",
+   "RCHANGE10DCP",
+   "KCB",
+   "TRADE_MARKET_CODE",
+   "TRADE_MARKET",
+   "FIN_BALANCE_GR",
+   "SECUCODE"
+  ],
+  "big": {
+   "1000": [
+    500,
+    2.2
+   ],
+   "5000": [
+    500,
+    2.3
+   ]
+  }
+ },
+ "survey": {
+  "err": "服务器繁忙"
+ },
+ "survey_tj": {
+  "err": "返回数据为空"
+ },
+ "dzjy": {
+  "count": 2882,
+  "cols": [
+   "SECUCODE",
+   "SECURITY_INNER_CODE",
+   "SECURITY_CODE",
+   "SECURITY_NAME_ABBR",
+   "SECURITY_TYPE",
+   "TRADE_DATE",
+   "DEAL_PRICE",
+   "PREMIUM_RATIO",
+   "DEAL_VOLUME",
+   "DEAL_AMT",
+   "BUYER_NAME",
+   "SELLER_NAME",
+   "SECURITY_TYPE_CODE",
+   "DAILY_RANK",
+   "CLOSE_PRICE",
+   "TRADE_UNIT",
+   "TURNOVER_RATE",
+   "CHANGE_RATE",
+   "CHANGE_RATE_1DAYS",
+   "CHANGE_RATE_5DAYS",
+   "BUYER_CODE",
+   "SELLER_CODE",
+   "PREMIUM_TURNOVER",
+   "DISCOUNT_TURNOVER",
+   "UNLIMITED_A_SHARES",
+   "TRADE_MARKET_OLD",
+   "SECURITY_TYPE_WEB",
+   "CHANGE_RATE_10DAYS",
+   "CHANGE_RATE_20DAYS",
+   "TRADE_MARKET_CODE",
+   "IS_SYSDATE",
+   "FREE_SHARES_RATIO",
+   "TOTAL_SHARES_RATIO",
+   "INDEX_CLOSE",
+   "PRE_CLOSE_PRICE",
+   "TOTAL_SHARES",
+   "DISCOUNT_RATIO",
+   "QUOTES_CODE"
+  ],
+  "big": {
+   "1000": [
+    1000,
+    3.0
+   ],
+   "5000": [
+    2882,
+    3.6
+   ]
+  }
+ },
+ "pledge": {
+  "count": 9442,
+  "cols": [
+   "SECUCODE",
+   "SECURITY_CODE",
+   "SECURITY_NAME_ABBR",
+   "TRADE_DATE",
+   "PLEDGE_RATIO",
+   "REPURCHASE_BALANCE",
+   "PLEDGE_DEAL_NUM",
+   "REPURCHASE_UNLIMITED_BALANCE",
+   "REPURCHASE_LIMITED_BALANCE",
+   "PLEDGE_MARKET_CAP",
+   "INDUSTRY",
+   "Y1_CLOSE_ADJCHRATE",
+   "INDUSTRY_CODE",
+   "PAYYEAR"
+  ],
+  "big": {
+   "1000": [
+    500,
+    1.8
+   ],
+   "5000": [
+    500,
+    2.2
+   ]
+  }
+ },
+ "gdhs_det": {
+  "count": 2120,
+  "cols": [
+   "SECURITY_CODE",
+   "SECUCODE",
+   "SECURITY_NAME_ABBR",
+   "HOLDER_NUM",
+   "PRE_HOLDER_NUM",
+   "HOLDER_NUM_CHANGE",
+   "HOLDER_NUM_RATIO",
+   "INTERVAL_CHRATE",
+   "END_DATE",
+   "PRE_END_DATE",
+   "PRE_E_DATE",
+   "AVG_MARKET_CAP",
+   "AVG_HOLD_NUM",
+   "TOTAL_MARKET_CAP",
+   "TOTAL_A_SHARES",
+   "HOLD_NOTICE_DATE",
+   "HOLD_N_DATE",
+   "CHANGE_SHARES",
+   "CHANGE_REASON",
+   "CLOSE_PRICE",
+   "TRADE_MARKET_CODE",
+   "ORG_CODE",
+   "REPORT"
+  ],
+  "big": {
+   "1000": [
+    500,
+    2.3
+   ],
+   "5000": [
+    500,
+    2.6
+   ]
+  }
+ }
+}

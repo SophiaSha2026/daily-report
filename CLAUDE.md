@@ -232,7 +232,8 @@ archive/breakout_experiments/  起涨预测实验 2~14 的旧脚本和产物（�
 docs/                    breakout_design.md（最初设计）、breakout_log.md（实验 1~21 全记录）、
                          breakout_plan_2026-10.md（稳定化计划和过线标准）、
                          github_survey_2026-10.md（开源量化仓库调研和可借鉴清单）、plan_2026-10-15.md（全面改进方案和拍板）、
-                         handoff_2026-10-16.md（最近一次交接：进度、待办、踩过的坑）
+                         handoff_2026-10-18.md（最近一次交接：进度、待办、修复清单、踩过的坑）、
+                         survey_precision_2026-10-18.md（精确率文献 / GitHub 调研）
 research/                研究脚本和报告（不进生产）：stats 统计复核、announce 公告诊断、altpath 换条路、
                          datasrc 数据源普查、features 特征深挖、ai_debate、leak 泄漏检验。大数据见 research/.gitignore
 tools/gui.cmd            控制台入口（桌面快捷方式指向它）

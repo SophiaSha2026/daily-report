@@ -1,0 +1,5 @@
+table.parquet
+scores/
+rows/
+*.log
+*.npy
