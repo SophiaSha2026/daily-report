@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-19-daily-4",
+ "date": "2026-10-19",
+ "status": "pending",
+ "created": "2026-10-19T16:53:33+08:00",
+ "type": "code",
+ "title": "规则清单的连续天数只数规则时代",
+ "detail": "src/breakout/daily.py 的 count_streak：读前几日 parquet 时一并读 rule 列（10-19 起才有），只把 rule==ret20 的日子算作连续；或者在 export.py 的 _rows_a_rule 表头旁注明「10-19 前的天数是模型清单」。不改 daily.py:1097 的排序键",
+ "expected_effect": "邮件里「N 天」这一列口径统一，过渡期不再把模型时代的连续天数印成规则的",
+ "risk": "如果改的是 count_streak，排序里 streak 的取值会跟着变（排序逻辑本身不变），这一点要用户知情；只加注释就没有风险",
+ "how_to_verify": "按 10-19 的数据重算，002343 应为 1 天（或者表头带上注释）；selftest_breakout 通过"
+}

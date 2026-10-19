@@ -1,0 +1,140 @@
+{
+ "kind": "daily",
+ "date": "2026-10-19",
+ "at": "2026-10-19T16:53:33+08:00",
+ "usd": 1.096,
+ "severity": "注意",
+ "summary": "2026-10-19 起涨预测正常发出（目标日对得上，非试跑，A 10 只 / B 4 只，16:51:16 发信，sent 标记和推送都在）。这一天的清单没有错，所以没有「严重」项。长期调整突破 17:40 才开跑，材料采集时间是 16:51，现在 run_meta 停在 10-16、sent 标记没有，都属于预期。要注意的是规则排序首跑暴露了三处口径接缝：(1) 规则模式下分数恒为 100 占位，10 只全部进了 A 池，688137 同时出现在清单 A 和清单 B；(2) 连续天数读的是 10-16 以前的模型清单；(3) score_stats 的 n_ok 从几十只跳到 4777，因为含义变了。漂移监控基线只有 6 天（不到 20 天），实际上还没开始判。真值方面，最近的清单都还没定（最多 11 根），基准全是空值，今天没法评估规则的成绩。",
+ "checked": [
+  "1 两条线 run_meta.date / dry / mail_sent / sent_marker",
+  "2 起涨预测 n_candidates/n_ok/rejected/short_excluded 对照 score_stats；refit_rejected、drift_note；模型年龄；update_status short",
+  "3 日志尾 WARNING/ERROR/超时/接手/推送；退出码 0 但没做事",
+  "4 清单 A 板块构成、连续天数分布",
+  "5 真值：最近清单是否已定、hit_rate_open、基准",
+  "6 推送状态、regime_10d 极端值",
+  "7 AI 用量警戒线",
+  "附：daily.py select_a / pool_step / count_streak / stats_row、validate.pick 规则模式分数、export 规则模式行渲染、score_stats 读取方"
+ ],
+ "findings": [
+  {
+   "severity": "正常",
+   "where": "out_breakout/run_meta.json、mail_sent.json、state/push_status.json",
+   "evidence": "run_meta.date=2026-10-19, dry=false；mail_sent.at=2026-10-19T16:51:16, n_a=10, n_b=4；sent_marker=true；push_status ok=true「sent: breakout 2026-10-19 [local]」16:51:19",
+   "why": "目标日、发信、标记、推送四件都齐，邮件里的只数和 run_meta 一致"
+  },
+  {
+   "severity": "注意",
+   "where": "out_pullback/run_meta.json（长期调整突破）",
+   "evidence": "run_meta.date=2026-10-16，sent_marker=false；材料采集时间 now=16:51:20，计划任务 17:40 起，17:58 发信；日志尾是 10-16 那次，退出码 0，A 0 / B 4，17:58:02 已发",
+   "why": "10-19 这次还没到开跑时刻，当前状态正常；但这份材料证明不了 10-19 能发出去",
+   "suggestion": "18:10 后确认 run_meta.date=2026-10-19，并且 state/sent/pullback_2026-10-19.json 存在"
+  },
+  {
+   "severity": "注意",
+   "where": "validate.py:108-109 → daily.py:729 pool_step（SCORE_B=SCORE_MIN=97）",
+   "evidence": "规则模式下 q=None，score 一律填 100.0；清单 A 的 10 只 score 全是 100.0，全部记进 A 池（pool=111）。688137 近岸蛋白同时在清单 A（ret20 +106.8%）和清单 B（best 100、drop -17.9%、streak 7）",
+   "why": "清单 B（可能见顶）的来源池从「模型 ≥97 分」悄悄变成了「近 20 日涨幅前 10」，B 的 best 字段从此没有意义。同一只票一边说冲高、一边说见顶，正是 build_list_b docstring 里说第一版要避免的情况。今天的 B 本身按规则算没错，但 B 的口径没人拍过板",
+   "suggestion": "交用户决定：规则模式下 A 池收谁、B 和 A 重叠时怎么处理"
+  },
+  {
+   "severity": "注意",
+   "where": "daily.py:896 count_streak / 1092；export.py:128-137 _rows_a_rule",
+   "evidence": "count_streak 读的是 breakout_<前几日>.parquet，10-16 及以前的都是模型清单。今天 002343 连续 4 天，002242、600241 各 3 天，605058、300006 各 2 天；n_streak3=3。规则模式的邮件照样印「N 天」",
+   "why": "规则首跑当天印出来的「连续上榜天数」，有一部分是模型时代的连续天数。两套口径混在一列里，要等这几只票断档、或者过 12 个交易日回看窗口之后才会干净",
+   "suggestion": "过渡期在邮件里标注，或者按 parquet 的 rule 列只数规则时代的天数（不动排序）"
+  },
+  {
+   "severity": "注意",
+   "where": "daily.py:1070 stats_row → state/breakout/score_stats.jsonl",
+   "evidence": "10-08~10-16 的 n_ok 是 42/10/37/12/38/51/12（模型够格且没被剔除）；10-19 的 n_ok=4777（规则候选 5384 剔除 607）。n_qualified 仍按模型记，是 16",
+   "why": "同一列前后含义不同。目前 src、tools、gui 里没有代码读 score_stats 的 n_ok（已 grep），drift_note 只看 n_qualified，所以今天没有输出受影响；但以后谁拿这列画图或者做监控，都会被这个台阶骗",
+   "suggestion": "规则模式把这个数写成另一个键"
+  },
+  {
+   "severity": "注意",
+   "where": "run_meta.drift_baseline_days；daily.py:931 drift_note",
+   "evidence": "drift_baseline_days=6，drift_note=\"\"；drift_note 在历史不到 20 天时直接返回空",
+   "why": "「没报漂移」不等于「判过了，没事」，漂移监控还要大约 14 个交易日才会真正起作用。模型 10-19 的够格数是 16 只，落在 10~62 的历史范围里，没有异常",
+   "suggestion": "20 天之前别把空的 drift_note 当成「没有漂移」"
+  },
+  {
+   "severity": "正常",
+   "where": "state/breakout/update_status.json；日志「补数据记账」行",
+   "evidence": "requested 5576，appended 5497；short 85 只 = filled 35 只（快照补了当天）+ 新股 50 只；missing 0；merge_check expected 5513 / target_rows 5513 / lost 0；short_excluded 0；覆盖 99.8%（前一日 99.9%）",
+   "why": "没拉到的全是新股，不计入上限，也没有票被静默丢掉。short 列表里还挂着 35 只 filled 的，是留给后续整段重拉的，和日志的说法一致"
+  },
+  {
+   "severity": "正常",
+   "where": "模型 / 重训验收",
+   "evidence": "model.fit_date=2026-10-07，12 天，不到 30 天；refit_rejected=false；日志「用已有模型（2026-10-07 训练，12 天前）」；refit_status.accepted=true（10-09）",
+   "why": "没到期就没重训，也没有该重训而没重训的情况"
+  },
+  {
+   "severity": "注意",
+   "where": "日志 STEP 2（build.py）",
+   "evidence": "「共同起点 2023-05-30 砍掉了 96 个交易日…要核一下是不是该跑 backfill --stage refresh」；训练表每天重建一次，用时 11.7 分钟（04:36~04:48 是 build.py 的本机时间，属于文档里写明的例外）",
+   "why": "不是错误，但这句提示每天都会印，没人处理就成了噪音；也只影响影子模型的特征表，不影响规则清单",
+   "suggestion": "什么时候跑 refresh 交给人定"
+  },
+  {
+   "severity": "正常",
+   "where": "日志尾整体",
+   "evidence": "没有 WARNING / ERROR / 超时 / 接手；fetch_quotes 请求 5384 返回 5384，请求 10 返回 10；股东人数 14/14 期，「失败 无」；STEP 3→4 依次完成；16:51:16 发信，16:51:19 推送",
+   "why": "没有「退出码 0 但没做事」的痕迹，产物日期也更新到了 10-19"
+  },
+  {
+   "severity": "正常",
+   "where": "list_a.json 板块 / 连续天数",
+   "evidence": "主板 5（002343、002242、600241、605058、601811），创业板 3（300006、301190、301560），科创板 2（688137、688004），北交所 0；连续天数 4:1 只、3:2 只、2:2 只、1:5 只；ret20 在 +62.9% 到 +208.3% 之间",
+   "why": "没有集中在一个板块"
+  },
+  {
+   "severity": "注意",
+   "where": "truth_recent_lists / truth_by / regime_10d",
+   "evidence": "12 份清单全部 final=false（09-24 最多 11 根，不到 20 根），hit_rate_open 全是空值；regime 10 天的 base20 全是空值；truth_by 那 n=50（命中 6，12%；科创 6/34，主板 0/13）是更早的模型清单。10-15 上涨家数占比 7.65%，中位涨幅 -3.04%，跌停 34 家；10-19 上涨占比 40.8%，跌停 27 家，成交额 14125 亿（5 日 -7.3%）；AI 用量 当月 16.42/100 美元，当日 0",
+   "why": "今天没有可用的真值和基准来评估规则的效果，最早要到 10-23 前后 09-24 那份清单才会定。10-15 是近 10 天的极端下跌日，10-19 跌停数偏高，但都不影响当天的流程。推送和 AI 用量正常"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "process",
+   "title": "18:10 补查长期调整突破 10-19",
+   "detail": "18:10 后确认三件：out_pullback/run_meta.json 的 date=2026-10-19 且 dry=false、mail_sent.json 日期对得上、state/sent/pullback_2026-10-19.json 存在。缺任何一个就看 tools/local_flow_pullback 的日志",
+   "expected_effect": "补上本次复盘没覆盖到的那条线",
+   "risk": "无",
+   "how_to_verify": "控制台首页长期调整突破那张卡片的目标日显示 10-19 已发"
+  },
+  {
+   "type": "process",
+   "title": "规则模式下 A 池 / 清单 B 的口径交用户拍板",
+   "detail": "validate.pick 在 q=None 时把分数填成 100，规则的前 10 名因此全部按 best=100 进了 A 池，清单 B 的来源随之变了，还出现了 A、B 重叠（688137）。拿两个选项问用户：A 池继续收规则票，还是只收模型影子 ≥97 分的票；A、B 重叠时 B 照列还是去掉。不动清单 A 的排序",
+   "expected_effect": "清单 B「可能见顶」的口径有人拍过板，邮件里不再一边说冲高一边说见顶",
+   "risk": "改 A 池来源之后，B 的历史可比性要从 10-19 起重新算",
+   "how_to_verify": "拍板后看 state/breakout/a_pool.json 新进条目的来源，以及 list_a 和 list_b 的代码交集"
+  },
+  {
+   "type": "code",
+   "title": "score_stats 在规则模式下把 n_ok 分开记",
+   "detail": "src/breakout/daily.py 第 1070 行 stats_row：RANK_RULE=ret20 时，把 n_ok 写成 n_ok_rule（或者写模型影子口径的 n_ok），让 n_ok 这列始终是「模型够格且没被剔除」。10-19 这一行手动更正或者打上标记",
+   "expected_effect": "score_stats.jsonl 每一列前后口径一致，以后画图或做监控不会碰到 42→4777 这种假台阶",
+   "risk": "很低，目前没有代码读 n_ok；要同步改 selftest_breakout 对 stats_row 的断言（如果有）",
+   "how_to_verify": "python src/selftest_breakout.py 断言失败 0 个；明天 score_stats 的 n_ok 回到几十只的量级"
+  },
+  {
+   "type": "code",
+   "title": "规则清单的连续天数只数规则时代",
+   "detail": "src/breakout/daily.py 的 count_streak：读前几日 parquet 时一并读 rule 列（10-19 起才有），只把 rule==ret20 的日子算作连续；或者在 export.py 的 _rows_a_rule 表头旁注明「10-19 前的天数是模型清单」。不改 daily.py:1097 的排序键",
+   "expected_effect": "邮件里「N 天」这一列口径统一，过渡期不再把模型时代的连续天数印成规则的",
+   "risk": "如果改的是 count_streak，排序里 streak 的取值会跟着变（排序逻辑本身不变），这一点要用户知情；只加注释就没有风险",
+   "how_to_verify": "按 10-19 的数据重算，002343 应为 1 天（或者表头带上注释）；selftest_breakout 通过"
+  },
+  {
+   "type": "process",
+   "title": "漂移监控满 20 天前不当作已判",
+   "detail": "drift_baseline_days 小于 20 时，控制台学习卡片和每日复盘都写成「漂移未判（基线 N 天）」，不要写成「无漂移」。按现在的进度，大约 11 月上旬满 20 个非试跑日",
+   "expected_effect": "避免把空的 drift_note 误读成模型稳定",
+   "risk": "无",
+   "how_to_verify": "run_meta.drift_baseline_days 达到 20 后，drift_note 才开始有可能非空"
+  }
+ ]
+}
