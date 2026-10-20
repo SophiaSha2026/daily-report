@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-20-daily-2",
+ "date": "2026-10-20",
+ "status": "pending",
+ "created": "2026-10-20T16:53:50+08:00",
+ "type": "code",
+ "title": "drift_note 区分「没判」和「没异常」，并跳过试跑行",
+ "detail": "src/breakout/daily.py 的 drift_note：取 past 时过滤掉 dry=true 的行；len(past)<20 时返回「漂移监控积累中 N/20 天」，不再返回空串。src/breakout/export.py 抬头照原样印这句。selftest_breakout 加两个用例：试跑行不算进基准、历史不够时有提示",
+ "expected_effect": "邮件抬头能看出漂移监控其实还没生效；满 20 天后的基准不混试跑数据",
+ "risk": "邮件抬头多一行字；要是 export 拿「非空」当「有异常」来上色，得一起改",
+ "how_to_verify": "python src/selftest_breakout.py 断言失败 0 个；明天邮件抬头出现「积累中 8/20 天」"
+}

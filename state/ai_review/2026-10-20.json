@@ -1,0 +1,120 @@
+{
+ "kind": "daily",
+ "date": "2026-10-20",
+ "at": "2026-10-20T16:53:50+08:00",
+ "usd": 0.828,
+ "severity": "注意",
+ "summary": "2026-10-20 起涨预测正常发出：目标日对得上，dry=false，16:52:09 发信，sent 标记已推送，日线 merge_check 丢 0 只，没有剔掉没补齐的票。长期调整突破 16:52 时还没到 17:40 开跑时刻，材料里是 10-19 那次（已发），当天的还没发生，不算缺发。没有「严重」项。「注意」4 条：清单 A 和 B 有 3 只重叠（688137 / 688004 / 301190）；漂移监控只有 7 天历史（要 20 天），实际没在判；score_stats 的 n_ok 从 10-19 起换了口径；真值样本全来自模型排序时期，规则排序的清单一份都还没定，买得到口径也没有基准可比。另外 10-15 是极端下跌日，不影响当天结果。",
+ "checked": [
+  "1 起涨预测 run_meta.date=2026-10-20=目标日，dry=false，mail_sent.at=16:52:09，sent_marker=true，push 16:52:13 ok",
+  "1 长期调整突破 run_meta.date=2026-10-19、sent_marker(10-20)=false：材料时刻 16:52 < 自动开跑 17:40，正常；10-19 那次 17:58:02 发出，exit=0",
+  "2 n_candidates 5393 / rejected 594（11.0%）/ n_ok 4799 / short_excluded 0 / n_qualified(模型≥97) 14，落在近 60 天 10~62 的区间里",
+  "2 refit_rejected=false；drift_note 为空，原因是历史只有 7 天、不满 20 天，不是判过没问题",
+  "2 model.fit_date 2026-10-07，13 天，小于 30；weighting=month；refit_status accepted",
+  "2 update_status：short 76 只 = 已用快照补的 26 只 + 新股 50 只，算上限的是 0；missing 0；merge_check expected=target_rows=5517 lost 0；covered 5517 / 前一日 5513",
+  "3 日志尾没有 ERROR / 超时 / 接手；四步都有产物；推送成功；build.py 的日志是美东时间 04:xx，属于教训 39 的例外",
+  "4 清单 A 板块：主板 5、科创 3、创业 2，没有集中；连续天数 5/4/4/3/2/2/2/2/2/1，n_streak3=4 和明细对得上",
+  "5 truth_recent_lists 09-28~10-20 都没定（bars 0~11 < 20），hit_rate_open 全是 null；truth_by 合计 60 只命中 7 只，11.7%",
+  "6 push_status ok；regime_10d 看了涨跌家数、涨跌停、成交额",
+  "7 AI 用量：当天 $0 / 0 次，本月 $17.52 / 26 次，警戒线 $10 / $100，没超"
+ ],
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "out_breakout/list_a.json 和 list_b.json；src/breakout/daily.py build_list_b（docstring 第 829 行）",
+   "evidence": "688137 近岸蛋白（A 里 ret20 0.697；B 里 rise 127.0 / drop -19.2）、688004 博汇科技（A 0.630；B 56.1 / -13.0）、301190 善水科技（A 1.318；B 79.7 / -18.9）同时在 A 和 B。docstring 原文：「第一版漏了前两条，结果 A 池刚建立当天，5 只票同时出现在 A 和 B 上，一边说『接近起涨』一边说『见顶』」",
+   "why": "10-19 换成 ret20 规则后，从高点回落 8~20% 的票只要 20 日涨幅还在前 10，照样进 A。同一封邮件里 10 只有 3 只同时被标成「起涨」和「见顶」，正是 docstring 当成 bug 修过的情况。代码按现在的定义执行没出错，所以不判严重",
+   "suggestion": "让用户定：重叠的票是在邮件里标出来，还是只算 B。不动 A 的排序"
+  },
+  {
+   "severity": "注意",
+   "where": "src/breakout/daily.py drift_note；state/breakout/score_stats.jsonl",
+   "evidence": "run_meta.drift_baseline_days=7；drift_note 里 `if len(past) < 20: return \"\"`",
+   "why": "邮件抬头漂移那一栏是空的，看着像没异常，其实是没判。按现在每天 1 行的速度，要到 11 月中旬才满 20 天",
+   "suggestion": "历史不够时返回一句「漂移监控积累中 7/20 天」，和「没异常」分开"
+  },
+  {
+   "severity": "注意",
+   "where": "state/breakout/score_stats.jsonl 的 n_ok 列",
+   "evidence": "10-08~10-16 的 n_ok 是 42/10/37/12/38/51/12；10-19 起是 4777、4799",
+   "why": "同一个字段名在 10-19 前后意思不同：以前是够格后剔完风险剩下的只数，现在是候选池剔完风险剩下的只数，差了两个数量级。drift_note 现在只读 n_qualified，所以当天结果没错，但以后谁拿 n_ok 画图或做监控就会误判（教训 34 同类）",
+   "suggestion": "规则排序时改个字段名（比如 n_ok_pool）记下来，或者在行里加 rule 字段"
+  },
+  {
+   "severity": "注意",
+   "where": "state/breakout/score_stats.jsonl 第 2026-10-09 行",
+   "evidence": "{\"date\": \"2026-10-09\", ..., \"dry\": true}",
+   "why": "record_score_stats 按日期覆盖，试跑的行也会留下；drift_note 的 past 不按 dry 过滤，以后满 20 天开始判时，试跑的数会混进基准",
+   "suggestion": "drift_note 取 past 时跳过 dry=true 的行"
+  },
+  {
+   "severity": "注意",
+   "where": "truth_by / truth_recent_lists（第 5 项）",
+   "evidence": "truth_by.all n=60 hits=7 11.7%，其中科创板 40 只命中 7，主板 15 只命中 0；truth_recent_lists 09-28~10-20 都是 final=false，hit_rate_open 和 base_open_final 全是 null；regime 的 base20 全是 null",
+   "why": "已定的 60 只全来自模型排序时期，ret20 规则的清单（10-19 起）最早也要到 11 月中旬才定。现在既没有买得到口径的命中率，也没有同期基准，第 5 项核不了",
+   "suggestion": "truth_by 按 run_meta.rule 拆开统计，模型时期的成绩别算到规则头上"
+  },
+  {
+   "severity": "注意",
+   "where": "state/regime_daily.jsonl 2026-10-15",
+   "evidence": "adv_share 0.0765，ret_median_pct -3.038，limit_down 34（10 天里最多），limit_up 36；10-20 反弹，adv 0.677，中位数 +0.96%",
+   "why": "近 10 天里只有这一天是极端下跌，以后那几天的清单真值会受影响，当天结果没错",
+   "suggestion": ""
+  },
+  {
+   "severity": "注意",
+   "where": "local_flow_breakout 日志（build.py）",
+   "evidence": "「共同起点 2023-05-30 砍掉了 96 个交易日……砍得这么多要核一下是不是该跑 backfill --stage refresh 把起点对齐」",
+   "why": "这是代码自己写的提示，每天重建特征表都会出现，不影响当天清单；一直不处理的话，等于这条提示没人看",
+   "suggestion": "确认 96 天是早已知道、可以接受的，就降成 INFO 或写进文档；否则安排跑一次 refresh"
+  },
+  {
+   "severity": "正常",
+   "where": "update_status.json / 日志 STEP 2",
+   "evidence": "requested 5576 / appended 5500 / filled 26 / newcodes 50 / missing 0 / merge_check lost 0；「整段重拉没拉到目标日 50 只（其中新股 50 只）」",
+   "why": "没补齐的 50 只全是新股，不算上限，short_excluded=0，清单没受影响。这 50 只和 10-19 是同一批，属于常态",
+   "suggestion": ""
+  },
+  {
+   "severity": "正常",
+   "where": "out_breakout/run_meta.json + 日志 STEP 3/4",
+   "evidence": "「候选 5393 只，剔除 594 只后 4799 只，取近 20 日涨幅前 10 -> 清单 A 10 只」「模型影子清单 10 只（>=97 分 14 只）」「邮件已发出：起涨预测 2026-10-20：A 10 只 / B 6 只」「已推送」",
+   "why": "日志、run_meta 和 mail_sent 三处的 n_a=10、n_b=6 一致；影子清单已落盘（shadow_model_2026-10-20.parquet，未提交，和往常一样）",
+   "suggestion": ""
+  }
+ ],
+ "proposals": [
+  {
+   "type": "process",
+   "title": "A/B 重叠交给用户拍板",
+   "detail": "把今天 3 只重叠的明细（A 里的 ret20、B 里的 rise / drop / first）列给用户，请用户在两种做法里选一种：邮件里标出重叠的票，或者重叠的只算 B。用 AskUserQuestion 问，不自动改",
+   "expected_effect": "邮件不再对同一只票同时说「起涨」和「见顶」，或者用户明确知道这是有意的",
+   "risk": "要是选「只算 B」，清单 A 有的日子会不满 10 只",
+   "how_to_verify": "之后 5 个交易日里，看 A 和 B 的代码有没有交集"
+  },
+  {
+   "type": "code",
+   "title": "drift_note 区分「没判」和「没异常」，并跳过试跑行",
+   "detail": "src/breakout/daily.py 的 drift_note：取 past 时过滤掉 dry=true 的行；len(past)<20 时返回「漂移监控积累中 N/20 天」，不再返回空串。src/breakout/export.py 抬头照原样印这句。selftest_breakout 加两个用例：试跑行不算进基准、历史不够时有提示",
+   "expected_effect": "邮件抬头能看出漂移监控其实还没生效；满 20 天后的基准不混试跑数据",
+   "risk": "邮件抬头多一行字；要是 export 拿「非空」当「有异常」来上色，得一起改",
+   "how_to_verify": "python src/selftest_breakout.py 断言失败 0 个；明天邮件抬头出现「积累中 8/20 天」"
+  },
+  {
+   "type": "code",
+   "title": "score_stats 记下排序口径",
+   "detail": "src/breakout/daily.py stage_scan 写 stats_row 时加上 rule=RANK_RULE；规则排序时把候选池剔完风险的只数记成 n_ok_pool，不再塞进 n_ok",
+   "expected_effect": "10-19 前后的 n_ok 不会被当成同一个量拿来比",
+   "risk": "读 n_ok 的地方（控制台学习卡片、ai_review 材料）要一起对一遍",
+   "how_to_verify": "grep n_ok 找出所有读它的地方；跑三条自测 + pyflakes"
+  },
+  {
+   "type": "process",
+   "title": "真值按规则分开统计",
+   "detail": "每日复盘材料里的 truth_by 按 run_meta.rule 拆成 model / ret20 两组；ret20 那组在第一份清单定下来之前（10-19 起往后 20 根，约 11 月中旬）明确标「未定」",
+   "expected_effect": "规则排序的实际成绩不会被模型时期的 11.7% 代替",
+   "risk": "ret20 那组头几周样本很少，置信区间很宽",
+   "how_to_verify": "等 10-19 的清单定了，复盘材料里出现 rule=ret20、n=10 的那一组"
+  }
+ ]
+}

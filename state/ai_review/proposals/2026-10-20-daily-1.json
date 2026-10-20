@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-20-daily-1",
+ "date": "2026-10-20",
+ "status": "pending",
+ "created": "2026-10-20T16:53:50+08:00",
+ "type": "process",
+ "title": "A/B 重叠交给用户拍板",
+ "detail": "把今天 3 只重叠的明细（A 里的 ret20、B 里的 rise / drop / first）列给用户，请用户在两种做法里选一种：邮件里标出重叠的票，或者重叠的只算 B。用 AskUserQuestion 问，不自动改",
+ "expected_effect": "邮件不再对同一只票同时说「起涨」和「见顶」，或者用户明确知道这是有意的",
+ "risk": "要是选「只算 B」，清单 A 有的日子会不满 10 只",
+ "how_to_verify": "之后 5 个交易日里，看 A 和 B 的代码有没有交集"
+}

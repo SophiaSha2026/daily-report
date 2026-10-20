@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-20-daily-4",
+ "date": "2026-10-20",
+ "status": "pending",
+ "created": "2026-10-20T16:53:50+08:00",
+ "type": "process",
+ "title": "真值按规则分开统计",
+ "detail": "每日复盘材料里的 truth_by 按 run_meta.rule 拆成 model / ret20 两组；ret20 那组在第一份清单定下来之前（10-19 起往后 20 根，约 11 月中旬）明确标「未定」",
+ "expected_effect": "规则排序的实际成绩不会被模型时期的 11.7% 代替",
+ "risk": "ret20 那组头几周样本很少，置信区间很宽",
+ "how_to_verify": "等 10-19 的清单定了，复盘材料里出现 rule=ret20、n=10 的那一组"
+}

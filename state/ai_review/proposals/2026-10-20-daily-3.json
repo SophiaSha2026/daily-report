@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-20-daily-3",
+ "date": "2026-10-20",
+ "status": "pending",
+ "created": "2026-10-20T16:53:50+08:00",
+ "type": "code",
+ "title": "score_stats 记下排序口径",
+ "detail": "src/breakout/daily.py stage_scan 写 stats_row 时加上 rule=RANK_RULE；规则排序时把候选池剔完风险的只数记成 n_ok_pool，不再塞进 n_ok",
+ "expected_effect": "10-19 前后的 n_ok 不会被当成同一个量拿来比",
+ "risk": "读 n_ok 的地方（控制台学习卡片、ai_review 材料）要一起对一遍",
+ "how_to_verify": "grep n_ok 找出所有读它的地方；跑三条自测 + pyflakes"
+}
