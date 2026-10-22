@@ -5,20 +5,20 @@
     "best":97.0,
     "days":1,
     "streak":1,
-    "close":24.55,
+    "close":24.46,
     "rise":34.8,
-    "drop":-16.1,
+    "drop":-16.4,
     "first":"2026-09-07"
   },
   {
     "code":"688137",
     "name":"近岸蛋白",
     "best":100.0,
-    "days":13,
+    "days":14,
     "streak":7,
-    "close":130.31,
+    "close":133.5,
     "rise":127.0,
-    "drop":-19.2,
+    "drop":-17.2,
     "first":"2026-09-08"
   },
   {
@@ -27,9 +27,9 @@
     "best":98.0,
     "days":3,
     "streak":3,
-    "close":42.21,
+    "close":40.42,
     "rise":31.1,
-    "drop":-9.1,
+    "drop":-13.0,
     "first":"2026-09-11"
   },
   {
@@ -38,31 +38,20 @@
     "best":100.0,
     "days":6,
     "streak":3,
-    "close":37.19,
+    "close":38.81,
     "rise":56.1,
-    "drop":-13.0,
-    "first":"2026-09-15"
-  },
-  {
-    "code":"603657",
-    "name":"春光科技",
-    "best":98.0,
-    "days":5,
-    "streak":4,
-    "close":32.74,
-    "rise":21.2,
-    "drop":-17.1,
+    "drop":-9.2,
     "first":"2026-09-15"
   },
   {
     "code":"301190",
     "name":"善水科技",
     "best":100.0,
-    "days":5,
-    "streak":2,
-    "close":43.61,
+    "days":6,
+    "streak":3,
+    "close":45.01,
     "rise":79.7,
-    "drop":-18.9,
+    "drop":-16.3,
     "first":"2026-09-29"
   }
 ]

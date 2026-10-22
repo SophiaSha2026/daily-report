@@ -3,90 +3,90 @@
     "code":"002343",
     "name":"慈文传媒",
     "score":100.0,
-    "ret20":0.8045774648,
-    "streak":5,
-    "close":10.25,
+    "ret20":0.9216757741,
+    "streak":6,
+    "close":10.55,
     "board":"main"
   },
   {
     "code":"002242",
     "name":"九阳股份",
     "score":100.0,
-    "ret20":1.1918976546,
-    "streak":4,
-    "close":20.56,
+    "ret20":1.3961864407,
+    "streak":5,
+    "close":22.62,
     "board":"main"
   },
   {
     "code":"600241",
     "name":"时代万恒",
     "score":100.0,
-    "ret20":0.8555858311,
-    "streak":4,
-    "close":13.62,
-    "board":"main"
-  },
-  {
-    "code":"605058",
-    "name":"澳弘电子",
-    "score":100.0,
-    "ret20":0.9306768559,
-    "streak":3,
-    "close":70.74,
+    "ret20":0.7340876945,
+    "streak":5,
+    "close":12.26,
     "board":"main"
   },
   {
     "code":"301190",
     "name":"善水科技",
     "score":100.0,
-    "ret20":1.3184476342,
-    "streak":2,
-    "close":43.61,
+    "ret20":1.4730769231,
+    "streak":3,
+    "close":45.01,
     "board":"chinext"
   },
   {
     "code":"601811",
     "name":"新华文轩",
     "score":100.0,
-    "ret20":0.9110556941,
-    "streak":2,
-    "close":22.99,
+    "ret20":0.9168787108,
+    "streak":3,
+    "close":22.6,
     "board":"main"
   },
   {
     "code":"688137",
     "name":"近岸蛋白",
     "score":100.0,
-    "ret20":0.6967447917,
-    "streak":2,
-    "close":130.31,
-    "board":"star"
-  },
-  {
-    "code":"301560",
-    "name":"众捷股份",
-    "score":100.0,
-    "ret20":0.6641953772,
-    "streak":2,
-    "close":38.16,
-    "board":"chinext"
-  },
-  {
-    "code":"688004",
-    "name":"博汇科技",
-    "score":100.0,
-    "ret20":0.62971078,
-    "streak":2,
-    "close":37.19,
+    "ret20":0.7315175097,
+    "streak":3,
+    "close":133.5,
     "board":"star"
   },
   {
     "code":"688175",
     "name":"高凌信息",
     "score":100.0,
-    "ret20":0.7995337995,
-    "streak":1,
-    "close":30.88,
+    "ret20":0.857398568,
+    "streak":2,
+    "close":31.13,
     "board":"star"
+  },
+  {
+    "code":"300006",
+    "name":"莱美药业",
+    "score":100.0,
+    "ret20":0.8343195266,
+    "streak":1,
+    "close":9.3,
+    "board":"chinext"
+  },
+  {
+    "code":"301313",
+    "name":"凡拓数创",
+    "score":100.0,
+    "ret20":0.7653026716,
+    "streak":1,
+    "close":52.2,
+    "board":"chinext"
+  },
+  {
+    "code":"002811",
+    "name":"郑中设计",
+    "score":100.0,
+    "ret20":0.741888969,
+    "streak":1,
+    "close":24.16,
+    "board":"main"
   }
 ]
