@@ -3,90 +3,90 @@
     "code":"002343",
     "name":"慈文传媒",
     "score":100.0,
-    "ret20":0.9216757741,
-    "streak":6,
-    "close":10.55,
+    "ret20":0.7837837838,
+    "streak":7,
+    "close":9.9,
     "board":"main"
   },
   {
     "code":"002242",
     "name":"九阳股份",
     "score":100.0,
-    "ret20":1.3961864407,
-    "streak":5,
-    "close":22.62,
-    "board":"main"
-  },
-  {
-    "code":"600241",
-    "name":"时代万恒",
-    "score":100.0,
-    "ret20":0.7340876945,
-    "streak":5,
-    "close":12.26,
+    "ret20":1.3369214209,
+    "streak":6,
+    "close":21.71,
     "board":"main"
   },
   {
     "code":"301190",
     "name":"善水科技",
     "score":100.0,
-    "ret20":1.4730769231,
-    "streak":3,
-    "close":45.01,
+    "ret20":1.0422535211,
+    "streak":4,
+    "close":37.7,
     "board":"chinext"
   },
   {
     "code":"601811",
     "name":"新华文轩",
     "score":100.0,
-    "ret20":0.9168787108,
-    "streak":3,
-    "close":22.6,
+    "ret20":0.7717842324,
+    "streak":4,
+    "close":21.35,
     "board":"main"
-  },
-  {
-    "code":"688137",
-    "name":"近岸蛋白",
-    "score":100.0,
-    "ret20":0.7315175097,
-    "streak":3,
-    "close":133.5,
-    "board":"star"
-  },
-  {
-    "code":"688175",
-    "name":"高凌信息",
-    "score":100.0,
-    "ret20":0.857398568,
-    "streak":2,
-    "close":31.13,
-    "board":"star"
-  },
-  {
-    "code":"300006",
-    "name":"莱美药业",
-    "score":100.0,
-    "ret20":0.8343195266,
-    "streak":1,
-    "close":9.3,
-    "board":"chinext"
   },
   {
     "code":"301313",
     "name":"凡拓数创",
     "score":100.0,
-    "ret20":0.7653026716,
-    "streak":1,
-    "close":52.2,
+    "ret20":0.7140944091,
+    "streak":2,
+    "close":51.2,
     "board":"chinext"
   },
   {
     "code":"002811",
     "name":"郑中设计",
     "score":100.0,
-    "ret20":0.741888969,
+    "ret20":0.6872005476,
+    "streak":2,
+    "close":24.65,
+    "board":"main"
+  },
+  {
+    "code":"000530",
+    "name":"冰山冷热",
+    "score":100.0,
+    "ret20":0.8717948718,
     "streak":1,
-    "close":24.16,
+    "close":9.49,
+    "board":"main"
+  },
+  {
+    "code":"301560",
+    "name":"众捷股份",
+    "score":100.0,
+    "ret20":0.6993783304,
+    "streak":1,
+    "close":38.27,
+    "board":"chinext"
+  },
+  {
+    "code":"002164",
+    "name":"宁波东力",
+    "score":100.0,
+    "ret20":0.6290480864,
+    "streak":1,
+    "close":16.6,
+    "board":"main"
+  },
+  {
+    "code":"603278",
+    "name":"大业股份",
+    "score":100.0,
+    "ret20":0.6194196429,
+    "streak":1,
+    "close":14.51,
     "board":"main"
   }
 ]
