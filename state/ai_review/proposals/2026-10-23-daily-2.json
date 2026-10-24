@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-23-daily-2",
+ "date": "2026-10-23",
+ "status": "pending",
+ "created": "2026-10-24T22:10:10+08:00",
+ "type": "code",
+ "title": "发信失败只重试发信那一步，不受 08:30 截止挡",
+ "detail": "改 src/local_run.py 的 if_needed_skip：目标日产物齐全（run_meta 日期对、dry=false）而 mail_sent.json 缺失时，即使已经过了开跑窗口，也允许走一次只发信的路径（stage_send），直到下一个目标日开跑为止。mailer._send 对连接超时加 2 次间隔 60 秒的重试。",
+ "expected_effect": "10-22、10-23 早上那种 08:2x 网络断一下就整天发不出的情况，等网络恢复后的下一次触发就能补发。",
+ "risk": "补发的清单可能是第二天开盘以后才收到，抬头要写「补发于」；如果判据写错会重复发信，必须用 sent 标记兜住。",
+ "how_to_verify": "selftest_gui 加用例：产物在、mail_sent 缺、时刻 09:00 -> 不跳过且只调 send；mail_sent 在 -> 跳过。"
+}

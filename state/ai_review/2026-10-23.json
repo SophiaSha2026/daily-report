@@ -1,0 +1,137 @@
+{
+ "kind": "daily",
+ "date": "2026-10-23",
+ "at": "2026-10-24T22:10:10+08:00",
+ "usd": 1.444,
+ "severity": "严重",
+ "summary": "10-23 这次运行本身没问题：两条线 run_meta.date=2026-10-23、dry=false，mail_sent 和 sent 标记都在。起涨预测清单 A 10 只、B 4 只，长期调整突破 A 0 只、B 0 只（形态成立 2 只，都按减持 / 定增剔掉）。问题是发晚了：10-24 21:42 和 22:05 才发出，比「最晚次日 08:30」晚了约 37 小时。本机日志 10-23 09:31 到 10-24 21:37 之间一条记录都没有。判「严重」不是因为今天这次，而是翻日志时发现：前两个交易日 10-21、10-22 两条线都没有 sent 标记。起涨预测那两次都是 SMTP 连接超时（WinError 10060），退出码 1；失败时已经过了 08:30，之后的触发都按「不在开跑窗口」跳过，目标日又往前走到了 10-23。所以这两天的清单至今没发出去，自动流程也不会再补。",
+ "checked": [
+  "1 两条线 run_meta.date / dry / mail_sent / sent 标记",
+  "1b 发信时刻和开跑窗口、本机日志里没有记录的时段、云端提醒标记",
+  "1c 前几个目标日的 sent 标记（state/sent、state/alert）",
+  "2 n_qualified / n_ok / rejected / short_excluded 对照 score_stats",
+  "2b refit_rejected / drift_note / 模型年龄 / update_status.short / merge_check",
+  "3 日志尾 WARNING / Traceback / 跳过 / 推送；产物提交顺序",
+  "4 清单 A 板块构成和连续天数分布",
+  "5 近期清单真值、truth_by 分档",
+  "6 push_status、regime_10d",
+  "7 AI 用量"
+ ],
+ "findings": [
+  {
+   "severity": "严重",
+   "where": "state/sent/、tools/local_flow_breakout.log（10-22 08:39、10-23 08:21 两次运行）、src/local_run.py 开跑窗口闸门",
+   "evidence": "state/sent 下 10-2x 只有 breakout_2026-10-20、breakout_2026-10-23、pullback_2026-10-20、pullback_2026-10-23，10-21、10-22 两条线都没有。日志第 3957 行：TimeoutError [WinError 10060] -> 「[2026-10-22T08:39:08] exit=1」；第 4071 行：同样的 TimeoutError -> 「08:21:26 推送失败 … 退出码 1」。紧接着「08:31:13 起涨预测：不在开跑窗口 16:00-08:30（北京），现在 08:31，跳过」。state/alert 下 breakout_2026-10-22 / 10-23 的 why 都是 not_run、last 都是 2026-10-21",
+   "why": "10-21、10-22 的清单 A/B 已经算出来、也落了盘（truth_recent_lists 里两份都是 n=10），但邮件一直没发出去。失败发生在 08:30 截止前后，SMTP 和 git 推送同一时刻都失败，像是断网或机器正要睡眠。重试被开跑窗口挡住，目标日前移以后 --if-needed 只看最新目标日，这两天永远不会自动补发。云端提醒按 not_run 发了，但提醒说的是「没跑」，实际是跑完了、只差发信。",
+   "suggestion": "要不要补发 10-21 / 10-22 由你定（tools/resend_breakout.py，长期调整突破那两天也没有 sent 标记）。不过这两份清单已经过期两三个交易日，只适合留档。"
+  },
+  {
+   "severity": "注意",
+   "where": "out_breakout/mail_sent.json、out_pullback/mail_sent.json、tools/local_flow_*.log",
+   "evidence": "长期调整突破 mail_sent.at=2026-10-24T21:42:58+08:00，起涨预测 22:05:45；目标日 2026-10-23（周五）。日志里 [2026-10-23T09:31:25] 之后下一条就是 [2026-10-24T21:37:27] === run_local breakout ===。云端 alert breakout/pullback_2026-10-23 在 2026-10-23T20:46:28 发出",
+   "why": "清单内容和日期都对（10-24 是周六，没有新 K 线），但比文档写的「最晚次日 08:30」晚了约 37 小时。周五 16:30 起一次计划任务都没敲进来，说明机器整段离线或在睡眠。连同上一条，这是连续第三个目标日在美东傍晚到早上这段才开跑。"
+  },
+  {
+   "severity": "注意",
+   "where": "src/breakout/daily.py:933-939 drift_note；state/breakout/score_stats.jsonl",
+   "evidence": "run_meta.drift_baseline_days=10，score_stats_60d 只有 12 行（从 10-08 起）。10-22 n_qualified=372、top10_p_mean=0.471，前 11 天 n_qualified 在 10~62 之间；10-23 的 drift_note 为空。selftest_breakout:1539 写着「历史不足 20 天不判」",
+   "why": "10-22 模型 ≥97 分的票是平时的 6 倍以上，漂移告警却因为基线不满 20 天根本没判，要到 11 月初才开始工作。另外 10-19 起 n_ok 的含义变了（42~51 -> 4777~4820，规则口径），10-09 那行 dry=true 也留在表里，以后算基线会混进两种口径。今天影子模型不进邮件，所以清单不受影响。"
+  },
+  {
+   "severity": "注意",
+   "where": "src/breakout/truth.py:245 _breakdowns 连续档分组",
+   "evidence": "标签是 f\"连续≥{min(streak,5)}天\"，实际按连续天数分互斥档。truth_by.streak：连续≥2天 n=17 命中 1，≥3天 n=8 命中 1，≥4天 n=4 命中 1，≥5天 n=4 命中 3，首日 56 命中 5；n 加起来 89、命中加起来 11，正好等于 all 的 n=89、hits=11",
+   "why": "如果真是「≥」，≥4 天就该包含 ≥5 天，命中不可能是 1 < 3。实际「连续≥2天」只是「正好 2 天」，标签和口径对不上，凡是读这张表的地方都会误读成累计档。不影响当天清单。"
+  },
+  {
+   "severity": "注意",
+   "where": "truth_recent_lists / truth_by",
+   "evidence": "10-08~10-23 共 12 份清单 bars 在 0~11 之间，全部 final=false，hit_rate_open 全是 null；truth_by 只有 hit_rate（n=89，12.4%，95% 区间 7.0%~20.8%），没有买得到口径；regime 10 天的 base20 全是 null",
+   "why": "近期没有已经满 20 根的清单，买得到口径和同期基准都比不了。10-19 起换成 20 日涨幅规则，规则清单最早要到 11 月中旬才有真值，现在的 89 个名额全是模型时期的。"
+  },
+  {
+   "severity": "注意",
+   "where": "local_flow_breakout.log STEP 2 建特征表",
+   "evidence": "「共同起点 2023-05-30 砍掉了 96 个交易日（全期最大 5528 只，起点当天 5039 只）。砍得这么多要核一下是不是该跑 backfill --stage refresh」",
+   "why": "每天都会打这行提示，影响的是训练表从哪天起算；今天没有重训，对打分和清单没有影响。等模型 11-06 前后到期重训时会用到。"
+  },
+  {
+   "severity": "正常",
+   "where": "out_breakout/run_meta.json、update_status.json",
+   "evidence": "n_candidates 5393 - rejected 573 = n_ok 4820（前四天 4777/4799/4786/4800）；剔除率 10.6%，10-22 是 586/5386。n_qualified=null 是规则模式下的设计（daily.py:1141），score_stats 和日志里是 17（「>=97 分 17 只」）。short 47 只全是新股（new_codes 48 只，920238 已补上），short_excluded=0，missing=0，merge_check lost=0，目标日 5521 行",
+   "why": "数字自洽，没有补数据缺口。"
+  },
+  {
+   "severity": "正常",
+   "where": "model / refit_status",
+   "evidence": "fit_date 2026-10-07，距今 17 天（上限 30）；日志「用已有模型（2026-10-07 训练，17 天前，50 个特征）」；refit_rejected=false，refit_status.accepted=true（10-09）",
+   "why": "今天不该重训，也确实没重训。11-06 前后到期。"
+  },
+  {
+   "severity": "正常",
+   "where": "list_a 板块 / 连续天数",
+   "evidence": "主板 7 只（002343 002242 601811 000530 603278 002164 002724）、创业板 3 只（301190 301313 301560）、科创板和北交所 0 只；连续天数 8,7,5,5,3,2,2,2,2,1，n_streak3=5 和这个分布对得上；20 日涨幅 61.8%~125.4%",
+   "why": "没有集中在单一板块。"
+  },
+  {
+   "severity": "正常",
+   "where": "out_pullback/run_meta.json",
+   "evidence": "全市场 5521 只，倍量大阳线 92 只，二次进攻 0 只；清单 B 形态成立 2 只全部剔除：688626 定增竞价没定价，920247 10-09 减持预披露；三年同口径 54 次 / 764 天，每月 1.48 次；B 走到 A 66/1161=5.7%。21:58:07 再次触发时「目标日 2026-10-23 已经跑完，跳过」",
+   "why": "空榜在这条线是常态，判据和剔除原因都写明了；跑过就不再跑的判定生效。"
+  },
+  {
+   "severity": "正常",
+   "where": "git 提交顺序 / push_status",
+   "evidence": "push_status ok=true「sent: breakout 2026-10-23」；工作区 out_breakout/* 改了、breakout_2026-10-23.parquet 还没进库。local_run.py:1563-1571 是先 ai_review 再 push_all(\"起涨预测 {d}\")",
+   "why": "起涨预测的产物要等这次复盘结束才提交，Pages 面板也是那时才更新，属于正常顺序。复盘结束后应该能在 git log 里看到「起涨预测 2026-10-23 [local]」。"
+  },
+  {
+   "severity": "正常",
+   "where": "regime_10d / ai_usage",
+   "evidence": "10-23：上涨占比 0.812，涨停 82、跌停 11，成交 19273 亿（5 日均 15408 亿，+25.4%），中位涨幅 +1.55%；前一天 10-22 上涨占比 0.0949、跌停 64。AI 本月 18.35/100 美元，今天 0",
+   "why": "10-23 是急跌后的放量普涨，10 天里成交最大，但还在正常波动范围内；AI 用量没碰警戒线。"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "code",
+   "title": "前一目标日发信失败时，下一次运行把它印出来",
+   "detail": "改 src/local_run.py：flow_breakout / flow_pullback 进场时，检查最近 N 个交易日里「有 run_meta 或当天清单 parquet、但没有 state/sent/<线>_<日>.json」的日子，写进 run_meta（例如 unsent_days），export.py 和 pullback_export.py 的邮件抬头印一行「10-21、10-22 清单没发出（SMTP 超时）」。控制台首页的卡片读同一个字段。不自动补发。",
+   "expected_effect": "这次两天没发要翻日志才看得到；改完以后第二天的邮件抬头和控制台就能直接看到。",
+   "risk": "改的是编排层，要跑 selftest_gui 和 e2e_check；补登口径要排除 START 之前的日子（教训 38）。",
+   "how_to_verify": "e2e 里造一个有 run_meta、没有 sent 标记的前一日，看 run_meta 和邮件 HTML 里有没有这一行。"
+  },
+  {
+   "type": "code",
+   "title": "发信失败只重试发信那一步，不受 08:30 截止挡",
+   "detail": "改 src/local_run.py 的 if_needed_skip：目标日产物齐全（run_meta 日期对、dry=false）而 mail_sent.json 缺失时，即使已经过了开跑窗口，也允许走一次只发信的路径（stage_send），直到下一个目标日开跑为止。mailer._send 对连接超时加 2 次间隔 60 秒的重试。",
+   "expected_effect": "10-22、10-23 早上那种 08:2x 网络断一下就整天发不出的情况，等网络恢复后的下一次触发就能补发。",
+   "risk": "补发的清单可能是第二天开盘以后才收到，抬头要写「补发于」；如果判据写错会重复发信，必须用 sent 标记兜住。",
+   "how_to_verify": "selftest_gui 加用例：产物在、mail_sent 缺、时刻 09:00 -> 不跳过且只调 send；mail_sent 在 -> 跳过。"
+  },
+  {
+   "type": "process",
+   "title": "核查本机唤醒，让开跑提前",
+   "detail": "最近三个目标日实际开跑都在北京 07:55、08:13 前后和次日 21:37（美东傍晚 / 早上），16:30 起的计划任务一次都没敲进来。核对 tools/setup_tasks.ps1 的任务有没有勾「唤醒计算机运行」，以及电源选项里「允许唤醒定时器」是否开启、插电状态下会不会睡眠。",
+   "expected_effect": "让运行回到北京 16:30~18:00，离 08:30 截止留出十几个小时的重试余量。",
+   "risk": "笔记本合盖或没插电时唤醒可能无效，解决不了不开机的情况。",
+   "how_to_verify": "下一个交易日看日志里第一条 run_local breakout 的时间是不是在北京 16:30 前后。"
+  },
+  {
+   "type": "code",
+   "title": "truth.py 连续档的标签改成互斥写法",
+   "detail": "src/breakout/truth.py:245 的分组标签改成「连续2天 / 连续3天 / 连续4天 / 连续≥5天 / 首日」，和实际的互斥分组一致；查一遍 gui 和 export 里有没有按「连续≥」解析这个 truth_by 的地方（gui/learn.py:59、gui/status.py:495 解析的是 W5 成绩表，不是这张，要确认清楚）。",
+   "expected_effect": "避免把「正好 2 天 1/17」读成「至少 2 天」。",
+   "risk": "如果别处按旧标签字符串匹配会断，改完要跑 selftest_breakout。",
+   "how_to_verify": "改完以后 truth_by.streak 各档 n 加起来还是等于 all.n，标签不再出现「≥2/≥3/≥4」。"
+  },
+  {
+   "type": "process",
+   "title": "漂移告警的基线不满 20 天时人工盯",
+   "detail": "score_stats 从 10-08 才开始，drift_note 要满 20 天才判，到 11 月初之前不会响。这段时间每日复盘手动对照 n_qualified，10-22 的 372 就是例子。同时按 dry 和 10-19 前后两种 n_ok 口径分开看。",
+   "expected_effect": "补上漂移告警还没开始工作的这段空窗。",
+   "risk": "只是靠人看，没有自动化保障。",
+   "how_to_verify": "11 月初 score_stats 满 20 行（不算 dry）以后，确认 drift_note 开始判。"
+  }
+ ]
+}

@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-23-daily-5",
+ "date": "2026-10-23",
+ "status": "pending",
+ "created": "2026-10-24T22:10:10+08:00",
+ "type": "process",
+ "title": "漂移告警的基线不满 20 天时人工盯",
+ "detail": "score_stats 从 10-08 才开始，drift_note 要满 20 天才判，到 11 月初之前不会响。这段时间每日复盘手动对照 n_qualified，10-22 的 372 就是例子。同时按 dry 和 10-19 前后两种 n_ok 口径分开看。",
+ "expected_effect": "补上漂移告警还没开始工作的这段空窗。",
+ "risk": "只是靠人看，没有自动化保障。",
+ "how_to_verify": "11 月初 score_stats 满 20 行（不算 dry）以后，确认 drift_note 开始判。"
+}

@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-23-daily-1",
+ "date": "2026-10-23",
+ "status": "pending",
+ "created": "2026-10-24T22:10:10+08:00",
+ "type": "code",
+ "title": "前一目标日发信失败时，下一次运行把它印出来",
+ "detail": "改 src/local_run.py：flow_breakout / flow_pullback 进场时，检查最近 N 个交易日里「有 run_meta 或当天清单 parquet、但没有 state/sent/<线>_<日>.json」的日子，写进 run_meta（例如 unsent_days），export.py 和 pullback_export.py 的邮件抬头印一行「10-21、10-22 清单没发出（SMTP 超时）」。控制台首页的卡片读同一个字段。不自动补发。",
+ "expected_effect": "这次两天没发要翻日志才看得到；改完以后第二天的邮件抬头和控制台就能直接看到。",
+ "risk": "改的是编排层，要跑 selftest_gui 和 e2e_check；补登口径要排除 START 之前的日子（教训 38）。",
+ "how_to_verify": "e2e 里造一个有 run_meta、没有 sent 标记的前一日，看 run_meta 和邮件 HTML 里有没有这一行。"
+}

@@ -3,90 +3,90 @@
     "code":"002343",
     "name":"慈文传媒",
     "score":100.0,
-    "ret20":0.7837837838,
-    "streak":7,
-    "close":9.9,
+    "ret20":0.9342806394,
+    "streak":8,
+    "close":10.89,
     "board":"main"
   },
   {
     "code":"002242",
     "name":"九阳股份",
     "score":100.0,
-    "ret20":1.3369214209,
-    "streak":6,
-    "close":21.71,
+    "ret20":1.2544502618,
+    "streak":7,
+    "close":21.53,
     "board":"main"
   },
   {
     "code":"301190",
     "name":"善水科技",
     "score":100.0,
-    "ret20":1.0422535211,
-    "streak":4,
-    "close":37.7,
+    "ret20":1.1960150781,
+    "streak":5,
+    "close":40.78,
     "board":"chinext"
   },
   {
     "code":"601811",
     "name":"新华文轩",
     "score":100.0,
-    "ret20":0.7717842324,
-    "streak":4,
-    "close":21.35,
+    "ret20":0.6178797468,
+    "streak":5,
+    "close":20.45,
     "board":"main"
   },
   {
     "code":"301313",
     "name":"凡拓数创",
     "score":100.0,
-    "ret20":0.7140944091,
-    "streak":2,
-    "close":51.2,
+    "ret20":1.0391636243,
+    "streak":3,
+    "close":61.44,
     "board":"chinext"
-  },
-  {
-    "code":"002811",
-    "name":"郑中设计",
-    "score":100.0,
-    "ret20":0.6872005476,
-    "streak":2,
-    "close":24.65,
-    "board":"main"
   },
   {
     "code":"000530",
     "name":"冰山冷热",
     "score":100.0,
-    "ret20":0.8717948718,
-    "streak":1,
-    "close":9.49,
-    "board":"main"
-  },
-  {
-    "code":"301560",
-    "name":"众捷股份",
-    "score":100.0,
-    "ret20":0.6993783304,
-    "streak":1,
-    "close":38.27,
-    "board":"chinext"
-  },
-  {
-    "code":"002164",
-    "name":"宁波东力",
-    "score":100.0,
-    "ret20":0.6290480864,
-    "streak":1,
-    "close":16.6,
+    "ret20":0.8576998051,
+    "streak":2,
+    "close":9.53,
     "board":"main"
   },
   {
     "code":"603278",
     "name":"大业股份",
     "score":100.0,
-    "ret20":0.6194196429,
+    "ret20":0.78125,
+    "streak":2,
+    "close":15.96,
+    "board":"main"
+  },
+  {
+    "code":"002164",
+    "name":"宁波东力",
+    "score":100.0,
+    "ret20":0.7621407334,
+    "streak":2,
+    "close":17.78,
+    "board":"main"
+  },
+  {
+    "code":"301560",
+    "name":"众捷股份",
+    "score":100.0,
+    "ret20":0.6243523316,
+    "streak":2,
+    "close":37.62,
+    "board":"chinext"
+  },
+  {
+    "code":"002724",
+    "name":"海洋王",
+    "score":100.0,
+    "ret20":0.8052708638,
     "streak":1,
-    "close":14.51,
+    "close":12.33,
     "board":"main"
   }
 ]

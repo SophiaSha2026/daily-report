@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-23-daily-4",
+ "date": "2026-10-23",
+ "status": "pending",
+ "created": "2026-10-24T22:10:10+08:00",
+ "type": "code",
+ "title": "truth.py 连续档的标签改成互斥写法",
+ "detail": "src/breakout/truth.py:245 的分组标签改成「连续2天 / 连续3天 / 连续4天 / 连续≥5天 / 首日」，和实际的互斥分组一致；查一遍 gui 和 export 里有没有按「连续≥」解析这个 truth_by 的地方（gui/learn.py:59、gui/status.py:495 解析的是 W5 成绩表，不是这张，要确认清楚）。",
+ "expected_effect": "避免把「正好 2 天 1/17」读成「至少 2 天」。",
+ "risk": "如果别处按旧标签字符串匹配会断，改完要跑 selftest_breakout。",
+ "how_to_verify": "改完以后 truth_by.streak 各档 n 加起来还是等于 all.n，标签不再出现「≥2/≥3/≥4」。"
+}
