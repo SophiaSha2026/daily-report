@@ -114,5 +114,6 @@
     "target_rows": 5522,
     "lost": 0,
     "lost_codes": []
-  }
+  },
+  "retried_at": "2026-10-29T07:02:34+08:00"
 }
