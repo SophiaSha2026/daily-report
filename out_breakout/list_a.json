@@ -1,92 +1,92 @@
 [
   {
-    "code":"002343",
-    "name":"慈文传媒",
+    "code":"301313",
+    "name":"凡拓数创",
     "score":100.0,
-    "ret20":0.9342806394,
-    "streak":8,
-    "close":10.89,
+    "ret20":1.0727389765,
+    "streak":1,
+    "close":64.4,
+    "board":"chinext"
+  },
+  {
+    "code":"603278",
+    "name":"大业股份",
+    "score":100.0,
+    "ret20":0.8995633188,
+    "streak":1,
+    "close":17.4,
     "board":"main"
   },
   {
-    "code":"002242",
-    "name":"九阳股份",
+    "code":"000678",
+    "name":"襄阳轴承",
     "score":100.0,
-    "ret20":1.2544502618,
-    "streak":7,
-    "close":21.53,
+    "ret20":0.7749445676,
+    "streak":1,
+    "close":16.01,
     "board":"main"
   },
   {
     "code":"301190",
     "name":"善水科技",
     "score":100.0,
-    "ret20":1.1960150781,
-    "streak":5,
-    "close":40.78,
+    "ret20":0.7539840637,
+    "streak":1,
+    "close":35.22,
     "board":"chinext"
   },
   {
-    "code":"601811",
-    "name":"新华文轩",
+    "code":"300949",
+    "name":"奥雅股份",
     "score":100.0,
-    "ret20":0.6178797468,
-    "streak":5,
-    "close":20.45,
-    "board":"main"
-  },
-  {
-    "code":"301313",
-    "name":"凡拓数创",
-    "score":100.0,
-    "ret20":1.0391636243,
-    "streak":3,
-    "close":61.44,
-    "board":"chinext"
-  },
-  {
-    "code":"000530",
-    "name":"冰山冷热",
-    "score":100.0,
-    "ret20":0.8576998051,
-    "streak":2,
-    "close":9.53,
-    "board":"main"
-  },
-  {
-    "code":"603278",
-    "name":"大业股份",
-    "score":100.0,
-    "ret20":0.78125,
-    "streak":2,
-    "close":15.96,
-    "board":"main"
-  },
-  {
-    "code":"002164",
-    "name":"宁波东力",
-    "score":100.0,
-    "ret20":0.7621407334,
-    "streak":2,
-    "close":17.78,
-    "board":"main"
-  },
-  {
-    "code":"301560",
-    "name":"众捷股份",
-    "score":100.0,
-    "ret20":0.6243523316,
-    "streak":2,
-    "close":37.62,
+    "ret20":0.676975945,
+    "streak":1,
+    "close":39.04,
     "board":"chinext"
   },
   {
     "code":"002724",
     "name":"海洋王",
     "score":100.0,
-    "ret20":0.8052708638,
+    "ret20":0.6696428571,
     "streak":1,
-    "close":12.33,
+    "close":13.09,
+    "board":"main"
+  },
+  {
+    "code":"002696",
+    "name":"百洋股份",
+    "score":100.0,
+    "ret20":0.5597667638,
+    "streak":1,
+    "close":10.7,
+    "board":"main"
+  },
+  {
+    "code":"688071",
+    "name":"华依科技",
+    "score":100.0,
+    "ret20":0.5447592068,
+    "streak":1,
+    "close":54.53,
+    "board":"star"
+  },
+  {
+    "code":"002343",
+    "name":"慈文传媒",
+    "score":100.0,
+    "ret20":0.5392670157,
+    "streak":1,
+    "close":8.82,
+    "board":"main"
+  },
+  {
+    "code":"000530",
+    "name":"冰山冷热",
+    "score":100.0,
+    "ret20":0.5327102804,
+    "streak":1,
+    "close":8.2,
     "board":"main"
   }
 ]
