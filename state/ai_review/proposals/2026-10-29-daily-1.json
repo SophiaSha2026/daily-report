@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-29-daily-1",
+ "date": "2026-10-29",
+ "status": "pending",
+ "created": "2026-10-30T07:33:42+08:00",
+ "type": "process",
+ "title": "迟发监控：目标日 22:00 BJT 还没起跑就推送提醒",
+ "detail": "evening_check.yml 20:30 只看 sent 标记。今天 20:30 两条线都没发，云端理应提醒过。建议再加一条本机侧的检查：开机后第一次 Sync 时发现上一交易日 sent 标记缺失，就在控制台首页标红，并记录计划任务最近一次触发的结果（Task Scheduler LastTaskResult），把「机器没开」和「任务没敲」分开记",
+ "expected_effect": "像今天这样拖到次日 07:00 才跑的情况，能分清原因；任务没触发能当晚发现",
+ "risk": "多一处状态读取，开机时多一次 schtasks 查询",
+ "how_to_verify": "看 status.tasks_panel 能不能列出 10-29 16:30 之后每次触发的结果"
+}

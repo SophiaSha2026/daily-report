@@ -1,92 +1,92 @@
 [
   {
-    "code":"301313",
-    "name":"凡拓数创",
-    "score":100.0,
-    "ret20":1.0070086015,
-    "streak":2,
-    "close":63.0,
-    "board":"chinext"
-  },
-  {
     "code":"000678",
     "name":"襄阳轴承",
     "score":100.0,
-    "ret20":0.9808773903,
-    "streak":2,
-    "close":17.61,
+    "ret20":1.1306818182,
+    "streak":3,
+    "close":18.75,
     "board":"main"
+  },
+  {
+    "code":"301313",
+    "name":"凡拓数创",
+    "score":100.0,
+    "ret20":1.070265091,
+    "streak":3,
+    "close":64.82,
+    "board":"chinext"
   },
   {
     "code":"603278",
     "name":"大业股份",
     "score":100.0,
-    "ret20":0.9779249448,
-    "streak":2,
-    "close":17.92,
+    "ret20":1.0067340067,
+    "streak":3,
+    "close":17.88,
     "board":"main"
-  },
-  {
-    "code":"301190",
-    "name":"善水科技",
-    "score":100.0,
-    "ret20":0.8230694037,
-    "streak":2,
-    "close":37.3,
-    "board":"chinext"
   },
   {
     "code":"002724",
     "name":"海洋王",
     "score":100.0,
-    "ret20":0.7724867725,
-    "streak":2,
-    "close":13.4,
+    "ret20":0.8884239888,
+    "streak":3,
+    "close":13.54,
+    "board":"main"
+  },
+  {
+    "code":"002696",
+    "name":"百洋股份",
+    "score":100.0,
+    "ret20":0.8740515933,
+    "streak":3,
+    "close":12.35,
     "board":"main"
   },
   {
     "code":"300949",
     "name":"奥雅股份",
     "score":100.0,
-    "ret20":0.7304274228,
-    "streak":2,
-    "close":40.89,
+    "ret20":0.7194304858,
+    "streak":3,
+    "close":41.06,
     "board":"chinext"
   },
   {
-    "code":"002696",
-    "name":"百洋股份",
+    "code":"301190",
+    "name":"善水科技",
     "score":100.0,
-    "ret20":0.6766381766,
-    "streak":2,
-    "close":11.77,
-    "board":"main"
+    "ret20":0.591588785,
+    "streak":3,
+    "close":34.06,
+    "board":"chinext"
   },
   {
     "code":"300006",
     "name":"莱美药业",
     "score":100.0,
-    "ret20":0.7841726619,
-    "streak":1,
-    "close":9.92,
+    "ret20":0.8647686833,
+    "streak":2,
+    "close":10.48,
     "board":"chinext"
   },
   {
     "code":"600838",
     "name":"上海九百",
     "score":100.0,
-    "ret20":0.626744186,
-    "streak":1,
-    "close":13.99,
+    "ret20":0.5922897196,
+    "streak":2,
+    "close":13.63,
     "board":"main"
   },
   {
-    "code":"605488",
-    "name":"福莱新材",
+    "code":"000530",
+    "name":"冰山冷热",
     "score":100.0,
-    "ret20":0.6203333333,
+    "ret20":0.5888030888,
     "streak":1,
-    "close":48.61,
+    "close":8.23,
     "board":"main"
   }
 ]

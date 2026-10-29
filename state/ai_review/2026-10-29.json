@@ -1,0 +1,121 @@
+{
+ "kind": "daily",
+ "date": "2026-10-29",
+ "at": "2026-10-30T07:33:42+08:00",
+ "usd": 0.932,
+ "severity": "注意",
+ "summary": "10-29 两条线都按目标日发出，日期和 dry 标记无误，推送成功，不需要判「严重」。问题在时间：长期调整突破 10-30 07:18:10 发出，起涨预测 07:31:43 发出，比 17:58 / 17:00 晚了约 13~14 小时，离 08:30 截止只剩约 1 小时。从日志看两条线都是 10-30 早上 07:00 左右才起跑。另有三处要留意：起涨预测 10-26 没有清单存档，也没有打分记录；000530 冰山冷热同时在清单 A 和清单 B；本月 AI 复盘今天还没记账。规则排序（10-19 起）之后的清单都还没满 20 根 K 线，命中率暂时没法评估。",
+ "checked": [
+  "1 run_meta.date：两条线都是 2026-10-29，等于目标日；dry 都是 false；mail_sent.date 都是 2026-10-29；sent_marker 都是 true；state/sent/breakout_2026-10-29.json 和 pullback_2026-10-29.json 都在",
+  "1 发信时刻：长期调整突破 2026-10-30T07:18:10，起涨预测 2026-10-30T07:31:43，都在次日 08:30 截止前",
+  "2 起涨预测：候选 5385 只，剔除 503 只（9.3%），剩 4882 只。近 9 天剔除只数（n_eligible − n_ok）在 527~624 之间，今天在范围内",
+  "2 run_meta.n_qualified=null 是有意的：daily.py:1141 在 rank_rule=ret20 时写 None；模型够格只数记在 score_stats 里，今天 37 只，日志「>=97 分 37 只」一致。近 15 天的分布是 10~62，只有 10-22 到了 372，今天正常",
+  "2 short_excluded=0；refit_rejected=false；drift_note 为空（参照 13 天）",
+  "2 模型 fit_date=2026-10-07，到 10-29 是 22 天（日志写 23 天，按 10-30 算），没超过 30 天，大约 11-06 到期",
+  "2 update_status：日线没拉到目标日的 44 只里新股 43 只，非新股只有 301139 一只；missing=0，merge_check 没丢行（lost=0），5522/5522；前一日覆盖 100%",
+  "3 日志：东财股东人数 20260930 那一期第 1 次失败（datacenter-web.eastmoney.com 连接错误），重试后拿到 4840 行，14/14 期全部完成。没有 ERROR、超时或接手。长期调整突破跳过拉远端，原因是起涨预测正在跑，属于正常互斥。两条线退出码 0，产物日期都更新到 10-29",
+  "3 日志里 19:07~19:26 的时间戳是 build.py 用的本机美东时间（CLAUDE.md 写明的例外），换成北京时间是 07:07~07:26，前后衔接没有问题",
+  "4 板块：清单 A 主板 6 只、创业板 4 只，科创板和北交所 0 只；连续天数 3 天 7 只、2 天 2 只、1 天 1 只，和 n_streak3=7 对得上",
+  "5 真值：truth_recent_lists 里 12 份都是 final=false（K 线数 0~12 根），hit_rate_open 全是 null，没有可比的已定清单。核了几份的 K 线数：10-13 是 12 根，10-23 是 4 根，10-27 是 2 根，和交易日历一致",
+  "6 push_status ok=true，07:31:47",
+  "6 regime_10d：10-29 上涨家数占比 14.1%，中位涨跌 −2.58%，跌停 57 多于涨停 39；10-22、10-27 也是同样的普跌日（9.5% / 10.8%），和 10-23、10-28 的普涨日交替出现，属于高波动但不是单日极端；成交额 15538 亿，5 日变化 +2.1%",
+  "7 AI 用量：本月 19.79 美元 / 28 次，低于 100 警戒线；今天 0 美元 / 0 次",
+  "长期调整突破：清单 A 0 只（今天倍量大阳线 29 只，二次进攻 0 只）；清单 B 候选 7 只，剔除 4 只（3 只减持、1 只竞价定增），剩 3 只；三年同口径 59 次，约每月 1.43 次"
+ ],
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "两条线发信时刻（out_*/mail_sent.json + local_flow 日志）",
+   "evidence": "长期调整突破 at=2026-10-30T07:18:10+08:00，日志「07:17:13 本地全流程 pullback 启动」；起涨预测 at=2026-10-30T07:31:43，日志最早一行是 07:04:26 股东人数，后面建特征表用了 19.6 分钟",
+   "why": "比约定的 17:58 / 17:00 晚了 13~14 小时，没超 08:30 截止，当天结果没错。但起涨预测从 07:00 前后起跑到发信要约 30 分钟，余量只有 1 小时；再晚开机，或者赶上重估链（模型约 11-06 到期），就会超时。从材料看不出 10-29 晚上计划任务有没有敲过门，是没开机还是没触发",
+   "suggestion": "查 Task Scheduler 里 DailyReport-Local-Evening / Pullback 10-29 16:30 BJT（08:30Z）之后的触发历史，确认是关机还是任务失败"
+  },
+  {
+   "severity": "注意",
+   "where": "data/breakout/2026-10/ 与 state/breakout/score_stats.jsonl",
+   "evidence": "regime_10d 有 2026-10-26（5522 只，上涨家数占比 0.4051），但 breakout_2026-10-26.parquet 不存在，score_stats 也是从 10-23 直接跳到 10-27；truth_recent_lists 同样没有 10-26",
+   "why": "不是当天的问题，但 10-26 是交易日，起涨预测那天看来没有落清单。这会让 A 池（清单 B 的来源）和连续天数在 10-26 断一天：streak 按交易日往回数，缺一天的票会被重新算成首日",
+   "suggestion": "确认 10-26 有没有发信，云端 evening_check 有没有发提醒；没发的话用 tools/rerun_breakout.py 补算存档（不补发），把 A 池补齐"
+  },
+  {
+   "severity": "注意",
+   "where": "state/sent/ 目录",
+   "evidence": "本地只剩 breakout_2026-10-20/23/29、pullback_2026-10-20/23/28/29 这几个标记；10-21、10-22、10-27 两条线都没有，breakout 10-28 也没有。breakout_2026-10-21/22/27/28.parquet 都在",
+   "why": "如果这几天确实发过、只是标记没留在本地，--if-needed 判「跑完了」就会失准，下次碰到这些日期可能重发。这一条我没法用 git 历史核实（本会话 git 命令要审批），只列出来",
+   "suggestion": "用 git log -- state/sent/ 核对这几天的 sent 提交有没有被后续提交删掉"
+  },
+  {
+   "severity": "注意",
+   "where": "out_breakout/list_a.json 与 list_b.json",
+   "evidence": "000530 冰山冷热同时在清单 A（ret20 0.589，streak 1）和清单 B（best 100，days 5，从高点回落 −13.6%）",
+   "why": "清单 A 是冲高密度清单，清单 B 是可能见顶，同一只票同一天出现在两边，信号互相矛盾。清单 A 换成 20 日涨幅规则以后，A 和 B 的候选高度重合，这种情况以后会更常见",
+   "suggestion": "按 code 方案只在邮件或面板里标注重叠，不改选票规则"
+  },
+  {
+   "severity": "注意",
+   "where": "state/breakout/score_stats.jsonl 的 n_ok 列",
+   "evidence": "10-16 及以前 n_ok 是 12~51，10-19 起是 4777~4882",
+   "why": "10-19 换规则后，n_ok 从「够格且没被剔」变成「全部候选里没被剔」，同一列在 10-19 前后口径不一样。drift_note 只用 n_qualified，所以当天结果不受影响，但任何读 n_ok 的 60 天分布对比都会误报",
+   "suggestion": "见 code 提案"
+  },
+  {
+   "severity": "正常",
+   "where": "update_status / merge_check",
+   "evidence": "日线没拉到目标日的 44 只里新股 43 只（不计入 50 只上限），非新股 301139 一只；lost=0，target_rows=5522=expected",
+   "why": "日线补齐符合预期"
+  },
+  {
+   "severity": "正常",
+   "where": "长期调整突破 run_meta",
+   "evidence": "清单 A 0 只，清单 B 3 只（剔除 4 只：688410 / 920247 / 920663 减持，688626 竞价定增）；hist 59 次，约每月 1.43 次；B 转 A 的比例 5.3%",
+   "why": "空榜是常态，剔除理由都有具体公告日"
+  },
+  {
+   "severity": "注意",
+   "where": "state/ai_usage.jsonl（ai_usage.today_n）",
+   "evidence": "today_usd=0，today_n=0；起涨预测 07:31:43 发信后应该调 tools/ai_review.py --daily",
+   "why": "可能是本次复盘还没写进账，也可能是 --daily 没跑起来被 fail-open 吞掉了；材料里分不出是哪种",
+   "suggestion": "复盘结束后看 state/ai_usage.jsonl 有没有 10-30 的记录"
+  },
+  {
+   "severity": "正常",
+   "where": "真值 truth_by",
+   "evidence": "all n=128，命中 13 只，10.2%（收盘口径，95% 区间 6.0%~16.6%）；科创板 54 只命中 11 只（20.4%），创业板 24 只 0 只，北交所 14 只 0 只",
+   "why": "这是模型排序期（97/98/99 分档）的旧清单，和 10-19 起的规则清单不是同一套规则，不能用来评价今天的清单 A；规则清单最早要到 11 月中（10-19 + 20 根）才有第一份定稿"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "process",
+   "title": "迟发监控：目标日 22:00 BJT 还没起跑就推送提醒",
+   "detail": "evening_check.yml 20:30 只看 sent 标记。今天 20:30 两条线都没发，云端理应提醒过。建议再加一条本机侧的检查：开机后第一次 Sync 时发现上一交易日 sent 标记缺失，就在控制台首页标红，并记录计划任务最近一次触发的结果（Task Scheduler LastTaskResult），把「机器没开」和「任务没敲」分开记",
+   "expected_effect": "像今天这样拖到次日 07:00 才跑的情况，能分清原因；任务没触发能当晚发现",
+   "risk": "多一处状态读取，开机时多一次 schtasks 查询",
+   "how_to_verify": "看 status.tasks_panel 能不能列出 10-29 16:30 之后每次触发的结果"
+  },
+  {
+   "type": "process",
+   "title": "核实并补齐 10-26 起涨预测存档",
+   "detail": "确认 10-26 起涨预测有没有发信；没有的话，用 tools/rerun_breakout.py 补算 breakout_2026-10-26.parquet（不补发），A 池、连续天数和真值序列就不会断这一天。同时用 git log 核对 state/sent/ 下 10-21/22/26/27/28 的标记去哪了",
+   "expected_effect": "清单 B 的 A 池和 streak 回到连续交易日口径",
+   "risk": "补算用的是当前代码和当前日线，和当天实际会算出的结果可能略有差别，要在存档里注明是补算的",
+   "how_to_verify": "补算后 truth_recent_lists 出现 10-26，并且 10-27 清单里的 streak 和补算前一致或可以解释"
+  },
+  {
+   "type": "code",
+   "title": "score_stats 的 n_ok 在 10-19 前后口径断档，拆成两列",
+   "detail": "src/breakout/daily.py 约 1070 行的 stats_row：把现在的 n_ok（全候选里没被剔的）改名为 n_ok_all，另外写一列 n_ok_qual（模型够格且没被剔），和 10-19 前的口径一致；drift_note 和任何 60 天分布对比都只读同口径的列",
+   "expected_effect": "60 天分布对比不再把 40 和 4800 混在一起",
+   "risk": "要改读 score_stats 的地方（控制台学习卡片、复盘材料），漏改会读到空值",
+   "how_to_verify": "跑 selftest_breakout；新一行 score_stats 两列都有，并且 n_ok_qual ≤ n_qualified"
+  },
+  {
+   "type": "code",
+   "title": "清单 A 和清单 B 重叠时在邮件和面板上标注",
+   "detail": "src/breakout/export.py：在清单 B 的行里，如果 code 也在当天清单 A 中，就加一个「也在清单 A」的标记。只加标注，不改两份清单的入选和排序",
+   "expected_effect": "像 000530 这样一边冲高一边见顶的矛盾信号，用户一眼就能看出来",
+   "risk": "只是展示层改动，风险低；要加一条自测钉住标注接线",
+   "how_to_verify": "用 10-29 的产物重新出一次面板（--dry），000530 那一行带标记"
+  }
+ ]
+}

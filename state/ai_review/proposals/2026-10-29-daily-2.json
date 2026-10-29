@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-29-daily-2",
+ "date": "2026-10-29",
+ "status": "pending",
+ "created": "2026-10-30T07:33:42+08:00",
+ "type": "process",
+ "title": "核实并补齐 10-26 起涨预测存档",
+ "detail": "确认 10-26 起涨预测有没有发信；没有的话，用 tools/rerun_breakout.py 补算 breakout_2026-10-26.parquet（不补发），A 池、连续天数和真值序列就不会断这一天。同时用 git log 核对 state/sent/ 下 10-21/22/26/27/28 的标记去哪了",
+ "expected_effect": "清单 B 的 A 池和 streak 回到连续交易日口径",
+ "risk": "补算用的是当前代码和当前日线，和当天实际会算出的结果可能略有差别，要在存档里注明是补算的",
+ "how_to_verify": "补算后 truth_recent_lists 出现 10-26，并且 10-27 清单里的 streak 和补算前一致或可以解释"
+}

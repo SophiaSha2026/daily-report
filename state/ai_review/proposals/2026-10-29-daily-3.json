@@ -1,0 +1,12 @@
+{
+ "id": "2026-10-29-daily-3",
+ "date": "2026-10-29",
+ "status": "pending",
+ "created": "2026-10-30T07:33:42+08:00",
+ "type": "code",
+ "title": "score_stats 的 n_ok 在 10-19 前后口径断档，拆成两列",
+ "detail": "src/breakout/daily.py 约 1070 行的 stats_row：把现在的 n_ok（全候选里没被剔的）改名为 n_ok_all，另外写一列 n_ok_qual（模型够格且没被剔），和 10-19 前的口径一致；drift_note 和任何 60 天分布对比都只读同口径的列",
+ "expected_effect": "60 天分布对比不再把 40 和 4800 混在一起",
+ "risk": "要改读 score_stats 的地方（控制台学习卡片、复盘材料），漏改会读到空值",
+ "how_to_verify": "跑 selftest_breakout；新一行 score_stats 两列都有，并且 n_ok_qual ≤ n_qualified"
+}
