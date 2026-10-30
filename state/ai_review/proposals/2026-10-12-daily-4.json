@@ -1,12 +1,14 @@
 {
  "id": "2026-10-12-daily-4",
  "date": "2026-10-12",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-13T04:27:18+08:00",
  "type": "process",
  "title": "每日复盘的材料要等流程结束再取",
  "detail": "这次材料取于 04:25:19，起涨预测还没走完产物提交那一步。复盘的取数应该等日志出现「=== run_local breakout exit=」再开始，或者把产物推送状态（最近一次提交消息是不是「起涨预测 <日> [local]」）作为一项放进材料",
  "expected_effect": "复盘能直接判断 Pages 面板和清单存档有没有入库，不用推测",
  "risk": "复盘会稍晚一点开始",
- "how_to_verify": "下一次复盘材料的 log_tail 以 exit=0 结尾"
+ "how_to_verify": "下一次复盘材料的 log_tail 以 exit=0 结尾",
+ "updated": "2026-10-30T08:30:52+08:00",
+ "note": "流程提案：记录"
 }

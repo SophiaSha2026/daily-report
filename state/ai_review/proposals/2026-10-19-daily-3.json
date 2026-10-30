@@ -1,12 +1,14 @@
 {
  "id": "2026-10-19-daily-3",
  "date": "2026-10-19",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-19T16:53:33+08:00",
  "type": "code",
  "title": "score_stats 在规则模式下把 n_ok 分开记",
  "detail": "src/breakout/daily.py 第 1070 行 stats_row：RANK_RULE=ret20 时，把 n_ok 写成 n_ok_rule（或者写模型影子口径的 n_ok），让 n_ok 这列始终是「模型够格且没被剔除」。10-19 这一行手动更正或者打上标记",
  "expected_effect": "score_stats.jsonl 每一列前后口径一致，以后画图或做监控不会碰到 42→4777 这种假台阶",
  "risk": "很低，目前没有代码读 n_ok；要同步改 selftest_breakout 对 stats_row 的断言（如果有）",
- "how_to_verify": "python src/selftest_breakout.py 断言失败 0 个；明天 score_stats 的 n_ok 回到几十只的量级"
+ "how_to_verify": "python src/selftest_breakout.py 断言失败 0 个；明天 score_stats 的 n_ok 回到几十只的量级",
+ "updated": "2026-10-30T08:31:29+08:00",
+ "note": "代码提案不自动改代码；已记入 docs/breakout_log.md 待办"
 }

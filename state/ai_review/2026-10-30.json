@@ -1,0 +1,127 @@
+{
+ "kind": "daily",
+ "date": "2026-10-30",
+ "at": "2026-10-30T16:50:12+08:00",
+ "usd": 0.884,
+ "severity": "注意",
+ "summary": "起涨预测 2026-10-30 正常：日期对上目标日，真跑（不是试跑），16:48:30 发信，sent 标记和推送都在，剔除 501 只后剩 4880 只，数字自洽，没有报错。长期调整突破复盘时（16:48）还没到 17:40 的开跑时刻，今天这次没法审；它上一次（10-29）的邮件到 10-30 07:18 才发，比 17:58 晚了 13 小时 20 分，但没超过 08:30 的最晚时限。另有三件当天以外的事要注意：(1) 2026-10-26 regime 记的是交易日（n=5522），两条线却都没有清单、也没有 sent 标记；(2) 10-30 跌停 108 家，10 天里最高，近 4 个交易日 3 天中位数跌超 2.5%；(3) run_meta 的 n_qualified 是 null，和 score_stats 里的 21 对不上。按 ret20 规则出的清单还没有一份走满 20 根，真值暂时没法评。",
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "data/breakout/2026-10/ 和 data/pullback/2026-10/、state/sent/、state/regime_daily.jsonl",
+   "evidence": "regime_10d 里 2026-10-26 n=5522、limit_up 59，是交易日；但 breakout_2026-10-26.parquet、pullback_2026-10-26.parquet、state/sent/*_2026-10-26.json 都不存在，score_stats_60d 和 truth_recent_lists 也是从 10-23 直接跳到 10-27",
+   "why": "10-26 两条线都没出清单，邮件很可能也没发。今天的结果不受影响，但这是一次漏发，补跑和云端托底都没补上",
+   "suggestion": "查 tools/local_flow_*.log 和 evening_check 在 10-26 晚上的运行记录，确认当时有没有发提醒；如果确定漏了，用 tools/rerun_breakout.py 和 resend_breakout.py 补一份存档"
+  },
+  {
+   "severity": "注意",
+   "where": "state/sent/",
+   "evidence": "breakout 10-21、10-22、10-27、10-28 的清单 parquet 都在，sent 标记没有；pullback 10-21、10-22、10-27 也一样有清单没标记。今天 breakout_2026-10-30.json 在",
+   "why": "「跑完了」靠 run_meta 日期加 sent 标记一起判断。标记缺了，说明这几天要么是没走 local_run 的方式发的，要么标记丢了；控制台和 evening_check 对这几天的判断会失真",
+   "suggestion": "对照 git log 里有没有 'sent: breakout 2026-10-2x' 提交，确认这几天的标记是没写还是后来被删了"
+  },
+  {
+   "severity": "注意",
+   "where": "长期调整突破 2026-10-29 运行（out_pullback/run_meta.json、mail_sent.json）",
+   "evidence": "mail_sent.at=2026-10-30T07:18:10，规定 17:58 发；日志写着 07:17:12「起涨预测 正在跑，这次不拉远端」，说明起涨预测 10-29 那次也拖到了 10-30 早上；日志最后一行 [2026-10-30T07:32:10] 只有时间头，后面没有内容",
+   "why": "晚了 13 小时 20 分，但还在 08:30 时限内，清单本身没错（A 0 只 / B 3 只，剔除 4 只都写了原因）。两条线同时拖到早上，多半是机器晚上没开着。07:32 那次触发没留下任何判定，看不出是被 --if-needed 跳过了还是有别的情况",
+   "suggestion": "确认 10-29 晚上机器是不是关着；--if-needed 跳过的时候往日志里写一行原因"
+  },
+  {
+   "severity": "注意",
+   "where": "复盘时点 / 长期调整突破 2026-10-30",
+   "evidence": "材料里 now=16:48:34，pullback 的 run_meta.date=2026-10-29，sent_marker=false；它的自动开跑时刻是 17:40，发信 17:58",
+   "why": "这份每日复盘是起涨预测发完信就触发的，那时长期调整突破还没跑。10-30 这一线既不能判它没跑，也审不了",
+   "suggestion": "见 process 提案：复盘挪到两条线都发完之后"
+  },
+  {
+   "severity": "注意",
+   "where": "out_breakout/run_meta.json 对照 state/breakout/score_stats.jsonl",
+   "evidence": "run_meta.n_qualified=null；score_stats 10-30 n_qualified=21；日志「模型影子清单 10 只（>=97 分 21 只）」",
+   "why": "规则排序上线（10-19）以后，run_meta 不再记模型够格数，审计只能去 score_stats 里找，同一个数在两处口径不一致",
+   "suggestion": "run_meta 照常写 n_qualified（影子模型 >=97 分的只数）"
+  },
+  {
+   "severity": "注意",
+   "where": "state/breakout/score_stats.jsonl 的 n_ok 列",
+   "evidence": "10-16 及以前 n_ok 是 10~51（够格又没被剔的），10-19 起变成 4777~4882（剔除后的全部候选）；n_eligible 5410、日志「全市场 5487 只」、run_meta n_candidates 5381，是三个不同的分母",
+   "why": "同一列在 10-19 换了口径，拿 60 天分布判断 n_ok 是否异常的时候前后两段没法比。今天 4880 和 10-27~10-29 的 4858~4882 一致，不算异常",
+   "suggestion": "给 n_ok 改个名字，或者加一个 rule 字段区分口径"
+  },
+  {
+   "severity": "注意",
+   "where": "state/breakout/update_status.json",
+   "evidence": "short 列了 70 只，其中 26 只同时出现在 filled_codes 里；日志写的是「没拉到 44 只（其中新股 43 只）」。剩下那 1 只非新股是 301139，10-29 的 pullback 日志里它也没拉到",
+   "why": "short 列表没把已经用快照补上的票划掉，直接读文件会以为有 70 只没补。301139 连续两天没有目标日 K 线，原因不明（停牌还是源的问题都没核）。short_excluded=0，merge_check lost=0，清单不受影响",
+   "suggestion": "查一下 301139 是不是停牌；short 列表只保留真正没补上的"
+  },
+  {
+   "severity": "注意",
+   "where": "state/regime_daily.jsonl 2026-10-30",
+   "evidence": "limit_down=108（前 9 天最多 64），adv_share=0.1599，ret_median_pct=-3.118；10-27 是 -2.977，10-29 是 -2.583，近 4 个交易日有 3 天大跌",
+   "why": "市场环境极端，清单 A 全是近 20 日涨幅 56%~129% 的票，这种环境下后续真值可能明显偏离确认集的 15.2%。当天流程本身没问题",
+   "suggestion": "不用处理，等这几份清单走满 20 根后对照基准看"
+  },
+  {
+   "severity": "正常",
+   "where": "起涨预测 run_meta / mail_sent / push_status",
+   "evidence": "date=2026-10-30 和目标日一致，dry=false，mail_sent.at=16:48:30（A 10 / B 4），sent_marker=true，push_status ok 16:48:34；5381-501=4880，和 n_ok 一致；n_streak3=8，和清单里 streak≥3 的 8 只一致",
+   "why": "当天清单的产出、发信、推送全部对得上"
+  },
+  {
+   "severity": "正常",
+   "where": "模型与漂移",
+   "evidence": "model.fit_date=2026-10-07，今天 23 天（门限 30）；refit_rejected=false，drift_note 为空；top10_p_mean=0.314，60 天范围 0.307~0.471",
+   "why": "不该重训，也确实没重训。11-06 满 30 天，那天会自动触发重估链"
+  },
+  {
+   "severity": "正常",
+   "where": "清单 A 板块和连续天数",
+   "evidence": "主板 6（002724 603278 000678 002696 600825 001219），创业板 4，科创和北交所 0；streak 4 的 7 只、3 的 1 只、1 的 2 只。A 和 B 重叠 3 只（600825 002696 301313）。600825 在 A 里 streak=1，在 B 里 streak=3，两边口径没核",
+   "why": "没有集中在单一板块。600825 两处连续天数不一样，可能 B 数的是在 A 池的天数，没查到代码，不能定性"
+  },
+  {
+   "severity": "正常",
+   "where": "真值 truth_recent_lists / AI 用量",
+   "evidence": "10-14~10-30 的 12 份清单 bars 0~12，final 都是 false，hit_rate_open 全是 null；10-19 规则切换后最早要到 11 月中旬才有已定结果。AI 今天 $0.93（1 次），本月 $20.72，警戒线 $10 / $100",
+   "why": "真值还没定，没法和基准比；AI 用量没超线"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "process",
+   "title": "每日复盘挪到长期调整突破发信之后",
+   "detail": "现在复盘是起涨预测发完信（约 16:48）就触发，那时长期调整突破还没到 17:40 开跑，复盘拿到的永远是它前一天的 run_meta。改成北京 18:15 以后，或者两条线的 sent 标记都齐了再触发",
+   "expected_effect": "一次复盘就能覆盖两条线当天的运行",
+   "risk": "起涨预测那边的异常要晚一个多小时才被看到"
+  },
+  {
+   "type": "process",
+   "title": "监控交易日漏发和 sent 标记缺失",
+   "detail": "每天对照交易日历（regime_daily.jsonl 里有记录的日子）扫一遍 data/breakout、data/pullback 的清单和 state/sent 标记，缺清单或者有清单没标记都在控制台标红；10-26 两条线全空、10-21/22/27/28 有清单没标记，这两类都应该被抓到",
+   "expected_effect": "像 10-26 这种漏发当天或第二天就能发现",
+   "risk": "手动补发的日子没走 local_run 写标记，会被误报"
+  },
+  {
+   "type": "code",
+   "title": "run_meta 照常写 n_qualified",
+   "detail": "src/breakout/daily.py 写 run_meta 的时候把影子模型 >=97 分的只数（score_stats 里那个 21）填进 n_qualified，别留 null；score_stats.jsonl 的 n_ok 在 10-19 换过口径，加一个 rule 字段标明",
+   "expected_effect": "审计和控制台从 run_meta 就能读到够格数，60 天分布前后两段也分得清",
+   "risk": "低。不改选票，只改记账字段"
+  },
+  {
+   "type": "code",
+   "title": "update_status 的 short 只留真正没补上的",
+   "detail": "src/breakout/backfill.py stage_update 记账时，把已经用快照补了当天那根的票（filled_codes）从 short 里去掉，或者另起一个 still_short 字段。今天 short 是 70 只，实际没补上的是 44 只",
+   "expected_effect": "账面数字和日志「没拉到 44 只」一致，判断 short 的上限时也不会被误读",
+   "risk": "要先核对 SHORT_LATE 和 50 只上限读的是哪个字段，免得改变出不出清单的判定"
+  },
+  {
+   "type": "process",
+   "title": "11-06 模型满 30 天，提前核对重估链",
+   "detail": "model.fit_date=2026-10-07，11-06 就满 30 天，flow_breakout 那天会在打分前自动跑 refit_chain。规则排序上线后模型只出影子清单，那天要确认 accept_model 和成绩常量刷新没把 rule=ret20 的邮件文案改掉",
+   "expected_effect": "到期重训那天不出意外",
+   "risk": "无"
+  }
+ ]
+}

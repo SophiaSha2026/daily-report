@@ -1,12 +1,14 @@
 {
  "id": "2026-10-13-daily-2",
  "date": "2026-10-13",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-14T05:26:36+08:00",
  "type": "code",
  "title": "试跑的打分统计不覆盖同一天的真跑记录",
  "detail": "src/breakout/daily.py 的 record_score_stats：如果同一天已经有 dry=false 的记录，新的一行又是 dry=true，就不写（或者另存成 dry 记录，不顶替）。selftest_breakout 加一个用例钉住",
  "expected_effect": "漂移基线不会再被试跑吃掉，以 10-09 为例那天的真实记录能保住；drift_note 能早一点凑满 20 天开始工作",
  "risk": "很小；只动了一个状态文件的写入规则，不影响清单",
- "how_to_verify": "selftest_breakout 里先写一条真跑、再写一条同日试跑，检查留下的是真跑那条"
+ "how_to_verify": "selftest_breakout 里先写一条真跑、再写一条同日试跑，检查留下的是真跑那条",
+ "updated": "2026-10-30T08:30:41+08:00",
+ "note": "代码提案不自动改代码；已记入 docs/breakout_log.md 待办"
 }

@@ -1,0 +1,11 @@
+{
+ "id": "2026-10-30-daily-2",
+ "date": "2026-10-30",
+ "status": "pending",
+ "created": "2026-10-30T16:50:12+08:00",
+ "type": "process",
+ "title": "监控交易日漏发和 sent 标记缺失",
+ "detail": "每天对照交易日历（regime_daily.jsonl 里有记录的日子）扫一遍 data/breakout、data/pullback 的清单和 state/sent 标记，缺清单或者有清单没标记都在控制台标红；10-26 两条线全空、10-21/22/27/28 有清单没标记，这两类都应该被抓到",
+ "expected_effect": "像 10-26 这种漏发当天或第二天就能发现",
+ "risk": "手动补发的日子没走 local_run 写标记，会被误报"
+}

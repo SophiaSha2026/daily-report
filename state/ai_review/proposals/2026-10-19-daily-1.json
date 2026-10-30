@@ -1,12 +1,14 @@
 {
  "id": "2026-10-19-daily-1",
  "date": "2026-10-19",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-19T16:53:33+08:00",
  "type": "process",
  "title": "18:10 补查长期调整突破 10-19",
  "detail": "18:10 后确认三件：out_pullback/run_meta.json 的 date=2026-10-19 且 dry=false、mail_sent.json 日期对得上、state/sent/pullback_2026-10-19.json 存在。缺任何一个就看 tools/local_flow_pullback 的日志",
  "expected_effect": "补上本次复盘没覆盖到的那条线",
  "risk": "无",
- "how_to_verify": "控制台首页长期调整突破那张卡片的目标日显示 10-19 已发"
+ "how_to_verify": "控制台首页长期调整突破那张卡片的目标日显示 10-19 已发",
+ "updated": "2026-10-30T08:31:15+08:00",
+ "note": "流程提案：记录"
 }

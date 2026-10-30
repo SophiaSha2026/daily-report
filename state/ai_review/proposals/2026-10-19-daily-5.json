@@ -1,12 +1,14 @@
 {
  "id": "2026-10-19-daily-5",
  "date": "2026-10-19",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-19T16:53:33+08:00",
  "type": "process",
  "title": "漂移监控满 20 天前不当作已判",
  "detail": "drift_baseline_days 小于 20 时，控制台学习卡片和每日复盘都写成「漂移未判（基线 N 天）」，不要写成「无漂移」。按现在的进度，大约 11 月上旬满 20 个非试跑日",
  "expected_effect": "避免把空的 drift_note 误读成模型稳定",
  "risk": "无",
- "how_to_verify": "run_meta.drift_baseline_days 达到 20 后，drift_note 才开始有可能非空"
+ "how_to_verify": "run_meta.drift_baseline_days 达到 20 后，drift_note 才开始有可能非空",
+ "updated": "2026-10-30T08:32:00+08:00",
+ "note": "流程提案：记录"
 }

@@ -1,12 +1,14 @@
 {
  "id": "2026-10-12-daily-2",
  "date": "2026-10-12",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-13T04:27:18+08:00",
  "type": "process",
  "title": "修回 score_stats 里 10-09 那一行",
  "detail": "用 10-09 正式运行时的 n_qualified / n_ok（如果有提交历史就从 git 上一版恢复）替换掉第 2 行的 dry 行；同时核对 breakout_2026-10-09.parquet 的工作区改动，和 HEAD 不一样就 checkout 回去",
  "expected_effect": "基线多出 1 天，10-09 的清单存档保持实发的那份",
  "risk": "手工改状态文件。只动这一行，改之前先备份",
- "how_to_verify": "下一次 run_meta.drift_baseline_days 比今天多 2（10-09 + 10-12）"
+ "how_to_verify": "下一次 run_meta.drift_baseline_days 比今天多 2（10-09 + 10-12）",
+ "updated": "2026-10-30T08:30:31+08:00",
+ "note": "流程提案：记录"
 }

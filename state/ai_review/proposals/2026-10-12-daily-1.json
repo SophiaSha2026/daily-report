@@ -1,12 +1,14 @@
 {
  "id": "2026-10-12-daily-1",
  "date": "2026-10-12",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-13T04:27:18+08:00",
  "type": "code",
  "title": "试跑不许覆盖同一天的正式打分统计",
  "detail": "src/breakout/daily.py record_score_stats：写入前判断，如果新行 dry=true，而文件里同一天已有 dry=false 的行，就保留正式那行，不覆盖（或者试跑干脆不写这个文件）。selftest_breakout 加一个用例：先写正式行再写试跑行，读回来正式行还在",
  "expected_effect": "漂移检测的基线不再被 e2e 或手动试跑一天天吃掉；10-09 这种情况不会再出现",
  "risk": "很低。只改统计文件的写入条件，不碰打分和清单",
- "how_to_verify": "跑 selftest_breakout；再跑一次 e2e，确认 score_stats.jsonl 里当天正式行的 dry 还是 false"
+ "how_to_verify": "跑 selftest_breakout；再跑一次 e2e，确认 score_stats.jsonl 里当天正式行的 dry 还是 false",
+ "updated": "2026-10-30T08:12:12+08:00",
+ "note": "代码提案不自动改代码；已记入 docs/breakout_log.md 待办"
 }

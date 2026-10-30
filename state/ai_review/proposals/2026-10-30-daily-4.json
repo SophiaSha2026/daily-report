@@ -1,0 +1,11 @@
+{
+ "id": "2026-10-30-daily-4",
+ "date": "2026-10-30",
+ "status": "pending",
+ "created": "2026-10-30T16:50:12+08:00",
+ "type": "code",
+ "title": "update_status 的 short 只留真正没补上的",
+ "detail": "src/breakout/backfill.py stage_update 记账时，把已经用快照补了当天那根的票（filled_codes）从 short 里去掉，或者另起一个 still_short 字段。今天 short 是 70 只，实际没补上的是 44 只",
+ "expected_effect": "账面数字和日志「没拉到 44 只」一致，判断 short 的上限时也不会被误读",
+ "risk": "要先核对 SHORT_LATE 和 50 只上限读的是哪个字段，免得改变出不出清单的判定"
+}

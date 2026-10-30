@@ -1,0 +1,11 @@
+{
+ "id": "2026-10-30-daily-5",
+ "date": "2026-10-30",
+ "status": "pending",
+ "created": "2026-10-30T16:50:12+08:00",
+ "type": "process",
+ "title": "11-06 模型满 30 天，提前核对重估链",
+ "detail": "model.fit_date=2026-10-07，11-06 就满 30 天，flow_breakout 那天会在打分前自动跑 refit_chain。规则排序上线后模型只出影子清单，那天要确认 accept_model 和成绩常量刷新没把 rule=ret20 的邮件文案改掉",
+ "expected_effect": "到期重训那天不出意外",
+ "risk": "无"
+}

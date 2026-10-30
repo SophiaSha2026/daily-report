@@ -1,92 +1,92 @@
 [
   {
-    "code":"000678",
-    "name":"襄阳轴承",
+    "code":"002724",
+    "name":"海洋王",
     "score":100.0,
-    "ret20":1.1306818182,
-    "streak":3,
-    "close":18.75,
+    "ret20":1.0387811634,
+    "streak":4,
+    "close":14.72,
+    "board":"main"
+  },
+  {
+    "code":"603278",
+    "name":"大业股份",
+    "score":100.0,
+    "ret20":0.9918367347,
+    "streak":4,
+    "close":19.52,
     "board":"main"
   },
   {
     "code":"301313",
     "name":"凡拓数创",
     "score":100.0,
-    "ret20":1.070265091,
-    "streak":3,
-    "close":64.82,
+    "ret20":0.9338092148,
+    "streak":4,
+    "close":59.6,
     "board":"chinext"
   },
   {
-    "code":"603278",
-    "name":"大业股份",
+    "code":"000678",
+    "name":"襄阳轴承",
     "score":100.0,
-    "ret20":1.0067340067,
-    "streak":3,
-    "close":17.88,
-    "board":"main"
-  },
-  {
-    "code":"002724",
-    "name":"海洋王",
-    "score":100.0,
-    "ret20":0.8884239888,
-    "streak":3,
-    "close":13.54,
-    "board":"main"
-  },
-  {
-    "code":"002696",
-    "name":"百洋股份",
-    "score":100.0,
-    "ret20":0.8740515933,
-    "streak":3,
-    "close":12.35,
+    "ret20":0.867768595,
+    "streak":4,
+    "close":18.08,
     "board":"main"
   },
   {
     "code":"300949",
     "name":"奥雅股份",
     "score":100.0,
-    "ret20":0.7194304858,
-    "streak":3,
-    "close":41.06,
+    "ret20":0.7446179823,
+    "streak":4,
+    "close":41.33,
     "board":"chinext"
+  },
+  {
+    "code":"002696",
+    "name":"百洋股份",
+    "score":100.0,
+    "ret20":0.6721804511,
+    "streak":4,
+    "close":11.12,
+    "board":"main"
   },
   {
     "code":"301190",
     "name":"善水科技",
     "score":100.0,
-    "ret20":0.591588785,
-    "streak":3,
-    "close":34.06,
+    "ret20":0.5584415584,
+    "streak":4,
+    "close":32.4,
     "board":"chinext"
   },
   {
     "code":"300006",
     "name":"莱美药业",
     "score":100.0,
-    "ret20":0.8647686833,
-    "streak":2,
-    "close":10.48,
+    "ret20":0.8220183486,
+    "streak":3,
+    "close":9.93,
     "board":"chinext"
   },
   {
-    "code":"600838",
-    "name":"上海九百",
+    "code":"600825",
+    "name":"新华传媒",
     "score":100.0,
-    "ret20":0.5922897196,
-    "streak":2,
-    "close":13.63,
+    "ret20":1.2876712329,
+    "streak":1,
+    "close":13.36,
     "board":"main"
   },
   {
-    "code":"000530",
-    "name":"冰山冷热",
+    "code":"001219",
+    "name":"青岛食品",
     "score":100.0,
-    "ret20":0.5888030888,
+    "ret20":0.5676100629,
     "streak":1,
-    "close":8.23,
+    "close":19.94,
     "board":"main"
   }
 ]

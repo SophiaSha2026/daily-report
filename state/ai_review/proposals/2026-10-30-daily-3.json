@@ -1,0 +1,11 @@
+{
+ "id": "2026-10-30-daily-3",
+ "date": "2026-10-30",
+ "status": "pending",
+ "created": "2026-10-30T16:50:12+08:00",
+ "type": "code",
+ "title": "run_meta 照常写 n_qualified",
+ "detail": "src/breakout/daily.py 写 run_meta 的时候把影子模型 >=97 分的只数（score_stats 里那个 21）填进 n_qualified，别留 null；score_stats.jsonl 的 n_ok 在 10-19 换过口径，加一个 rule 字段标明",
+ "expected_effect": "审计和控制台从 run_meta 就能读到够格数，60 天分布前后两段也分得清",
+ "risk": "低。不改选票，只改记账字段"
+}

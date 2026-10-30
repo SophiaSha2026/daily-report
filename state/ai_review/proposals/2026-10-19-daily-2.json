@@ -1,12 +1,14 @@
 {
  "id": "2026-10-19-daily-2",
  "date": "2026-10-19",
- "status": "pending",
+ "status": "applied",
  "created": "2026-10-19T16:53:33+08:00",
  "type": "process",
  "title": "规则模式下 A 池 / 清单 B 的口径交用户拍板",
  "detail": "validate.pick 在 q=None 时把分数填成 100，规则的前 10 名因此全部按 best=100 进了 A 池，清单 B 的来源随之变了，还出现了 A、B 重叠（688137）。拿两个选项问用户：A 池继续收规则票，还是只收模型影子 ≥97 分的票；A、B 重叠时 B 照列还是去掉。不动清单 A 的排序",
  "expected_effect": "清单 B「可能见顶」的口径有人拍过板，邮件里不再一边说冲高一边说见顶",
  "risk": "改 A 池来源之后，B 的历史可比性要从 10-19 起重新算",
- "how_to_verify": "拍板后看 state/breakout/a_pool.json 新进条目的来源，以及 list_a 和 list_b 的代码交集"
+ "how_to_verify": "拍板后看 state/breakout/a_pool.json 新进条目的来源，以及 list_a 和 list_b 的代码交集",
+ "updated": "2026-10-30T08:31:22+08:00",
+ "note": "流程提案：记录"
 }
