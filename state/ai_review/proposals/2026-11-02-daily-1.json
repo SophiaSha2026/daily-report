@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-02-daily-1",
+ "date": "2026-11-02",
+ "status": "pending",
+ "created": "2026-11-02T17:55:48+08:00",
+ "type": "process",
+ "title": "核实并重新注册计划任务的触发时刻",
+ "detail": "读出 DailyReport-Local-Evening / Pullback / Sync / Events 四个任务 Triggers 的 StartBoundary 和 NextRunTime，换算成北京时间。如果 Evening 下次是 17:30、Pullback 是 18:40，说明 StartBoundary 不是按 UTC 写的；改 tools/setup_tasks.ps1，让 -At 传入的是明确带 Z 的 UTC 时刻，重跑注册。今天先在控制台手动补跑长期调整突破 11-02。",
+ "expected_effect": "起涨预测回到北京 16:30 开跑，长期调整突破回到 17:40 开跑、17:58 发信，以后换季不再漂。",
+ "risk": "重新注册时如果星期几写错（UTC 和本机跨日），会整天不触发；注册后要看一次 NextRunTime。",
+ "how_to_verify": "下一个交易日查日志抬头：breakout 有 [..T16:30:01]，pullback 有 [..T17:40:0x]，pullback 的 mail_sent.at 是 17:58。"
+}

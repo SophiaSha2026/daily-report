@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-02-daily-5",
+ "date": "2026-11-02",
+ "status": "pending",
+ "created": "2026-11-02T17:55:48+08:00",
+ "type": "process",
+ "title": "11-06 模型到期那天单独盯一次",
+ "detail": "fit_date 2026-10-07 加 30 天就是 11-06。那天复盘查 refit_status.json 的 at / accepted / reasons、model.json 的 fit_date、整条流程用时（重训加 refit_chain，在 MAX_RUN 6 小时以内）和发信时刻。",
+ "expected_effect": "该重训的那天确认真的重训了，验收结果也写进了邮件抬头。",
+ "risk": "无。",
+ "how_to_verify": "11-06 的 model.fit_date=2026-11-06，refit_status.at 是当天。"
+}

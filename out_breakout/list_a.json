@@ -1,92 +1,92 @@
 [
   {
-    "code":"002724",
-    "name":"海洋王",
-    "score":100.0,
-    "ret20":1.0387811634,
-    "streak":4,
-    "close":14.72,
-    "board":"main"
-  },
-  {
-    "code":"603278",
-    "name":"大业股份",
-    "score":100.0,
-    "ret20":0.9918367347,
-    "streak":4,
-    "close":19.52,
-    "board":"main"
-  },
-  {
     "code":"301313",
     "name":"凡拓数创",
     "score":100.0,
-    "ret20":0.9338092148,
-    "streak":4,
-    "close":59.6,
+    "ret20":1.1284059946,
+    "streak":5,
+    "close":62.49,
     "board":"chinext"
+  },
+  {
+    "code":"002724",
+    "name":"海洋王",
+    "score":100.0,
+    "ret20":0.8928571429,
+    "streak":5,
+    "close":13.25,
+    "board":"main"
   },
   {
     "code":"000678",
     "name":"襄阳轴承",
     "score":100.0,
-    "ret20":0.867768595,
-    "streak":4,
-    "close":18.08,
+    "ret20":0.8676056338,
+    "streak":5,
+    "close":19.89,
     "board":"main"
   },
   {
     "code":"300949",
     "name":"奥雅股份",
     "score":100.0,
-    "ret20":0.7446179823,
-    "streak":4,
-    "close":41.33,
+    "ret20":0.798652064,
+    "streak":5,
+    "close":42.7,
     "board":"chinext"
   },
   {
     "code":"002696",
     "name":"百洋股份",
     "score":100.0,
-    "ret20":0.6721804511,
-    "streak":4,
-    "close":11.12,
+    "ret20":0.7318952234,
+    "streak":5,
+    "close":11.24,
     "board":"main"
-  },
-  {
-    "code":"301190",
-    "name":"善水科技",
-    "score":100.0,
-    "ret20":0.5584415584,
-    "streak":4,
-    "close":32.4,
-    "board":"chinext"
   },
   {
     "code":"300006",
     "name":"莱美药业",
     "score":100.0,
-    "ret20":0.8220183486,
-    "streak":3,
-    "close":9.93,
+    "ret20":0.9382022472,
+    "streak":4,
+    "close":10.35,
     "board":"chinext"
   },
   {
     "code":"600825",
     "name":"新华传媒",
     "score":100.0,
-    "ret20":1.2876712329,
-    "streak":1,
-    "close":13.36,
+    "ret20":0.9423676012,
+    "streak":2,
+    "close":12.47,
     "board":"main"
   },
   {
     "code":"001219",
     "name":"青岛食品",
     "score":100.0,
-    "ret20":0.5676100629,
-    "streak":1,
-    "close":19.94,
+    "ret20":0.6960556845,
+    "streak":2,
+    "close":21.93,
     "board":"main"
+  },
+  {
+    "code":"000530",
+    "name":"冰山冷热",
+    "score":100.0,
+    "ret20":0.6847195358,
+    "streak":1,
+    "close":8.71,
+    "board":"main"
+  },
+  {
+    "code":"301052",
+    "name":"果麦文化",
+    "score":100.0,
+    "ret20":0.6598898772,
+    "streak":1,
+    "close":39.19,
+    "board":"chinext"
   }
 ]

@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-02-daily-3",
+ "date": "2026-11-02",
+ "status": "pending",
+ "created": "2026-11-02T17:55:48+08:00",
+ "type": "code",
+ "title": "rule=ret20 时 run_meta 也落 n_qualified",
+ "detail": "src/breakout/daily.py 写 run_meta 时，把影子清单那一步算出来的 >=97 分只数（日志里的「>=97 分 19 只」）写进 n_qualified，和 score_stats.jsonl 用同一个变量。",
+ "expected_effect": "run_meta 和 score_stats 的口径一致，复盘不用再去日志里翻。",
+ "risk": "run_meta 不进模型指纹，但 export.py 如果按 n_qualified 判断走哪套样式，要确认 ret20 那一支不受影响。",
+ "how_to_verify": "下次运行 run_meta.n_qualified 等于 score_stats 当天的值；selftest_breakout 通过。"
+}

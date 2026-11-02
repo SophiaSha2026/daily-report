@@ -1,0 +1,140 @@
+{
+ "kind": "daily",
+ "date": "2026-11-02",
+ "at": "2026-11-02T17:55:48+08:00",
+ "usd": 1.098,
+ "severity": "严重",
+ "summary": "起涨预测 2026-11-02 跑通，没有问题：run_meta 日期等于目标日，dry=false，17:53:10 发信，sent 标记和推送都在，日线合并没丢票，日志里没有 WARNING / ERROR。长期调整突破当天没跑：17:40 那次触发没有出现在日志里，机器当时开着（起涨预测 17:34~17:53 正在跑），17:58 发不出去。起涨预测当天第一次敲门是 17:30:01，10-30 是 16:30:01。两条线都比定义晚了正好 1 小时，时间正好落在美国夏令时结束（11-01）之后，计划任务的北京时刻很可能跟着美东墙钟漂了，和 CLAUDE.md 里「北京时刻不漂」的说法相反。另外：模型 11-06 满 30 天；ret20 规则上线以来还没有一份清单的真值定下来；10-30 跌停 108 只，11-02 涨停 133 只，市场来回大起大落。",
+ "checked": [
+  "1 两条线 run_meta.date / dry / mail_sent / sent_marker",
+  "1b 读 tools/local_flow_pullback.log、local_flow_breakout.log 的 run_local 抬头时间，核对实际敲门时刻",
+  "2 起涨预测 n_qualified / n_ok / rejected / short_excluded 对照 score_stats_60d",
+  "2b refit_rejected / drift_note / model.fit_date 年龄 / update_status short 和 merge_check",
+  "3 日志尾 WARNING / ERROR / 超时 / 接手 / 推送失败 / 跳过",
+  "4 清单 A 板块构成和连续天数分布，清单 B 和 A 的重叠",
+  "5 truth_recent_lists 和 truth_by 的命中 vs 基准",
+  "6 push_status 和 regime_10d",
+  "7 ai_usage 和警戒线"
+ ],
+ "findings": [
+  {
+   "severity": "严重",
+   "where": "长期调整突破 / 计划任务 DailyReport-Local-Pullback / tools/local_flow_pullback.log",
+   "evidence": "pullback 日志最后一次抬头是 [2026-11-01T23:31:08]（跳过，目标日 10-30），11-02 到 now=17:53:14 一条都没有；材料里的 run_meta.date=2026-10-30，sent_marker=false，state/sent/ 下没有 pullback_2026-11-02.json。同一时段机器开着：breakout 日志 17:34~17:53 一直在写。",
+   "why": "任务定义是 09:40Z 起（北京 17:40），17:40 那次没敲门，17:58 发不出去。按 +1h 推，第一次敲门要到 18:40，到时候只能补发。如果下一条（排期偏移）成立，以后每个交易日都会这样。",
+   "suggestion": "现在在控制台手动点一次长期调整突破（目标日 11-02）。之后按下一条核实排期。"
+  },
+  {
+   "severity": "严重",
+   "where": "tools/setup_tasks.ps1 注册的触发器，DailyReport-Local-Evening / Pullback",
+   "evidence": "breakout 日志：10-30 第一次正点敲门是 [2026-10-30T16:30:01]；11-02 是 [2026-11-02T17:30:01]，17:00 那格也没有。pullback 17:40 那格缺。两条线都正好晚 1 小时，美国夏令时 2026-11-01 结束。",
+   "why": "CLAUDE.md 说触发时刻按 UTC 写、北京时刻不漂，实测和这个说法不一致：起涨预测的开跑时刻成了北京 17:30，长期调整突破成了 18:40。17:58 发信这条约定每天都会破，起涨预测也每天晚 1 小时。这是推断，证据是两条线同时偏 1 小时、偏移发生在夏令时切换后的第一个交易日，还没直接读到 StartBoundary。",
+   "suggestion": "读出四个 DailyReport-Local-* 任务 Triggers 的 StartBoundary，看结尾是 Z、-04:00 还是不带偏移。不是 Z 就按 UTC 重新注册。"
+  },
+  {
+   "severity": "注意",
+   "where": "起涨预测 / state/breakout/model.json",
+   "evidence": "model.fit_date=2026-10-07，日志写「26 天前」，model_max_age_days=30；refit_status 停在 2026-10-09，accepted=true",
+   "why": "2026-11-06（周五）满 30 天，那天 flow_breakout 打分前会自动跑重训和 refit_chain，整条流程会变长。开跑时刻如果真成了 17:30，发信会更晚。当天要看 refit_status 和 accepted。",
+   "suggestion": "11-06 复盘重点查 refit_status.json 的 at / accepted / reasons，以及邮件抬头。"
+  },
+  {
+   "severity": "注意",
+   "where": "起涨预测 / state/breakout/update_status.json",
+   "evidence": "short 43 只，其中 42 只是新股；不是新股的只有 301139。10-30 pullback 日志的 44 只里也有 301139，排第一个。refetch=11，stale=9，merge_check lost=0",
+   "why": "新股不算进 50 只的上限，所以 short_excluded=0、清单照出，当天结果没错。但 301139 至少连续两个交易日整段重拉都没拉到目标日，它当天不进候选池，原因没记下来（停牌还是数据源问题）。",
+   "suggestion": "查 301139 是不是停牌；不是的话看新浪整段重拉为什么一直拿不到。"
+  },
+  {
+   "severity": "注意",
+   "where": "起涨预测 / out_breakout/run_meta.json 和 state/breakout/score_stats.jsonl",
+   "evidence": "run_meta.n_qualified=null，同一天 score_stats n_qualified=19，日志写「>=97 分 19 只」。score_stats 的 n_ok 在 10-16 是 12，10-19 起变成 4777~4885，跳了两个数量级",
+   "why": "run_meta 在 rule=ret20 下没落 n_qualified，和 score_stats 对不上。n_ok 10-19 改了口径（从过线只数变成剔除后的候选数），60 天序列前后两段不能直接比。今天的 19 只在 10-08 以来的 10~62 区间里（10-22 的 372 是孤值），top10_p_mean 0.3077 接近 60 天最低（10-16 是 0.3071），drift_note 为空。",
+   "suggestion": "见代码提案：run_meta 补上 n_qualified。"
+  },
+  {
+   "severity": "注意",
+   "where": "起涨预测 / 真值 truth_recent_lists 和 truth_by",
+   "evidence": "近 12 份清单 final 全是 false，bars 0~12，hit_rate_open 和 base_open_final 全是 null。truth_by.all 是 n=143、hits=13、9.09%，分档是 97/98/99 分，n=90/41/12",
+   "why": "truth_by 全是模型时代的票（按分数分档），给的也是 hit_rate，不是买得到口径，不能拿来评价现在的 ret20 规则。ret20 第一份清单是 10-19，现在 10 根，还差 10 根，大约 11-16 才定。在那之前，规则清单的命中没有任何证据。",
+   "suggestion": "11-16 之后的复盘才开始用 10-19 起的 hit_rate_open 对 base_open_final。"
+  },
+  {
+   "severity": "注意",
+   "where": "state/regime_daily.jsonl（regime_10d）",
+   "evidence": "10-30：跌停 108 只，涨跌中位数 -3.12%，上涨占比 16%。11-02：涨停 133 只（10 天里第二高是 10-23 的 82），上涨占比 84.0%，中位数 +2.02%。10 天里 4 天中位数 ≤ -2.5%（10-22、10-27、10-29、10-30）。成交额 17798 亿，5 日变化 +11.3%",
+   "why": "市场大起大落，流水线没出错。11-02 是全面普涨日，清单 A 的 ret20 是 66%~113%，在这种环境里出的票，后面 20 根的结果波动会很大。",
+   "suggestion": "记下来，等这批清单真值定了以后对照看。"
+  },
+  {
+   "severity": "注意",
+   "where": "state/sent/（长期调整突破历史标记）",
+   "evidence": "2026-10 的 sent 标记缺 10-21、10-22、10-26、10-27 四个交易日（10-20、10-23、10-28 都有）",
+   "why": "不是当天这次运行的问题，但说明长期调整突破这个月已经有 4 个交易日没有发信记录，和起涨预测排期偏移不是一回事，要另查（机器没开，或者 evening_check 提醒了没人补）。",
+   "suggestion": "查这四天 pullback 日志和 evening_check 的提醒记录。"
+  },
+  {
+   "severity": "正常",
+   "where": "起涨预测 / run_meta、mail_sent、push_status、日志",
+   "evidence": "run_meta.date=2026-11-02，dry=false；mail_sent at 17:53:10，A 10 / B 3；sent_marker=true；push_status ok，17:53:14。fetch_quotes 5382/5382；剔除 497/5382=9.2%（前几天 n_eligible-n_ok 是 526~534，分母不同但量级一样）；refit_rejected=false；日志里没有 WARNING / ERROR / 超时 / 接手",
+   "why": "起涨预测当天的清单、发信、推送都对得上目标日。",
+   "suggestion": ""
+  },
+  {
+   "severity": "正常",
+   "where": "起涨预测 / 清单 A、B 构成",
+   "evidence": "A 板块：主板 6（002724 000678 002696 600825 001219 000530）、创业板 4，科创板和北交所 0。连续天数：5 天 5 只、4 天 1 只、2 天 2 只、1 天 2 只，和 n_streak3=6 一致。B 3 只，其中 002696 和 000530 也在 A 里",
+   "why": "没有单一板块占满；各个数字之间对得上。",
+   "suggestion": ""
+  },
+  {
+   "severity": "正常",
+   "where": "state/ai_usage.jsonl",
+   "evidence": "today_usd=0，month_usd=0，警戒线是每天 10、每月 100，warn=false",
+   "why": "没有超线。",
+   "suggestion": ""
+  }
+ ],
+ "proposals": [
+  {
+   "type": "process",
+   "title": "核实并重新注册计划任务的触发时刻",
+   "detail": "读出 DailyReport-Local-Evening / Pullback / Sync / Events 四个任务 Triggers 的 StartBoundary 和 NextRunTime，换算成北京时间。如果 Evening 下次是 17:30、Pullback 是 18:40，说明 StartBoundary 不是按 UTC 写的；改 tools/setup_tasks.ps1，让 -At 传入的是明确带 Z 的 UTC 时刻，重跑注册。今天先在控制台手动补跑长期调整突破 11-02。",
+   "expected_effect": "起涨预测回到北京 16:30 开跑，长期调整突破回到 17:40 开跑、17:58 发信，以后换季不再漂。",
+   "risk": "重新注册时如果星期几写错（UTC 和本机跨日），会整天不触发；注册后要看一次 NextRunTime。",
+   "how_to_verify": "下一个交易日查日志抬头：breakout 有 [..T16:30:01]，pullback 有 [..T17:40:0x]，pullback 的 mail_sent.at 是 17:58。"
+  },
+  {
+   "type": "code",
+   "title": "控制台排期健康检查加一条：实际下次敲门时刻对不对得上定义",
+   "detail": "src/gui/status.py 的 tasks_panel：把注册任务的 NextRunTime 换成北京时间，和 setup_tasks.ps1 里 UTC 定义换算出的北京时刻比，差了 ≥30 分钟就标红。src/selftest_gui.py 加一个用例，用假的 NextRunTime 钉住这个判断。",
+   "expected_effect": "再遇到夏令时切换或者注册口径错，控制台当天就能看出来，不用等漏发。",
+   "risk": "Windows 报的本机时间怎么换算，要用 bjtime 那一份实现，不然又多一份重复实现（教训 34）。",
+   "how_to_verify": "selftest_gui 新用例通过；手动把一个任务改晚 1 小时，控制台标红。"
+  },
+  {
+   "type": "code",
+   "title": "rule=ret20 时 run_meta 也落 n_qualified",
+   "detail": "src/breakout/daily.py 写 run_meta 时，把影子清单那一步算出来的 >=97 分只数（日志里的「>=97 分 19 只」）写进 n_qualified，和 score_stats.jsonl 用同一个变量。",
+   "expected_effect": "run_meta 和 score_stats 的口径一致，复盘不用再去日志里翻。",
+   "risk": "run_meta 不进模型指纹，但 export.py 如果按 n_qualified 判断走哪套样式，要确认 ret20 那一支不受影响。",
+   "how_to_verify": "下次运行 run_meta.n_qualified 等于 score_stats 当天的值；selftest_breakout 通过。"
+  },
+  {
+   "type": "process",
+   "title": "不是新股、连续 ≥2 天没拉到目标日的票，单独列出来",
+   "detail": "复盘材料或控制台读 update_status.short，去掉 new_codes 后，记下每只连续缺了几天。连续 ≥2 天的列出代码，附上是不是停牌（看腾讯快照有没有成交）。现在是 301139。",
+   "expected_effect": "数据源对个别票长期失效时能看出来，不会被新股淹在 short 里。",
+   "risk": "停牌票会天天上榜，要加停牌标记，不然全是噪音。",
+   "how_to_verify": "11-03 复盘材料里能看到 301139 的连续天数和停牌状态。"
+  },
+  {
+   "type": "process",
+   "title": "11-06 模型到期那天单独盯一次",
+   "detail": "fit_date 2026-10-07 加 30 天就是 11-06。那天复盘查 refit_status.json 的 at / accepted / reasons、model.json 的 fit_date、整条流程用时（重训加 refit_chain，在 MAX_RUN 6 小时以内）和发信时刻。",
+   "expected_effect": "该重训的那天确认真的重训了，验收结果也写进了邮件抬头。",
+   "risk": "无。",
+   "how_to_verify": "11-06 的 model.fit_date=2026-11-06，refit_status.at 是当天。"
+  }
+ ]
+}
