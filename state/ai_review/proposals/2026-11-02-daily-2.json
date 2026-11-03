@@ -1,12 +1,14 @@
 {
  "id": "2026-11-02-daily-2",
  "date": "2026-11-02",
- "status": "pending",
+ "status": "applied",
  "created": "2026-11-02T17:55:48+08:00",
  "type": "code",
  "title": "控制台排期健康检查加一条：实际下次敲门时刻对不对得上定义",
  "detail": "src/gui/status.py 的 tasks_panel：把注册任务的 NextRunTime 换成北京时间，和 setup_tasks.ps1 里 UTC 定义换算出的北京时刻比，差了 ≥30 分钟就标红。src/selftest_gui.py 加一个用例，用假的 NextRunTime 钉住这个判断。",
  "expected_effect": "再遇到夏令时切换或者注册口径错，控制台当天就能看出来，不用等漏发。",
  "risk": "Windows 报的本机时间怎么换算，要用 bjtime 那一份实现，不然又多一份重复实现（教训 34）。",
- "how_to_verify": "selftest_gui 新用例通过；手动把一个任务改晚 1 小时，控制台标红。"
+ "how_to_verify": "selftest_gui 新用例通过；手动把一个任务改晚 1 小时，控制台标红。",
+ "updated": "2026-11-03T07:14:57+08:00",
+ "note": "代码提案不自动改代码；已记入 docs/breakout_log.md 待办"
 }

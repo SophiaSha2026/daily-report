@@ -3,90 +3,90 @@
     "code":"301313",
     "name":"凡拓数创",
     "score":100.0,
-    "ret20":1.1284059946,
-    "streak":5,
-    "close":62.49,
-    "board":"chinext"
-  },
-  {
-    "code":"002724",
-    "name":"海洋王",
-    "score":100.0,
-    "ret20":0.8928571429,
-    "streak":5,
-    "close":13.25,
-    "board":"main"
-  },
-  {
-    "code":"000678",
-    "name":"襄阳轴承",
-    "score":100.0,
-    "ret20":0.8676056338,
-    "streak":5,
-    "close":19.89,
-    "board":"main"
-  },
-  {
-    "code":"300949",
-    "name":"奥雅股份",
-    "score":100.0,
-    "ret20":0.798652064,
-    "streak":5,
-    "close":42.7,
+    "ret20":0.9933554817,
+    "streak":6,
+    "close":60.0,
     "board":"chinext"
   },
   {
     "code":"002696",
     "name":"百洋股份",
     "score":100.0,
-    "ret20":0.7318952234,
-    "streak":5,
-    "close":11.24,
+    "ret20":0.875569044,
+    "streak":6,
+    "close":12.36,
+    "board":"main"
+  },
+  {
+    "code":"002724",
+    "name":"海洋王",
+    "score":100.0,
+    "ret20":0.7846153846,
+    "streak":6,
+    "close":12.76,
+    "board":"main"
+  },
+  {
+    "code":"300949",
+    "name":"奥雅股份",
+    "score":100.0,
+    "ret20":0.7404517454,
+    "streak":6,
+    "close":42.38,
+    "board":"chinext"
+  },
+  {
+    "code":"000678",
+    "name":"襄阳轴承",
+    "score":100.0,
+    "ret20":0.728668942,
+    "streak":6,
+    "close":20.26,
     "board":"main"
   },
   {
     "code":"300006",
     "name":"莱美药业",
     "score":100.0,
-    "ret20":0.9382022472,
-    "streak":4,
-    "close":10.35,
+    "ret20":0.7226415094,
+    "streak":5,
+    "close":9.13,
     "board":"chinext"
   },
   {
     "code":"600825",
     "name":"新华传媒",
     "score":100.0,
-    "ret20":0.9423676012,
-    "streak":2,
-    "close":12.47,
+    "ret20":0.7436260623,
+    "streak":3,
+    "close":12.31,
     "board":"main"
   },
   {
     "code":"001219",
     "name":"青岛食品",
     "score":100.0,
-    "ret20":0.6960556845,
-    "streak":2,
-    "close":21.93,
+    "ret20":0.7023255814,
+    "streak":3,
+    "close":21.96,
     "board":"main"
   },
   {
     "code":"000530",
     "name":"冰山冷热",
     "score":100.0,
-    "ret20":0.6847195358,
-    "streak":1,
-    "close":8.71,
+    "ret20":0.650671785,
+    "streak":2,
+    "close":8.6,
     "board":"main"
   },
   {
-    "code":"301052",
-    "name":"果麦文化",
+    "code":"002086",
+    "name":"东方海洋",
     "score":100.0,
-    "ret20":0.6598898772,
+    "ret20":0.71,
     "streak":1,
-    "close":39.19,
-    "board":"chinext"
+    "close":3.42,
+    "board":"main"
   }
 ]

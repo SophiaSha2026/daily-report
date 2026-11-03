@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-03-daily-4",
+ "date": "2026-11-03",
+ "status": "pending",
+ "created": "2026-11-03T17:54:42+08:00",
+ "type": "code",
+ "title": "规则模式下 run_meta 也写 n_qualified",
+ "detail": "src/breakout/daily.py 写 run_meta 那里，把 select_shadow 已经算出的「>=SCORE_MIN 只数」（日志里的 27）写进 n_qualified，和 score_stats.jsonl 同一个口径；export.py 的规则样式不用印它",
+ "expected_effect": "run_meta 和 score_stats 能直接对账，不再是 null 对 27",
+ "risk": "只加一个字段，不影响排序，也不进模型指纹（daily.py 不在指纹的四个文件里）",
+ "how_to_verify": "selftest_breakout 断言规则模式下 run_meta.n_qualified 等于 score_stats 当天的值"
+}

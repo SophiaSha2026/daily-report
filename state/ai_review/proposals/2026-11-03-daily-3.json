@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-03-daily-3",
+ "date": "2026-11-03",
+ "status": "pending",
+ "created": "2026-11-03T17:54:42+08:00",
+ "type": "process",
+ "title": "补齐 10-26 存档，核对缺的 sent 标记",
+ "detail": "用 tools/rerun_breakout.py 补算 breakout_2026-10-26.parquet（不补发），并注明是补算的；用 git log 查 state/sent 缺的 10-21/22/26/27/28 是根本没发，还是发了但标记没提交",
+ "expected_effect": "A 池和连续天数回到按连续交易日算的口径",
+ "risk": "补算用的是现在的代码和日线，和当天实际会算出来的可能有出入",
+ "how_to_verify": "补完后重算 11-04 清单，看 streak 和 A 池能不能和存档对上"
+}

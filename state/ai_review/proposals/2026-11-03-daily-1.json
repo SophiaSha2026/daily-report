@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-03-daily-1",
+ "date": "2026-11-03",
+ "status": "pending",
+ "created": "2026-11-03T17:54:42+08:00",
+ "type": "process",
+ "title": "查清计划任务到点没触发",
+ "detail": "11-03 17:40（长期调整突破）、16:30 / 17:00（起涨预测），以及 11-02 17:40~18:25 的四次，日志里都没有对应的 === run_local === 头，但机器在 17:30 是醒着的。用 Get-ScheduledTaskInfo 和任务计划程序的操作历史，看这几个时刻 LastTaskResult、NumberOfMissedRuns、有没有 0x41301 / 0x800710E0 这类结果；同时看触发器的 StartBoundary 是不是被重新注册改过",
+ "expected_effect": "找到 52 分钟、42 分钟这类延迟的原因，17:58 能准点发",
+ "risk": "只读排查，没有风险",
+ "how_to_verify": "下一个交易日 tools/local_flow_pullback.log 里有 17:40:0x 的触发头"
+}
