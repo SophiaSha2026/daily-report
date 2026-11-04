@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-04-daily-3",
+ "date": "2026-11-04",
+ "status": "pending",
+ "created": "2026-11-05T01:59:29+08:00",
+ "type": "code",
+ "title": "run_meta 在规则模式下也写影子模型的合格只数",
+ "detail": "src/breakout/daily.py 写 run_meta 时，rule=ret20 下 n_qualified 是 null，score_stats.jsonl 却记了 19。建议 run_meta 也落同一个数，字段名写明是影子模型（比如 n_qualified_shadow），n_qualified 保持 null。score_stats 里给 10-19 起的行加 rule 字段，让漂移基线和 60 天对照能按口径分段，不把 10-19 前后的 n_ok 混在一起比。",
+ "expected_effect": "复盘时两个文件的同名数字对得上，10-19 换口径前后不会被当成分布突变",
+ "risk": "export.py 和控制台学习卡片如果读 n_qualified 判断样式，要一起看；不碰排序",
+ "how_to_verify": "python src/selftest_breakout.py 断言失败 0 个；下一份 run_meta 里有影子合格数，并且等于 score_stats 当天的 n_qualified"
+}

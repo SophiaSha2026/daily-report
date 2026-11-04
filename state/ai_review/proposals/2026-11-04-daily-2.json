@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-04-daily-2",
+ "date": "2026-11-04",
+ "status": "pending",
+ "created": "2026-11-05T01:59:29+08:00",
+ "type": "process",
+ "title": "模型到期那天专门复盘一次",
+ "detail": "fit_date 2026-10-07，最近一两次运行会触发 refit_chain + 重训。那天的复盘重点核三件事：refit_status.json 的 accepted 和 reasons；日志里重训是不是在目标日 30 天那天才触发（年龄现在按墙钟算，跨午夜补跑可能早一天）；整条流程耗时有没有逼近 MAX_RUN 6 小时。",
+ "expected_effect": "确认该重训时重训了、不该重训时没提前重训，验收结果也写清楚了",
+ "risk": "基本没有，只是加一项检查",
+ "how_to_verify": "到期那天的 log_tail 里有「重训」和「验收」两行，refit_status.at 是当天"
+}
