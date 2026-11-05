@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-05-daily-4",
+ "date": "2026-11-05",
+ "status": "pending",
+ "created": "2026-11-05T17:50:26+08:00",
+ "type": "code",
+ "title": "rule=ret20 时 run_meta 也写 n_qualified",
+ "detail": "src/breakout/daily.py 写 run_meta 时，把 select_shadow 已经算出来的「>=SCORE_MIN 的只数」（今天 28）写进 n_qualified，和 score_stats.jsonl 同一个来源",
+ "expected_effect": "run_meta 和 score_stats 对同一天给出同一个数，控制台不再显示空值",
+ "risk": "export.py 里如果有「n_qualified 为空就走规则样式」的判断，要一起看；那个判断只看 rule 字段的话就没影响",
+ "how_to_verify": "selftest_breakout 通过；下一份 run_meta 的 n_qualified 和 score_stats 当天那一行相等"
+}

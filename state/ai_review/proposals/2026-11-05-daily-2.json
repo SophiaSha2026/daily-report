@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-05-daily-2",
+ "date": "2026-11-05",
+ "status": "pending",
+ "created": "2026-11-05T17:50:26+08:00",
+ "type": "code",
+ "title": "tools/setup_tasks.ps1 给 Evening / Pullback 两个任务开「唤醒计算机运行此任务」",
+ "detail": "在这两个任务的 New-ScheduledTaskSettingsSet 里加 -WakeToRun（同时确认 -StartWhenAvailable 在），改完重跑注册脚本。selftest_gui 的排期断言要跟着更新",
+ "expected_effect": "机器睡着时，16:30 / 17:40 也能按时开跑，不会像 11-04、11-05 那样等人唤醒",
+ "risk": "笔记本合盖放包里时也会被唤醒；电源计划要允许唤醒定时器才生效",
+ "how_to_verify": "下一次睡眠跨过 16:30 时，日志里 16:30 那一段有记录"
+}

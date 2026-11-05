@@ -3,90 +3,90 @@
     "code":"301313",
     "name":"凡拓数创",
     "score":100.0,
-    "ret20":1.1592950933,
-    "streak":7,
-    "close":62.49,
+    "ret20":1.3732669748,
+    "streak":8,
+    "close":66.76,
     "board":"chinext"
   },
   {
     "code":"300949",
     "name":"奥雅股份",
     "score":100.0,
-    "ret20":0.9121338912,
-    "streak":7,
-    "close":45.7,
+    "ret20":1.0895214521,
+    "streak":8,
+    "close":50.65,
     "board":"chinext"
-  },
-  {
-    "code":"002696",
-    "name":"百洋股份",
-    "score":100.0,
-    "ret20":0.6899696049,
-    "streak":7,
-    "close":11.12,
-    "board":"main"
-  },
-  {
-    "code":"002724",
-    "name":"海洋王",
-    "score":100.0,
-    "ret20":0.670487106,
-    "streak":7,
-    "close":11.66,
-    "board":"main"
   },
   {
     "code":"300006",
     "name":"莱美药业",
     "score":100.0,
-    "ret20":0.714028777,
-    "streak":6,
-    "close":9.53,
+    "ret20":0.9068901304,
+    "streak":7,
+    "close":10.24,
     "board":"chinext"
   },
   {
     "code":"001219",
     "name":"青岛食品",
     "score":100.0,
-    "ret20":0.6924265842,
-    "streak":4,
-    "close":21.9,
-    "board":"main"
-  },
-  {
-    "code":"600825",
-    "name":"新华传媒",
-    "score":100.0,
-    "ret20":0.5611325611,
-    "streak":4,
-    "close":12.13,
+    "ret20":0.7828089025,
+    "streak":5,
+    "close":23.23,
     "board":"main"
   },
   {
     "code":"000530",
     "name":"冰山冷热",
     "score":100.0,
-    "ret20":0.8368932039,
-    "streak":3,
-    "close":9.46,
+    "ret20":0.7186311787,
+    "streak":4,
+    "close":9.04,
     "board":"main"
   },
   {
     "code":"002086",
     "name":"东方海洋",
     "score":100.0,
-    "ret20":0.6157635468,
-    "streak":2,
-    "close":3.28,
+    "ret20":0.7960199005,
+    "streak":3,
+    "close":3.61,
     "board":"main"
   },
   {
     "code":"301052",
     "name":"果麦文化",
     "score":100.0,
-    "ret20":0.5940838127,
+    "ret20":0.7517123288,
+    "streak":2,
+    "close":40.92,
+    "board":"chinext"
+  },
+  {
+    "code":"605488",
+    "name":"福莱新材",
+    "score":100.0,
+    "ret20":0.7434536447,
     "streak":1,
-    "close":38.8,
+    "close":49.27,
+    "board":"main"
+  },
+  {
+    "code":"688787",
+    "name":"海天瑞声",
+    "score":100.0,
+    "ret20":0.7193287756,
+    "streak":1,
+    "close":138.32,
+    "board":"star"
+  },
+  {
+    "code":"300413",
+    "name":"芒果超媒",
+    "score":100.0,
+    "ret20":0.7099634846,
+    "streak":1,
+    "close":32.78,
     "board":"chinext"
   }
 ]

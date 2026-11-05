@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-05-daily-1",
+ "date": "2026-11-05",
+ "status": "pending",
+ "created": "2026-11-05T17:50:26+08:00",
+ "type": "process",
+ "title": "今晚 18:05 核对长期调整突破 11-05 有没有发",
+ "detail": "看 state/sent/pullback_2026-11-05.json 和 out_pullback/run_meta.json 的 date。没有就在控制台手动点长期调整突破，再到「计划任务」区块看 DailyReport-Local-Pullback 最近几次触发，查清 17:40 为什么没起",
+ "expected_effect": "当天的长期调整突破不用等到 20:30 云端提醒才发现漏了",
+ "risk": "几乎没有；手动跑和计划任务用同一把进程锁，不会发两封",
+ "how_to_verify": "有 sent 标记，mail_sent.json 的 date=2026-11-05"
+}

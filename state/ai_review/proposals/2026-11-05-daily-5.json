@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-05-daily-5",
+ "date": "2026-11-05",
+ "status": "pending",
+ "created": "2026-11-05T17:50:26+08:00",
+ "type": "process",
+ "title": "查 2026-10-26 起涨预测为什么没有清单",
+ "detail": "翻 local_flow_breakout.log 里 10-26~10-27 两天的记录和 git log（找 claim / sent: breakout 2026-10-26），确认是没开机漏发，还是跑了没落盘。漏发的话用 tools/rerun_breakout.py 补出清单存档，好让真值的分母完整（不补发邮件）。顺手查清 10-21 / 10-22 / 10-27 / 10-28 为什么没有 sent 标记",
+ "expected_effect": "ret20 规则第一批真值定下来时，样本不缺天",
+ "risk": "补算用的是现在的日线表，和当天实时的数据可能有出入，要标成补算",
+ "how_to_verify": "data/breakout/2026-10/breakout_2026-10-26.parquet 存在，truth 里出现 10-26"
+}

@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-05-daily-3",
+ "date": "2026-11-05",
+ "status": "pending",
+ "created": "2026-11-05T17:50:26+08:00",
+ "type": "process",
+ "title": "11-06 盯一次到期重训",
+ "detail": "明天模型满 30 天，flow_breakout 打分前会跑重训链。看 state/breakout/refit_status.json 的 at / accepted 有没有更新，model.json 的 fit_date 有没有变成 11-06，邮件抬头有没有印验收结果",
+ "expected_effect": "确认该重训的那天真的重训了，验收结果写进了状态文件",
+ "risk": "无",
+ "how_to_verify": "refit_status.at 是 2026-11-06"
+}
