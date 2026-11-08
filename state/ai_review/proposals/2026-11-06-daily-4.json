@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-06-daily-4",
+ "date": "2026-11-06",
+ "status": "pending",
+ "created": "2026-11-08T08:48:06+08:00",
+ "type": "process",
+ "title": "晚发超过 24 小时时在抬头写明，并核对托底提醒",
+ "detail": "这次两封邮件比最晚截止时间晚了一天多。流程上每次碰到这种情况都要查 evening_check 当晚那一跑（GitHub Actions 运行记录），确认提醒发了；控制台首页「系统状态」加一行上次关机空窗（从 sync 日志的断档算）",
+ "expected_effect": "关机造成的晚发能在界面上看到，托底提醒有没有生效也有据可查",
+ "risk": "只是监控，不动流水线",
+ "how_to_verify": "看 GitHub Actions 里 11-06 的 evening_check 运行日志和收件箱"
+}

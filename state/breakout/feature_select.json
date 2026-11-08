@@ -1,8 +1,8 @@
 {
  "fingerprint": "28d0fb539ceaa459ec8a163badf718d3",
- "fit_date": "2026-10-07",
+ "fit_date": "2026-11-08",
  "start": 102,
- "end": 50,
+ "end": 49,
  "keep": [
   "turn_pct__mean",
   "boll_width__last",
@@ -13,43 +13,42 @@
   "chip_win__last",
   "ma_align__mean",
   "rs20__last",
-  "chip_dev__mean",
   "atr_ratio__last",
+  "chip_dev__mean",
   "ma20_slope5__mean",
   "up_vol_share20__last",
   "chip_conc90__last",
   "chip_peak__last",
-  "x_light_top__last",
   "gdhs_level__last",
+  "x_light_top__last",
   "x_holder_chip__last",
-  "dist_52w_low__slope",
   "vol_compress__last",
-  "vol_ratio20__last",
+  "dist_52w_low__slope",
   "amt_ma20__slope",
+  "vol_ratio20__last",
   "vol_compress__mean",
   "range_compress__last",
+  "turn_std20__last",
   "x_squeeze_burst__mean",
   "range_compress__mean",
-  "turn_std20__last",
   "x_squeeze_burst__last",
   "rs60__slope",
-  "dist_52w_high__slope",
-  "gdhs_level__slope",
-  "chip_dev__slope",
-  "mkt_ret5__slope",
-  "turn_pct__slope",
   "dist_52w_high__last",
+  "gdhs_level__slope",
+  "dist_52w_high__slope",
+  "chip_dev__slope",
+  "turn_pct__slope",
   "mkt_ret5__last",
-  "atr_ratio__slope",
   "gdhs_chg3__mean",
-  "vol_ratio5__mean",
+  "atr_ratio__slope",
   "boll_width__slope",
-  "rs20__slope",
+  "vol_ratio5__mean",
   "chip_win__slope",
+  "rs20__slope",
   "chip_conc_chg20__last",
-  "ma20_slope5__slope",
   "mkt_breadth__last",
   "mkt_ret5__mean",
+  "ma20_slope5__slope",
   "ma_align__slope",
   "chip_peak__slope",
   "vol_ratio5__last",
@@ -76,16 +75,16 @@
    "gdhs_down_streak__slope",
    "gdhs_stale_days__last",
    "gdhs_stale_days__mean",
+   "rs_accel__last",
    "rs_accel__slope",
-   "mkt_breadth__mean",
    "x_holder_chip__slope",
    "x_squeeze_burst__slope"
   ],
   "ic_unstable": [
    "gdhs_stale_days__slope",
-   "rs_accel__last",
    "rs_accel__mean",
-   "mkt_breadth__slope"
+   "mkt_breadth__slope",
+   "mkt_ret5__slope"
   ],
   "collinear": [
    "turn_pct__last",
@@ -97,238 +96,231 @@
    "chip_win__mean",
    "ma_align__last",
    "chip_dev__last",
-   "rs20__mean",
    "ma20_slope5__last",
+   "rs20__mean",
    "atr_ratio__mean",
    "up_vol_share20__mean",
-   "chip_conc90__mean",
    "obv_slope20__last",
    "obv_slope20__mean",
    "chip_peak__mean",
-   "x_light_top__mean",
+   "chip_conc90__mean",
    "gdhs_level__mean",
-   "x_holder_chip__mean",
+   "x_light_top__mean",
    "vol_ratio20__mean",
+   "x_holder_chip__mean",
    "turn_std20__mean",
    "gdhs_chg3__last",
    "dist_52w_high__mean",
-   "chip_conc_chg20__mean"
+   "chip_conc_chg20__mean",
+   "mkt_breadth__mean"
   ]
  },
  "n_dropped": {
   "ic_too_weak": 23,
   "ic_unstable": 4,
-  "collinear": 25
+  "collinear": 26
  },
  "ic_table": {
   "turn_pct__mean": {
-   "ic": 0.077,
+   "ic": 0.0748,
    "flip": 0.03
   },
   "boll_width__last": {
-   "ic": 0.0688,
+   "ic": 0.0667,
    "flip": 0.0
   },
   "dist_52w_low__last": {
-   "ic": 0.0601,
+   "ic": 0.0585,
    "flip": 0.06
   },
   "amt_ma20__last": {
-   "ic": 0.0584,
-   "flip": 0.09
+   "ic": 0.0572,
+   "flip": 0.08
   },
   "above_ma60__last": {
-   "ic": 0.0489,
+   "ic": 0.049,
    "flip": 0.03
   },
   "rs60__last": {
-   "ic": 0.0454,
-   "flip": 0.21
+   "ic": 0.0441,
+   "flip": 0.19
   },
   "chip_win__last": {
-   "ic": 0.0406,
+   "ic": 0.0397,
    "flip": 0.06
   },
   "ma_align__mean": {
-   "ic": 0.0394,
-   "flip": 0.09
+   "ic": 0.0388,
+   "flip": 0.06
   },
   "rs20__last": {
-   "ic": 0.0376,
-   "flip": 0.15
-  },
-  "chip_dev__mean": {
-   "ic": 0.034,
-   "flip": 0.24
+   "ic": 0.0375,
+   "flip": 0.14
   },
   "atr_ratio__last": {
-   "ic": 0.0337,
-   "flip": 0.12
+   "ic": 0.0338,
+   "flip": 0.11
+  },
+  "chip_dev__mean": {
+   "ic": 0.0334,
+   "flip": 0.22
   },
   "ma20_slope5__mean": {
-   "ic": 0.0327,
-   "flip": 0.18
+   "ic": 0.033,
+   "flip": 0.17
   },
   "up_vol_share20__last": {
-   "ic": 0.0295,
-   "flip": 0.12
+   "ic": 0.0293,
+   "flip": 0.08
   },
   "chip_conc90__last": {
-   "ic": 0.0295,
-   "flip": 0.03
+   "ic": 0.0269,
+   "flip": 0.06
   },
   "chip_peak__last": {
-   "ic": -0.0274,
-   "flip": 0.15
-  },
-  "x_light_top__last": {
-   "ic": -0.0227,
-   "flip": 0.09
+   "ic": -0.0269,
+   "flip": 0.14
   },
   "gdhs_level__last": {
-   "ic": 0.0219,
-   "flip": 0.24
+   "ic": 0.0217,
+   "flip": 0.22
+  },
+  "x_light_top__last": {
+   "ic": -0.0212,
+   "flip": 0.14
   },
   "x_holder_chip__last": {
-   "ic": -0.0207,
-   "flip": 0.12
-  },
-  "dist_52w_low__slope": {
-   "ic": 0.0195,
-   "flip": 0.06
+   "ic": -0.019,
+   "flip": 0.11
   },
   "vol_compress__last": {
-   "ic": 0.0189,
+   "ic": 0.0184,
    "flip": 0.03
   },
-  "vol_ratio20__last": {
-   "ic": 0.0176,
-   "flip": 0.06
+  "dist_52w_low__slope": {
+   "ic": 0.0183,
+   "flip": 0.08
   },
   "amt_ma20__slope": {
-   "ic": 0.0172,
-   "flip": 0.15
+   "ic": 0.0173,
+   "flip": 0.14
+  },
+  "vol_ratio20__last": {
+   "ic": 0.0171,
+   "flip": 0.06
   },
   "vol_compress__mean": {
-   "ic": 0.017,
-   "flip": 0.21
+   "ic": 0.0167,
+   "flip": 0.19
   },
   "range_compress__last": {
-   "ic": 0.0164,
-   "flip": 0.18
-  },
-  "x_squeeze_burst__mean": {
-   "ic": -0.0157,
-   "flip": 0.12
-  },
-  "range_compress__mean": {
-   "ic": 0.015,
-   "flip": 0.24
+   "ic": 0.0161,
+   "flip": 0.17
   },
   "turn_std20__last": {
-   "ic": 0.0149,
-   "flip": 0.12
+   "ic": 0.0156,
+   "flip": 0.11
+  },
+  "x_squeeze_burst__mean": {
+   "ic": -0.0154,
+   "flip": 0.11
+  },
+  "range_compress__mean": {
+   "ic": 0.0147,
+   "flip": 0.22
   },
   "x_squeeze_burst__last": {
-   "ic": -0.0137,
-   "flip": 0.12
+   "ic": -0.0134,
+   "flip": 0.11
   },
   "rs60__slope": {
    "ic": 0.0131,
-   "flip": 0.12
-  },
-  "dist_52w_high__slope": {
-   "ic": 0.0125,
-   "flip": 0.09
-  },
-  "gdhs_level__slope": {
-   "ic": 0.0125,
-   "flip": 0.24
-  },
-  "chip_dev__slope": {
-   "ic": 0.0124,
-   "flip": 0.12
-  },
-  "mkt_ret5__slope": {
-   "ic": 0.0122,
-   "flip": 0.39
-  },
-  "turn_pct__slope": {
-   "ic": 0.0117,
-   "flip": 0.03
+   "flip": 0.08
   },
   "dist_52w_high__last": {
+   "ic": 0.0124,
+   "flip": 0.33
+  },
+  "gdhs_level__slope": {
+   "ic": 0.012,
+   "flip": 0.22
+  },
+  "dist_52w_high__slope": {
+   "ic": 0.012,
+   "flip": 0.11
+  },
+  "chip_dev__slope": {
+   "ic": 0.0117,
+   "flip": 0.14
+  },
+  "turn_pct__slope": {
    "ic": 0.0114,
-   "flip": 0.36
+   "flip": 0.03
   },
   "mkt_ret5__last": {
-   "ic": 0.0114,
+   "ic": 0.0111,
+   "flip": 0.36
+  },
+  "gdhs_chg3__mean": {
+   "ic": 0.0108,
    "flip": 0.33
   },
   "atr_ratio__slope": {
-   "ic": 0.0113,
-   "flip": 0.24
-  },
-  "gdhs_chg3__mean": {
-   "ic": 0.0111,
-   "flip": 0.3
-  },
-  "vol_ratio5__mean": {
-   "ic": 0.0097,
-   "flip": 0.18
+   "ic": 0.0106,
+   "flip": 0.25
   },
   "boll_width__slope": {
-   "ic": 0.0096,
-   "flip": 0.18
+   "ic": 0.0091,
+   "flip": 0.22
   },
-  "rs20__slope": {
-   "ic": 0.0096,
-   "flip": 0.24
+  "vol_ratio5__mean": {
+   "ic": 0.0091,
+   "flip": 0.17
   },
   "chip_win__slope": {
-   "ic": 0.0092,
-   "flip": 0.12
+   "ic": 0.009,
+   "flip": 0.11
+  },
+  "rs20__slope": {
+   "ic": 0.0089,
+   "flip": 0.25
   },
   "chip_conc_chg20__last": {
-   "ic": 0.0089,
-   "flip": 0.36
-  },
-  "ma20_slope5__slope": {
-   "ic": 0.0077,
-   "flip": 0.24
+   "ic": 0.0085,
+   "flip": 0.33
   },
   "mkt_breadth__last": {
-   "ic": 0.0077,
-   "flip": 0.36
+   "ic": 0.0084,
+   "flip": 0.39
   },
   "mkt_ret5__mean": {
-   "ic": 0.0074,
-   "flip": 0.27
+   "ic": 0.0083,
+   "flip": 0.31
+  },
+  "ma20_slope5__slope": {
+   "ic": 0.0071,
+   "flip": 0.25
   },
   "ma_align__slope": {
-   "ic": 0.007,
-   "flip": 0.15
+   "ic": 0.0067,
+   "flip": 0.17
   },
   "chip_peak__slope": {
-   "ic": -0.007,
-   "flip": 0.18
+   "ic": -0.0066,
+   "flip": 0.19
   },
   "vol_ratio5__last": {
-   "ic": 0.0068,
-   "flip": 0.09
+   "ic": 0.0066,
+   "flip": 0.11
   },
   "x_light_top__slope": {
-   "ic": -0.0052,
-   "flip": 0.15
+   "ic": -0.0055,
+   "flip": 0.19
   }
  },
  "l1_zero": [
-  "rs60__last",
-  "ma_align__mean",
-  "x_squeeze_burst__mean",
-  "x_squeeze_burst__last",
-  "mkt_ret5__slope",
+  "chip_dev__mean",
   "turn_pct__slope",
-  "rs20__slope"
+  "ma20_slope5__slope"
  ]
 }

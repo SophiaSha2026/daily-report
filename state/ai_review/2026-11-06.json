@@ -1,0 +1,125 @@
+{
+ "kind": "daily",
+ "date": "2026-11-06",
+ "at": "2026-11-08T08:48:06+08:00",
+ "usd": 1.094,
+ "severity": "注意",
+ "summary": "11-06 两条线都发出去了，日期都对：run_meta.date 等于目标日 2026-11-06，dry=false，mail_sent 和 sent 标记都在，推送 ok，没有 WARNING / ERROR，也没有超时或接手。问题是发得很晚。本机从北京 11-06 06:45 起关机，到 11-08 07:54 才开（sync 日志在这两点之间是空的），所以两封邮件到 11-08 07:57 / 08:45 才发，比「最晚次日 08:30」晚了一天多。不过在下一个交易日 11-09 开盘之前。晚跑带出一个副作用：模型年龄按墙钟算成 32 天，触发了重训；按目标日算是 30 天，准点跑不会重训。清单 A 现在按 20 日涨幅排，模型只出影子清单，所以当天清单没受影响。另外三处小问题：板块系数文件的时间戳是美东时间；000530 同时在清单 A 和清单 B；按买得到口径，规则排序上线后的清单还没有一份到 20 根，真值一条都没定。",
+ "checked": [
+  "1 两条线 run_meta.date=2026-11-06=目标日，dry=false；起涨预测 mail_sent 11-08 08:45:23、长期调整突破 07:57:50，sent_marker 两条都是 true",
+  "2 起涨预测 n_candidates 5394 / rejected 507 / n_ok 4887（60 日内 n_ok 4777~4889，在范围内）；short_excluded 0；refit_rejected=false；drift_note 空；模型 fit_date 已更新为 11-08；update_status short 39（38 只新股 + 301139）；merge_check lost 0",
+  "3 两条线日志尾：没有 WARNING / ERROR / 超时 / 接手；退出码 0 的步骤都产出了当日产物；sync 日志显示 11-06 06:45 到 11-08 07:54 BJ 本机关机",
+  "4 清单 A 板块：主板 6、创业板 4、科创 0、北交所 0；连续天数 9,9,8,6,5,4,3,2,1,1（n_streak3=7，和 run_meta 一致）",
+  "5 真值：10-21~11-06 共 12 份清单 bars 0~12，final 全是 false，hit_rate_open 一份都没有；truth_by 179 只 10.1% 是 97/98/99 分档，也就是模型时代的口径",
+  "6 push_status ok；regime_10d 十天 n 在 5526~5528 之间；涨跌家数比在 0.108~0.876 之间来回摆，10-30 跌停 108 只；base20 全 null（不到 20 根，正常）",
+  "7 AI 用量当日 0、当月 $4.21 / 4 次，警戒线日 $10、月 $100，没触发",
+  "长期调整突破：A 0 只（三年同口径每月 1.42 次，空榜是常态）；B 9-2=7，剔除的 688060 / 920663 都有减持记录；39 只没拉到当天日线不参与判定"
+ ],
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "运行时刻 / tools/local_flow_sync.log、两条线 mail_sent",
+   "evidence": "sync 日志 [2026-11-06T06:45:03] 之后下一条是 [2026-11-08T07:54:37]；pullback mail_sent.at=2026-11-08T07:57:50，breakout mail_sent.at=2026-11-08T08:45:23",
+   "why": "本机关了约 49 小时，11-06 收盘后的两个计划任务都没跑。邮件比 CLAUDE.md 写的「最晚次日 08:30」（11-07 08:30）晚了 24 小时以上。内容和日期都对，也赶在 11-09 开盘之前，所以不算发错或发不出。云端 11-06 20:30 的托底提醒材料里没有，无法确认发了没有",
+   "suggestion": "到 GitHub Actions 查 evening_check 11-06 那一跑有没有发提醒邮件"
+  },
+  {
+   "severity": "注意",
+   "where": "src/breakout/daily.py:409 load_or_fit 的模型年龄",
+   "evidence": "age = (now_bj().date() - fit_date).days；日志「模型已 32 天，超过 30 天上限，重训」。fit_date 10-07 到目标日 11-06 是 30 天，满足 age<=30",
+   "why": "年龄按墙钟算，没按打分日算。同一个目标日准点跑用旧模型、晚两天跑就重训，结果取决于什么时候开机。这次重训本身是正常的：train_cut 2026-09-28 按目标日往前推，没有前视；验收通过，前 10 命中 25.8% 对旧模型 17.5%；下个交易日 11-09 按任一口径都到期。模型只出影子清单，清单 A 没受影响",
+   "suggestion": "年龄改按打分日算（见 proposals）"
+  },
+  {
+   "severity": "注意",
+   "where": "src/breakout/exp_window.py:465 → state/breakout/board_adj.json",
+   "evidence": "made_at 是 2026-11-07T19:26:12，但 11-07 本机是关的；它由 dt.datetime.now() 生成，是美东本机时间，等于北京 11-08 08:26，正落在这次重估链里（08:16~08:35 BJ）。同一文件 n_picks=0，factors 却不全是 1（main 1.1306 / star 0.9007）",
+   "why": "违反「日志 / 产物一律北京时间」的约定，日志「板块系数用收缩估计（shrink，2026-11-07T19:26:12）」看着像前一天的旧系数，排障会误判。n_picks=0 和非 1 的因子对不上：自测钉过「总名额不够 MIN_TOTAL 时返回空」，要么这个计数字段没填，要么估计用的样本和记账的不是同一份"
+  },
+  {
+   "severity": "注意",
+   "where": "清单 A / 清单 B 重叠 / out_breakout/list_a.json、list_b.json",
+   "evidence": "000530 冰山冷热同时在清单 A（ret20 63.2%，streak 5）和清单 B「可能见顶」（days 10，drop -8.7%）",
+   "why": "同一封邮件里同一只票一边进冲高密度清单、一边进可能见顶清单，看的人会困惑。排序和入选规则本身不需要改"
+  },
+  {
+   "severity": "注意",
+   "where": "truth_recent_lists / truth_by",
+   "evidence": "规则排序 10-19 上线后的清单最多才 12 根（10-21），final 全 false，hit_rate_open 全 null；truth_by 179 只 10.1%、按板块创业板 1/44 = 2.3%，都是 97/98/99 分档，也就是模型时代的口径",
+   "why": "规则排序在生产上的买得到口径成绩一条都还没定，这时候没有依据判断它比模型好还是差。最早的一份（10-19）大约 11-16 前后才满 20 根"
+  },
+  {
+   "severity": "注意",
+   "where": "起涨预测 run_meta 和 score_stats.jsonl 的口径",
+   "evidence": "run_meta.n_qualified=null，score_stats 11-06 记 n_qualified=49，日志「>=97 分 49 只」；drift_baseline_days=19 的基线全是 model_date=10-07 的旧模型",
+   "why": "同一个量两处记法不一致。漂移检测拿新模型（11-08）的分数分布去比旧模型 19 天的基线：11-06 这 49 只在 60 日中位数（约 21~28，10-22 的 372 除外）的上沿，没触发提醒，但这个比较本身口径不对。两者都只影响影子清单和邮件抬头的提示，不影响清单 A"
+  },
+  {
+   "severity": "注意",
+   "where": "起涨预测产物入库 / git",
+   "evidence": "会话开始时 git status 里 out_breakout/panel.html、list_a.json、run_meta.json 都还没提交，data/breakout/2026-11/breakout_2026-11-06.parquet 是未跟踪文件；最近的提交只有 claim / sent: breakout，没有起涨预测 11-06 的产物提交。长期调整突破 sent 推送 2 秒后就有产物提交（f4559a3）",
+   "why": "起涨预测的 sent 推送停在 08:45:26，正好是这次复盘的取材时刻，产物提交可能排在 AI 复盘之后。如果之后没推上去，Pages 上起涨预测的面板会一直停在 11-05",
+   "suggestion": "复盘结束后确认 git log 里有「起涨预测 2026-11-06」那一条、Pages 上 stamp-breakout.txt 已更新"
+  },
+  {
+   "severity": "正常",
+   "where": "update_status / 长期调整突破日志",
+   "evidence": "requested 5576、appended 5509、missing 0、short 39 里新股 38 只，非新股只有 301139；长期调整突破 07:57:20 日线覆盖 99.8%，前一日 100.0%",
+   "why": "新股不计入 50 只的上限，301139 一只不影响出单。长期调整突破等起涨预测补完日线再扫，两条线是按设计配合的"
+  },
+  {
+   "severity": "正常",
+   "where": "长期调整突破 run_meta",
+   "evidence": "A 0 只；B pattern 9 - 剔除 2 = 7；hist n=59、per_month 1.42、B→A 5.2%（1373 次里 72 次）",
+   "why": "和三年回看的频率一致：大多数交易日 0 只，B 很少走到 A"
+  },
+  {
+   "severity": "正常",
+   "where": "regime_10d / push_status / ai_usage",
+   "evidence": "11-05 涨跌家数比 0.876、成交额 21121 亿；11-06 涨跌家数比 0.136、成交额 16548 亿；10-30 跌停 108 只；push ok；月 AI 用量 $4.21 / $100",
+   "why": "市场在大涨大跌之间来回摆，但每天 n 都在 5526~5528 之间，不是数据问题。推送和 AI 用量都正常"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "code",
+   "title": "模型年龄按打分日算，不按墙钟",
+   "detail": "src/breakout/daily.py 的 load_or_fit（第 409 行）把 age 改成 打分日（目标日）- fit_date，打分日由 stage_scan 传进来；第 1235 行的 model_status 给控制台显示用，可以保留墙钟，但要标明「按今天算」。改的是 daily.py，不碰模型指纹覆盖的四个文件",
+   "expected_effect": "同一个目标日不管什么时候跑，都是同一个重训决定；晚开机不会提前重训",
+   "risk": "到期日最多往后推几天（周末、长假之后第一次运行）；rerun_breakout 往回重算时，年龄会按各个重算日算",
+   "how_to_verify": "selftest_breakout 加一个用例：fit_date 和目标日差 30 天、墙钟差 32 天时不重训；跑三条自测 + pyflakes"
+  },
+  {
+   "type": "code",
+   "title": "board_adj.json 的 made_at 改北京时间，并核对 n_picks",
+   "detail": "src/breakout/exp_window.py 第 465 行把 dt.datetime.now() 换成 bjtime.now_bj()；同时查一下 n_picks 为什么是 0，应当写成实际参与估计的名额数，和 MIN_TOTAL 的判断用同一个变量",
+   "expected_effect": "日志里「板块系数用收缩估计（…）」的时间和运行时刻对得上；n_picks 能反映这组系数是用多少名额估出来的",
+   "risk": "只改记账字段，不改因子值",
+   "how_to_verify": "跑一次 refit_chain，看 made_at 是不是北京时间、n_picks 是不是 > MIN_TOTAL"
+  },
+  {
+   "type": "code",
+   "title": "清单 B 里同时在清单 A 的票加标注",
+   "detail": "src/breakout/export.py 渲染清单 B 时，code 也在当天清单 A 的行加一句「也在清单 A」；不改入选、不改排序",
+   "expected_effect": "000530 这类同时在两份清单的票，读的人一眼就知道是怎么回事，不会以为是 bug",
+   "risk": "表格列数不变，只改单元格文字；自测里钉列数的断言不受影响",
+   "how_to_verify": "selftest_breakout 加一个 A、B 重叠的用例，检查 B 行带标注"
+  },
+  {
+   "type": "process",
+   "title": "晚发超过 24 小时时在抬头写明，并核对托底提醒",
+   "detail": "这次两封邮件比最晚截止时间晚了一天多。流程上每次碰到这种情况都要查 evening_check 当晚那一跑（GitHub Actions 运行记录），确认提醒发了；控制台首页「系统状态」加一行上次关机空窗（从 sync 日志的断档算）",
+   "expected_effect": "关机造成的晚发能在界面上看到，托底提醒有没有生效也有据可查",
+   "risk": "只是监控，不动流水线",
+   "how_to_verify": "看 GitHub Actions 里 11-06 的 evening_check 运行日志和收件箱"
+  },
+  {
+   "type": "process",
+   "title": "当前不改 SCORE_MIN / CAP_A / MIN_STREAK",
+   "detail": "规则排序上线后的清单还没有一份满 20 根（最早约 11-16），按买得到口径没有任何生产真值。等 10-19 起的清单累积到至少 20 个交易日的定值，再看要不要调 overrides.json",
+   "expected_effect": "不拿模型时代的分档成绩去调规则时代的参数",
+   "risk": "无",
+   "how_to_verify": "11-16 之后的复盘看 truth_recent_lists 里 final=true 的清单数和 hit_rate_open"
+  }
+ ]
+}

@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-06-daily-2",
+ "date": "2026-11-06",
+ "status": "pending",
+ "created": "2026-11-08T08:48:06+08:00",
+ "type": "code",
+ "title": "board_adj.json 的 made_at 改北京时间，并核对 n_picks",
+ "detail": "src/breakout/exp_window.py 第 465 行把 dt.datetime.now() 换成 bjtime.now_bj()；同时查一下 n_picks 为什么是 0，应当写成实际参与估计的名额数，和 MIN_TOTAL 的判断用同一个变量",
+ "expected_effect": "日志里「板块系数用收缩估计（…）」的时间和运行时刻对得上；n_picks 能反映这组系数是用多少名额估出来的",
+ "risk": "只改记账字段，不改因子值",
+ "how_to_verify": "跑一次 refit_chain，看 made_at 是不是北京时间、n_picks 是不是 > MIN_TOTAL"
+}

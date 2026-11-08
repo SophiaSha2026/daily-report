@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-06-daily-5",
+ "date": "2026-11-06",
+ "status": "pending",
+ "created": "2026-11-08T08:48:06+08:00",
+ "type": "process",
+ "title": "当前不改 SCORE_MIN / CAP_A / MIN_STREAK",
+ "detail": "规则排序上线后的清单还没有一份满 20 根（最早约 11-16），按买得到口径没有任何生产真值。等 10-19 起的清单累积到至少 20 个交易日的定值，再看要不要调 overrides.json",
+ "expected_effect": "不拿模型时代的分档成绩去调规则时代的参数",
+ "risk": "无",
+ "how_to_verify": "11-16 之后的复盘看 truth_recent_lists 里 final=true 的清单数和 hit_rate_open"
+}

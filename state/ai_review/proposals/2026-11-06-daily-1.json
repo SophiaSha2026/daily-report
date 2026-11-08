@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-06-daily-1",
+ "date": "2026-11-06",
+ "status": "pending",
+ "created": "2026-11-08T08:48:06+08:00",
+ "type": "code",
+ "title": "模型年龄按打分日算，不按墙钟",
+ "detail": "src/breakout/daily.py 的 load_or_fit（第 409 行）把 age 改成 打分日（目标日）- fit_date，打分日由 stage_scan 传进来；第 1235 行的 model_status 给控制台显示用，可以保留墙钟，但要标明「按今天算」。改的是 daily.py，不碰模型指纹覆盖的四个文件",
+ "expected_effect": "同一个目标日不管什么时候跑，都是同一个重训决定；晚开机不会提前重训",
+ "risk": "到期日最多往后推几天（周末、长假之后第一次运行）；rerun_breakout 往回重算时，年龄会按各个重算日算",
+ "how_to_verify": "selftest_breakout 加一个用例：fit_date 和目标日差 30 天、墙钟差 32 天时不重训；跑三条自测 + pyflakes"
+}

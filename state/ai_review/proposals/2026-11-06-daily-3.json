@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-06-daily-3",
+ "date": "2026-11-06",
+ "status": "pending",
+ "created": "2026-11-08T08:48:06+08:00",
+ "type": "code",
+ "title": "清单 B 里同时在清单 A 的票加标注",
+ "detail": "src/breakout/export.py 渲染清单 B 时，code 也在当天清单 A 的行加一句「也在清单 A」；不改入选、不改排序",
+ "expected_effect": "000530 这类同时在两份清单的票，读的人一眼就知道是怎么回事，不会以为是 bug",
+ "risk": "表格列数不变，只改单元格文字；自测里钉列数的断言不受影响",
+ "how_to_verify": "selftest_breakout 加一个 A、B 重叠的用例，检查 B 行带标注"
+}

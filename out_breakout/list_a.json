@@ -1,92 +1,92 @@
 [
   {
-    "code":"301313",
-    "name":"凡拓数创",
-    "score":100.0,
-    "ret20":1.3732669748,
-    "streak":8,
-    "close":66.76,
-    "board":"chinext"
-  },
-  {
     "code":"300949",
     "name":"奥雅股份",
     "score":100.0,
-    "ret20":1.0895214521,
-    "streak":8,
-    "close":50.65,
+    "ret20":1.3935321294,
+    "streak":9,
+    "close":56.99,
+    "board":"chinext"
+  },
+  {
+    "code":"301313",
+    "name":"凡拓数创",
+    "score":100.0,
+    "ret20":1.3759187959,
+    "streak":9,
+    "close":67.88,
     "board":"chinext"
   },
   {
     "code":"300006",
     "name":"莱美药业",
     "score":100.0,
-    "ret20":0.9068901304,
-    "streak":7,
-    "close":10.24,
+    "ret20":0.7842778793,
+    "streak":8,
+    "close":9.76,
     "board":"chinext"
   },
   {
     "code":"001219",
     "name":"青岛食品",
     "score":100.0,
-    "ret20":0.7828089025,
-    "streak":5,
-    "close":23.23,
+    "ret20":0.6960784314,
+    "streak":6,
+    "close":22.49,
     "board":"main"
   },
   {
     "code":"000530",
     "name":"冰山冷热",
     "score":100.0,
-    "ret20":0.7186311787,
-    "streak":4,
-    "close":9.04,
+    "ret20":0.6322701689,
+    "streak":5,
+    "close":8.7,
     "board":"main"
   },
   {
     "code":"002086",
     "name":"东方海洋",
     "score":100.0,
-    "ret20":0.7960199005,
-    "streak":3,
-    "close":3.61,
+    "ret20":0.9086538462,
+    "streak":4,
+    "close":3.97,
     "board":"main"
   },
   {
     "code":"301052",
     "name":"果麦文化",
     "score":100.0,
-    "ret20":0.7517123288,
-    "streak":2,
-    "close":40.92,
+    "ret20":0.6006301694,
+    "streak":3,
+    "close":40.64,
     "board":"chinext"
   },
   {
     "code":"605488",
     "name":"福莱新材",
     "score":100.0,
-    "ret20":0.7434536447,
-    "streak":1,
-    "close":49.27,
+    "ret20":0.7536751524,
+    "streak":2,
+    "close":48.91,
     "board":"main"
   },
   {
-    "code":"688787",
-    "name":"海天瑞声",
+    "code":"002724",
+    "name":"海洋王",
     "score":100.0,
-    "ret20":0.7193287756,
+    "ret20":0.7525622255,
     "streak":1,
-    "close":138.32,
-    "board":"star"
+    "close":11.97,
+    "board":"main"
   },
   {
-    "code":"300413",
-    "name":"芒果超媒",
+    "code":"600261",
+    "name":"阳光照明",
     "score":100.0,
-    "ret20":0.7099634846,
+    "ret20":0.6513761468,
     "streak":1,
-    "close":32.78,
-    "board":"chinext"
+    "close":5.4,
+    "board":"main"
   }
 ]
