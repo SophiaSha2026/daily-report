@@ -1,92 +1,92 @@
 [
   {
-    "code":"300949",
-    "name":"奥雅股份",
-    "score":100.0,
-    "ret20":1.3935321294,
-    "streak":9,
-    "close":56.99,
-    "board":"chinext"
-  },
-  {
     "code":"301313",
     "name":"凡拓数创",
     "score":100.0,
-    "ret20":1.3759187959,
-    "streak":9,
-    "close":67.88,
+    "ret20":1.4075224293,
+    "streak":10,
+    "close":69.77,
+    "board":"chinext"
+  },
+  {
+    "code":"300949",
+    "name":"奥雅股份",
+    "score":100.0,
+    "ret20":1.3745255167,
+    "streak":10,
+    "close":56.3,
     "board":"chinext"
   },
   {
     "code":"300006",
     "name":"莱美药业",
     "score":100.0,
-    "ret20":0.7842778793,
-    "streak":8,
-    "close":9.76,
+    "ret20":0.7012195122,
+    "streak":9,
+    "close":11.16,
     "board":"chinext"
   },
   {
     "code":"001219",
     "name":"青岛食品",
     "score":100.0,
-    "ret20":0.6960784314,
-    "streak":6,
-    "close":22.49,
+    "ret20":0.8507692308,
+    "streak":7,
+    "close":24.06,
     "board":"main"
   },
   {
     "code":"000530",
     "name":"冰山冷热",
     "score":100.0,
-    "ret20":0.6322701689,
-    "streak":5,
-    "close":8.7,
+    "ret20":0.8368522073,
+    "streak":6,
+    "close":9.57,
     "board":"main"
   },
   {
     "code":"002086",
     "name":"东方海洋",
     "score":100.0,
-    "ret20":0.9086538462,
-    "streak":4,
-    "close":3.97,
+    "ret20":1.1527093596,
+    "streak":5,
+    "close":4.37,
     "board":"main"
-  },
-  {
-    "code":"301052",
-    "name":"果麦文化",
-    "score":100.0,
-    "ret20":0.6006301694,
-    "streak":3,
-    "close":40.64,
-    "board":"chinext"
   },
   {
     "code":"605488",
     "name":"福莱新材",
     "score":100.0,
-    "ret20":0.7536751524,
-    "streak":2,
-    "close":48.91,
+    "ret20":0.9480179506,
+    "streak":3,
+    "close":52.09,
     "board":"main"
   },
   {
     "code":"002724",
     "name":"海洋王",
     "score":100.0,
-    "ret20":0.7525622255,
-    "streak":1,
-    "close":11.97,
+    "ret20":0.9427710843,
+    "streak":2,
+    "close":12.9,
     "board":"main"
   },
   {
     "code":"600261",
     "name":"阳光照明",
     "score":100.0,
-    "ret20":0.6513761468,
-    "streak":1,
-    "close":5.4,
+    "ret20":0.6170212766,
+    "streak":2,
+    "close":5.32,
     "board":"main"
+  },
+  {
+    "code":"688585",
+    "name":"上纬新材",
+    "score":100.0,
+    "ret20":0.9299562226,
+    "streak":1,
+    "close":216.02,
+    "board":"star"
   }
 ]

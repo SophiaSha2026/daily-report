@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-09-daily-3",
+ "date": "2026-11-09",
+ "status": "pending",
+ "created": "2026-11-10T08:22:11+08:00",
+ "type": "code",
+ "title": "run_meta 补写 n_qualified",
+ "detail": "src/breakout/daily.py 在 rule=ret20 分支写 run_meta 时，把影子清单 >=97 分的只数写进 n_qualified，和 score_stats 同源。",
+ "expected_effect": "同一个量在两份产物里口径一致",
+ "risk": "低",
+ "how_to_verify": "跑一遍试跑，run_meta.n_qualified 应该等于 score_stats 当天那一行"
+}

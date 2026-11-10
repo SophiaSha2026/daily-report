@@ -1,9 +1,9 @@
 {
-  "date": "2026-11-06",
+  "date": "2026-11-09",
   "requested": 5576,
-  "appended": 5509,
+  "appended": 5523,
   "stale": 9,
-  "newcodes": 39,
+  "newcodes": 38,
   "new_codes": [
     "001246",
     "301569",
@@ -14,7 +14,6 @@
     "301689",
     "301697",
     "301699",
-    "301707",
     "301716",
     "301717",
     "601091",
@@ -45,12 +44,12 @@
     "920289",
     "920298"
   ],
-  "refetch": 25,
-  "refetch_only": 19,
+  "refetch": 9,
+  "refetch_only": 6,
   "missing": 0,
   "missing_codes": [],
-  "prev_n": 5526,
-  "covered": 5528,
+  "prev_n": 5528,
+  "covered": 5529,
   "closed": true,
   "short": [
     "301139",

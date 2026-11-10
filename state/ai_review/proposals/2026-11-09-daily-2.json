@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-09-daily-2",
+ "date": "2026-11-09",
+ "status": "pending",
+ "created": "2026-11-10T08:22:11+08:00",
+ "type": "code",
+ "title": "漂移基线按模型版本分开算",
+ "detail": "src/breakout/daily.py 的 drift_note：基线只取 score_stats 里 model_date 和当前模型相同的那些天；新模型的样本不够，就在邮件抬头印「新模型 N 天，暂不判漂移」，不要返回空串。",
+ "expected_effect": "换模型后的分数断层不会被旧模型的基线掩盖；11-09 这类均分 0.265 的情况会写明原因",
+ "risk": "新模型头几天没有漂移判断",
+ "how_to_verify": "selftest_breakout 加一个用例：两个 model_date 混在一起时基线只取同一版"
+}

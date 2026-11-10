@@ -1,0 +1,139 @@
+{
+ "kind": "daily",
+ "date": "2026-11-09",
+ "at": "2026-11-10T08:22:11+08:00",
+ "usd": 0.906,
+ "severity": "注意",
+ "summary": "11-09 两条线都发了，日期对得上目标日，没有 dry，mail_sent 和 sent 标记都在，推送成功。没有「严重」项。主要问题是晚：机器 11-09 晚上没开，两条线都到 11-10 07:51 才起跑。长期调整突破 07:52:45 发出（规定 17:58），起涨预测 08:20:09 发出，离 08:30 的最晚期限只剩 10 分钟，其中重建训练表就占了 19 分钟。模型 11-08 到期重训，验收通过，这次重训是该做的。模型影子清单今天够格 6 只、前 10 均分 0.265，都是近 60 天最低，但漂移提示没触发。影子清单不进邮件，当天清单不受影响。规则清单（20 日涨幅）最早一份 10-19 还没满 20 根，所以买得到口径的命中率一份都还没定，规则本身的实盘成绩暂时验证不了。",
+ "checked": [
+  "1 两条线 run_meta.date=2026-11-09=目标日，dry=false；mail_sent.date 一致；sent_marker 都为 true",
+  "1 发信时刻：长期调整突破 2026-11-10T07:52:45，起涨预测 2026-11-10T08:20:09，都在次日 08:30 窗口内",
+  "2 n_ok=4917=n_candidates 5391-rejected 474，能对上；short_excluded=0；refit_rejected=false；drift_note 为空",
+  "2 model.fit_date=2026-11-08，距今 2 天；上一版 10-07 到 11-06 满 30 天，到期重训，验收 top10 0.258 > 旧 0.175，accepted=true",
+  "2 update_status：short 39 只，其中新股 38 只，非新股只有 301139；merge_check lost=0；missing=0；covered 5529 / target_rows 5528",
+  "3 两份日志尾没有 WARNING / ERROR / 超时 / 接手；长期调整突破退出码 0，产物日期已更新",
+  "4 清单 A 板块和连续天数分布；n_streak3=7 和列表手数一致",
+  "5 truth_recent_lists 12 份全部 final=false；truth_by 汇总 189 只命中 18 只，9.5%",
+  "6 push_status ok；regime_10d 逐日看了 adv_share / 涨跌停 / 成交额",
+  "7 AI 用量：当日 0 美元，本月 5.31 / 100 美元，没超警戒线",
+  "附带：state/sent 和 data/breakout/2026-10 看了 10 月下旬的标记和清单文件"
+ ],
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "两条线发信时刻 / 起涨预测 STEP 2（build.py 重建训练表）",
+   "evidence": "长期调整突破 07:51:56 启动，07:52:45 发信（send_at 17:58，晚了约 14 小时）；起涨预测 log：build.py 本机时间 18:55:44~19:14:45（= 北京 07:55~08:14）「总用时 19.0 分钟」，08:20:09 才发信",
+   "why": "机器 11-09 整晚没开，靠次日早上补发；起涨预测离 08:30 最晚期限只剩 10 分钟。窗口卡的是起跑时刻，如果 08:10 以后才开机，信会晚于 08:30 送达。20:30 云端托底那边应该已经发过一封两条线都缺的提醒。",
+   "suggestion": "确认 20:30 那封提醒收到了；看一下 11-09 晚上为什么没开机或没唤醒"
+  },
+  {
+   "severity": "注意",
+   "where": "state/breakout/score_stats.jsonl 11-09 行 / run_meta.drift_note",
+   "evidence": "n_qualified=6（60 天里其他天 10~372，正式运行最低是 10-16 的 13）；top10_p_mean=0.2648（60 天其他天最低 0.3071）；drift_note=\"\"，drift_baseline_days=20",
+   "why": "11-08 换了新模型，近 20 天基线几乎全是 10-07 那版模型的分数，两版放在一起比不出漂移，均分下降 28% 也没触发提示。影子清单不进邮件，所以当天结果没错。",
+   "suggestion": "漂移基线换模型时要分开算"
+  },
+  {
+   "severity": "注意",
+   "where": "out_breakout/run_meta.json 和 score_stats.jsonl",
+   "evidence": "run_meta.n_qualified=null；同一天 score_stats.n_qualified=6，日志写「模型影子清单 6 只（>=97 分 6 只）」",
+   "why": "同一个量在两份产物里一份有值一份为空。控制台或邮件抬头要是读 run_meta，看到的就是空。"
+  },
+  {
+   "severity": "注意",
+   "where": "list_a 的 score 列",
+   "evidence": "清单 A 10 只 score 全是 100.0，但模型够 97 分的只有 6 只（影子清单）",
+   "why": "这一列看起来是 20 日涨幅在当日全市场排名的分数，不是模型分数。如果面板 / 邮件照「分数」印出来，会和影子清单的模型分数混在一起。我没核 export.py 实际怎么印，标「注意」。"
+  },
+  {
+   "severity": "注意",
+   "where": "update_status.short / 301139",
+   "evidence": "short 39 只里 38 只是新股，301139 不是新股、整段重拉没拉到 11-09；short_excluded=0；filled=0",
+   "why": "非新股只有 1 只，远不到 50 只的上限，按规则不剔。它当天是缺数据被排除了，还是拿旧 K 线打了分，材料里看不出来。它不在清单 A 和 B 里，不影响当天清单。"
+  },
+  {
+   "severity": "注意",
+   "where": "pullback run_meta.excluded_b / 688680",
+   "evidence": "剔除理由「09-03 上海海优威新材料股份有限公司-2025年员工持股计划减持」",
+   "why": "员工持股计划的股票一般来自回购。规则写的是「公司卖回购股不算」。这条算不算股东减持有争议，可能误剔了一只清单 B 的票（B 从 13 只剔到 10 只）。"
+  },
+  {
+   "severity": "注意",
+   "where": "长期调整突破 STEP 1",
+   "evidence": "「07:51:56 起涨预测 正在跑，这次不拉远端」",
+   "why": "两条线同时补跑，长期调整突破没拉远端就开跑了。这次推送全部成功，没出问题，记一笔。"
+  },
+  {
+   "severity": "正常",
+   "where": "清单 A 构成",
+   "evidence": "主板 6（001219 000530 002086 605488 002724 600261）/ 创业板 3 / 科创板 1；连续天数 10,10,9,7,6,5,3,2,2,1，≥3 天的 7 只，和 n_streak3=7 一致；ret20 最高 1.41（301313）",
+   "why": "最多的板块占 60%，算不上集中；连续天数偏长，说明前 10 名换得慢。"
+  },
+  {
+   "severity": "注意",
+   "where": "truth_recent_lists / truth_by",
+   "evidence": "最近 12 份 bars 0~12，final 全 false，hit_rate_open 全为 null；truth_by 是收盘口径 hit_rate，189 只 9.5%，分档是 97/98/99 分，属于模型那几期",
+   "why": "规则清单从 10-19 开始，最早要到 11-16 前后才有已定的真值。现在印的总成绩是模型那几期、收盘口径的，不能拿来给规则清单背书。"
+  },
+  {
+   "severity": "注意",
+   "where": "state/sent/ 和 data/breakout/2026-10/（历史，不是今天）",
+   "evidence": "10-23 bars=11、10-27 bars=9，可见 10-26 是有 K 线的交易日，但 score_stats / regime / truth 里都没有 10-26，也没有 breakout_2026-10-26.parquet；sent 标记缺 breakout 10-21/22/26/27/28 和 pullback 10-21/22/26/27，可清单文件 10-21/22/27/28 是有的",
+   "why": "10-26 两条线很可能都漏了；另外几天有清单但没有 sent 标记，「跑完了」的判据对不上。不在今天的复盘范围，转周复盘。"
+  },
+  {
+   "severity": "正常",
+   "where": "regime_10d 11-09",
+   "evidence": "adv_share 0.401，涨停 57 / 跌停 2，成交额 14763.8 亿（10 天里最低），turnover_chg5 -17.1%；10 天里最极端的一天是 10-30，跌停 108",
+   "why": "当天没有极端值；最近 10 天上涨家数占比在 0.11 和 0.88 之间来回跳，市场方向轮换很快。"
+  },
+  {
+   "severity": "正常",
+   "where": "ai_usage / push_status",
+   "evidence": "today_usd 0 / month_usd 5.31（警戒 100）；push ok，08:20:14",
+   "why": "当日 AI 复盘调用 0 次。材料截在 08:20:14，复盘可能还没跑到，没法断定漏跑了。"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "process",
+   "title": "起涨预测送达晚于 08:00 时单独告警",
+   "detail": "在 evening_check 或控制台状态里加一条：mail_sent.at 晚于次日 08:00，或者 sent 标记在 20:30 之后才落，就记一次「靠早上补发」，周复盘统计次数。",
+   "expected_effect": "机器晚上不开的天数能看见；今天这种离期限只剩 10 分钟的情况不会被默默吞掉",
+   "risk": "只是提示，不改流程",
+   "how_to_verify": "拿 11-09 的 mail_sent.at=08:20:09 回放，应该命中一次"
+  },
+  {
+   "type": "code",
+   "title": "漂移基线按模型版本分开算",
+   "detail": "src/breakout/daily.py 的 drift_note：基线只取 score_stats 里 model_date 和当前模型相同的那些天；新模型的样本不够，就在邮件抬头印「新模型 N 天，暂不判漂移」，不要返回空串。",
+   "expected_effect": "换模型后的分数断层不会被旧模型的基线掩盖；11-09 这类均分 0.265 的情况会写明原因",
+   "risk": "新模型头几天没有漂移判断",
+   "how_to_verify": "selftest_breakout 加一个用例：两个 model_date 混在一起时基线只取同一版"
+  },
+  {
+   "type": "code",
+   "title": "run_meta 补写 n_qualified",
+   "detail": "src/breakout/daily.py 在 rule=ret20 分支写 run_meta 时，把影子清单 >=97 分的只数写进 n_qualified，和 score_stats 同源。",
+   "expected_effect": "同一个量在两份产物里口径一致",
+   "risk": "低",
+   "how_to_verify": "跑一遍试跑，run_meta.n_qualified 应该等于 score_stats 当天那一行"
+  },
+  {
+   "type": "process",
+   "title": "核员工持股计划减持该不该剔",
+   "detail": "拿 688680 那条公告给用户看，请用户定：员工持股计划卖出（股票来自回购）算不算股东减持。定了再改 corp_events.reduce_hits 的判据。",
+   "expected_effect": "剔除口径和规则原文「公司卖回购股不算」对齐",
+   "risk": "两条线共用这份判据，改了会影响起涨预测的风险剔除",
+   "how_to_verify": "用三年回看对比改前改后被剔的次数"
+  },
+  {
+   "type": "process",
+   "title": "周复盘查 10 月下旬漏跑",
+   "detail": "核 10-26 是不是交易日、两条线有没有发信；再查 10-21/22/27/28 有清单却没有 sent 标记是怎么回事。",
+   "expected_effect": "确认「跑完了」判据有没有漏洞",
+   "risk": "无",
+   "how_to_verify": "看 git log 里那几天的 sent: 提交和邮件记录"
+  }
+ ]
+}
