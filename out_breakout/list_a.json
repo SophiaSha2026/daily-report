@@ -1,92 +1,92 @@
 [
   {
+    "code":"002086",
+    "name":"东方海洋",
+    "score":100.0,
+    "ret20":1.3173076923,
+    "streak":1,
+    "close":4.82,
+    "board":"main"
+  },
+  {
     "code":"301313",
     "name":"凡拓数创",
     "score":100.0,
-    "ret20":1.4075224293,
-    "streak":10,
-    "close":69.77,
+    "ret20":1.1781538462,
+    "streak":1,
+    "close":70.79,
     "board":"chinext"
   },
   {
     "code":"300949",
     "name":"奥雅股份",
     "score":100.0,
-    "ret20":1.3745255167,
-    "streak":10,
-    "close":56.3,
+    "ret20":1.0656521739,
+    "streak":1,
+    "close":47.51,
     "board":"chinext"
-  },
-  {
-    "code":"300006",
-    "name":"莱美药业",
-    "score":100.0,
-    "ret20":0.7012195122,
-    "streak":9,
-    "close":11.16,
-    "board":"chinext"
-  },
-  {
-    "code":"001219",
-    "name":"青岛食品",
-    "score":100.0,
-    "ret20":0.8507692308,
-    "streak":7,
-    "close":24.06,
-    "board":"main"
-  },
-  {
-    "code":"000530",
-    "name":"冰山冷热",
-    "score":100.0,
-    "ret20":0.8368522073,
-    "streak":6,
-    "close":9.57,
-    "board":"main"
-  },
-  {
-    "code":"002086",
-    "name":"东方海洋",
-    "score":100.0,
-    "ret20":1.1527093596,
-    "streak":5,
-    "close":4.37,
-    "board":"main"
   },
   {
     "code":"605488",
     "name":"福莱新材",
     "score":100.0,
-    "ret20":0.9480179506,
-    "streak":3,
-    "close":52.09,
-    "board":"main"
-  },
-  {
-    "code":"002724",
-    "name":"海洋王",
-    "score":100.0,
-    "ret20":0.9427710843,
-    "streak":2,
-    "close":12.9,
-    "board":"main"
-  },
-  {
-    "code":"600261",
-    "name":"阳光照明",
-    "score":100.0,
-    "ret20":0.6170212766,
-    "streak":2,
-    "close":5.32,
+    "ret20":1.0460757517,
+    "streak":1,
+    "close":52.4,
     "board":"main"
   },
   {
     "code":"688585",
     "name":"上纬新材",
     "score":100.0,
-    "ret20":0.9299562226,
+    "ret20":1.0035744521,
     "streak":1,
-    "close":216.02,
+    "close":213.0,
     "board":"star"
+  },
+  {
+    "code":"603366",
+    "name":"日出东方",
+    "score":100.0,
+    "ret20":0.9093406593,
+    "streak":1,
+    "close":13.9,
+    "board":"main"
+  },
+  {
+    "code":"000678",
+    "name":"襄阳轴承",
+    "score":100.0,
+    "ret20":0.8069533394,
+    "streak":1,
+    "close":19.75,
+    "board":"main"
+  },
+  {
+    "code":"002164",
+    "name":"宁波东力",
+    "score":100.0,
+    "ret20":0.7760299625,
+    "streak":1,
+    "close":23.71,
+    "board":"main"
+  },
+  {
+    "code":"600261",
+    "name":"阳光照明",
+    "score":100.0,
+    "ret20":0.773993808,
+    "streak":1,
+    "close":5.73,
+    "board":"main"
+  },
+  {
+    "code":"002708",
+    "name":"光洋股份",
+    "score":100.0,
+    "ret20":0.7129951355,
+    "streak":1,
+    "close":24.65,
+    "board":"main"
   }
 ]

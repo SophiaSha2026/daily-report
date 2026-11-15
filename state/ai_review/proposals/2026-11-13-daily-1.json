@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-13-daily-1",
+ "date": "2026-11-13",
+ "status": "pending",
+ "created": "2026-11-15T18:24:26+08:00",
+ "type": "process",
+ "title": "漏发多日时给一封汇总告警",
+ "detail": "flow_breakout / flow_pullback 进场时数一下上一份 sent 标记到目标日之间隔了几个交易日。隔了 ≥1 个就在邮件抬头写明「11-10、11-11、11-12 没有清单」，并在 state/alert/ 落一个告警对象，控制台首页读它",
+ "expected_effect": "像这次连漏 3 个交易日的情况，当天就能在邮件和控制台上看到，不用等复盘翻 score_stats 才发现",
+ "risk": "只加提示，不改清单；节假日要按交易日历算，否则会误报",
+ "how_to_verify": "selftest_gui 造一个 sent 标记缺 3 天的临时目录，断言抬头里有这三个日期"
+}

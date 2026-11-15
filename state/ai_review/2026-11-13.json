@@ -1,0 +1,92 @@
+{
+ "kind": "daily",
+ "date": "2026-11-13",
+ "at": "2026-11-15T18:24:26+08:00",
+ "usd": 0.908,
+ "severity": "注意",
+ "summary": "2026-11-13 这次运行两条线都对上了目标日，也都真发出去了：run_meta.date=2026-11-13、dry=false、mail_sent 和 sent 标记齐全、推送成功。日志里没有 WARNING、ERROR、超时或接手，模型没有重训，验收和漂移都没触发，清单本身没错。不过这次是 2026-11-15（周日）才跑的，比「最晚次日 08:30」的期限晚了约 58 小时。11-10、11-11、11-12 三个交易日两条线都没有清单（score_stats 和 truth 都是从 11-09 直接跳到 11-13）。这三天的空档带出两个副作用：一是清单 A 10 只的连续天数全部被重置成 1，和同一封邮件里清单 B 印的天数对不上；二是 update_status.json 停在 11-09，当天的合并核对（merge_check）没有覆盖到 11-13。真值方面，最近 12 份清单没有一份满 20 根，现在还判断不了命中率。",
+ "checked": [
+  "1 两条线 run_meta.date=2026-11-13，dry=false；mail_sent.date=2026-11-13（起涨预测 2026-11-15T18:22:45，长期调整突破 17:58:25）；sent_marker 两条都是 true",
+  "2 起涨预测 n_ok=4978、rejected=407、n_candidates=5385、short_excluded=0；n_qualified 在 run_meta 里是 null，score_stats 是 25（60 天区间 6~372，中位约 25）；refit_rejected=false，drift_note 为空；模型 fit_date 2026-11-08，距今 7 天；update_status 停在 2026-11-09，short 39 只（38 只新股 + 301139）",
+  "3 日志尾：两段日志都没有 WARNING / ERROR / 超时 / 接手；推送 3 次都成功；长期调整突破因为起涨预测在跑而跳过拉远端，等日线等了 17:47:00~17:57:53 约 11 分钟，最后补到了；有一句「update_status.json 是 2026-11-09 的」；末尾有一行空的 [2026-11-15T18:01:53]",
+  "4 清单 A 的板块：主板 7 / 创业板 2 / 科创板 1 / 北交所 0；连续天数 10 只全是 1，n_streak3=0",
+  "5 真值：最近 12 份清单（10-23~11-13）bars 0~15，没有 final 的，hit_rate_open 全是 null；truth_by 的 all 是 229 只命中 21（9.2%），分桶还是旧的 97/98/99 分模型口径",
+  "6 push_status ok=true，时间 18:22:48；regime 11-13：adv_share 0.137，跌停 48 > 涨停 38，收益中位数 -2.0%，是 10 天里最弱的一天；base20 10 天全是 null",
+  "7 AI 用量：当天 $0 / 0 次，当月 $6.21 / 6 次，警戒线 $10 / $100，warn=false",
+  "长期调整突破：清单 A 0 只，清单 B 9 只（12 只候选剔 3 只：1 只 ST、2 只减持）；同口径 59 次、每月 1.42 次，清单 B 走到清单 A 5.2%，和以前的分布一致"
+ ],
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "起涨预测清单 A 的 streak（src/breakout/daily.py:896 count_streak，1092 行）对比清单 B（state/breakout/a_pool.json）",
+   "evidence": "list_a 10 只 streak 全是 1，n_streak3=0；同一封邮件的 list_b 里 301313 streak=10、300949 streak=10、000678 streak=6、605488 streak=3。count_streak 往回找 breakout_<日>.parquet，找不到文件就 break（905 行），而 11-12 的清单文件不存在",
+   "why": "11-10~11-12 没跑，连续天数在 11-13 被全部清零，同一只票在 A 和 B 里印的连续天数不一样。MIN_STREAK=1 加上 ret20 规则，入选不受影响；但 export.py:495 的 HIGH_CONF 按 streak 判高置信，这个标记和 11-16 起的连续天数都会偏低",
+   "suggestion": "以后再有漏跑的日子，邮件里要标明「连续天数因 N 天没出清单而中断」，不要当成真的首日"
+  },
+  {
+   "severity": "注意",
+   "where": "local_run 起涨预测 / 长期调整突破发信时刻；data/breakout/2026-11/ 清单存档",
+   "evidence": "目标日 2026-11-13（周五），起涨预测邮件 2026-11-15T18:22:45、长期调整突破 17:58:25 才发，期限是 11-14 08:30；score_stats_60d 和 truth_recent_lists 从 11-09 直接到 11-13，regime_daily 有 11-10/11/12 三行，说明当天有行情但没出清单",
+   "why": "目标日 11-13 的清单是对的，但晚了约 58 小时；三个交易日两条线都没发，而且现在的设计只补最近一个已收盘交易日，这三天以后也不会补出来",
+   "suggestion": "核一下云端 evening_check 在 11-10~11-13 20:30 有没有发提醒；没发就说明托底也失效了"
+  },
+  {
+   "severity": "注意",
+   "where": "state/breakout/update_status.json；起涨预测 STEP 2 日志",
+   "evidence": "update_status.date=2026-11-09；日志 18:04:29「update_status.json 是 2026-11-09 的，不是 2026-11-13」；日线覆盖 99.8%，2026-11-13 5529 行，前一日 5530 行；merge_check 只有 11-09 的（expected 5528, lost 0）",
+   "why": "日线已经补到目标日，覆盖率闸门也过了，清单没错。但这次多日补齐走的不是写 update_status 的那条路，所以 11-13 没有对应的 short 清单和 merge_check（教训 45 那道核对）。如果有票在合并时被整段重拉清掉了当天那根，这次抓不到",
+   "suggestion": "多日补齐那条路也要落 update_status（含 merge_check），日期写目标日"
+  },
+  {
+   "severity": "注意",
+   "where": "out_breakout/run_meta.json 的 n_qualified 对比 state/breakout/score_stats.jsonl",
+   "evidence": "run_meta.n_qualified=null；score_stats 11-13 n_qualified=25；日志「>=97 分 25 只」",
+   "why": "同一个量在两个产物里一个空一个 25。ret20 规则下它只用于影子清单，不影响发出去的清单，但给读 run_meta 的地方（控制台、AI 复盘）留了一个空值",
+   "suggestion": "run_meta 在 rule=ret20 时也写影子模型的 n_qualified，或者明确写成另一个键名"
+  },
+  {
+   "severity": "注意",
+   "where": "state/regime_daily.jsonl 11-12 / 11-13",
+   "evidence": "11-13 adv_share 0.1371、跌停 48（前 9 天 2~27）、涨停 38、收益中位数 -1.997%；11-12 adv_share 0.155、收益中位数 -1.613%；base20 10 天全是 null",
+   "why": "连续两天普跌，跌停数是这 10 天最高的。清单 A 的 10 只近 20 日涨幅 71%~132%，碰上这种环境，真值很可能偏低。这是市场状态，不是流水线问题"
+  },
+  {
+   "severity": "正常",
+   "where": "真值 truth_recent_lists",
+   "evidence": "最近 12 份清单 bars 最多 15（10-23），final 全是 false，hit_rate_open 全是 null；规则切换日是 10-19，最早要到 11-16 前后才有满 20 根的清单",
+   "why": "现在还没有可以和基准比的买得到口径成绩，判断不了命中率；truth_by 里的 97/98/99 分档是模型时期的口径，不能拿来评价 ret20 规则"
+  },
+  {
+   "severity": "正常",
+   "where": "模型 / 重训",
+   "evidence": "日志「用已有模型（2026-11-08 训练，7 天前，49 个特征）」；refit_status accepted=true（new top10 0.258 对 old 0.175）；STEP 2 重建了训练表（3971291 行 × 102 特征），但没有触发重训",
+   "why": "该重训的时候没有重训、不该重训的时候也没重训，指纹没有漂移"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "process",
+   "title": "漏发多日时给一封汇总告警",
+   "detail": "flow_breakout / flow_pullback 进场时数一下上一份 sent 标记到目标日之间隔了几个交易日。隔了 ≥1 个就在邮件抬头写明「11-10、11-11、11-12 没有清单」，并在 state/alert/ 落一个告警对象，控制台首页读它",
+   "expected_effect": "像这次连漏 3 个交易日的情况，当天就能在邮件和控制台上看到，不用等复盘翻 score_stats 才发现",
+   "risk": "只加提示，不改清单；节假日要按交易日历算，否则会误报",
+   "how_to_verify": "selftest_gui 造一个 sent 标记缺 3 天的临时目录，断言抬头里有这三个日期"
+  },
+  {
+   "type": "code",
+   "title": "count_streak 碰到没出清单的日子要标出来，不能悄悄归零",
+   "detail": "src/breakout/daily.py count_streak：前一交易日的 breakout_<日>.parquet 不存在时，区分「没跑」和「跑了但不在榜」。没跑的返回一个标记（比如 streak_gap=True），export.py 印连续天数时写「≥1（N 天未出清单）」，HIGH_CONF 不按这个被截断的 streak 判",
+   "expected_effect": "不会再出现同一封邮件里 A 写 1、B 写 10 的情况",
+   "risk": "streak 进了 HIGH_CONF 和 truth 的分桶，改的时候要连带核对 truth.py:245 的分桶口径",
+   "how_to_verify": "selftest_breakout 加一个用例：前一天的文件缺失、前两天在榜，断言输出带缺口标记"
+  },
+  {
+   "type": "code",
+   "title": "多日补齐那条路也要写 update_status 和 merge_check",
+   "detail": "src/breakout/backfill.py：日线一次补多天（11-09 -> 11-13 这种）走的那个入口，结束时按目标日写 update_status.json（date、short、merge_check）；local_run 发现 update_status.date 不等于目标日时，不只是打一行日志，还要在邮件抬头印出来",
+   "expected_effect": "教训 45 的那道合并核对在机器关了好几天之后照样生效",
+   "risk": "会碰日线写入的入口，要在 data_lock 里写；按教训 45 列出所有会走到整段覆盖的入口逐个核",
+   "how_to_verify": "selftest_breakout 造一张缺 3 天的日线表跑补齐，断言 update_status.date 等于目标日，且 merge_check 字段存在"
+  }
+ ]
+}

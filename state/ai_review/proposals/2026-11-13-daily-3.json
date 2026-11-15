@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-13-daily-3",
+ "date": "2026-11-13",
+ "status": "pending",
+ "created": "2026-11-15T18:24:26+08:00",
+ "type": "code",
+ "title": "多日补齐那条路也要写 update_status 和 merge_check",
+ "detail": "src/breakout/backfill.py：日线一次补多天（11-09 -> 11-13 这种）走的那个入口，结束时按目标日写 update_status.json（date、short、merge_check）；local_run 发现 update_status.date 不等于目标日时，不只是打一行日志，还要在邮件抬头印出来",
+ "expected_effect": "教训 45 的那道合并核对在机器关了好几天之后照样生效",
+ "risk": "会碰日线写入的入口，要在 data_lock 里写；按教训 45 列出所有会走到整段覆盖的入口逐个核",
+ "how_to_verify": "selftest_breakout 造一张缺 3 天的日线表跑补齐，断言 update_status.date 等于目标日，且 merge_check 字段存在"
+}

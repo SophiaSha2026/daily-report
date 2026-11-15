@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-13-daily-2",
+ "date": "2026-11-13",
+ "status": "pending",
+ "created": "2026-11-15T18:24:26+08:00",
+ "type": "code",
+ "title": "count_streak 碰到没出清单的日子要标出来，不能悄悄归零",
+ "detail": "src/breakout/daily.py count_streak：前一交易日的 breakout_<日>.parquet 不存在时，区分「没跑」和「跑了但不在榜」。没跑的返回一个标记（比如 streak_gap=True），export.py 印连续天数时写「≥1（N 天未出清单）」，HIGH_CONF 不按这个被截断的 streak 判",
+ "expected_effect": "不会再出现同一封邮件里 A 写 1、B 写 10 的情况",
+ "risk": "streak 进了 HIGH_CONF 和 truth 的分桶，改的时候要连带核对 truth.py:245 的分桶口径",
+ "how_to_verify": "selftest_breakout 加一个用例：前一天的文件缺失、前两天在榜，断言输出带缺口标记"
+}
