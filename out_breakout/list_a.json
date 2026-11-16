@@ -1,92 +1,92 @@
 [
   {
-    "code":"002086",
-    "name":"东方海洋",
-    "score":100.0,
-    "ret20":1.3173076923,
-    "streak":1,
-    "close":4.82,
-    "board":"main"
-  },
-  {
-    "code":"301313",
-    "name":"凡拓数创",
-    "score":100.0,
-    "ret20":1.1781538462,
-    "streak":1,
-    "close":70.79,
-    "board":"chinext"
-  },
-  {
     "code":"300949",
     "name":"奥雅股份",
     "score":100.0,
-    "ret20":1.0656521739,
-    "streak":1,
-    "close":47.51,
+    "ret20":1.197309417,
+    "streak":2,
+    "close":49.0,
     "board":"chinext"
+  },
+  {
+    "code":"002086",
+    "name":"东方海洋",
+    "score":100.0,
+    "ret20":1.0375586854,
+    "streak":2,
+    "close":4.34,
+    "board":"main"
   },
   {
     "code":"605488",
     "name":"福莱新材",
     "score":100.0,
-    "ret20":1.0460757517,
-    "streak":1,
-    "close":52.4,
+    "ret20":0.8920837771,
+    "streak":2,
+    "close":53.3,
     "board":"main"
   },
   {
     "code":"688585",
     "name":"上纬新材",
     "score":100.0,
-    "ret20":1.0035744521,
-    "streak":1,
-    "close":213.0,
+    "ret20":0.7777203857,
+    "streak":2,
+    "close":206.5,
     "board":"star"
   },
   {
     "code":"603366",
     "name":"日出东方",
     "score":100.0,
-    "ret20":0.9093406593,
-    "streak":1,
-    "close":13.9,
-    "board":"main"
-  },
-  {
-    "code":"000678",
-    "name":"襄阳轴承",
-    "score":100.0,
-    "ret20":0.8069533394,
-    "streak":1,
-    "close":19.75,
-    "board":"main"
-  },
-  {
-    "code":"002164",
-    "name":"宁波东力",
-    "score":100.0,
-    "ret20":0.7760299625,
-    "streak":1,
-    "close":23.71,
+    "ret20":0.7545582048,
+    "streak":2,
+    "close":12.51,
     "board":"main"
   },
   {
     "code":"600261",
     "name":"阳光照明",
     "score":100.0,
-    "ret20":0.773993808,
-    "streak":1,
-    "close":5.73,
+    "ret20":0.6137071651,
+    "streak":2,
+    "close":5.18,
     "board":"main"
   },
   {
-    "code":"002708",
-    "name":"光洋股份",
+    "code":"000678",
+    "name":"襄阳轴承",
     "score":100.0,
-    "ret20":0.7129951355,
-    "streak":1,
-    "close":24.65,
+    "ret20":0.6119673617,
+    "streak":2,
+    "close":17.78,
     "board":"main"
+  },
+  {
+    "code":"301313",
+    "name":"凡拓数创",
+    "score":100.0,
+    "ret20":0.6020512821,
+    "streak":2,
+    "close":62.48,
+    "board":"chinext"
+  },
+  {
+    "code":"301413",
+    "name":"安培龙",
+    "score":100.0,
+    "ret20":0.7747440273,
+    "streak":1,
+    "close":83.2,
+    "board":"chinext"
+  },
+  {
+    "code":"301578",
+    "name":"辰奕智能",
+    "score":100.0,
+    "ret20":0.6360294118,
+    "streak":1,
+    "close":35.6,
+    "board":"chinext"
   }
 ]

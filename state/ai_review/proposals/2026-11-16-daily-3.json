@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-16-daily-3",
+ "date": "2026-11-16",
+ "status": "pending",
+ "created": "2026-11-17T07:50:14+08:00",
+ "type": "process",
+ "title": "核对 evening_check 是否发过提醒",
+ "detail": "查 GitHub Actions 里 evening_check.yml 在 11-10、11-11、11-12、11-16 这几天 20:30 的运行记录和发信结果，确认托底提醒真的发出去了",
+ "expected_effect": "确认本机没开机的晚上，云端托底链路是通的",
+ "risk": "无",
+ "how_to_verify": "gh run list --workflow evening_check.yml，看对应日期的 conclusion 和日志"
+}

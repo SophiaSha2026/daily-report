@@ -1,0 +1,102 @@
+{
+ "kind": "daily",
+ "date": "2026-11-16",
+ "at": "2026-11-17T07:50:14+08:00",
+ "usd": 0.912,
+ "severity": "注意",
+ "summary": "2026-11-16 两条线都按目标日发出，产物日期、dry、mail_sent、sent 标记全对，当天清单没有错。问题有三处。第一，两条线都拖到次日 07:24 才开跑：起涨预测 07:48:43 发出，离 08:30 截止只剩 41 分钟；长期调整突破 07:25:26 发出，比 17:58 晚了 13.5 小时。第二，11-10、11-11、11-12 连着三个交易日两条线都没出清单，也没有 sent 标记。count_streak 遇到缺的那天就归零，所以今天清单 A 的连续天数最多到 2，n_streak3=0 是人为压出来的，不是真实分布。第三，最近 12 份清单都还没走满 20 根，真值和基准一份都没定，命中率今天没法核。其余正常：模型 9 天，refit 通过，drift 没触发；日线 short 35 只里 33 只是新股；合并没丢行；推送成功；AI 用量 7.12 美元，警戒线 100 美元。",
+ "checked": [
+  "1 两条线 run_meta.date=2026-11-16=目标日，dry=false，mail_sent.date 对得上，sent_marker=true",
+  "2 起涨预测 n_candidates 5384 - rejected 397 = n_ok 4987，算得对；n_ok 在 10-19 以后 4777~4978 的区间附近，略高 9 只",
+  "2 打分 >=97 的 26 只，60 天中位约 25，正常；run_meta 里 n_qualified=null，规则模式下没写这个字段",
+  "2 refit_rejected=false，drift_note 为空（baseline 22 天），model.fit_date 2026-11-08 离目标日 8 天，不到 30 天上限",
+  "2 update_status：short 35 只，其中新股 33 只；非新股只有 002731、301139；stale 10，missing 0，merge_check lost 0，short_excluded 0",
+  "3 两段日志尾没有 WARNING / ERROR / 超时 / 接手；pullback 退出码 0；build.py 日志 18:27~18:42 是美东本机时间（=北京 07:27~07:42），是已知例外",
+  "3 开跑时间：两条线都是 2026-11-17 07:24 才起，前一晚没跑",
+  "3 存档完整性：data/breakout/2026-11 和 state/sent 缺 11-10、11-11、11-12 三天，两条线都缺",
+  "4 清单 A 板块分布：主板 5、创业板 4、科创 1、北交所 0，不集中；连续天数 2 天的 8 只、1 天的 2 只",
+  "5 truth_recent_lists 12 份全部 final=false（最多 14 根），hit_rate_open 全是 null",
+  "5 truth_by 全量 239 只命中 9.6%（CI 6.5%~14.0%）；北交所 0/22，创业板 1/50",
+  "6 push_status ok，07:48:46 推送",
+  "6 regime：11-16 跌停 79（10 天里最多），上涨占比 20.5%，中位 -2.10%，是连续第三个下跌日；成交 14800 亿，10 天里最低；base20 十天都是 null",
+  "7 AI 用量：今天 0 美元，本月 7.12 美元 / 7 次，警戒线 10 / 100，warn=false",
+  "长期调整突破：A 0 只、B 4 只，688060 因减持被剔掉；同口径 59 次，约每月 1.41 次，和三年频率一致"
+ ],
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "state/sent/、data/breakout/2026-11/（11-10~11-12 两条线）",
+   "evidence": "存档有 breakout_2026-11-09 和 breakout_2026-11-13，中间三天没有清单文件，也没有 state/sent/breakout_2026-11-1[0-2].json；pullback 的 sent 标记只有 11-13 和 11-16。regime_daily 里 11-10、11-11、11-12 都有市场数据（n=5532/5533/5531），三天都是交易日",
+   "why": "这三天两条线都没发信，当时的窗口（次日 08:30 截止）已经过了，补不回来。这是过去的事，不影响今天清单的成员，但下面那条连续天数就是它造成的",
+   "suggestion": "查 11-10~11-12 的 tools/local_flow_*.log 和计划任务的敲门记录，确认是没开机还是没触发。如果是没开机，evening_check 当晚应该发过提醒，顺便确认提醒发到了"
+  },
+  {
+   "severity": "注意",
+   "where": "src/breakout/daily.py:896 count_streak → 今天清单 A 的 streak 列 / run_meta.n_streak3",
+   "evidence": "count_streak 读不到 breakout_<prev>.parquet 就 break。清单 A 里 8 只 streak=2，2 只 streak=1，n_streak3=0。同一批票在清单 B 里：300949 streak 10，000678 streak 6，002086 streak 5，605488 streak 3",
+   "why": "11-12 的清单文件不存在，往回数到 11-13 就停了，所以今天的连续天数最多只能是 2。MIN_STREAK=1，选票不受影响；但邮件里按连续天数印的历史成绩、n_streak3 都是被缺档压低的数",
+   "suggestion": "process：缺档那几天在邮件或面板上标一句「11-10~11-12 没出清单，连续天数从 11-13 起算」，别让人当成票只连续了 2 天"
+  },
+  {
+   "severity": "注意",
+   "where": "local_run 两条线的开跑时间（DailyReport-Local-Evening / Pullback）",
+   "evidence": "pullback log「07:24:35 本地全流程 pullback 启动」，mail_sent.at 2026-11-17T07:25:26；breakout mail_sent.at 2026-11-17T07:48:43，截止是次日 08:30",
+   "why": "窗口在 16:30 / 17:40 就开了，到 07:24 前一次都没跑，大概率是机器关着。邮件发出来了、日期也对，但起涨预测只剩 41 分钟余量：它光重建训练表就花了 15 分钟（18:27~18:42 本机时间），再慢一点就会错过截止",
+   "suggestion": "process：在控制台首页显示「上次开机 / 今天第一次敲门」时间，晚于 20:00 标黄。确认 evening_check 在 11-16 20:30 发了两条线的提醒"
+  },
+  {
+   "severity": "注意",
+   "where": "state/breakout/truth（truth_recent_lists）",
+   "evidence": "最近 12 份清单（10-27~11-16）全部 final=false，bars 0~14，hit_rate_open / base_open_final 全是 null",
+   "why": "按买得到口径，规则清单换上来以后（10-19 起）近期一份走满 20 根的都没有，今天没法拿命中率和同期基准比。truth_by 那 239 只是模型时期 97~99 分的分档，不是 ret20 规则的成绩",
+   "suggestion": "等 10-27 那份走满 20 根（还差 6 根）以后再核"
+  },
+  {
+   "severity": "正常",
+   "where": "breakout/run_meta.json n_qualified",
+   "evidence": "run_meta.n_qualified=null；score_stats_60d 11-16 n_qualified=26，日志写「>=97 分 26 只」",
+   "why": "规则模式下 run_meta 不写模型够格数，另外两处是一致的，不影响清单",
+   "suggestion": ""
+  },
+  {
+   "severity": "正常",
+   "where": "update_status.short",
+   "evidence": "short 35 只，其中新股 33 只；非新股 002731、301139 两只；merge_check expected 5531 = target_rows 5531，lost 0",
+   "why": "非新股的 short 远低于 50 只的上限，没触发 SHORT_LATE 剔除，日线覆盖 99.8%",
+   "suggestion": ""
+  },
+  {
+   "severity": "正常",
+   "where": "regime_daily 11-16",
+   "evidence": "跌停 79 / 涨停 33，上涨占比 0.2047，中位 -2.104%，成交 14800 亿（ma5 16438 亿）",
+   "why": "连续第三个下跌日，跌停是 10 天里最多的，但还没到流水线出错的程度，只是市场环境偏弱",
+   "suggestion": ""
+  }
+ ],
+ "proposals": [
+  {
+   "type": "process",
+   "title": "缺档交易日进控制台和邮件抬头",
+   "detail": "local_run 发信前扫一遍 state/sent/<线>_<日>.json，列出近 10 个交易日里缺 sent 标记的日子，印在两条线的邮件抬头，并在控制台首页卡片上显示「近 10 天缺 N 天」",
+   "expected_effect": "11-10~11-12 这种连缺三天的情况当天就能看见，用户也知道连续天数为什么偏低",
+   "risk": "只读文件，不改清单，风险低",
+   "how_to_verify": "在临时目录造一个缺 sent 标记的日子跑 selftest_gui，确认抬头文案出现"
+  },
+  {
+   "type": "code",
+   "title": "count_streak 碰到缺档的日子要说明",
+   "detail": "src/breakout/daily.py count_streak：遇到「交易日没有清单文件」就 break 时，返回值旁边带一个「被缺档截断」的标记，export.py 那一行和 n_streak3 旁边注明「从缺档后起算」。不改计数规则本身",
+   "expected_effect": "邮件里的连续天数和按连续天数印的历史成绩不再被缺档悄悄压低",
+   "risk": "要改 export 的行格式；selftest_breakout 的 streak 用例要补一个缺档场景",
+   "how_to_verify": "selftest_breakout 加用例：前一天清单文件缺失时 streak 标为截断；跑三条自测和 pyflakes"
+  },
+  {
+   "type": "process",
+   "title": "核对 evening_check 是否发过提醒",
+   "detail": "查 GitHub Actions 里 evening_check.yml 在 11-10、11-11、11-12、11-16 这几天 20:30 的运行记录和发信结果，确认托底提醒真的发出去了",
+   "expected_effect": "确认本机没开机的晚上，云端托底链路是通的",
+   "risk": "无",
+   "how_to_verify": "gh run list --workflow evening_check.yml，看对应日期的 conclusion 和日志"
+  }
+ ]
+}

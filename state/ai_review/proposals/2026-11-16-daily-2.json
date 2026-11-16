@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-16-daily-2",
+ "date": "2026-11-16",
+ "status": "pending",
+ "created": "2026-11-17T07:50:14+08:00",
+ "type": "code",
+ "title": "count_streak 碰到缺档的日子要说明",
+ "detail": "src/breakout/daily.py count_streak：遇到「交易日没有清单文件」就 break 时，返回值旁边带一个「被缺档截断」的标记，export.py 那一行和 n_streak3 旁边注明「从缺档后起算」。不改计数规则本身",
+ "expected_effect": "邮件里的连续天数和按连续天数印的历史成绩不再被缺档悄悄压低",
+ "risk": "要改 export 的行格式；selftest_breakout 的 streak 用例要补一个缺档场景",
+ "how_to_verify": "selftest_breakout 加用例：前一天清单文件缺失时 streak 标为截断；跑三条自测和 pyflakes"
+}
