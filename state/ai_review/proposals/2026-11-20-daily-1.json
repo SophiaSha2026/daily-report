@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-20-daily-1",
+ "date": "2026-11-20",
+ "status": "pending",
+ "created": "2026-11-21T03:45:40+08:00",
+ "type": "code",
+ "title": "全量刷新那条路也写 update_status.json",
+ "detail": "改 src/breakout/backfill.py：_stage_update 在 len(missing_days)>1 时 return stage_refresh()，这条路不写账。改成 stage_refresh 结束后按目标日重新数一遍覆盖（target_rows、前一完整交易日行数、没到目标日的代码表票列入 short、new_codes 照常区分），再调 _write_status，加 note=\"全量刷新\"。selftest_breakout 加一个用例：日线缺 3 个交易日走 refresh，之后 update_status.date 等于目标日",
+ "expected_effect": "缺多日的那天，UPDATE_SHORT_MAX 闸和 merge_check 照常生效，日志里不再出现「update_status.json 是 X 的，不是 目标日」",
+ "risk": "stage_refresh 本身约 70 分钟，这里只多一次 groupby 计数；如果 short 算法和追加路不一致，会多挡或少挡，所以要用同一份 _update_short 口径",
+ "how_to_verify": "selftest_breakout 新用例；下次缺多日时看 update_status.date 和 run_meta 有没有对上"
+}

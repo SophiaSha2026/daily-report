@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-20-daily-4",
+ "date": "2026-11-20",
+ "status": "pending",
+ "created": "2026-11-21T03:45:40+08:00",
+ "type": "code",
+ "title": "run_meta 补上 n_qualified",
+ "detail": "改 src/breakout/daily.py：rule=ret20 时 run_meta 里 n_qualified 也写影子模型 ≥SCORE_MIN 的只数（当天 630），和 score_stats.jsonl 同一个数来源，别再写 null",
+ "expected_effect": "控制台、AI 复盘读 run_meta 时能看到漂移的量级，不用再去翻 score_stats",
+ "risk": "极小；读 n_qualified 的地方如果把它当清单 A 的只数用会误读，改之前先 grep 一遍读的地方",
+ "how_to_verify": "selftest_breakout 断言 run_meta.n_qualified 等于 score_stats 最后一行的 n_qualified"
+}

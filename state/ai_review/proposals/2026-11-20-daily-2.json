@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-20-daily-2",
+ "date": "2026-11-20",
+ "status": "pending",
+ "created": "2026-11-21T03:45:40+08:00",
+ "type": "code",
+ "title": "连续天数遇到缺跑日要标出来，不要静默归 1",
+ "detail": "改 src/breakout/daily.py（或 export.py 里算 / 印 streak 的地方）：往回数的时候，如果某个交易日没有存档清单（data/breakout/YYYY-MM/breakout_<日>.parquet 不存在），就停在那里，把 streak 标成「≥k（中间缺跑）」；run_meta 加 streak_gap_days 记缺了哪几天，邮件抬头印一行",
+ "expected_effect": "像今天这样 A 10 只全是 1、B 里同一只却是 10 的矛盾不再静默出现；按连续天数分档的成绩不再错配",
+ "risk": "只改展示和 run_meta，不改入选（MIN_STREAK=1）；MIN_STREAK 以后调到 >1 时要另定缺跑日怎么算",
+ "how_to_verify": "拿 11-20 重算（tools/rerun_breakout.py，试跑），看 streak_gap_days=[11-17,11-18,11-19] 能不能印出来"
+}
