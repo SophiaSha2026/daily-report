@@ -1,92 +1,92 @@
 [
   {
-    "code":"002086",
-    "name":"东方海洋",
+    "code":"002148",
+    "name":"",
     "score":100.0,
-    "ret20":0.7942583732,
-    "streak":1,
-    "close":3.75,
+    "ret20":0.8029315961,
+    "streak":2,
+    "close":11.07,
     "board":"main"
   },
   {
-    "code":"300949",
-    "name":"奥雅股份",
+    "code":"002086",
+    "name":"",
     "score":100.0,
-    "ret20":0.705227656,
-    "streak":1,
-    "close":50.56,
-    "board":"chinext"
-  },
-  {
-    "code":"002148",
-    "name":"北纬科技",
-    "score":100.0,
-    "ret20":0.6794657763,
-    "streak":1,
-    "close":10.06,
+    "ret20":0.7956521739,
+    "streak":2,
+    "close":4.13,
     "board":"main"
   },
   {
     "code":"002685",
-    "name":"华东重机",
+    "name":"",
     "score":100.0,
-    "ret20":0.4829659319,
-    "streak":1,
-    "close":7.4,
+    "ret20":0.6714579055,
+    "streak":2,
+    "close":8.14,
     "board":"main"
   },
   {
-    "code":"001219",
-    "name":"青岛食品",
+    "code":"300949",
+    "name":"",
     "score":100.0,
-    "ret20":0.3659127625,
-    "streak":1,
-    "close":16.91,
-    "board":"main"
-  },
-  {
-    "code":"600410",
-    "name":"华胜天成",
-    "score":100.0,
-    "ret20":0.3637795276,
-    "streak":1,
-    "close":17.32,
-    "board":"main"
+    "ret20":0.610455312,
+    "streak":2,
+    "close":57.3,
+    "board":"chinext"
   },
   {
     "code":"601188",
-    "name":"龙江交通",
+    "name":"",
     "score":100.0,
-    "ret20":0.3429487179,
-    "streak":1,
-    "close":4.19,
-    "board":"main"
-  },
-  {
-    "code":"002708",
-    "name":"光洋股份",
-    "score":100.0,
-    "ret20":0.340829234,
-    "streak":1,
-    "close":19.08,
+    "ret20":0.5315614618,
+    "streak":2,
+    "close":4.61,
     "board":"main"
   },
   {
     "code":"603324",
-    "name":"盛剑科技",
+    "name":"",
     "score":100.0,
-    "ret20":0.3373552124,
-    "streak":1,
-    "close":27.71,
+    "ret20":0.4933855953,
+    "streak":2,
+    "close":30.48,
     "board":"main"
   },
   {
-    "code":"002771",
-    "name":"真视通",
+    "code":"600715",
+    "name":"",
     "score":100.0,
-    "ret20":0.32829555,
+    "ret20":0.6764705882,
     "streak":1,
-    "close":15.82,
+    "close":2.85,
+    "board":"main"
+  },
+  {
+    "code":"600530",
+    "name":"",
+    "score":100.0,
+    "ret20":0.613832853,
+    "streak":1,
+    "close":5.6,
+    "board":"main"
+  },
+  {
+    "code":"000530",
+    "name":"",
+    "score":100.0,
+    "ret20":0.5757575758,
+    "streak":1,
+    "close":13.52,
+    "board":"main"
+  },
+  {
+    "code":"002242",
+    "name":"",
+    "score":100.0,
+    "ret20":0.4804832714,
+    "streak":1,
+    "close":31.86,
     "board":"main"
   }
 ]
