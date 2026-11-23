@@ -1,0 +1,11 @@
+{
+ "id": "2026-11-23-daily-1",
+ "date": "2026-11-23",
+ "status": "pending",
+ "created": "2026-11-24T02:33:47+08:00",
+ "type": "code",
+ "title": "风险剔除三项全部跳过时，不出清单",
+ "detail": "src/breakout/daily.py 的风险剔除（减持 recent_reduction_reasons / 解禁 / 定增）：如果三项全部「检查跳过」，或者 rejected=0 而 ST 之外一只都没剔，就在 run_meta 记 risk_skipped=[...]，stage_scan 返回非零，不写 list_a / breakout_<日>.parquet。只有到次日 07:00 这种最后时限（照 SHORT_LATE 的做法）才允许照发，并在邮件抬头印「风险剔除没做」。",
+ "expected_effect": "今天这种 rejected=0 的清单不会再进提交、进 Pages。下一次重试会重新拉剔除数据。",
+ "risk": "东财接口长期不通时，起涨预测要等到最后时限才发；需要在 selftest_breakout 补一个用例，钉住「三项都跳过时不出清单」。"
+}

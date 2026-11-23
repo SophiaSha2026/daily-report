@@ -1,0 +1,11 @@
+{
+ "id": "2026-11-23-daily-5",
+ "date": "2026-11-23",
+ "status": "pending",
+ "created": "2026-11-24T02:33:47+08:00",
+ "type": "code",
+ "title": "run_meta 里补上 n_qualified",
+ "detail": "src/breakout/daily.py 写 run_meta 的地方，把影子模型 >=SCORE_MIN 的只数（今天是 74）写进 n_qualified，和 score_stats.jsonl 用同一个变量。",
+ "expected_effect": "run_meta 和 score_stats 不再一个是 null、一个是 74，复盘对照分布时不用两处去找。",
+ "risk": "export.py 按 n_qualified 是否为空来分支的地方，要确认 ret20 样式不受影响。"
+}

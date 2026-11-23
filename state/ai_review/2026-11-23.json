@@ -1,0 +1,127 @@
+{
+ "kind": "daily",
+ "date": "2026-11-23",
+ "at": "2026-11-24T02:33:47+08:00",
+ "usd": 1.154,
+ "severity": "严重",
+ "summary": "两条线 2026-11-23 都发了信，日期对得上，dry=false，sent 标记都在，但都晚了：本机 01:44 才开机，云端 20:46 已经发过一封托底提醒。起涨预测跑了两次。第一次（01:44 起）跑到一半断网（DNS 解析失败），减持、解禁、定增三项检查全部跳过，结果 rejected=0，没剔一只就出了清单 A，还在本地提交成 b190433；发信因为 SMTP 也解析不了而失败，exit=1，所以错的清单没发出去。但第二次运行在 02:12 推 claim 时，把这份没剔除过的清单一起推上了 origin/main。第二次运行剔除 348 只，邮件里的清单是对的；可到 02:31:42 为止，它的产物（list_a / panel / run_meta / breakout_2026-11-23.parquet）还没提交。Pages 面板和远端存档现在挂的是没剔除的那份：600530、002242 在面板上，邮件里没有；002771、301218 在邮件里，面板上没有。面板和邮件对不上，算严重；如果这次运行收尾时把产物推上去，会自己纠正，需要核实。长期调整突破正常，两份清单都是 0 只，符合三年约每月 1.41 次的频率。模型 16 天，没重训也不该重训。AI 用量正常。",
+ "checked": [
+  "1 run_meta.date / dry / mail_sent / sent_marker（两条线）",
+  "1b 两条线发信时刻、云端托底提醒（git 605206c alert: evening 2026-11-23）",
+  "2 起涨预测 n_ok / rejected / n_candidates / short_excluded / n_qualified 对照 score_stats_60d",
+  "2b refit_status、drift_note、model.fit_date 年龄、update_status.short",
+  "3 两条线日志尾 + tools/local_flow_breakout.log 第 8433-8695 行（今天两次运行全文）",
+  "3b git log / git status / origin/main 是否包含第一次运行的产物提交",
+  "4 清单 A 板块构成和连续天数分布",
+  "5 truth_recent_lists / truth_by",
+  "6 push_status、regime_10d",
+  "7 ai_usage"
+ ],
+ "findings": [
+  {
+   "severity": "严重",
+   "where": "起涨预测第一次运行（tools/local_flow_breakout.log 8433-8635 行）-> 提交 b190433 -> origin/main -> Pages",
+   "evidence": "02:05:42 减持检查跳过：np-anotice-stock.eastmoney.com 重试 3 次仍失败；02:05:44 解禁检查跳过、定增检查跳过（getaddrinfo failed）；02:05:44「候选 5366 只，剔除 0 只后 5366 只」；b190433 的 run_meta 写的是 rejected=0、n_ok=5366。git branch -r --contains b190433 = origin/main。b190433 的 list_a 是 002148 002086 002685 300949 601188 603324 600715 600530 000530 002242；工作区（也就是邮件）的 list_a 是 ...603324 002771 600715 000530 301218",
+   "why": "一次断网让风险剔除全部 fail-open，剔除数从平时约 350~450 只（11-20：5415-4997=418）掉到 0，流水线照样出了清单、提交了产物，下一次运行推 claim 时又顺手推了上去。结果 Pages 面板和远端的 breakout_2026-11-23.parquet 都是没剔过减持、解禁、定增的清单，和当天发出的邮件不一致（600530、002242 按规则本该剔掉）。",
+   "suggestion": "确认第二次运行收尾时有没有把产物推上去：origin/main 上应该出现一条「起涨预测 2026-11-23」的新提交，run_meta.rejected=348。没有的话，手动提交工作区里的 out_breakout 和 data/breakout/2026-11 再推送，然后核对 Pages 面板的清单 A。"
+  },
+  {
+   "severity": "严重",
+   "where": "起涨预测第二次运行 STEP 4 之后的产物提交（git status 快照时刻）",
+   "evidence": "日志最后一行是 02:31:42「已推送: sent: breakout 2026-11-23」，没有「已推送: 起涨预测 2026-11-23」，也没有「总耗时 / 退出码」；git status 显示 out_breakout/list_a.json、panel.html、run_meta.json、mail_sent.json、data/breakout/2026-11/breakout_2026-11-23.parquet 都是 M；HEAD = origin/main = c851cf0",
+   "why": "sent 标记已经推上去了，云端和计划任务都会认为今天跑完了，不会再有一次运行来改正远端的产物。只要产物提交这一步没成，面板就一直挂着错的那份。长期调整突破的顺序是 sent 之后 3 秒推产物，起涨预测中间可能还夹着 AI 复盘，所以产物提交可能只是还没到，需要事后确认。",
+   "suggestion": "同上，看 origin/main 上有没有晚于 c851cf0 的产物提交。"
+  },
+  {
+   "severity": "注意",
+   "where": "两条线的发信时刻",
+   "evidence": "长期调整突破 mail_sent.at 2026-11-24T01:49:27（计划 17:58，晚了约 7 小时 51 分）；起涨预测 02:31:38（16:30 起跑，晚了约 10 小时）；云端 605206c「alert: evening 2026-11-23」12:46Z = 北京 20:46；本机当天第一条记录是 01:44:01",
+   "why": "机器北京 01:44 之前没开，两条线都在 08:30 截止前补发了，清单本身不受影响。云端提醒按设计发出。"
+  },
+  {
+   "severity": "注意",
+   "where": "起涨预测第一次运行 STEP 2~4",
+   "evidence": "01:44 开始，02:08:55 结束，总耗时 1483 秒，退出码 1。02:05:34 起 qt.gtimg.cn、finance.sina.com.cn、eastmoney、SMTP 全部 getaddrinfo failed；02:05:45「fetch_quotes: 请求 10 只，返回 0 只」；02:08:55「推送失败（本地已提交，产物没丢）」",
+   "why": "断网是在 STEP 2 重建特征表的十几分钟里发生的，流水线没有在打分和剔除之前检查一下网络还通不通，结果跑完全程，留下一份残缺的产物。"
+  },
+  {
+   "severity": "注意",
+   "where": "out_breakout/run_meta.json 的 n_qualified 和 state/breakout/score_stats.jsonl 对不上",
+   "evidence": "run_meta.n_qualified = null；score_stats 2026-11-23 的 n_qualified = 74；日志「>=97 分 74 只」",
+   "why": "两处记的口径不一样。ret20 规则下这个数不影响清单，但复盘和漂移检查只能去 score_stats 里找。"
+  },
+  {
+   "severity": "注意",
+   "where": "update_status.short",
+   "evidence": "short 30 只，其中新股 28 只；非新股 2 只：002731、301139，重拉两次（01:45、02:13）都没拉到 2026-11-23；stale 14；merge_check ok，lost 0",
+   "why": "30 只，低于 50 只的上限，新股也不计入。002731、301139 今天两条线都没参与判定，是停牌还是除权没查明。"
+  },
+  {
+   "severity": "注意",
+   "where": "score_stats_60d 打分分布",
+   "evidence": "n_qualified：11-20 是 630（top10_p_mean 0.534），11-23 是 74（0.394），近 20 天中位约 25；drift_note 为空，drift_baseline_days 24",
+   "why": "11-20 全市场中位跌 5.08%、11-23 中位涨 2.40%，打分分布跟着市场剧烈波动。清单 A 按规则排序，不受影响；影子模型清单会受影响。漂移提示一直没触发，说明阈值宽，或者这类波动本来就算正常。"
+  },
+  {
+   "severity": "注意",
+   "where": "regime_10d",
+   "evidence": "11-20：上涨占比 adv_share 0.0558，跌停 86 只，中位 -5.076%；11-23：adv_share 0.8353，涨停 153 只，中位 +2.404%；11-13 到 11-20 连续 6 天中位为负；base20 全是 null",
+   "why": "连跌后一天普涨，是极端反转日。base20 全为空，所以邮件里没有近期全市场基准可以对照。"
+  },
+  {
+   "severity": "正常",
+   "where": "清单 A 构成",
+   "evidence": "main 8 只、chinext 2 只；连续 2 天 7 只、首日 3 只；n_streak3 = 0；ret20 从 0.449 到 0.803",
+   "why": "主板占 8/10，在 ret20 规则下常见。truth_by 里北交所 0/22 命中，主板 12.6%，没有板块集中度异常。"
+  },
+  {
+   "severity": "正常",
+   "where": "真值 truth_recent_lists",
+   "evidence": "10-29 到 11-23 共 12 份清单都还没到 20 根（最多 17 根），n_open 全是 0，hit_rate_open 全是 null；truth_by 合计 n=279、hits=30、命中率 10.75%（95% 区间 7.6%~14.9%）",
+   "why": "近期还没有已经定下来的清单，买得到口径今天没法和基准比；base20 也是空的。"
+  },
+  {
+   "severity": "正常",
+   "where": "模型 / 重训 / AI 用量 / 长期调整突破",
+   "evidence": "fit_date 2026-11-08，16 天（上限 30），refit_rejected false，指纹没变，今天没有重训；ai_usage 当天 $0，当月 $8.99 / 警戒线 $100；长期调整突破 01:48:51 到 01:49:32 跑完，exit=0，扫描时网络正常（fetch_quotes 50/50），A/B 都是 0 只，同口径 59 次、每月 1.41 次",
+   "why": "都在预期内。日志里每天都有一行「共同起点 2023-04-10 砍掉 63 个交易日，要核是否该跑 refresh」，只影响训练表，和今天的清单无关。"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "code",
+   "title": "风险剔除三项全部跳过时，不出清单",
+   "detail": "src/breakout/daily.py 的风险剔除（减持 recent_reduction_reasons / 解禁 / 定增）：如果三项全部「检查跳过」，或者 rejected=0 而 ST 之外一只都没剔，就在 run_meta 记 risk_skipped=[...]，stage_scan 返回非零，不写 list_a / breakout_<日>.parquet。只有到次日 07:00 这种最后时限（照 SHORT_LATE 的做法）才允许照发，并在邮件抬头印「风险剔除没做」。",
+   "expected_effect": "今天这种 rejected=0 的清单不会再进提交、进 Pages。下一次重试会重新拉剔除数据。",
+   "risk": "东财接口长期不通时，起涨预测要等到最后时限才发；需要在 selftest_breakout 补一个用例，钉住「三项都跳过时不出清单」。"
+  },
+  {
+   "type": "code",
+   "title": "发信失败的那次运行，不提交当日产物",
+   "detail": "src/local_run.py 的 flow_breakout：stage_send 退出码不为 0 时，不提交 out_breakout/ 和 data/breakout/<月>/ 的当日产物（或者把 run_meta 标成 dry）。下一次运行 STEP 1 推 claim 时，也不应该把上一次失败运行留下的产物提交一起推出去。",
+   "expected_effect": "今天 b190433 那份没剔除的清单就不会在 02:12 被推到 origin，Pages 不会挂一份和邮件对不上的清单。",
+   "risk": "会改到 git_lock 里的提交顺序，要跑 selftest_gui 和 e2e_check，确认 claim 和 sent 两类标记照常推送。"
+  },
+  {
+   "type": "code",
+   "title": "打分前加一次联网自检",
+   "detail": "local_run.flow_breakout 在 STEP 3 开头，对 qt.gtimg.cn、np-anotice-stock.eastmoney.com、datacenter-web.eastmoney.com、SMTP 主机做一次 DNS 解析（tools/probe.py 里已有对应主机表，复用它）。解析不了就直接退出，交给下一次计划任务重试，不要跑完 25 分钟留下一份残缺的产物。",
+   "expected_effect": "像今天 02:05 那样断网时，第一次运行会在打分前退出，不会产出 rejected=0 的清单。",
+   "risk": "东财 datacenter 单独不通是常态（硬约束 5），只能把「全部主机都解析不了」当成断网，不能把东财单独失败当成退出条件。"
+  },
+  {
+   "type": "process",
+   "title": "复盘材料加上「远端产物和邮件是否一致」",
+   "detail": "每日复盘的材料里加两项：origin/main 上 out_breakout/run_meta.json 的 rejected、n_ok，和 list_a 的代码；再拿它们和 mail_sent 那次运行的产物比。另外列出 git status 里没提交的当日产物。",
+   "expected_effect": "今天这种「邮件对、面板错」的情况，复盘时直接就能看出来，不用去翻 8000 行日志。",
+   "risk": "材料多出一个字段，生成脚本要多做一次 git show。"
+  },
+  {
+   "type": "code",
+   "title": "run_meta 里补上 n_qualified",
+   "detail": "src/breakout/daily.py 写 run_meta 的地方，把影子模型 >=SCORE_MIN 的只数（今天是 74）写进 n_qualified，和 score_stats.jsonl 用同一个变量。",
+   "expected_effect": "run_meta 和 score_stats 不再一个是 null、一个是 74，复盘对照分布时不用两处去找。",
+   "risk": "export.py 按 n_qualified 是否为空来分支的地方，要确认 ret20 样式不受影响。"
+  }
+ ]
+}

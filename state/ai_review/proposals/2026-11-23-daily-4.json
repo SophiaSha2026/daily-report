@@ -1,0 +1,11 @@
+{
+ "id": "2026-11-23-daily-4",
+ "date": "2026-11-23",
+ "status": "pending",
+ "created": "2026-11-24T02:33:47+08:00",
+ "type": "process",
+ "title": "复盘材料加上「远端产物和邮件是否一致」",
+ "detail": "每日复盘的材料里加两项：origin/main 上 out_breakout/run_meta.json 的 rejected、n_ok，和 list_a 的代码；再拿它们和 mail_sent 那次运行的产物比。另外列出 git status 里没提交的当日产物。",
+ "expected_effect": "今天这种「邮件对、面板错」的情况，复盘时直接就能看出来，不用去翻 8000 行日志。",
+ "risk": "材料多出一个字段，生成脚本要多做一次 git show。"
+}

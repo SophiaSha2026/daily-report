@@ -1,0 +1,11 @@
+{
+ "id": "2026-11-23-daily-2",
+ "date": "2026-11-23",
+ "status": "pending",
+ "created": "2026-11-24T02:33:47+08:00",
+ "type": "code",
+ "title": "发信失败的那次运行，不提交当日产物",
+ "detail": "src/local_run.py 的 flow_breakout：stage_send 退出码不为 0 时，不提交 out_breakout/ 和 data/breakout/<月>/ 的当日产物（或者把 run_meta 标成 dry）。下一次运行 STEP 1 推 claim 时，也不应该把上一次失败运行留下的产物提交一起推出去。",
+ "expected_effect": "今天 b190433 那份没剔除的清单就不会在 02:12 被推到 origin，Pages 不会挂一份和邮件对不上的清单。",
+ "risk": "会改到 git_lock 里的提交顺序，要跑 selftest_gui 和 e2e_check，确认 claim 和 sent 两类标记照常推送。"
+}

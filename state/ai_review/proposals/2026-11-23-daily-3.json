@@ -1,0 +1,11 @@
+{
+ "id": "2026-11-23-daily-3",
+ "date": "2026-11-23",
+ "status": "pending",
+ "created": "2026-11-24T02:33:47+08:00",
+ "type": "code",
+ "title": "打分前加一次联网自检",
+ "detail": "local_run.flow_breakout 在 STEP 3 开头，对 qt.gtimg.cn、np-anotice-stock.eastmoney.com、datacenter-web.eastmoney.com、SMTP 主机做一次 DNS 解析（tools/probe.py 里已有对应主机表，复用它）。解析不了就直接退出，交给下一次计划任务重试，不要跑完 25 分钟留下一份残缺的产物。",
+ "expected_effect": "像今天 02:05 那样断网时，第一次运行会在打分前退出，不会产出 rejected=0 的清单。",
+ "risk": "东财 datacenter 单独不通是常态（硬约束 5），只能把「全部主机都解析不了」当成断网，不能把东财单独失败当成退出条件。"
+}
