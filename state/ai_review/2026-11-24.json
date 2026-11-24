@@ -1,0 +1,124 @@
+{
+ "kind": "daily",
+ "date": "2026-11-24",
+ "at": "2026-11-25T02:37:49+08:00",
+ "usd": 1.09,
+ "severity": "注意",
+ "summary": "2026-11-24 两条线都发出了：日期对得上目标日，不是试跑，发信记录和 sent 标记都在，清单内容和口径没有发现错误。不判「严重」。判「注意」有三件事。第一，机器从 11-24 北京 09:00 到 11-25 02:08 没开机，云端 20:45 已经发了托底提醒；长期调整突破 02:14 才发（应 17:58），起涨预测 02:35 才发（应 17:00 后），都在次日 08:30 的截止时间内。第二，002086 东方海洋同时出现在清单 A 和清单 B 上：A 说它在冲高，B 说它见顶。第三，起涨预测的面板和清单文件到 02:36 还没提交，因为流程还在跑 AI 复盘，复盘完了才提交。最近 12 份清单最老的才走了 17 根 K 线，命中率还定不下来，今天没法核对。",
+ "checked": [
+  "1 两条线 run_meta.date=2026-11-24=目标日（现在北京 11-25 02:36，最近一个已收盘交易日是 11-24），dry=false；mail_sent 日期 11-24（起涨预测 02:35:49，长期调整突破 02:14:21），sent_marker 都是 true；git 有 sent: pullback / sent: breakout 两个提交",
+  "2 起涨预测：候选 5371 - 剔除 354 = 5017 = n_ok，对得上；n_qualified 在 run_meta 里是 null，score_stats 记的是 94（60 天里中位数约 26，11-20 是 630，10-22 是 372）；top10_p_mean 0.406 在区间内；drift_note 为空；refit_rejected=false；模型 2026-11-08 训练，到目标日 16 天，没超 30 天，今天没重训（日志：用已有模型，17 天前）；short 29 只，其中新股 27 只，老股只有 002731、301139；merge_check 没丢行；short_excluded=0",
+  "3 日志尾：两条线都没有 WARNING、ERROR、超时或接手；长期调整突破退出码 0、总耗时 45 秒，产物已推送；起涨预测的锁 pid 14388 还在，产物还没提交（还在复盘这一步）；build 日志的 13:xx 是美东本机时间，这是文档里写明的例外（教训 39）",
+  "4 板块：清单 A 主板 7 只、创业板 3 只，没有科创和北交所；连续天数 3 天 5 只、2 天 3 只、1 天 2 只，和 n_streak3=5 一致",
+  "5 真值：最近 12 份清单 final 全是 false（最老 10-30 只有 17 根），hit_rate_open 全空；truth_by 只给了一个命中率 11.1%（n=289，口径没写明），没有买得到口径，也没有同期基准",
+  "6 push_status ok=true；regime_10d：11-20 涨的票只占 5.6%、中位涨跌 -5.08%、跌停 86 只，11-23 涨的占 83.5%、涨停 153 只，11-24 恢复常态（35.1%，-0.66%）",
+  "7 AI 用量：今天 0 美元，本月 10.15 美元，警戒线 100，warn=false"
+ ],
+ "findings": [
+  {
+   "severity": "注意",
+   "where": "计划任务 / tools/local_flow_breakout.log、git log",
+   "evidence": "local_flow_breakout.log 里 11-24 最后一次起跑是 [2026-11-24T09:00:01]，下一次是 [2026-11-25T02:08:50]，中间没有任何起跑记录；git 有 215fa0d 2026-11-24 12:45:45 +0000 alert: evening 2026-11-24；长期调整突破邮件 02:14:21 发（应 17:58），起涨预测邮件 02:35:49 发（应 17:00 后）",
+   "why": "机器离线了约 17 小时，两条线都晚了 8 到 9.5 小时。云端托底照设计发了提醒，开机后补发也成功了，都在次日 08:30 截止前，所以清单本身没错，只是到得晚。",
+   "suggestion": "确认 11-24 白天到夜里机器是关机还是睡眠；如果经常这样，看下面的 process 提案"
+  },
+  {
+   "severity": "注意",
+   "where": "src/breakout/daily.py build_list_b（819~863 行）/ out_breakout/list_a.json 和 list_b.json",
+   "evidence": "002086 东方海洋在清单 A 第 2 位（ret20=0.8996，streak 3），同时在清单 B（rise 50.9%，drop -12.0%，days 10）。build_list_b 的 docstring 写着「第一版漏了前两条，结果……5 只票同时出现在 A 和 B 上，一边说『接近起涨』一边说『见顶』」",
+   "why": "换成 ret20 规则以后，离高点回落 12% 的票，20 日涨幅照样可以排进前 10。MIN_HOLD_DAYS 和 RISE_MIN 这两道防不住同一只票同一天既在 A 又在 B。按各自的规则算，两份清单都没错，但邮件里同一只票给了两个相反的说法。",
+   "suggestion": "见 code 提案：只在展示上标注，不动 A 和 B 的入选规则"
+  },
+  {
+   "severity": "注意",
+   "where": "local_run.flow_breakout 第 4 步之后：ai_review --daily 在产物提交之前",
+   "evidence": "02:36 git status 里 out_breakout/{list_a,list_b,panel.html,run_meta,stamp}.json 等都是 M，breakout_2026-11-24.parquet 还没入库；state/lock/breakout.json 的 pid 14388 还没释放；11-23 的「起涨预测 2026-11-23」提交时间 13:33:47 和 state/ai_review/2026-11-23.json 的写入时间完全一样",
+   "why": "邮件已经发出（02:35:49），但 Pages 面板要等 AI 复盘跑完（11-23 那次复盘用了约 2 分钟）才推送。这段时间里邮件链接点进去看到的是 11-23 的面板。复盘如果卡住或超时，面板会一直停在前一天。",
+   "suggestion": "等复盘结束后核一下有没有「起涨预测 2026-11-24 [local]」这个提交"
+  },
+  {
+   "severity": "注意",
+   "where": "out_breakout/run_meta.json 的 n_qualified 字段",
+   "evidence": "run_meta.n_qualified=null，同一天 score_stats.jsonl 记的是 n_qualified=94，日志写「>=97 分 94 只」",
+   "why": "rule=ret20 以后 run_meta 不再写模型够格数，靠 run_meta 判异常的检查会漏掉这一项，只能去 score_stats 里看。今天的数字不受影响。",
+   "suggestion": "见 code 提案"
+  },
+  {
+   "severity": "注意",
+   "where": "truth_recent_lists / truth_by",
+   "evidence": "最近 12 份清单 final 全是 false（10-30 只有 17 根），hit_rate_open 全空；truth_by.all 是 n=289、hits=32、11.1%，没写口径，也没有 base 字段；regime_10d 里 base20 全是 null",
+   "why": "复盘第 5 项（买得到口径的命中率对比同期基准）今天没有一份定下来的样本，没法判断；truth_by 也没给 open 口径，和邮件按次日开盘买入算的成绩不是同一个口径。",
+   "suggestion": "等 10-30 那份走满 20 根（大约 11-27）再核"
+  },
+  {
+   "severity": "正常",
+   "where": "update_status / 日线补数",
+   "evidence": "requested 5576、appended 5532、short 29（新股 27 只，老股只有 002731、301139），merge_check expected=target_rows=5539、lost 0；覆盖率 99.8%，前一日比 100.1%",
+   "why": "新股不算进 50 只的上限，老股缺 2 只，在正常范围里。"
+  },
+  {
+   "severity": "正常",
+   "where": "模型 / 重训 / 漂移",
+   "evidence": "model.fit_date 2026-11-08，到目标日 16 天（<30）；refit_status accepted（新模型 top10 0.258 对旧模型 0.175）；drift_note 为空；日志「用已有模型（2026-11-08 训练，17 天前，49 个特征）」",
+   "why": "没到期，也没触发重训，符合规则。"
+  },
+  {
+   "severity": "正常",
+   "where": "长期调整突破 run_meta / log",
+   "evidence": "全市场 5539 只，今天倍量大阳线 27 只，二次进攻 0 只，A 0 只、B 0 只；同口径 59 次，约每月 1.4 次；邮件 0 个附件，已推送",
+   "why": "空榜是这条线的常态（每月约 1.4 次），产物和发信都到位了。"
+  },
+  {
+   "severity": "正常",
+   "where": "清单 A 板块和连续天数",
+   "evidence": "主板 7 只、创业板 3 只；streak 3/3/3/3/3/2/2/2/1/1；board_adj main 1.13 / chinext 1.01",
+   "why": "主板占 70%，偏集中，但没有集中到只剩一个板块；ret20 规则下这种分布在合理范围里。"
+  },
+  {
+   "severity": "正常",
+   "where": "市场环境 regime_10d",
+   "evidence": "11-20：涨的占 0.0558、中位涨跌 -5.076%、跌停 86 只；11-23：涨的占 0.8354、涨停 153 只；11-24：涨的占 0.3511、中位 -0.664%、成交 16552 亿",
+   "why": "11-20 是极端下跌日（当天 n_qualified 630，和这个对得上），11-24 本身不极端。11-20 到 11-24 的清单，以后的命中率会受这段大跌大涨影响，到时看结果要考虑这一点。"
+  },
+  {
+   "severity": "正常",
+   "where": "build.py 日志「共同起点」",
+   "evidence": "「共同起点 2023-04-10 砍掉了 63 个交易日……要核一下是不是该跑 backfill --stage refresh」；日志里以前 25 次是砍 96 个、1 次 100 个，这次是第 4 次砍 63 个",
+   "why": "这是一直有的提示，而且在变好，模型指纹没变，不影响当天打分。"
+  }
+ ],
+ "proposals": [
+  {
+   "type": "code",
+   "title": "清单 A 和 B 同一只票时在面板和邮件里标注",
+   "detail": "在 src/breakout/export.py 渲染清单 B 时，如果代码也在当天 list_a 里，就在那一行加一句「今天也在清单 A」，在 A 那一行加「已从高点回落 X%」。不改 build_list_b 的入选条件，也不改 A 的排序。",
+   "expected_effect": "用户不会在同一封邮件里看到同一只票被说成既在冲高又已见顶，却没有任何说明",
+   "risk": "只改展示；如果用户其实希望从 B 里剔掉，就需要另外拍板",
+   "how_to_verify": "selftest_breakout 加一个用例：A 和 B 都有同一个代码时，HTML 里出现标注；然后用 11-24 的数据跑 resend_breakout 试跑看面板"
+  },
+  {
+   "type": "code",
+   "title": "起涨预测先提交产物，再做 AI 复盘",
+   "detail": "src/local_run.py 的 flow_breakout：发信之后先 commit/push out_breakout 和 data/breakout/<月>/ 的当天清单，然后再调 tools/ai_review.py --daily；复盘自己的产物（state/ai_review/）另外提交一次",
+   "expected_effect": "邮件发出后几秒内 Pages 面板就更新，不用等 AI 复盘（1~2 分钟，卡住会更久）",
+   "risk": "多一次 git 提交和推送；要确认 latest_alert.json 进邮件抬头用的是前一天的复盘结果，不受顺序影响",
+   "how_to_verify": "selftest_gui 钉住执行顺序；看下一个交易日 git log 里「起涨预测 <日>」的时间早于 ai_review 文件的写入时间"
+  },
+  {
+   "type": "code",
+   "title": "rule=ret20 时 run_meta 照样写 n_qualified",
+   "detail": "src/breakout/daily.py 写 run_meta 时，把影子模型 >=SCORE_MIN 的只数（日志里「>=97 分 94 只」那个数）写进 n_qualified，不再写 null",
+   "expected_effect": "run_meta 和 score_stats 的口径对齐，每日复盘能直接比",
+   "risk": "run_meta 结构改了，要确认 export._same_rule 不读这个字段",
+   "how_to_verify": "跑一次试跑，看 run_meta.n_qualified 是否等于当天 score_stats 那一行"
+  },
+  {
+   "type": "process",
+   "title": "交易日下午确保机器醒着",
+   "detail": "核一下 11-24 白天是关机还是睡眠。如果是睡眠，在 tools/setup_tasks.ps1 里给 Evening 和 Pullback 两个任务开 WakeToRun，并在电源选项里允许唤醒定时器；如果是关机，就只能靠人在北京 16:30 前开机",
+   "expected_effect": "16:30 和 17:40 能准时起跑，不再出现隔夜补发、云端托底提醒",
+   "risk": "笔记本合盖放包里时被唤醒会耗电发热",
+   "how_to_verify": "下一个交易日 local_flow_pullback.log 在北京 17:40 附近有起跑记录，邮件 17:58 到"
+  }
+ ]
+}

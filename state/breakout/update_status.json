@@ -1,8 +1,8 @@
 {
-  "date": "2026-11-23",
+  "date": "2026-11-24",
   "requested": 5576,
-  "appended": 5522,
-  "stale": 14,
+  "appended": 5532,
+  "stale": 8,
   "newcodes": 28,
   "new_codes": [
     "001246",
@@ -34,12 +34,12 @@
     "920289",
     "920298"
   ],
-  "refetch": 35,
-  "refetch_only": 12,
+  "refetch": 33,
+  "refetch_only": 8,
   "missing": 0,
   "missing_codes": [],
-  "prev_n": 5534,
-  "covered": 5534,
+  "prev_n": 5532,
+  "covered": 5540,
   "closed": true,
   "short": [
     "002731",
@@ -57,7 +57,6 @@
     "601123",
     "603448",
     "688801",
-    "688835",
     "688837",
     "920025",
     "920071",
@@ -78,10 +77,9 @@
   "ok": true,
   "merge_check": {
     "ok": true,
-    "expected": 5532,
-    "target_rows": 5532,
+    "expected": 5539,
+    "target_rows": 5539,
     "lost": 0,
     "lost_codes": []
-  },
-  "retried_at": "2026-11-24T02:13:08+08:00"
+  }
 }

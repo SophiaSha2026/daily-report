@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-24-daily-4",
+ "date": "2026-11-24",
+ "status": "pending",
+ "created": "2026-11-25T02:37:49+08:00",
+ "type": "process",
+ "title": "交易日下午确保机器醒着",
+ "detail": "核一下 11-24 白天是关机还是睡眠。如果是睡眠，在 tools/setup_tasks.ps1 里给 Evening 和 Pullback 两个任务开 WakeToRun，并在电源选项里允许唤醒定时器；如果是关机，就只能靠人在北京 16:30 前开机",
+ "expected_effect": "16:30 和 17:40 能准时起跑，不再出现隔夜补发、云端托底提醒",
+ "risk": "笔记本合盖放包里时被唤醒会耗电发热",
+ "how_to_verify": "下一个交易日 local_flow_pullback.log 在北京 17:40 附近有起跑记录，邮件 17:58 到"
+}

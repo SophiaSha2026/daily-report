@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-24-daily-3",
+ "date": "2026-11-24",
+ "status": "pending",
+ "created": "2026-11-25T02:37:49+08:00",
+ "type": "code",
+ "title": "rule=ret20 时 run_meta 照样写 n_qualified",
+ "detail": "src/breakout/daily.py 写 run_meta 时，把影子模型 >=SCORE_MIN 的只数（日志里「>=97 分 94 只」那个数）写进 n_qualified，不再写 null",
+ "expected_effect": "run_meta 和 score_stats 的口径对齐，每日复盘能直接比",
+ "risk": "run_meta 结构改了，要确认 export._same_rule 不读这个字段",
+ "how_to_verify": "跑一次试跑，看 run_meta.n_qualified 是否等于当天 score_stats 那一行"
+}

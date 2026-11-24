@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-24-daily-2",
+ "date": "2026-11-24",
+ "status": "pending",
+ "created": "2026-11-25T02:37:49+08:00",
+ "type": "code",
+ "title": "起涨预测先提交产物，再做 AI 复盘",
+ "detail": "src/local_run.py 的 flow_breakout：发信之后先 commit/push out_breakout 和 data/breakout/<月>/ 的当天清单，然后再调 tools/ai_review.py --daily；复盘自己的产物（state/ai_review/）另外提交一次",
+ "expected_effect": "邮件发出后几秒内 Pages 面板就更新，不用等 AI 复盘（1~2 分钟，卡住会更久）",
+ "risk": "多一次 git 提交和推送；要确认 latest_alert.json 进邮件抬头用的是前一天的复盘结果，不受顺序影响",
+ "how_to_verify": "selftest_gui 钉住执行顺序；看下一个交易日 git log 里「起涨预测 <日>」的时间早于 ai_review 文件的写入时间"
+}

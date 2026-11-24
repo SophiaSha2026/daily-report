@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-24-daily-1",
+ "date": "2026-11-24",
+ "status": "pending",
+ "created": "2026-11-25T02:37:49+08:00",
+ "type": "code",
+ "title": "清单 A 和 B 同一只票时在面板和邮件里标注",
+ "detail": "在 src/breakout/export.py 渲染清单 B 时，如果代码也在当天 list_a 里，就在那一行加一句「今天也在清单 A」，在 A 那一行加「已从高点回落 X%」。不改 build_list_b 的入选条件，也不改 A 的排序。",
+ "expected_effect": "用户不会在同一封邮件里看到同一只票被说成既在冲高又已见顶，却没有任何说明",
+ "risk": "只改展示；如果用户其实希望从 B 里剔掉，就需要另外拍板",
+ "how_to_verify": "selftest_breakout 加一个用例：A 和 B 都有同一个代码时，HTML 里出现标注；然后用 11-24 的数据跑 resend_breakout 试跑看面板"
+}

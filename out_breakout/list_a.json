@@ -3,90 +3,90 @@
     "code":"002148",
     "name":"北纬科技",
     "score":100.0,
-    "ret20":0.8029315961,
-    "streak":2,
-    "close":11.07,
+    "ret20":0.9241146712,
+    "streak":3,
+    "close":11.41,
     "board":"main"
   },
   {
     "code":"002086",
     "name":"东方海洋",
     "score":100.0,
-    "ret20":0.7956521739,
-    "streak":2,
-    "close":4.13,
+    "ret20":0.89958159,
+    "streak":3,
+    "close":4.54,
     "board":"main"
   },
   {
     "code":"002685",
     "name":"华东重机",
     "score":100.0,
-    "ret20":0.6714579055,
-    "streak":2,
-    "close":8.14,
-    "board":"main"
-  },
-  {
-    "code":"300949",
-    "name":"奥雅股份",
-    "score":100.0,
-    "ret20":0.610455312,
-    "streak":2,
-    "close":57.3,
-    "board":"chinext"
-  },
-  {
-    "code":"601188",
-    "name":"龙江交通",
-    "score":100.0,
-    "ret20":0.5315614618,
-    "streak":2,
-    "close":4.61,
-    "board":"main"
-  },
-  {
-    "code":"603324",
-    "name":"盛剑科技",
-    "score":100.0,
-    "ret20":0.4933855953,
-    "streak":2,
-    "close":30.48,
+    "ret20":0.8961864407,
+    "streak":3,
+    "close":8.95,
     "board":"main"
   },
   {
     "code":"002771",
     "name":"真视通",
     "score":100.0,
-    "ret20":0.4536340852,
-    "streak":2,
-    "close":17.4,
+    "ret20":0.551477171,
+    "streak":3,
+    "close":17.33,
+    "board":"main"
+  },
+  {
+    "code":"603324",
+    "name":"盛剑科技",
+    "score":100.0,
+    "ret20":0.5007672634,
+    "streak":3,
+    "close":29.34,
     "board":"main"
   },
   {
     "code":"600715",
     "name":"文投控股",
     "score":100.0,
-    "ret20":0.6764705882,
-    "streak":1,
-    "close":2.85,
+    "ret20":0.679144385,
+    "streak":2,
+    "close":3.14,
     "board":"main"
   },
   {
     "code":"000530",
     "name":"冰山冷热",
     "score":100.0,
-    "ret20":0.5757575758,
-    "streak":1,
-    "close":13.52,
+    "ret20":0.6365853659,
+    "streak":2,
+    "close":13.42,
     "board":"main"
   },
   {
     "code":"301218",
     "name":"华是科技",
     "score":100.0,
-    "ret20":0.4485514486,
+    "ret20":0.53,
+    "streak":2,
+    "close":85.68,
+    "board":"chinext"
+  },
+  {
+    "code":"301575",
+    "name":"艾芬达",
+    "score":100.0,
+    "ret20":0.6129334583,
     "streak":1,
-    "close":87.0,
+    "close":34.42,
+    "board":"chinext"
+  },
+  {
+    "code":"301252",
+    "name":"同星科技",
+    "score":100.0,
+    "ret20":0.528057554,
+    "streak":1,
+    "close":42.48,
     "board":"chinext"
   }
 ]
