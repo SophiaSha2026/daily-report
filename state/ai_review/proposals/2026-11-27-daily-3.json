@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-27-daily-3",
+ "date": "2026-11-27",
+ "status": "pending",
+ "created": "2026-11-29T01:54:12+08:00",
+ "type": "code",
+ "title": "漂移提示加上达到 97 分的票数这一项",
+ "detail": "src/breakout/daily.py 的 drift_note 现在没盯 n_qualified。用 state/breakout/score_stats.jsonl 里非 dry 的近 60 天算 n_qualified 的中位数，当天超过中位数的 10 倍，或者 top10_p_mean 超过近 60 天最高值时，写一句提示（影子模型分整体抬升，没有区分度）。只提示，不改清单。",
+ "expected_effect": "11-20（630）、11-27（925）这种大涨日会有提示，复盘和控制台能看见影子模型在这一天失灵。",
+ "risk": "只是一句文案，不影响清单。别把这个文件改进模型指纹（daily.py 不在指纹里，没问题）。",
+ "how_to_verify": "selftest_breakout 拿假的 score_stats 造一天 925 只，断言 drift_note 不为空。"
+}

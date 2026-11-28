@@ -1,0 +1,130 @@
+{
+ "kind": "daily",
+ "date": "2026-11-27",
+ "at": "2026-11-29T01:54:12+08:00",
+ "usd": 1.074,
+ "severity": "严重",
+ "summary": "2026-11-27 两条线都发了信（run_meta.date=目标日，dry=false，mail_sent 和 sent 标记都在），但日线不完整，而且没有被如实报出来。本机从 11-25 09:44 一直离线到 11-29 00:05，日线缺了 3 天，于是走了新浪全量刷新。刷新开头 DNS 不通，最后失败 104 只。日线表 5550 只里只有 5467 只有 11-27 这根 K 线，约 83 只（1.5%）没到目标日。全量刷新这条路不写 update_status.json（它还停在 11-24），所以「没补齐」那道闸直接放行，short_excluded=0，邮件抬头也不会印「日线没补齐不参与 N 只」。11-27 是 96.5% 上涨、480 只涨停的大涨日，缺的这批里有没有票本该进前 10，我没能实测（读日线的命令没拿到批准）。其余：两封信都晚了约 32 小时；11-25、11-26 两天没出清单，所以清单 A 的连续天数全是 1；模型影子清单达到 97 分的有 925 只，是 60 天里最高，漂移提示没触发；模型 21 天，没有重训，这是对的。",
+ "checked": [
+  "1 两条线 run_meta.date / dry / mail_sent / sent_marker",
+  "2 起涨预测 n_ok / rejected / short_excluded / n_qualified 对照 score_stats_60d，refit_status、drift_note、model.fit_date、update_status.short",
+  "3 日志尾：WARNING / 失败 / 推送失败 / 全量刷新路径 / update_status 不是目标日（另外翻了 tools/local_flow_breakout.log 第 8897~9002 行）",
+  "4 清单 A 板块构成和连续天数",
+  "5 真值 truth_recent_lists / truth_by",
+  "6 push_status 和 regime_10d",
+  "7 ai_usage"
+ ],
+ "findings": [
+  {
+   "severity": "严重",
+   "where": "起涨预测 STEP 2（backfill 全量刷新）-> local_run._update_short（src/local_run.py:1102）-> run_meta.short_excluded",
+   "evidence": "00:05:44「日线停在 2026-11-24，到 2026-11-27 缺 3 个交易日，改走全量刷新」；01:27:58「新浪拉取结束，失败 104 只」；01:28:12 合并后 5550 只；01:34:23「日线覆盖 98.5%，2026-11-27 5467 行」；紧接着「update_status.json 是 2026-11-24 的，不是 2026-11-27」（文件时间 Nov 24 13:10）；run_meta.short_excluded=0；score_stats 里 n_eligible 5348，前几天是 5413~5420；regime 的 n 从 11-24 的 5540 掉到 11-25 的 5464",
+   "why": "有 5550−5467≈83 只票没有目标日 K 线，从候选池里静默消失了。_update_short 发现账不是当天的，就返回空列表放行，于是 UPDATE_SHORT_MAX 这道闸和邮件里「日线没补齐不参与 N 只」都没生效。run_meta 写的 0 和实际缺的 83 只对不上。长期调整突破读的是同一张表（n_stocks 5467），同样少扫了这批票。11-27 是全市场大涨日，这批票里有没有近 20 日涨幅超过 80.96%（清单 A 第 10 名）的，没有实测，所以不能确认清单 A 没受影响。",
+   "suggestion": "人工核一次：列出 daily.parquet 里最新日期早于 2026-11-27 的那些代码，算它们的近 20 日涨幅，看有没有超过 0.8096 的。有的话按 rerun_breakout 重算并补发。"
+  },
+  {
+   "severity": "注意",
+   "where": "STEP 2 新浪全量刷新的前 5 分钟",
+   "evidence": "00:05:32~00:05:44 finance.sina.com.cn、github.com 都 getaddrinfo failed；00:05:39「推送失败（本地已提交，产物没丢）」；00:11:00「进度 200/5576 失败 74」，此后 82 分钟一共只多失败 30 只",
+   "why": "104 只失败里约 74 只出在开头这几分钟断网的时候，是网络问题，不是新浪不给数据。这些票失败后没有重试，直接按「没拉到」收尾。",
+   "suggestion": "见 code 提案：池子跑完之后，把失败的票再拉一轮。"
+  },
+  {
+   "severity": "注意",
+   "where": "排期 / 两条线的发信时间",
+   "evidence": "日志里上一次起跑是 [2026-11-25T09:44:32]，下一次是 [2026-11-29T00:05:10]；长期调整突破 mail_sent.at 2026-11-29T01:29:01（应在 11-27 17:58 发）；起涨预测 2026-11-29T01:51:51；data/breakout/2026-11/ 里没有 11-25、11-26 的文件",
+   "why": "离线了约 86 小时，两条线都晚了约 31.5 小时，超过了「最晚次日 08:30」。11-25、11-26 两天的清单永远缺着。11 月 20 个交易日里只出了 12 份起涨预测清单，11-10~12、11-17~19、11-25~26 都没有。",
+   "suggestion": "见 process 提案。"
+  },
+  {
+   "severity": "注意",
+   "where": "清单 A 的 streak 列 / truth_by.streak",
+   "evidence": "清单 A 10 只全部 streak=1，n_streak3=0；上一份清单是 11-24 的，11-25、11-26 没有清单",
+   "why": "连续天数按交易日历往回数清单。中间两天没出清单，所以全员归零，「首日」反映的是机器没开，不是名单真的全换了。MIN_STREAK=1，入选不受影响，但邮件里印的连续天数和按连续天数分档的成绩（连续≥5 天 30% 对首日 10%）会误导人。",
+   "suggestion": "以后有缺清单的日子，邮件里标一下「前 N 个交易日本机没跑，连续天数断开」。"
+  },
+  {
+   "severity": "注意",
+   "where": "breakout/daily.py drift_note / 模型影子清单",
+   "evidence": "score_stats 11-27 n_qualified=925，top10_p_mean=0.618；60 天里的前两高是 11-20 的 630 / 0.534 和 10-22 的 372 / 0.471，其余多在 6~94；run_meta.drift_note=\"\"，drift_baseline_days=26；同一天 regime adv_share 0.965，涨停 480，中位涨幅 +6.92%",
+   "why": "达到 97 分的票数是平时中位（约 30）的 30 倍，漂移提示却没触发，说明它没盯这个量。影子清单不进邮件，当天结果没错，但这时候模型分已经没有区分度了。",
+   "suggestion": "见 code 提案。"
+  },
+  {
+   "severity": "注意",
+   "where": "out_breakout/run_meta.json",
+   "evidence": "run_meta.n_qualified=null，score_stats 同一天 n_qualified=925",
+   "why": "同一个数，两份产物一份有一份没有。改用规则排序以后 run_meta 不写这个字段，复盘和控制台读 run_meta 就拿不到。",
+   "suggestion": "run_meta 照写影子模型的 n_qualified，或者改成明确标注「规则模式不适用」。"
+  },
+  {
+   "severity": "注意",
+   "where": "regime_10d 2026-11-27",
+   "evidence": "adv_share 0.9649，limit_up 480，limit_down 1，ret_median_pct 6.919，turnover_yi 19720.5，turnover_chg5 +0.3865；前一周 11-20 是 adv 0.0558、中位 −5.08%",
+   "why": "极端行情，而且这一天的环境指标本身是在少了约 83 只票的表上算的。清单 A 近 20 日涨幅 81%~108%，前 10 全是这轮急涨的票。",
+   "suggestion": "不用动作，记下这个背景，之后对这份清单的真值时用得上。"
+  },
+  {
+   "severity": "正常",
+   "where": "模型 / 重训",
+   "evidence": "model.fit_date 2026-11-08（日志写「21 天前」，上限 30），refit_status.accepted=true（11-08，top10 0.258 对旧模型 0.175），refit_rejected=false，指纹 28d0fb53 没变，日志「用已有模型」",
+   "why": "没到期，没重训，这是对的。",
+   "suggestion": ""
+  },
+  {
+   "severity": "正常",
+   "where": "起涨预测剔除 / 清单 B / 板块",
+   "evidence": "候选 5307，剔除 351 后 4956；清单 B 1 只（002685，A 池 147）；清单 A 主板 8 只、创业板 2 只（301391、300324），科创板和北交所 0 只",
+   "why": "剔除数和前几天（n_eligible−n_ok 在 400 上下）同一量级。清单 A 偏主板，但规则只按 20 日涨幅排，不管板块，属于正常现象。",
+   "suggestion": ""
+  },
+  {
+   "severity": "正常",
+   "where": "长期调整突破扫描",
+   "evidence": "01:28:55「今日倍量大阳线 693 只，今日二次进攻 0 只……清单 A 0 只……清单 B 0 只 | 同口径 59 次，约每月 1.4 次」，exit=0；等日线时 01:26~01:28 看到覆盖 0.0%，等起涨预测补完才开扫",
+   "why": "空榜是常态，日线写锁和等待的顺序都对（扫描少了约 83 只票这件事已经并进第一条）。",
+   "suggestion": ""
+  },
+  {
+   "severity": "正常",
+   "where": "真值 / 推送 / AI 用量",
+   "evidence": "truth_recent_lists 里最早一份 11-02 是 19 根，final=false，没有一份已定；push_status ok，at 01:51:54（00:05:39 那次失败后来自愈了）；ai_usage 当天 $0，当月 $11.24 / 警戒线 $100",
+   "why": "最近的清单还没有一份到 20 根，今天没有真值可比。推送和用量都正常。",
+   "suggestion": ""
+  }
+ ],
+ "proposals": [
+  {
+   "type": "code",
+   "title": "全量刷新路径也写补数据的账",
+   "detail": "src/breakout/backfill.py 走全量刷新（缺好几个交易日时，local_run 会改走 refresh / sina）合并完以后，照 stage_update 的格式写 state/breakout/update_status.json：date=目标日，short=最新日期早于目标日的老票，new_codes=新股，再加 refresh=true。同时 src/local_run.py:1102 的 _update_short 看到账不是当天的，不要返回空列表放行，改成直接从 daily.parquet 数没到目标日的票（只读 code 和 date 两列）。",
+   "expected_effect": "今天这种情况 short 约 83 只，会挡在 UPDATE_SHORT_MAX=50 这道闸上，等补齐或者过了 SHORT_LATE 再剔除发信，邮件印「日线没补齐不参与 N 只」，run_meta.short_excluded 和实际一致。",
+   "risk": "改到 local_run 的闸门判定，要跑 selftest_gui、selftest_breakout 和 e2e_check。数法要和 stage_update 一致（新股不计数），否则会多挡。",
+   "how_to_verify": "selftest_breakout 加一个用例：update_status 停在旧日期、日线里有 N 只没到目标日，断言 _update_short 返回 N 只。拿今天这张表手跑一次，应该得到约 83。"
+  },
+  {
+   "type": "code",
+   "title": "新浪全量拉取跑完后，把失败的再拉一轮",
+   "detail": "src/breakout/backfill.py 的新浪进程池（_sina_map）跑完以后，如果有失败的，先确认 finance.sina.com.cn 能解析，再把失败的票单独过一轮，每只的时限不变。开跑前也先探一次 DNS，不通就等或者退出，等下一次计划任务来跑，不要在断网时开 82 分钟的全量。",
+   "expected_effect": "今天开头断网那几分钟失败的约 74 只，大概率第二轮能补回来，缺票从约 83 只降到个位数。",
+   "risk": "全量多出几分钟，要在 STEP_LIMIT 和 MAX_RUN 里留出余量，selftest_gui 会钉住时限之和。",
+   "how_to_verify": "看日志里有没有「第二轮重拉 N 只，拉到 M 只」，以及 11-27 的行数是不是接近 5540。"
+  },
+  {
+   "type": "code",
+   "title": "漂移提示加上达到 97 分的票数这一项",
+   "detail": "src/breakout/daily.py 的 drift_note 现在没盯 n_qualified。用 state/breakout/score_stats.jsonl 里非 dry 的近 60 天算 n_qualified 的中位数，当天超过中位数的 10 倍，或者 top10_p_mean 超过近 60 天最高值时，写一句提示（影子模型分整体抬升，没有区分度）。只提示，不改清单。",
+   "expected_effect": "11-20（630）、11-27（925）这种大涨日会有提示，复盘和控制台能看见影子模型在这一天失灵。",
+   "risk": "只是一句文案，不影响清单。别把这个文件改进模型指纹（daily.py 不在指纹里，没问题）。",
+   "how_to_verify": "selftest_breakout 拿假的 score_stats 造一天 925 只，断言 drift_note 不为空。"
+  },
+  {
+   "type": "process",
+   "title": "本机离线超过一个交易日就告警，并在邮件里说明缺了哪几天",
+   "detail": "evening_check（云端 20:30）现在只查目标日的 sent 标记。加一条：origin 上最近一次 [local] 提交离现在超过 24 小时，就在提醒里写明「本机已离线 X 小时，起涨预测上一份清单是 YYYY-MM-DD」。补跑那封邮件的抬头写「前 N 个交易日本机没跑，没出清单；连续天数从这天起重新算」。",
+   "expected_effect": "11-25~11-27 这种连续三天没开机，第一晚就能发现，不会等到第四天才补。用户也能知道这天的连续天数全是 1 的原因。",
+   "risk": "云端只读 origin，本机断网但开着机时也会报离线，提醒里要说明这种可能。",
+   "how_to_verify": "停推一天，看 20:30 的提醒有没有这一行。"
+  }
+ ]
+}

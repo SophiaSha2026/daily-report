@@ -1,92 +1,92 @@
 [
   {
-    "code":"002148",
-    "name":"北纬科技",
+    "code":"301391",
+    "name":"卡莱特",
     "score":100.0,
-    "ret20":0.9241146712,
-    "streak":3,
-    "close":11.41,
-    "board":"main"
-  },
-  {
-    "code":"002086",
-    "name":"东方海洋",
-    "score":100.0,
-    "ret20":0.89958159,
-    "streak":3,
-    "close":4.54,
-    "board":"main"
-  },
-  {
-    "code":"002685",
-    "name":"华东重机",
-    "score":100.0,
-    "ret20":0.8961864407,
-    "streak":3,
-    "close":8.95,
-    "board":"main"
+    "ret20":1.0816944024,
+    "streak":1,
+    "close":68.8,
+    "board":"chinext"
   },
   {
     "code":"002771",
     "name":"真视通",
     "score":100.0,
-    "ret20":0.551477171,
-    "streak":3,
-    "close":17.33,
+    "ret20":1.0726915521,
+    "streak":1,
+    "close":21.1,
     "board":"main"
   },
   {
     "code":"603324",
     "name":"盛剑科技",
     "score":100.0,
-    "ret20":0.5007672634,
-    "streak":3,
-    "close":29.34,
+    "ret20":0.9872476089,
+    "streak":1,
+    "close":37.4,
     "board":"main"
   },
   {
-    "code":"600715",
-    "name":"文投控股",
+    "code":"300324",
+    "name":"旋极信息",
     "score":100.0,
-    "ret20":0.679144385,
-    "streak":2,
-    "close":3.14,
-    "board":"main"
+    "ret20":0.9836065574,
+    "streak":1,
+    "close":6.05,
+    "board":"chinext"
   },
   {
     "code":"000530",
     "name":"冰山冷热",
     "score":100.0,
-    "ret20":0.6365853659,
-    "streak":2,
-    "close":13.42,
+    "ret20":0.9507575758,
+    "streak":1,
+    "close":15.45,
     "board":"main"
   },
   {
-    "code":"301218",
-    "name":"华是科技",
+    "code":"002148",
+    "name":"北纬科技",
     "score":100.0,
-    "ret20":0.53,
-    "streak":2,
-    "close":85.68,
-    "board":"chinext"
+    "ret20":0.9276672694,
+    "streak":1,
+    "close":10.66,
+    "board":"main"
   },
   {
-    "code":"301575",
-    "name":"艾芬达",
+    "code":"600410",
+    "name":"华胜天成",
     "score":100.0,
-    "ret20":0.6129334583,
+    "ret20":0.9139194139,
     "streak":1,
-    "close":34.42,
-    "board":"chinext"
+    "close":20.9,
+    "board":"main"
   },
   {
-    "code":"301252",
-    "name":"同星科技",
+    "code":"002242",
+    "name":"九阳股份",
     "score":100.0,
-    "ret20":0.528057554,
+    "ret20":0.9037940379,
     "streak":1,
-    "close":42.48,
-    "board":"chinext"
+    "close":42.15,
+    "board":"main"
+  },
+  {
+    "code":"603030",
+    "name":"全筑股份",
+    "score":100.0,
+    "ret20":0.880952381,
+    "streak":1,
+    "close":3.16,
+    "board":"main"
+  },
+  {
+    "code":"002579",
+    "name":"中京电子",
+    "score":100.0,
+    "ret20":0.8096054889,
+    "streak":1,
+    "close":21.1,
+    "board":"main"
   }
 ]

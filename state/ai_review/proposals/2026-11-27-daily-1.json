@@ -1,0 +1,12 @@
+{
+ "id": "2026-11-27-daily-1",
+ "date": "2026-11-27",
+ "status": "pending",
+ "created": "2026-11-29T01:54:12+08:00",
+ "type": "code",
+ "title": "全量刷新路径也写补数据的账",
+ "detail": "src/breakout/backfill.py 走全量刷新（缺好几个交易日时，local_run 会改走 refresh / sina）合并完以后，照 stage_update 的格式写 state/breakout/update_status.json：date=目标日，short=最新日期早于目标日的老票，new_codes=新股，再加 refresh=true。同时 src/local_run.py:1102 的 _update_short 看到账不是当天的，不要返回空列表放行，改成直接从 daily.parquet 数没到目标日的票（只读 code 和 date 两列）。",
+ "expected_effect": "今天这种情况 short 约 83 只，会挡在 UPDATE_SHORT_MAX=50 这道闸上，等补齐或者过了 SHORT_LATE 再剔除发信，邮件印「日线没补齐不参与 N 只」，run_meta.short_excluded 和实际一致。",
+ "risk": "改到 local_run 的闸门判定，要跑 selftest_gui、selftest_breakout 和 e2e_check。数法要和 stage_update 一致（新股不计数），否则会多挡。",
+ "how_to_verify": "selftest_breakout 加一个用例：update_status 停在旧日期、日线里有 N 只没到目标日，断言 _update_short 返回 N 只。拿今天这张表手跑一次，应该得到约 83。"
+}
